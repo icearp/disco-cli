@@ -100,7 +100,7 @@ func lexNoID(why, key string) (*store.Resource, string, string) {
 // stores nothing and fails only with NXDOMAIN, since the region does not
 // serve Lex (runHostPhases). The tag reads' denials are one warning for the
 // whole scan.
-func scanLex(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLex(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := lexmodelsv2.NewFromConfig(acct.cfg, func(o *lexmodelsv2.Options) { o.Region = region })
 	tags := lexTags(client).sharingDenials()
 	var (
@@ -108,7 +108,7 @@ func scanLex(ctx context.Context, acct *account, region string, st *store.Store,
 		locales []lexLocale
 		intents []lexIntent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "lex", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "lex", 0, []hostPhase{
 		{op: lexListBotsOp, run: func(p *phaseTotals) bool {
 			var failed bool
 			bots, failed = scanLexBots(ctx, client, acct, region, st, scanID, tags, p)
@@ -126,23 +126,23 @@ func scanLex(ctx context.Context, acct *account, region string, st *store.Store,
 		{op: "lexmodelsv2:ListTestSets", run: func(p *phaseTotals) bool {
 			return scanLexTestSets(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "lexmodelsv2:ListBotLocales", func() (t, i int, err error) {
-			locales, t, i, err = scanLexBotLocales(ctx, client, acct, region, st, scanID, bots)
-			return t, i, err
+		countedPhase(0, "lexmodelsv2:ListBotLocales", func() (t int, err error) {
+			locales, t, err = scanLexBotLocales(ctx, client, acct, region, st, scanID, bots)
+			return t, err
 		}),
-		countedPhase(0, "lexmodelsv2:ListSlotTypes", func() (int, int, error) {
+		countedPhase(0, "lexmodelsv2:ListSlotTypes", func() (int, error) {
 			return scanLexSlotTypes(ctx, client, acct, region, st, scanID, locales)
 		}),
-		countedPhase(0, "lexmodelsv2:ListIntents", func() (t, i int, err error) {
-			intents, t, i, err = scanLexIntents(ctx, client, acct, region, st, scanID, locales)
-			return t, i, err
+		countedPhase(0, "lexmodelsv2:ListIntents", func() (t int, err error) {
+			intents, t, err = scanLexIntents(ctx, client, acct, region, st, scanID, locales)
+			return t, err
 		}),
-		countedPhase(0, "lexmodelsv2:ListSlots", func() (int, int, error) {
+		countedPhase(0, "lexmodelsv2:ListSlots", func() (int, error) {
 			return scanLexSlots(ctx, client, acct, region, st, scanID, intents)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // lexTags reads a row's tags with ListTagsForResource, sent the row's
@@ -412,10 +412,10 @@ type lexListedLocale struct {
 // between the list and the describe is skipped. A denied describe warns once
 // and stores the locale from its summary instead, because the list ops below
 // it may still be allowed and need the locale row as their parent.
-func scanLexBotLocales(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent) ([]lexLocale, int, int, error) {
+func scanLexBotLocales(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent) ([]lexLocale, int, error) {
 	listed, err := listLexBotLocales(ctx, client, acct, region, st, bots)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	const op = "lexmodelsv2:DescribeBotLocale"
 	byNativeID := make(map[string]lexListedLocale, len(listed))
@@ -451,7 +451,7 @@ func scanLexBotLocales(ctx context.Context, client lexAPI, acct *account, region
 			}, nil
 		})
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	locales := make([]lexLocale, len(rows))
 	children := make([]containedChild, len(rows))
@@ -459,11 +459,11 @@ func scanLexBotLocales(ctx context.Context, client lexAPI, acct *account, region
 		locales[i] = byNativeID[r.NativeID].lexLocale
 		children[i] = containedChild{row: r, parentID: store.ResourceID("aws", acct.ID, locales[i].botARN)}
 	}
-	total, inserted, err := upsertContained(st, "lex bot-locales", children)
+	total, err := upsertContained(st, "lex bot-locales", children)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	return locales, total, inserted, nil
+	return locales, total, nil
 }
 
 // listLexBotLocales lists the DRAFT locales of each bot concurrently
@@ -529,7 +529,7 @@ func lexLocaleParents(locales []lexLocale) ([]childParent, map[string]lexLocale)
 
 // scanLexSlotTypes lists each DRAFT locale's custom slot types under the
 // locale.
-func scanLexSlotTypes(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, locales []lexLocale) (int, int, error) {
+func scanLexSlotTypes(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, locales []lexLocale) (int, error) {
 	const op = "lexmodelsv2:ListSlotTypes"
 	parents, byNativeID := lexLocaleParents(locales)
 	return childFanOut(ctx, st, acct, region, op, parents,
@@ -564,14 +564,14 @@ func scanLexSlotTypes(ctx context.Context, client lexAPI, acct *account, region 
 
 // scanLexIntents lists each DRAFT locale's intents under the locale and
 // returns them as slot fan-out parents.
-func scanLexIntents(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, locales []lexLocale) ([]lexIntent, int, int, error) {
+func scanLexIntents(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, locales []lexLocale) ([]lexIntent, int, error) {
 	const op = "lexmodelsv2:ListIntents"
 	var (
 		mu      sync.Mutex
 		intents []lexIntent
 	)
 	parents, byNativeID := lexLocaleParents(locales)
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, parents,
+	total, err := childFanOut(ctx, st, acct, region, op, parents,
 		lexWarnParentGone(st, acct, region, op),
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var (
@@ -608,13 +608,13 @@ func scanLexIntents(ctx context.Context, client lexAPI, acct *account, region st
 			return rows, nil
 		})
 	if err != nil {
-		return nil, total, inserted, err
+		return nil, total, err
 	}
-	return intents, total, inserted, nil
+	return intents, total, nil
 }
 
 // scanLexSlots lists each DRAFT intent's slots under the intent.
-func scanLexSlots(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, intents []lexIntent) (int, int, error) {
+func scanLexSlots(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, intents []lexIntent) (int, error) {
 	const op = "lexmodelsv2:ListSlots"
 	parents := make([]childParent, len(intents))
 	byNativeID := make(map[string]lexIntent, len(intents))

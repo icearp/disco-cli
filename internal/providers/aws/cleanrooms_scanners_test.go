@@ -95,7 +95,7 @@ func TestScanCRMembers_StoresEachCollaborationsRoster(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanCRMembers(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, collabs)
+	total, err := scanCRMembers(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, collabs)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -164,7 +164,7 @@ func TestScanCRIntermediateTables_StoresEachMembershipsTables(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := crRunIntermediateTables(context.Background(), crClient(handlers), st, memberships)
+	total, err := crRunIntermediateTables(context.Background(), crClient(handlers), st, memberships)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -206,19 +206,19 @@ func TestScanCRIntermediateTables_StoresEachMembershipsTables(t *testing.T) {
 // crNewPhases runs each new phase over two parents.
 var crNewPhases = []struct {
 	op  string
-	run func(context.Context, *cleanrooms.Client, *store.Store) (int, int, error)
+	run func(context.Context, *cleanrooms.Client, *store.Store) (int, error)
 }{
-	{"ListMembers", func(ctx context.Context, c *cleanrooms.Client, st *store.Store) (int, int, error) {
+	{"ListMembers", func(ctx context.Context, c *cleanrooms.Client, st *store.Store) (int, error) {
 		return scanCRMembers(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, crParents(crCollabPrefix, "c-a", "c-b"))
 	}},
-	{"ListIntermediateTables", func(ctx context.Context, c *cleanrooms.Client, st *store.Store) (int, int, error) {
+	{"ListIntermediateTables", func(ctx context.Context, c *cleanrooms.Client, st *store.Store) (int, error) {
 		return crRunIntermediateTables(ctx, c, st, crParents(crMembershipPrefix, "m-a", "m-b"))
 	}},
 }
 
 // crRunIntermediateTables runs the intermediate table phase alone and
 // returns its counts and errors as the scan would.
-func crRunIntermediateTables(ctx context.Context, c *cleanrooms.Client, st *store.Store, memberships []childParent) (int, int, error) {
+func crRunIntermediateTables(ctx context.Context, c *cleanrooms.Client, st *store.Store, memberships []childParent) (int, error) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanCRIntermediateTables(ctx, c, acct, testRegion, st, testScanID, memberships, crTags(c, acct.ID), &p)
@@ -239,7 +239,7 @@ func TestCleanRoomsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return crEmptyOutput(p.op), nil }}
-			total, _, err := p.run(context.Background(), crClient(handlers), st)
+			total, err := p.run(context.Background(), crClient(handlers), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -247,7 +247,7 @@ func TestCleanRoomsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/access denied warns once", func(t *testing.T) {
 			st := newTestStore(t)
 			warned := countOpWarnings(st, "cleanrooms:"+p.op)
-			total, _, err := p.run(context.Background(), crClient(nil), st)
+			total, err := p.run(context.Background(), crClient(nil), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -258,7 +258,7 @@ func TestCleanRoomsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/other error propagates", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return nil, badInput }}
-			_, _, err := p.run(context.Background(), crClient(handlers), st)
+			_, err := p.run(context.Background(), crClient(handlers), st)
 			if !errors.Is(err, badInput) {
 				t.Errorf("err = %v, want the ValidationException", err)
 			}
@@ -307,7 +307,7 @@ func TestScanCleanRoomsIn_RunsNewPhasesOverListedParents(t *testing.T) {
 	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAnalysisTemplates": func(any) (any, error) { return nil, templateErr },
 	})
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, templateErr) {
 		t.Errorf("err = %v, want the ListAnalysisTemplates error", err)
 	}
@@ -332,7 +332,7 @@ func TestScanCleanRoomsIn_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 		phaseErrs = append(phaseErrs, perr)
 		override[p.op] = func(any) (any, error) { return nil, perr }
 	}
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(crTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(crTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	for i, perr := range phaseErrs {
 		if !errors.Is(err, perr) {
 			t.Errorf("err = %v, want it to carry the %s error", err, crNewPhases[i].op)
@@ -360,7 +360,7 @@ func TestScanCleanRoomsIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 		"ListMembers":          func(any) (any, error) { return nil, crThrottled },
 		"ListConfiguredTables": func(any) (any, error) { return nil, tableErr },
 	})
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -391,7 +391,7 @@ func TestScanCleanRoomsIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "cleanrooms.us-east-1.amazonaws.com", IsNotFound: true}
 		}
 	}
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeUnavailable {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeUnavailable", err, got)
 	}
@@ -412,7 +412,7 @@ func TestScanCleanRoomsIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
 		"ListMembers": func(any) (any, error) { return nil, crThrottled },
 	})
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -434,7 +434,7 @@ func TestScanCleanRoomsIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "cleanrooms.us-east-1.amazonaws.com", IsNotFound: true}
 		},
 	})
-	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}

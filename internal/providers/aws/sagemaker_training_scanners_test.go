@@ -98,7 +98,9 @@ func testScanSageMakerTraining(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, nbARN, lcARN, repoARN, pjARN)
-	total, inserted, err := scanSageMakerTraining(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerTraining(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 4 || inserted != 4 {
 		t.Fatalf("total=%d inserted=%d want 4/4", total, inserted)
@@ -121,7 +123,9 @@ func TestScanSageMakerTrainingEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerTraining{}
-	total, inserted, err := scanSageMakerTraining(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerTraining(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

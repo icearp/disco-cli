@@ -104,7 +104,7 @@ func TestScanAidevopsAssets_StoresEachSpacesAssets(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanAidevopsAssets(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
+	total, err := scanAidevopsAssets(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -175,7 +175,7 @@ func TestScanAidevopsTriggers_StoresEachSpacesTriggers(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanAidevopsTriggers(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
+	total, err := scanAidevopsTriggers(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -268,7 +268,7 @@ func TestScanAidevopsWebhooks_StoresEachAssociationsWebhooks(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanAidevopsWebhooks(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, assocs)
+	total, err := scanAidevopsWebhooks(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, assocs)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -307,25 +307,25 @@ func TestScanAidevopsWebhooks_StoresEachAssociationsWebhooks(t *testing.T) {
 var adoNewPhases = []struct {
 	op    string
 	empty any
-	run   func(context.Context, *devopsagent.Client, *store.Store) (int, int, error)
+	run   func(context.Context, *devopsagent.Client, *store.Store) (int, error)
 }{
-	{"ListAssets", &devopsagent.ListAssetsOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, int, error) {
+	{"ListAssets", &devopsagent.ListAssetsOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, error) {
 		return scanAidevopsAssets(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{
 			{id: "s-a", arn: adoSpaceARN("s-a")}, {id: "s-b", arn: adoSpaceARN("s-b")},
 		})
 	}},
-	{"ListTriggers", &devopsagent.ListTriggersOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, int, error) {
+	{"ListTriggers", &devopsagent.ListTriggersOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, error) {
 		return scanAidevopsTriggers(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{
 			{id: "s-a", arn: adoSpaceARN("s-a")}, {id: "s-b", arn: adoSpaceARN("s-b")},
 		})
 	}},
-	{"ListWebhooks", &devopsagent.ListWebhooksOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, int, error) {
+	{"ListWebhooks", &devopsagent.ListWebhooksOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, error) {
 		return scanAidevopsWebhooks(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, []aidevopsAssociation{
 			{spaceID: "s-a", parent: childParent{id: "a-1", arn: adoAssocARN("a-1")}, config: adoPagerDuty},
 			{spaceID: "s-b", parent: childParent{id: "a-2", arn: adoAssocARN("a-2")}, config: adoGitLab},
 		})
 	}},
-	{"ListGoals", &devopsagent.ListGoalsOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, int, error) {
+	{"ListGoals", &devopsagent.ListGoalsOutput{}, func(ctx context.Context, c *devopsagent.Client, st *store.Store) (int, error) {
 		return scanAidevopsGoals(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{
 			{id: "s-a", arn: adoSpaceARN("s-a")}, {id: "s-b", arn: adoSpaceARN("s-b")},
 		})
@@ -398,7 +398,7 @@ func TestScanAidevopsGoals_StoresEachSpacesGoals(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanAidevopsGoals(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
+	total, err := scanAidevopsGoals(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, spaces)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -448,7 +448,7 @@ func TestAidevopsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return p.empty, nil }}
-			total, _, err := p.run(context.Background(), adoClient(handlers), st)
+			total, err := p.run(context.Background(), adoClient(handlers), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -456,7 +456,7 @@ func TestAidevopsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/access denied warns once", func(t *testing.T) {
 			st := newTestStore(t)
 			warned := countOpWarnings(st, "aidevops:"+p.op)
-			total, _, err := p.run(context.Background(), adoClient(nil), st)
+			total, err := p.run(context.Background(), adoClient(nil), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -467,7 +467,7 @@ func TestAidevopsChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/other error propagates", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return nil, adoBadInput }}
-			_, _, err := p.run(context.Background(), adoClient(handlers), st)
+			_, err := p.run(context.Background(), adoClient(handlers), st)
 			if !errors.Is(err, adoBadInput) {
 				t.Errorf("err = %v, want the ValidationException", err)
 			}
@@ -486,7 +486,7 @@ func TestAidevopsUnmodeledNotFound_Propagates(t *testing.T) {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return nil, adoNotFound }}
-			_, _, err := p.run(context.Background(), adoClient(handlers), st)
+			_, err := p.run(context.Background(), adoClient(handlers), st)
 			if !errors.Is(err, adoNotFound) {
 				t.Errorf("err = %v, want the ResourceNotFoundException", err)
 			}
@@ -548,7 +548,7 @@ func TestScanAidevopsAll_RunsNewPhasesOverListedParents(t *testing.T) {
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListServices": func(any) (any, error) { return nil, adoBadInput },
 	})
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, adoBadInput) || errors.Is(err, adoWrongWebhookQuery) {
 		t.Errorf("err = %v, want only the ListServices error", err)
 	}
@@ -575,7 +575,7 @@ func TestScanAidevopsAll_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 		phaseErrs = append(phaseErrs, perr)
 		override[p.op] = func(any) (any, error) { return nil, perr }
 	}
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(adoTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(adoTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	for i, perr := range phaseErrs {
 		if !errors.Is(err, perr) {
 			t.Errorf("err = %v, want it to carry the %s error", err, adoNewPhases[i].op)
@@ -605,7 +605,7 @@ func TestScanAidevopsAll_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 		"ListAssets":   func(any) (any, error) { return nil, adoThrottled },
 		"ListServices": func(any) (any, error) { return nil, adoBadInput },
 	})
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -636,7 +636,7 @@ func TestScanAidevopsAll_NXDOMAINStopsTheScan(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "cp.aidevops.us-east-1.api.aws", IsNotFound: true}
 		}
 	}
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeUnavailable {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeUnavailable", err, got)
 	}
@@ -657,7 +657,7 @@ func TestScanAidevopsAll_AgentSpaceErrorKeepsIndependentPhases(t *testing.T) {
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAgentSpaces": func(any) (any, error) { return nil, adoBadInput },
 	})
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, adoBadInput) {
 		t.Errorf("err = %v, want the ListAgentSpaces error", err)
 	}
@@ -692,7 +692,7 @@ func TestScanAidevopsAll_AgentSpaceConnectionErrorKeepsIndependentPhases(t *test
 			return list(in)
 		}
 	}
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, refused) {
 		t.Errorf("err = %v; want the refused dial", err)
 	}
@@ -718,7 +718,7 @@ func TestScanAidevopsAll_LoneTransientPhaseMarksPartial(t *testing.T) {
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAssets": func(any) (any, error) { return nil, adoThrottled },
 	})
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -741,7 +741,7 @@ func TestScanAidevopsAll_DataPlaneNXDOMAINKeepsCounts(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "dp.aidevops.us-east-1.api.aws", IsNotFound: true}
 		},
 	})
-	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -1026,7 +1026,7 @@ func (f *adoTagFixture) handlers() map[string]func(in any) (any, error) {
 
 // adoScan runs the scan's real entry point against handlers in the test
 // account and region; an op without a handler is denied.
-func adoScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func adoScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, adoDenied)
 	return scanAidevops(ctx, acct, testRegion, st, testScanID)
@@ -1043,7 +1043,9 @@ func TestScanAidevops_StoresTagsOfTaggableTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newADOTagFixture("aws", testRegion)
 
-	total, inserted, err := adoScan(context.Background(), st, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := adoScan(context.Background(), counted, f.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1124,10 +1126,12 @@ func TestScanAidevops_StoresTagsOfTaggableTypes(t *testing.T) {
 func TestScanAidevops_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := adoScan(context.Background(), st, newADOTagFixture("aws", testRegion).handlers()); err != nil {
+	if _, err := adoScan(context.Background(), st, newADOTagFixture("aws", testRegion).handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := adoScan(context.Background(), st, newADOTagFixture("aws", testRegion).handlers())
+	counted, upserts := countUpserts(st)
+	total, err := adoScan(context.Background(), counted, newADOTagFixture("aws", testRegion).handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -1148,7 +1152,9 @@ func TestScanAidevops_EmptyListings(t *testing.T) {
 	h["ListServices"] = func(any) (any, error) { return &devopsagent.ListServicesOutput{}, nil }
 	h["ListPrivateConnections"] = func(any) (any, error) { return &devopsagent.ListPrivateConnectionsOutput{}, nil }
 
-	total, inserted, err := adoScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := adoScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -1200,7 +1206,7 @@ func TestScanAidevops_TagReadFailures(t *testing.T) {
 			f := newADOTagFixture("aws", testRegion)
 			f.errs[c.arn] = c.err
 
-			total, _, err := adoScan(context.Background(), st, f.handlers())
+			total, err := adoScan(context.Background(), st, f.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1249,7 +1255,7 @@ func TestScanAidevops_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := adoScan(context.Background(), st, f.handlers())
+	total, err := adoScan(context.Background(), st, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1272,7 +1278,7 @@ func TestScanAidevops_TagDenialWarnedBesideListingError(t *testing.T) {
 	h := f.handlers()
 	h["ListServices"] = func(any) (any, error) { return nil, adoBadInput }
 
-	_, _, err := adoScan(context.Background(), st, h)
+	_, err := adoScan(context.Background(), st, h)
 	assertAPICode(t, err, "ValidationException")
 	w := warns()
 	if got := scnWarnOps(w); !slices.Equal(got, []string{aidevopsTagsOp}) {
@@ -1300,7 +1306,7 @@ func TestScanAidevops_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs[f.spaceARN("s-bare")] = adoThrottled
 	f.errs[f.pcARN("pc-bare")] = adoBadInput
 
-	_, _, err := adoScan(context.Background(), st, f.handlers())
+	_, err := adoScan(context.Background(), st, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1319,7 +1325,7 @@ func TestScanAidevops_FailedWriteStopsScan(t *testing.T) {
 	f := newADOTagFixture("aws", testRegion)
 	f.errs[f.serviceARN("svc-tagged")] = adoDenied
 
-	total, _, err := adoScan(context.Background(), st, f.handlers())
+	total, err := adoScan(context.Background(), st, f.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1367,7 +1373,7 @@ func TestScanAidevops_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := adoScan(context.Background(), st, h)
+			total, err := adoScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -1403,7 +1409,7 @@ func TestScanAidevops_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, nil
 	}
 
-	total, _, err := adoScan(context.Background(), st, h)
+	total, err := adoScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1438,7 +1444,7 @@ func TestScanAidevops_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := adoScan(context.Background(), st, h); err != nil {
+	if _, err := adoScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range []string{"ListAgentSpaces", "ListServices"} {
@@ -1497,7 +1503,7 @@ func TestScanAidevops_ElementWithoutIdentifier(t *testing.T) {
 			h := f.handlers()
 			h[c.op] = func(any) (any, error) { return c.answer, nil }
 
-			total, _, err := adoScan(context.Background(), st, h)
+			total, err := adoScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1531,7 +1537,7 @@ func TestScanAidevops_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(f.handlers(), adoDenied)
 
-			if _, _, err := scanAidevops(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanAidevops(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			space := map[string]string{
@@ -1569,7 +1575,7 @@ func TestScanAidevops_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := adoScan(ctx, st, h)
+	_, err := adoScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1595,7 +1601,7 @@ func TestScanAidevops_TagReadNXDOMAINKeepsCounts(t *testing.T) {
 	f := newADOTagFixture("aws", testRegion)
 	f.errs[f.serviceARN("svc-bare")] = &net.DNSError{Err: "no such host", Name: "cp.aidevops.us-east-1.api.aws", IsNotFound: true}
 
-	total, _, err := adoScan(context.Background(), st, f.handlers())
+	total, err := adoScan(context.Background(), st, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	if total != adoTestTotal {
 		t.Errorf("total = %d; want %d", total, adoTestTotal)

@@ -76,7 +76,7 @@ func s3TestBuckets(names ...string) []s3types.Bucket {
 // output holding a config per id.
 type s3ConfigKind struct {
 	op, typ, segment string
-	scan             func(context.Context, *account, map[string]s3HomedBucket, *store.Store, string) (int, int, error)
+	scan             func(context.Context, *account, map[string]s3HomedBucket, *store.Store, string) (int, error)
 	input            func(any) (bucket string, token *string)
 	page             func(ids []string, truncated bool, next *string) any
 }
@@ -186,7 +186,7 @@ func runS3ConfigKind(t *testing.T, k s3ConfigKind, list func(bucket string, toke
 	if err != nil {
 		t.Fatalf("s3HomedBuckets: %v", err)
 	}
-	run.total, _, run.err = k.scan(ctx, acct, homed, run.st, testScanID)
+	run.total, run.err = k.scan(ctx, acct, homed, run.st, testScanID)
 	return run
 }
 
@@ -456,7 +456,7 @@ func TestScanS3_StoresBucketConfigs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = s3StubConfig(s3ServiceHandlers(""))
-	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+	if _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
 	}
 	// The KMS resolver resolves an alias or bare key id in this region.
@@ -483,7 +483,7 @@ func TestScanS3_ConfigFailureKeepsOtherPhases(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = s3StubConfig(s3ServiceHandlers(failing.op))
-			_, _, err := scanS3(context.Background(), acct, st, testScanID)
+			_, err := scanS3(context.Background(), acct, st, testScanID)
 			if !isAPIErrorCode(err, "InvalidRequest") {
 				t.Fatalf("err = %v; want the failing op's InvalidRequest", err)
 			}
@@ -533,7 +533,7 @@ func TestScanS3BucketConfigs_LegacyEULocationUsesEUWest1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("s3HomedBuckets: %v", err)
 	}
-	if _, _, err := scanS3MetricsConfigs(ctx, acct, homed, st, testScanID); err != nil {
+	if _, err := scanS3MetricsConfigs(ctx, acct, homed, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(regions) != 1 || regions[0] != "eu-west-1" {
@@ -693,7 +693,7 @@ func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
 	ctx := context.Background()
 	st := newTestStore(t)
 	sites := map[string]func() error{
-		"scanS3":         func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
+		"scanS3":         func() error { _, err := scanS3(ctx, acct, st, testScanID); return err },
 		"s3HomedBuckets": func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
 	}
 	for name, run := range sites {
@@ -725,7 +725,7 @@ func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
 	)
 	st.OnWarn = func(store.ScanWarning) { mu.Lock(); warns++; mu.Unlock() }
 	sites := map[string]func() error{
-		"scanS3":         func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
+		"scanS3":         func() error { _, err := scanS3(ctx, acct, st, testScanID); return err },
 		"s3HomedBuckets": func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
 	}
 	for name, run := range sites {
@@ -758,7 +758,7 @@ func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
 		return &s3.GetBucketEncryptionOutput{ServerSideEncryptionConfiguration: &s3types.ServerSideEncryptionConfiguration{}}, nil
 	}
 	acct.cfg = s3StubConfig(h)
-	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+	if _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
 	}
 	// The account is in aws-us-gov, so every S3 id the scan builds is too.
@@ -874,7 +874,7 @@ func s3TagFixture() (*s3TagCalls, map[string]func(string, any) (any, error)) {
 }
 
 // s3TagScan runs scanS3 for an aws account against handlers.
-func s3TagScan(t *testing.T, st *store.Store, handlers map[string]func(string, any) (any, error)) (int, int, error) {
+func s3TagScan(t *testing.T, st *store.Store, handlers map[string]func(string, any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = s3StubConfig(handlers)
@@ -900,7 +900,7 @@ func TestScanS3_StoresBucketTagsFromHomeRegion(t *testing.T) {
 	east, west := s3TestBuckets("b-east")[0], s3TestBuckets("b-west")[0]
 	east.CreationDate, west.CreationDate = &created, &created
 
-	total, _, err := s3TagScan(t, st, c.handlers([]s3types.Bucket{east}, []s3types.Bucket{west}))
+	total, err := s3TagScan(t, st, c.handlers([]s3types.Bucket{east}, []s3types.Bucket{west}))
 	if err != nil || total != s3FixtureTotal {
 		t.Fatalf("scanS3 = %d, %v; want %d, nil", total, err, s3FixtureTotal)
 	}
@@ -950,7 +950,7 @@ func TestScanS3_GovBucketTagsReadInGovRegion(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = s3StubConfig(h)
 
-	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+	if _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
 	}
 	if want := map[string][]string{"b-gov": {"us-gov-west-1"}}; !maps.EqualFunc(c.tagRegions, want, slices.Equal) {
@@ -971,7 +971,9 @@ func TestScanS3_EmptyBucketListing(t *testing.T) {
 	warns := countWarnings(st)
 	c := newS3TagCalls()
 
-	total, inserted, err := s3TagScan(t, st, c.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := s3TagScan(t, counted, c.handlers())
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scanS3 = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -985,10 +987,12 @@ func TestScanS3_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	_, h := s3TagFixture()
-	if _, _, err := s3TagScan(t, st, h); err != nil {
+	if _, err := s3TagScan(t, st, h); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := s3TagScan(t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := s3TagScan(t, counted, h)
+	inserted := upserts()
 	if err != nil || total != s3FixtureTotal || inserted != 0 {
 		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, s3FixtureTotal)
 	}
@@ -1019,7 +1023,7 @@ func TestScanS3_BucketTagReadFailures(t *testing.T) {
 			calls, h := s3TagFixture()
 			calls.errs["b-west"] = c.err
 
-			total, _, err := s3TagScan(t, st, h)
+			total, err := s3TagScan(t, st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1055,7 +1059,7 @@ func TestScanS3_BucketTagThrottleDemotedBesideHardError(t *testing.T) {
 	calls, h := s3TagFixture()
 	calls.errs["b-east"], calls.errs["b-west"] = apiErr("Throttling", "slow down"), s3Broken
 
-	_, _, err := s3TagScan(t, st, h)
+	_, err := s3TagScan(t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequest")
 	if *warns != 1 {
@@ -1078,7 +1082,7 @@ func TestScanS3_BucketPageFailureKeepsEarlierPages(t *testing.T) {
 		return list(region, in)
 	}
 
-	total, _, err := s3TagScan(t, st, h)
+	total, err := s3TagScan(t, st, h)
 	assertAPICode(t, err, "InvalidRequest")
 	buckets := rowsByNativeID(t, st, TypeS3Bucket)
 	if len(buckets) != 1 {
@@ -1107,7 +1111,7 @@ func TestScanS3_ListBucketsRepeatedTokenFails(t *testing.T) {
 		return &s3.ListBucketsOutput{Buckets: s3TestBuckets(name), ContinuationToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := s3TagScan(t, st, h)
+	_, err := s3TagScan(t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1126,7 +1130,7 @@ func TestScanS3_DeniedListBucketsWarns(t *testing.T) {
 	calls, h := s3TagFixture()
 	h["ListBuckets"] = func(string, any) (any, error) { return nil, s3Denied }
 
-	total, _, err := s3TagScan(t, st, h)
+	total, err := s3TagScan(t, st, h)
 	if err != nil || total != 0 {
 		t.Fatalf("scanS3 = %d, %v; want 0, nil", total, err)
 	}
@@ -1145,7 +1149,7 @@ func TestScanS3_FailedBucketWriteStopsWithoutWarning(t *testing.T) {
 	calls, h := s3TagFixture()
 	calls.errs["b-east"] = s3Denied
 
-	_, _, err := s3TagScan(t, st, h)
+	_, err := s3TagScan(t, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1164,7 +1168,7 @@ func TestScanS3_BucketWithoutNameWarnedNotStored(t *testing.T) {
 	calls := newS3TagCalls()
 	h := calls.handlers(append(s3TestBuckets("b-east"), s3types.Bucket{BucketRegion: sdkaws.String("us-east-1")}))
 
-	if _, _, err := s3TagScan(t, st, h); err != nil {
+	if _, err := s3TagScan(t, st, h); err != nil {
 		t.Fatalf("scanS3: %v", err)
 	}
 	if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeS3Bucket))); !slices.Equal(got, []string{"arn:aws:s3:::b-east"}) {
@@ -1216,7 +1220,7 @@ func TestScanS3_RegionLookupThrottleWarnsUnderItsOp(t *testing.T) {
 			acct := testAccountIn(c.partition)
 			acct.cfg = s3StubConfig(h)
 
-			_, _, err := scanS3(context.Background(), acct, st, testScanID)
+			_, err := scanS3(context.Background(), acct, st, testScanID)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequest")
 			if len(warnings) != 1 || warnings[0].Service != c.op {
@@ -1241,7 +1245,7 @@ func TestScanS3_BucketWithoutListedRegionFailsTagRead(t *testing.T) {
 	east := s3types.Bucket{Name: sdkaws.String("b-east")}
 	h := calls.handlers(append([]s3types.Bucket{east}, s3TestBuckets("b-west")...))
 
-	total, _, err := s3TagScan(t, st, h)
+	total, err := s3TagScan(t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	if !errors.Is(err, errS3NoListedRegion) {
 		t.Errorf("err = %v; want errS3NoListedRegion", err)

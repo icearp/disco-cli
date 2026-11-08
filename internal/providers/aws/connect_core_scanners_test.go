@@ -86,7 +86,9 @@ func TestScanConnectCore(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanConnectCore(context.Background(), stub, stub.instances, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectCore(context.Background(), stub, stub.instances, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -110,7 +112,9 @@ func TestScanConnectCoreEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectCore{}
-	total, inserted, err := scanConnectCore(context.Background(), stub, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectCore(context.Background(), stub, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

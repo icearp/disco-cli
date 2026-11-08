@@ -83,7 +83,7 @@ func locARN(partition, region, acct, kind, name string) string {
 	return arnFor(partition, "geo", region, acct, kind+"/"+name)
 }
 
-func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := location.NewFromConfig(acct.cfg, func(o *location.Options) { o.Region = region })
 	return scanLocationAll(ctx, client, acct, region, st, scanID)
 }
@@ -101,10 +101,10 @@ func scanLocation(ctx context.Context, acct *account, region string, st *store.S
 // Geofences and tracker consumers carry no tags: neither has a resource type
 // in the Service Reference, ListTagsForResource and TagResource name neither,
 // and PutGeofence and AssociateTrackerConsumer take none.
-func scanLocationAll(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLocationAll(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := locationTags(client).sharingDenials()
 	var collections, trackers []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "location", locMetadataHost, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "location", locMetadataHost, []hostPhase{
 		{op: locListKeysOp, host: locMetadataHost, run: func(p *phaseTotals) bool {
 			return scanLocationKeys(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -125,15 +125,15 @@ func scanLocationAll(ctx context.Context, client locationAPI, acct *account, reg
 			trackers, failed = scanLocationTrackers(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(locTrackingHost, locListTrackerConsumersOp, func() (int, int, error) {
+		countedPhase(locTrackingHost, locListTrackerConsumersOp, func() (int, error) {
 			return scanLocationTrackerConsumers(ctx, client, acct, region, st, scanID, trackers)
 		}),
-		countedPhase(locGeofencingHost, locListGeofencesOp, func() (int, int, error) {
+		countedPhase(locGeofencingHost, locListGeofencesOp, func() (int, error) {
 			return scanLocationGeofences(ctx, client, acct, region, st, scanID, collections)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // locationTags reads a row's tags with ListTagsForResource, sent the row's
@@ -263,18 +263,18 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 //
 // A DELETED geofence has left the system index and is dropped, as omics drops
 // DELETED shares; a DELETING one still exists and is stored.
-func scanLocationGeofences(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, collections []childParent) (int, int, error) {
+func scanLocationGeofences(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, collections []childParent) (int, error) {
 	const op = locListGeofencesOp
 	return childFanOutStored(ctx, st, acct, region, op, collections, isLocationNotFound,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			var total, inserted int
+		func(ctx context.Context, p childParent) (int, error) {
+			var total int
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			pager := location.NewListGeofencesPaginator(client, &location.ListGeofencesInput{CollectionName: &p.id},
 				func(o *location.ListGeofencesPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				var page []containedChild
 				for _, g := range out.Entries {
@@ -289,14 +289,13 @@ func scanLocationGeofences(ctx context.Context, client locationAPI, acct *accoun
 						CreatedAt: tp(g.CreateTime), AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 					}})
 				}
-				t, i, err := upsertContained(st, op, page)
+				t, err := upsertContained(st, op, page)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				total += t
-				inserted += i
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }
 
@@ -374,7 +373,7 @@ func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account
 // scanLocationTrackerConsumers stores the consumers (geofence collection
 // ARNs) of each tracker stored this scan, the trackers read concurrently
 // (storeTokenEachParent). The NativeID is {trackerARN}/consumer/{ConsumerArn}.
-func scanLocationTrackerConsumers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, trackers []childParent) (int, int, error) {
+func scanLocationTrackerConsumers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, trackers []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, locListTrackerConsumersOp, locNotFound, childParentIDs(trackers),
 		func(ctx context.Context, tracker string, token *string) ([]string, *string, error) {
 			out, err := client.ListTrackerConsumers(ctx, &location.ListTrackerConsumersInput{TrackerName: &tracker, MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})

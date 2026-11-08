@@ -38,7 +38,7 @@ func scanGlueBlueprints(ctx context.Context, client glueAPI, acct *account, regi
 // scanGlueUserDefinedFunctions fans GetUserDefinedFunctions out per database.
 // The summary carries no ARN; NativeID = {dbARN}/function/{name} so the resolver
 // recovers the parent database.
-func scanGlueUserDefinedFunctions(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (int, int, error) {
+func scanGlueUserDefinedFunctions(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (int, error) {
 	pattern := "*"
 	var batch []*store.Resource
 	for _, db := range dbNames {
@@ -51,7 +51,7 @@ func scanGlueUserDefinedFunctions(ctx context.Context, client glueAPI, acct *acc
 					_ = skipIfAccessDenied(st, "glue:GetUserDefinedFunctions", acct.ID, region, err)
 					break
 				}
-				return 0, 0, fmt.Errorf("glue:GetUserDefinedFunctions %s: %w", dbName, err)
+				return 0, fmt.Errorf("glue:GetUserDefinedFunctions %s: %w", dbName, err)
 			}
 			for _, f := range out.UserDefinedFunctions {
 				name := sv(f.FunctionName)

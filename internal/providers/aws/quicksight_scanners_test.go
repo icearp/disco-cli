@@ -177,7 +177,7 @@ func TestScanQSTemplateAliases_PaginatesEveryTemplateAndWiresHierarchy(t *testin
 		}}},
 	}}
 
-	total, _, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	if err != nil {
 		t.Fatalf("scanQSTemplateAliases: %v", err)
 	}
@@ -227,7 +227,7 @@ var qsChildOps = []struct {
 			for _, p := range parents {
 				fake.templateAliases[p.id] = map[string]*quicksight.ListTemplateAliasesOutput{"": {TemplateAliasList: []qstypes.TemplateAlias{templateAlias(p.id, "a", 1)}}}
 			}
-			_, _, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			return err
 		},
 	},
@@ -238,7 +238,7 @@ var qsChildOps = []struct {
 			for _, p := range parents {
 				fake.themeAliases[p.id] = map[string]*quicksight.ListThemeAliasesOutput{"": {ThemeAliasList: []qstypes.ThemeAlias{themeAlias(p.id, "a")}}}
 			}
-			_, _, err := scanQSThemeAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanQSThemeAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			return err
 		},
 	},
@@ -249,7 +249,7 @@ var qsChildOps = []struct {
 			for _, p := range parents {
 				fake.topicSchedules[p.id] = &quicksight.ListTopicRefreshSchedulesOutput{RefreshSchedules: []qstypes.TopicRefreshScheduleSummary{topicSchedule("ds-"+p.id, "")}}
 			}
-			_, _, err := scanQSTopicRefreshSchedules(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanQSTopicRefreshSchedules(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			return err
 		},
 	},
@@ -317,7 +317,7 @@ func TestScanQSChildren_AccessDeniedWarnsOncePerOp(t *testing.T) {
 		},
 		errs: map[string]error{"d1": deny, "d2": deny, "d3": deny},
 	}
-	if _, _, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents); err != nil {
+	if _, err := scanQSTemplateAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents); err != nil {
 		t.Fatalf("scanQSTemplateAliases: %v", err)
 	}
 	if *warns != 1 {
@@ -352,7 +352,7 @@ func TestScanQSThemeAliases_PaginatesAndSkipsDeletedTheme(t *testing.T) {
 		errs: map[string]error{"bad": apiErr("ResourceNotFoundException", "x")},
 	}
 
-	total, _, err := scanQSThemeAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanQSThemeAliases(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	if err != nil {
 		t.Fatalf("scanQSThemeAliases: %v", err)
 	}
@@ -405,7 +405,7 @@ func TestScanQSThemes_StarterThemesManagedAndNotHandedOn(t *testing.T) {
 
 	var p phaseTotals
 	parents, stop := scanQSThemes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, &p)
-	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || stop {
+	if _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || stop {
 		t.Fatalf("scanQSThemes: err = %v, storeWriteFailed = %v", err, stop)
 	}
 	if p.total != 3 {
@@ -452,7 +452,7 @@ func TestScanQSTopicRefreshSchedules_StoresPerDatasetSchedules(t *testing.T) {
 		errs: map[string]error{"gone": apiErr("ResourceNotFoundException", "x")},
 	}
 
-	total, _, err := scanQSTopicRefreshSchedules(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanQSTopicRefreshSchedules(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	if err != nil {
 		t.Fatalf("scanQSTopicRefreshSchedules: %v", err)
 	}
@@ -523,7 +523,7 @@ func TestScanQSKeyRegistration(t *testing.T) {
 			warns := countWarnings(st)
 			client := quicksight.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{"DescribeKeyRegistration": {tc.call}}), testRegion))
 
-			_, _, err := scanQSKeyRegistration(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanQSKeyRegistration(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if (tc.wantCode == "") != (err == nil) || (tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode)) {
 				t.Fatalf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -618,7 +618,7 @@ func TestScanQuickSight_ChildPhasesUseListedParents(t *testing.T) {
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
-	total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanQuickSight: %v", err)
 	}
@@ -655,7 +655,7 @@ func qsListItemName(id string) *string {
 
 // qsPhaseResult runs a phase that adds its counts and errors to a
 // phaseTotals and returns them joined.
-func qsPhaseResult(st *store.Store, run func(p *phaseTotals) bool) (int, int, error) {
+func qsPhaseResult(st *store.Store, run func(p *phaseTotals) bool) (int, error) {
 	var p phaseTotals
 	run(&p)
 	return p.result(st, newTestAccount(testAccountID), testRegion)
@@ -670,7 +670,7 @@ type qsListCase struct {
 	pageCap                                   int32
 	skipCodes                                 []string
 	noCreatedAt                               bool
-	run                                       func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error)
+	run                                       func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error)
 	input                                     func(in any) (token *string, maxResults *int32)
 	page                                      func(next *string, ids ...string) any
 }
@@ -679,7 +679,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "apps", op: qsListAppsOp, kind: "app", rtype: TypeQuickSightApp, arnKey: "Arn",
 		pageCap: 100,
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return qsPhaseResult(st, func(p *phaseTotals) bool {
 				return scanQSApps(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, p)
 			})
@@ -699,7 +699,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "approval policies", op: qsListApprovalPoliciesOp, kind: "approval-policy", rtype: TypeQuickSightApprovalPolicy, arnKey: "PolicyArn",
 		pageCap: 100, skipCodes: []string{qsNoSubscription},
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSApprovalPolicies(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 		input: func(in any) (*string, *int32) {
@@ -720,7 +720,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "DLP settings", op: qsListDlpSettingsOp, kind: "dlpsetting", rtype: TypeQuickSightDLPSetting, arnKey: "Arn", wantStatus: "ACTIVE",
 		pageCap: 100, skipCodes: []string{qsFeatureOff},
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return qsPhaseResult(st, func(p *phaseTotals) bool {
 				return scanQSDLPSettings(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, p)
 			})
@@ -743,7 +743,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "limits profiles", op: qsListLimitsProfilesOp, kind: "limits-profile", rtype: TypeQuickSightLimitsProfile, arnKey: "Arn",
 		pageCap: 100,
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSLimitsProfiles(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 		input: func(in any) (*string, *int32) {
@@ -764,7 +764,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "agents", op: "quicksight:ListAgents", kind: "agent", rtype: TypeQuickSightAgent, arnKey: "Arn",
 		noCreatedAt: true, pageCap: 100, skipCodes: []string{qsEditionGap, qsPrecondition},
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSAgents(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 		input: func(in any) (*string, *int32) {
@@ -782,7 +782,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "knowledge bases", op: "quicksight:ListKnowledgeBases", kind: "knowledge-base", rtype: TypeQuickSightKnowledgeBase, arnKey: "KnowledgeBaseArn",
 		noCreatedAt: true, pageCap: 100, skipCodes: []string{qsFeatureOff, qsPrecondition},
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSKnowledgeBases(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 		input: func(in any) (*string, *int32) {
@@ -800,7 +800,7 @@ var qsListCases = []qsListCase{
 	{
 		name: "spaces", op: "quicksight:ListSpaces", kind: "space", rtype: TypeQuickSightSpace, arnKey: "SpaceArn",
 		noCreatedAt: true, pageCap: 500, skipCodes: []string{qsNoSubscription},
-		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSSpaces(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 		input: func(in any) (*string, *int32) {
@@ -870,7 +870,7 @@ func TestScanQSAccountLists_PaginatesAndStores(t *testing.T) {
 				"p2": {ids: []string{"a2"}},
 			})
 
-			total, _, err := c.run(context.Background(), client, st)
+			total, err := c.run(context.Background(), client, st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -924,7 +924,7 @@ func TestScanQSAccountLists_EmptyStoresNothing(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			client, _ := qsListClient(t, c, map[string]qsListPage{"": {}})
-			total, _, err := c.run(context.Background(), client, st)
+			total, err := c.run(context.Background(), client, st)
 			if err != nil || total != 0 {
 				t.Errorf("scan = (%d, %v); want (0, nil)", total, err)
 			}
@@ -944,7 +944,7 @@ func TestScanQSAccountLists_StopsOnRepeatedToken(t *testing.T) {
 				"":   {ids: []string{"a1"}, next: sdkaws.String("p2")},
 				"p2": {ids: []string{"a2"}, next: sdkaws.String("p2")},
 			})
-			total, _, err := c.run(context.Background(), client, st)
+			total, err := c.run(context.Background(), client, st)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken (the listing stopped incomplete)", err)
 			}
@@ -1006,7 +1006,7 @@ func TestScanQSAccountLists_ErrorHandling(t *testing.T) {
 				warns := countOpWarnings(st, c.op)
 				client, _ := qsListClient(t, c, tc.pages)
 
-				total, _, err := c.run(context.Background(), client, st)
+				total, err := c.run(context.Background(), client, st)
 				if tc.wantCode == "" && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -1037,12 +1037,12 @@ func TestScanQSGovernanceLists_DropOtherRegionRows(t *testing.T) {
 	}
 	cases := []struct {
 		name, op, kind, rtype string
-		run                   func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error)
+		run                   func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error)
 		output                func(arns ...string) any
 	}{
 		{
 			"approval policies", "ListApprovalPolicies", "approval-policy", TypeQuickSightApprovalPolicy,
-			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 				return scanQSApprovalPolicies(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			func(arns ...string) any {
@@ -1055,7 +1055,7 @@ func TestScanQSGovernanceLists_DropOtherRegionRows(t *testing.T) {
 		},
 		{
 			"limits profiles", "ListLimitsProfiles", "limits-profile", TypeQuickSightLimitsProfile,
-			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+			func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 				return scanQSLimitsProfiles(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			func(arns ...string) any {
@@ -1076,7 +1076,7 @@ func TestScanQSGovernanceLists_DropOtherRegionRows(t *testing.T) {
 			}
 			client := quicksight.NewFromConfig(opStubConfig(h, apiErr("InternalFailureException", "unexpected op")))
 
-			total, _, err := c.run(context.Background(), client, st)
+			total, err := c.run(context.Background(), client, st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1146,7 +1146,7 @@ func TestScanQuickSight_AccountListPhasesIndependentOfOlderPhases(t *testing.T) 
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if tc.failOp == "" && err != nil {
 				t.Fatalf("scanQuickSight: %v", err)
 			}
@@ -1197,7 +1197,7 @@ func TestScanQuickSight_TransientDoesNotMaskHardError(t *testing.T) {
 			h[hard.op] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v (outcome %v); want the %s ValidationException as outcomeError", err, classifyServiceError(err), hard.op)
 			}
@@ -1275,7 +1275,9 @@ func TestScanQSFolderMembers_PaginatesEveryFolder(t *testing.T) {
 		return nil, apiErr("InternalFailureException", "unexpected page "+folder+"|"+token)
 	})
 
-	total, inserted, err := scanQSFolderMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, folders)
+	counted, upserts := countUpserts(st)
+	total, err := scanQSFolderMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID, folders)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanQSFolderMembers: %v", err)
 	}
@@ -1342,7 +1344,9 @@ func TestScanQSGroupMemberships_PaginatesEveryGroupInItsNamespace(t *testing.T) 
 		return nil, apiErr("InternalFailureException", "unexpected page "+group+"|"+token)
 	})
 
-	total, inserted, err := scanQSGroupMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, groups)
+	counted, upserts := countUpserts(st)
+	total, err := scanQSGroupMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID, groups)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanQSGroupMemberships: %v", err)
 	}
@@ -1394,13 +1398,13 @@ type qsMemberPager func(parent, token string) (next *string, err error)
 // page pager answers holds one member.
 type qsMemberPhase struct {
 	name, op, childType string
-	run                 func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error)
+	run                 func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, error)
 }
 
 var qsMemberPhases = []qsMemberPhase{
 	{
 		name: "folder members", op: qsListFolderMembersOp, childType: TypeQuickSightFolderMember,
-		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error) {
+		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, error) {
 			folders := seedQSParents(t, st, TypeQuickSightFolder, "folder", keys...)
 			client, _ := qsMemberClient("ListFolderMembers", qsFolderMembersKey, func(folder, token string) (any, error) {
 				next, err := pager(folder, token)
@@ -1417,7 +1421,7 @@ var qsMemberPhases = []qsMemberPhase{
 	},
 	{
 		name: "group memberships", op: qsListGroupMembershipsOp, childType: TypeQuickSightGroupMembership,
-		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, int, error) {
+		run: func(t *testing.T, st *store.Store, keys []string, pager qsMemberPager) (int, error) {
 			groups := seedQSGroups(t, st, "default", keys...)
 			client, _ := qsMemberClient("ListGroupMemberships", qsGroupMembershipsKey, func(key, token string) (any, error) {
 				group := strings.TrimPrefix(key, "default/")
@@ -1446,7 +1450,9 @@ func TestScanQSMemberPhases_EmptyStoresNothing(t *testing.T) {
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, inserted, err := p.run(t, st, nil, qsOneMemberPage(nil))
+			counted, upserts := countUpserts(st)
+			total, err := p.run(t, counted, nil, qsOneMemberPage(nil))
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Errorf("no parents: total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}
@@ -1484,7 +1490,7 @@ func TestScanQSMemberPhases_ErrorHandling(t *testing.T) {
 				st := newTestStore(t)
 				var warnings []string
 				st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w.Service) }
-				total, _, err := p.run(t, st, []string{"bad", "ok1", "ok2"}, qsOneMemberPage(map[string]error{"bad": apiErr(tc.code, "x")}))
+				total, err := p.run(t, st, []string{"bad", "ok1", "ok2"}, qsOneMemberPage(map[string]error{"bad": apiErr(tc.code, "x")}))
 				want := tc.want[i]
 				if want == failed {
 					if !isAPIErrorCode(err, tc.code) {
@@ -1525,7 +1531,7 @@ func TestScanQSMemberPhases_WarnOncePerCode(t *testing.T) {
 			t.Run(p.name+"/"+name, func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, p.op)
-				_, _, err := p.run(t, st, []string{"d1", "d2", "d3", "ok"}, qsOneMemberPage(map[string]error{"d1": failure, "d2": failure, "d3": failure}))
+				_, err := p.run(t, st, []string{"d1", "d2", "d3", "ok"}, qsOneMemberPage(map[string]error{"d1": failure, "d2": failure, "d3": failure}))
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -1542,7 +1548,7 @@ func TestScanQSMemberPhases_WarnOncePerCode(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, qsListGroupMembershipsOp)
 		pre, gone := apiErr("PreconditionNotMetException", "x"), apiErr("ResourceUnavailableException", "x")
-		_, _, err := qsMemberPhases[1].run(t, st, []string{"p1", "p2", "u1", "ok"}, qsOneMemberPage(map[string]error{"p1": pre, "p2": pre, "u1": gone}))
+		_, err := qsMemberPhases[1].run(t, st, []string{"p1", "p2", "u1", "ok"}, qsOneMemberPage(map[string]error{"p1": pre, "p2": pre, "u1": gone}))
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -1585,7 +1591,7 @@ func TestScanQSParentPhases_WarnOnceForParentsWithoutKey(t *testing.T) {
 		warns := countOpWarnings(st, qsListFoldersOp)
 		var p phaseTotals
 		parents, _ := scanQSFolders(context.Background(), client, acct, testRegion, st, testScanID, &p)
-		if _, _, err := p.result(st, acct, testRegion); err != nil {
+		if _, err := p.result(st, acct, testRegion); err != nil {
 			t.Fatalf("scanQSFolders: %v", err)
 		}
 		if want := []childParent{{id: "f1", arn: qsTestARN("folder", "f1")}}; p.total != 3 || !slices.Equal(parents, want) {
@@ -1598,7 +1604,7 @@ func TestScanQSParentPhases_WarnOnceForParentsWithoutKey(t *testing.T) {
 	t.Run("groups", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, qsListGroupMembershipsOp)
-		groups, total, _, err := scanQSGroups(context.Background(), client, acct, testRegion, st, testScanID,
+		groups, total, err := scanQSGroups(context.Background(), client, acct, testRegion, st, testScanID,
 			[]childParent{{id: "default", arn: qsTestARN("namespace", "default")}})
 		if err != nil {
 			t.Fatalf("scanQSGroups: %v", err)
@@ -1619,7 +1625,7 @@ func TestScanQSMemberPhases_StopsOnRepeatedToken(t *testing.T) {
 			st := newTestStore(t)
 			var mu sync.Mutex
 			calls := 0
-			_, _, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) {
+			_, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) {
 				mu.Lock()
 				defer mu.Unlock()
 				if calls++; calls > 3 {
@@ -1710,7 +1716,7 @@ func TestScanQuickSight_MemberPhasesRunAfterOlderPhases(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if tc.failOp == "" && err != nil {
 				t.Fatalf("scanQuickSight: %v", err)
 			}
@@ -1780,7 +1786,7 @@ func TestScanQuickSight_MemberPhaseTransientDoesNotMaskHardError(t *testing.T) {
 			h[hard.op] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v (outcome %v); want the %s ValidationException as outcomeError", err, classifyServiceError(err), hard.op)
 			}
@@ -2036,7 +2042,9 @@ func TestScanQuickSight_StoresTagsOfEveryTaggedType(t *testing.T) {
 	f, h := newQSFixture()
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-	total, inserted, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanQuickSight(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanQuickSight: %v", err)
 	}
@@ -2076,7 +2084,9 @@ func TestScanQuickSight_StoresTagsOfEveryTaggedType(t *testing.T) {
 		t.Errorf("ListTagsForResource ARNs = %v; want %v", got, wantARNs)
 	}
 
-	total2, inserted2, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total2, err := scanQuickSight(context.Background(), acct, testRegion, counted, testScanID)
+	inserted2 := upserts()
 	if err != nil || total2 != total || inserted2 != 0 {
 		t.Errorf("rescan = (%d, %d, %v); want (%d, 0, nil)", total2, inserted2, err, total)
 	}
@@ -2110,7 +2120,7 @@ func TestScanQuickSight_TagReadFailures(t *testing.T) {
 			f.tags.errs = map[string]error{failing: c.err}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if c.code == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -2173,7 +2183,7 @@ func TestScanQuickSight_TagThrottleBesideHardTagErrorDemoted(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 			}
@@ -2206,7 +2216,7 @@ func TestScanQuickSight_NXDOMAIN(t *testing.T) {
 		}
 		acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-		_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeUnavailable {
 			t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
 		}
@@ -2228,7 +2238,7 @@ func TestScanQuickSight_NXDOMAIN(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 			}
@@ -2253,7 +2263,7 @@ func TestScanQSMemberPhases_NXDOMAIN(t *testing.T) {
 			h[strings.TrimPrefix(p.op, "quicksight:")] = func(any) (any, error) { return nil, nx }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 			}
@@ -2267,7 +2277,7 @@ func TestScanQSMemberPhases_NXDOMAIN(t *testing.T) {
 		t.Run(p.name+"/nothing stored", func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, p.op)
-			total, _, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) { return nil, nx })
+			total, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) { return nil, nx })
 			if got := classifyServiceError(err); got != outcomeUnavailable {
 				t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
 			}
@@ -2306,7 +2316,7 @@ func TestScanQuickSight_FailedWriteStopsAndSendsNoTagWarning(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -2352,7 +2362,7 @@ func TestScanQSAccountCustomization_Tags(t *testing.T) {
 
 			var p phaseTotals
 			scanQSAccountCustomization(context.Background(), client, acct, testRegion, st, testScanID, &p)
-			if _, _, err := p.result(st, acct, testRegion); err != nil || p.total != 1 {
+			if _, err := p.result(st, acct, testRegion); err != nil || p.total != 1 {
 				t.Fatalf("result = (%d, %v); want (1, nil)", p.total, err)
 			}
 			r, ok := rowsByNativeID(t, st, TypeQuickSightCustomization)[c.wantNativeID]
@@ -2373,7 +2383,7 @@ type qsNamespacePhase struct {
 	op, rtype string
 	warnCodes []string
 	page      func(ns, id string, next *string) any
-	run       func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, int, error)
+	run       func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, error)
 	nativeID  func(ns, id string) string
 }
 
@@ -2385,9 +2395,9 @@ func qsNamespacePhases() []qsNamespacePhase {
 			page: func(ns, id string, next *string) any {
 				return &quicksight.ListGroupsOutput{NextToken: next, GroupList: []qstypes.Group{{GroupName: sdkaws.String(id), Arn: sdkaws.String(qsTestARN("group", ns+"/"+id))}}}
 			},
-			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, int, error) {
-				_, t, i, err := scanQSGroups(ctx, client, acct, testRegion, st, testScanID, namespaces)
-				return t, i, err
+			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, error) {
+				_, t, err := scanQSGroups(ctx, client, acct, testRegion, st, testScanID, namespaces)
+				return t, err
 			},
 			nativeID: func(ns, id string) string { return qsTestARN("group", ns+"/"+id) },
 		},
@@ -2396,7 +2406,7 @@ func qsNamespacePhases() []qsNamespacePhase {
 			page: func(ns, id string, next *string) any {
 				return &quicksight.ListUsersOutput{NextToken: next, UserList: []qstypes.User{{UserName: sdkaws.String(id), Arn: sdkaws.String(qsTestARN("user", ns+"/"+id))}}}
 			},
-			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, int, error) {
+			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, error) {
 				return qsPhaseResult(st, func(p *phaseTotals) bool {
 					return scanQSUsers(ctx, client, acct, testRegion, st, testScanID, namespaces, p)
 				})
@@ -2408,7 +2418,7 @@ func qsNamespacePhases() []qsNamespacePhase {
 			page: func(_, id string, next *string) any {
 				return &quicksight.ListIAMPolicyAssignmentsOutput{NextToken: next, IAMPolicyAssignments: []qstypes.IAMPolicyAssignmentSummary{{AssignmentName: sdkaws.String(id)}}}
 			},
-			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, int, error) {
+			run: func(ctx context.Context, client quickSightAPI, st *store.Store, namespaces []childParent) (int, error) {
 				return scanQSAssignments(ctx, client, acct, testRegion, st, testScanID, namespaces)
 			},
 			nativeID: func(ns, id string) string { return qsTestARN("namespace", ns) + "/assignment/" + id },
@@ -2468,7 +2478,7 @@ func TestScanQSNamespacePhases_Failures(t *testing.T) {
 					}
 					client := quicksight.NewFromConfig(opStubConfig(h, qsNotServed))
 
-					total, _, err := ph.run(context.Background(), client, st, qsTestNamespaces("before", "failing", "after"))
+					total, err := ph.run(context.Background(), client, st, qsTestNamespaces("before", "failing", "after"))
 					silent := code == "ResourceNotFoundException" || code == "AccessDeniedException" ||
 						(!later && slices.Contains(ph.warnCodes, code))
 					if silent && err != nil {
@@ -2526,7 +2536,7 @@ func TestScanQSNamespacePhases_StopOnRepeatedToken(t *testing.T) {
 			}
 			client := quicksight.NewFromConfig(opStubConfig(h, qsNotServed))
 
-			total, _, err := ph.run(context.Background(), client, st, qsTestNamespaces("looping", "after"))
+			total, err := ph.run(context.Background(), client, st, qsTestNamespaces("looping", "after"))
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -2593,7 +2603,7 @@ func TestScanQSUsers_NameFallsBackToARN(t *testing.T) {
 		},
 	}
 	client := quicksight.NewFromConfig(opStubConfig(h, qsNotServed))
-	if _, _, err := qsPhaseResult(st, func(p *phaseTotals) bool {
+	if _, err := qsPhaseResult(st, func(p *phaseTotals) bool {
 		return scanQSUsers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, qsTestNamespaces("default"), p)
 	}); err != nil {
 		t.Fatalf("scanQSUsers: %v", err)
@@ -2623,7 +2633,7 @@ func TestScanQSUsers_TagReadNotFoundDropsUser(t *testing.T) {
 		},
 	}
 	client := quicksight.NewFromConfig(opStubConfig(h, qsNotServed))
-	total, _, err := qsPhaseResult(st, func(p *phaseTotals) bool {
+	total, err := qsPhaseResult(st, func(p *phaseTotals) bool {
 		return scanQSUsers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, qsTestNamespaces("default"), p)
 	})
 	if err != nil || total != 1 {
@@ -2687,7 +2697,7 @@ func TestScanQuickSight_TaggedListErrors(t *testing.T) {
 					}
 					acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-					_, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+					_, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 					denied := code == "AccessDeniedException"
 					skipped := !later && slices.Contains(qsTaggedSkipCodes[fx.op], code)
 					if denied || skipped {
@@ -2749,16 +2759,16 @@ func TestScanQSAliases_StopOnRepeatedToken(t *testing.T) {
 	ctx, acct := context.Background(), newTestAccount(testAccountID)
 	cases := []struct {
 		name, parentType, kind, childType string
-		run                               func(st *store.Store, parents []childParent) (int, int, error)
+		run                               func(st *store.Store, parents []childParent) (int, error)
 	}{
-		{"template aliases", TypeQuickSightTemplate, "template", TypeQuickSightTemplateAlias, func(st *store.Store, parents []childParent) (int, int, error) {
+		{"template aliases", TypeQuickSightTemplate, "template", TypeQuickSightTemplateAlias, func(st *store.Store, parents []childParent) (int, error) {
 			fake := fakeQSChildren{templateAliases: map[string]map[string]*quicksight.ListTemplateAliasesOutput{"t1": {
 				"":   {TemplateAliasList: []qstypes.TemplateAlias{templateAlias("t1", "a", 1)}, NextToken: sdkaws.String("p2")},
 				"p2": {TemplateAliasList: []qstypes.TemplateAlias{templateAlias("t1", "b", 1)}, NextToken: sdkaws.String("p2")},
 			}}}
 			return scanQSTemplateAliases(ctx, fake, acct, testRegion, st, testScanID, parents)
 		}},
-		{"theme aliases", TypeQuickSightTheme, "theme", TypeQuickSightThemeAlias, func(st *store.Store, parents []childParent) (int, int, error) {
+		{"theme aliases", TypeQuickSightTheme, "theme", TypeQuickSightThemeAlias, func(st *store.Store, parents []childParent) (int, error) {
 			fake := fakeQSChildren{themeAliases: map[string]map[string]*quicksight.ListThemeAliasesOutput{"t1": {
 				"":   {ThemeAliasList: []qstypes.ThemeAlias{themeAlias("t1", "a")}, NextToken: sdkaws.String("p2")},
 				"p2": {ThemeAliasList: []qstypes.ThemeAlias{themeAlias("t1", "b")}, NextToken: sdkaws.String("p2")},
@@ -2769,7 +2779,7 @@ func TestScanQSAliases_StopOnRepeatedToken(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.run(st, seedQSParents(t, st, c.parentType, c.kind, "t1"))
+			total, err := c.run(st, seedQSParents(t, st, c.parentType, c.kind, "t1"))
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -2803,7 +2813,7 @@ func TestScanQSRefreshSchedules_DataSetFailures(t *testing.T) {
 			}
 			client := quicksight.NewFromConfig(opStubConfig(h, qsNotServed))
 
-			total, _, err := scanQSRefreshSchedules(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+			total, err := scanQSRefreshSchedules(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 				[]childParent{{id: "before"}, {id: "failing"}, {id: "after"}})
 			silent := code == "ResourceNotFoundException" || code == "AccessDeniedException"
 			if silent && err != nil {
@@ -2827,11 +2837,11 @@ func TestScanQSRefreshSchedules_DataSetFailures(t *testing.T) {
 // denial warns; any other code is returned.
 func TestScanQSAccountSingletons_Errors(t *testing.T) {
 	t.Parallel()
-	runs := map[string]func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error){
-		"DescribeAccountSettings": func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+	runs := map[string]func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error){
+		"DescribeAccountSettings": func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return scanQSAccountSettings(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
-		"DescribeAccountCustomization": func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
+		"DescribeAccountCustomization": func(ctx context.Context, client quickSightAPI, st *store.Store) (int, error) {
 			return qsPhaseResult(st, func(p *phaseTotals) bool {
 				return scanQSAccountCustomization(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, p)
 			})
@@ -2843,7 +2853,7 @@ func TestScanQSAccountSingletons_Errors(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, "quicksight:"+op)
 				h := map[string]func(any) (any, error){op: func(any) (any, error) { return nil, apiErr(code, "x") }}
-				_, _, err := run(context.Background(), quicksight.NewFromConfig(opStubConfig(h, qsNotServed)), st)
+				_, err := run(context.Background(), quicksight.NewFromConfig(opStubConfig(h, qsNotServed)), st)
 				silent := code == "ResourceNotFoundException" || code == "UnknownOperationException" || code == "AccessDeniedException"
 				if silent && err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -2940,7 +2950,7 @@ func TestScanQuickSight_SubscriptionGate(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
 			if c.wantOutcome == qsGateNoError {
 				if err != nil {
 					t.Errorf("err = %v; want nil", err)
@@ -2979,7 +2989,7 @@ func TestScanQSMemberPhases_FailedPageKeepsEarlierPages(t *testing.T) {
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := p.run(t, st, []string{"only"}, func(_, token string) (*string, error) {
+			total, err := p.run(t, st, []string{"only"}, func(_, token string) (*string, error) {
 				if token == "" {
 					return sdkaws.String("p2"), nil
 				}
@@ -3003,7 +3013,7 @@ func TestScanQSMemberPhases_NoWarningAfterFailedWrite(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)
 			warns := countOpWarnings(st, p.op)
-			_, _, err := p.run(t, st, []string{"slow", "ok"}, func(parent, _ string) (*string, error) {
+			_, err := p.run(t, st, []string{"slow", "ok"}, func(parent, _ string) (*string, error) {
 				closeStore()
 				if strings.HasSuffix(parent, "slow") {
 					return nil, apiErr("ThrottlingException", "slow down")
@@ -3027,7 +3037,7 @@ func TestScanQSMemberPhases_ParentGoneMidListingWarns(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, p.op)
-			_, _, err := p.run(t, st, []string{"gone"}, func(_, token string) (*string, error) {
+			_, err := p.run(t, st, []string{"gone"}, func(_, token string) (*string, error) {
 				if token == "" {
 					return sdkaws.String("p2"), nil
 				}
@@ -3055,7 +3065,7 @@ func TestScanQSMemberPhases_NoWarningAfterFailedClosure(t *testing.T) {
 			st := newTestStore(t)
 			refuseClosureWrites(t, st)
 			warns := countOpWarnings(st, p.op)
-			_, _, err := p.run(t, st, []string{"slow", "denied", "ok"}, func(parent, _ string) (*string, error) {
+			_, err := p.run(t, st, []string{"slow", "denied", "ok"}, func(parent, _ string) (*string, error) {
 				switch {
 				case strings.HasSuffix(parent, "slow"):
 					return nil, apiErr("ThrottlingException", "slow down")
@@ -3120,7 +3130,7 @@ func TestScanQuickSight_ContextStopIsOneError(t *testing.T) {
 		}
 		acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-		_, _, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
+		_, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
 		if n := qsStopMembers(err, context.Canceled); n != 1 {
 			t.Errorf("stop members = %d; want 1 (err %v)", n, err)
 		}
@@ -3152,7 +3162,7 @@ func TestScanQuickSight_ContextStopIsOneError(t *testing.T) {
 		}
 		acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
 
-		_, _, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
+		_, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
 		if n := qsStopMembers(err, context.Canceled); n != 1 {
 			t.Errorf("stop members = %d; want 1 (err %v)", n, err)
 		}
@@ -3204,7 +3214,7 @@ func TestScanQuickSight_ContextStopIsOneError(t *testing.T) {
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, qsNotServed)}
 
-			_, _, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
+			_, err := scanQuickSight(ctx, acct, testRegion, st, testScanID)
 			if n := qsStopMembers(err, context.Canceled); n != 1 {
 				t.Errorf("stop members = %d; want 1 (err %v)", n, err)
 			}

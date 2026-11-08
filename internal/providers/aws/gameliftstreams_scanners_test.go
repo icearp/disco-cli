@@ -189,12 +189,12 @@ func glsTestHandlers(c *glsTestCalls) map[string]func(in any) (any, error) {
 
 // glsTestScanAs runs the scan for acct in region against handlers through
 // the real client; every op they do not answer is denied.
-func glsTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func glsTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	client := gameliftstreams.NewFromConfig(opStubConfig(handlers, glsTestDenied), func(o *gameliftstreams.Options) { o.Region = region })
 	return scanGameLiftStreams(ctx, client, acct, region, st, testScanID)
 }
 
-func glsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func glsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return glsTestScanAs(ctx, newTestAccount(testAccountID), testRegion, st, handlers)
 }
 
@@ -227,7 +227,9 @@ func TestScanGameLiftStreams_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newGLSTestCalls()
 
-	total, inserted, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := glsTestScan(context.Background(), counted, glsTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -305,7 +307,7 @@ func TestScanGameLiftStreams_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := glsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := glsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range glsTestKinds() {
@@ -315,16 +317,16 @@ func TestScanGameLiftStreams_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGameLiftStreams_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := glsTestScan(context.Background(), st, glsTestHandlers(newGLSTestCalls())); err != nil {
+	if _, err := glsTestScan(context.Background(), st, glsTestHandlers(newGLSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := glsTestScan(context.Background(), st, glsTestHandlers(newGLSTestCalls()))
+	total, err := glsTestScan(context.Background(), st, glsTestHandlers(newGLSTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -352,7 +354,9 @@ func TestScanGameLiftStreams_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := glsTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := glsTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -400,7 +404,7 @@ func TestScanGameLiftStreams_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+			total, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -450,7 +454,7 @@ func TestScanGameLiftStreams_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[glsTestKindOf(t, "ListApplications").arn("bare")] = glsTestDenied
 	calls.tagErrs[glsTestKindOf(t, "ListStreamGroups").arn("tagged")] = glsTestDenied
 
-	total, _, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+	total, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -472,7 +476,7 @@ func TestScanGameLiftStreams_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[glsTestKindOf(t, "ListApplications").arn("bare")] = glsTestThrottle
 	calls.tagErrs[glsTestKindOf(t, "ListStreamGroups").arn("tagged")] = glsTestBad
 
-	_, _, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+	_, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -490,7 +494,7 @@ func TestScanGameLiftStreams_FailedWriteStopsScan(t *testing.T) {
 	calls := newGLSTestCalls()
 	calls.tagErrs[glsTestKindOf(t, "ListApplications").arn("tagged")] = glsTestDenied
 
-	total, _, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+	total, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -550,7 +554,7 @@ func TestScanGameLiftStreams_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := glsTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := glsTestScan(context.Background(), st, handlers)
+			_, err := glsTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := afWarnOps(w); !slices.Equal(got, []string{glsTagsOp}) {
@@ -604,7 +608,7 @@ func TestScanGameLiftStreams_ListFailureKeepsPagesAndOtherPhase(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := glsTestScan(context.Background(), st, handlers)
+			total, err := glsTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -656,7 +660,7 @@ func TestScanGameLiftStreams_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := glsTestScan(context.Background(), st, handlers)
+	total, err := glsTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -691,7 +695,7 @@ func TestScanGameLiftStreams_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := glsTestScan(context.Background(), st, handlers)
+			total, err := glsTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -726,7 +730,7 @@ func TestScanGameLiftStreams_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(partition)
 			region := acct.Regions[0]
 			calls := newGLSTestCallsIn(partition, region)
-			if _, _, err := glsTestScanAs(context.Background(), acct, region, st, glsTestHandlers(calls)); err != nil {
+			if _, err := glsTestScanAs(context.Background(), acct, region, st, glsTestHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -764,7 +768,7 @@ func TestScanGameLiftStreams_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := glsTestScan(ctx, st, handlers)
+	_, err := glsTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -796,7 +800,7 @@ func TestScanGameLiftStreams_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := glsTestHandlers(newGLSTestCalls())
 		handlers["ListStreamGroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := glsTestScan(context.Background(), st, handlers)
+		total, err := glsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := glsTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d applications counted", total, want)
@@ -806,7 +810,7 @@ func TestScanGameLiftStreams_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGLSTestCalls()
 		calls.tagErrs[glsTestKindOf(t, "ListApplications").arn("tagged")] = nx
-		_, _, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
+		_, err := glsTestScan(context.Background(), st, glsTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -820,7 +824,7 @@ func TestScanGameLiftStreams_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := glsTestScan(context.Background(), st, handlers)
+		_, err := glsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

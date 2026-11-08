@@ -42,7 +42,7 @@ func TestScanSHStandards_RegionFromARN(t *testing.T) {
 					shStandard(shStdCIS, "CIS"),
 					shStandard(notARN, "odd"),
 				))
-				total, _, err := scanSHStandards(context.Background(), client, acct, region, st, testScanID)
+				total, err := scanSHStandards(context.Background(), client, acct, region, st, testScanID)
 				if err != nil || total != 3 {
 					t.Fatalf("%s: total = %d, err = %v; want 3 rows", region, total, err)
 				}
@@ -76,7 +76,7 @@ func TestScanSHStandards_NoARNWarnsOnce(t *testing.T) {
 		shStandard(shStdCIS, "CIS"),
 		securityhubtypes.Standard{Name: ptrStr("no-arn-2")},
 	))
-	total, _, err := scanSHStandards(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSHStandards(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("total = %d, err = %v; want 1 row", total, err)
 	}

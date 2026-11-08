@@ -49,16 +49,16 @@ var apigatewayv2NotFound = []string{"NotFoundException"}
 // developer portals. No family's error cancels another or discards its
 // counts. Every op calls one endpoint, so once any row was stored an NXDOMAIN
 // is no region gap (resultLateNXDOMAIN), and a ctx end is one error.
-func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 	p := runFamilies(ctx, "apigatewayv2",
 		phaseFamily(func(p *phaseTotals) { scanAPIGatewayHTTPAPIs(ctx, client, acct, region, st, scanID, p) }),
 		phaseFamily(func(p *phaseTotals) { scanAPIGatewayV2DomainNames(ctx, client, acct, region, st, scanID, p) }),
-		countedFamily(agv2GetVpcLinksOp, func() (int, int, error) {
+		countedFamily(agv2GetVpcLinksOp, func() (int, error) {
 			return scanAPIGatewayV2VpcLinks(ctx, client, acct, region, st, scanID)
 		}),
 		// Its errors span four ops and are filed under the service.
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayV2Portals(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -78,7 +78,7 @@ func agv2Row(acct *account, region, scanID, typ, nativeID, name string, attrs an
 
 // scanAPIGatewayV2VpcLinks stores the region's VPC links with the tags each
 // listed link carries. NativeID = arn:{partition}:apigateway:{region}::/vpclinks/{id}.
-func scanAPIGatewayV2VpcLinks(ctx context.Context, client apigatewayv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPIGatewayV2VpcLinks(ctx context.Context, client apigatewayv2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, agv2GetVpcLinksOp,
 		func(ctx context.Context, token *string) ([]apigwv2types.VpcLink, *string, error) {
 			out, err := client.GetVpcLinks(ctx, &apigatewayv2.GetVpcLinksInput{NextToken: token})
@@ -107,7 +107,7 @@ func scanAPIGatewayV2VpcLinks(ctx context.Context, client apigatewayv2API, acct 
 // the op that failed; a failed write of the APIs stops it.
 // NativeID = arn:{partition}:apigateway:{region}::/apis/{id}.
 func scanAPIGatewayHTTPAPIs(ctx context.Context, client apigatewayv2API, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) {
-	total, inserted, apis, err := storeParentList(ctx, st, acct, region, agv2GetApisOp, "APIs", "ApiId",
+	total, apis, err := storeParentList(ctx, st, acct, region, agv2GetApisOp, "APIs", "ApiId",
 		func(ctx context.Context, token *string) ([]apigwv2types.Api, *string, error) {
 			out, err := client.GetApis(ctx, &apigatewayv2.GetApisInput{NextToken: token})
 			if err != nil {
@@ -125,15 +125,15 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, client apigatewayv2API, acct *a
 			return r, "", ""
 		},
 		func(api apigwv2types.Api) string { return sv(api.ApiId) })
-	if p.addPhase(agv2GetApisOp, total, inserted, err) {
+	if p.addPhase(agv2GetApisOp, total, err) {
 		return
 	}
 	apiIDs := make([]string, len(apis))
 	for i, api := range apis {
 		apiIDs[i] = api.id
 	}
-	total, inserted, err = opErrsResult(scanAPIGatewayV2APIChildren(ctx, client, acct, region, apiIDs, st, scanID))
-	addOpErrsPhase(p, "apigatewayv2", total, inserted, err)
+	total, err = opErrsResult(scanAPIGatewayV2APIChildren(ctx, client, acct, region, apiIDs, st, scanID))
+	addOpErrsPhase(p, "apigatewayv2", total, err)
 }
 
 // scanAPIGatewayV2DomainNames stores the custom domain names with the tags
@@ -144,7 +144,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, client apigatewayv2API, acct *a
 // API mapping NativeID: arn:{partition}:apigateway:{region}::/domainnames/{domainName}/apimappings/{mappingId}
 // Routing rule NativeID: the RoutingRuleArn the listing returns.
 func scanAPIGatewayV2DomainNames(ctx context.Context, client apigatewayv2API, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) {
-	total, inserted, domains, err := storeParentList(ctx, st, acct, region, agv2GetDomainNamesOp, "domain names", "DomainName",
+	total, domains, err := storeParentList(ctx, st, acct, region, agv2GetDomainNamesOp, "domain names", "DomainName",
 		func(ctx context.Context, token *string) ([]apigwv2types.DomainName, *string, error) {
 			out, err := client.GetDomainNames(ctx, &apigatewayv2.GetDomainNamesInput{NextToken: token})
 			if err != nil {
@@ -162,14 +162,14 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, client apigatewayv2API, ac
 			return r, "", ""
 		},
 		func(d apigwv2types.DomainName) string { return sv(d.DomainName) })
-	if p.addPhase(agv2GetDomainNamesOp, total, inserted, err) {
+	if p.addPhase(agv2GetDomainNamesOp, total, err) {
 		return
 	}
 	names := make([]string, len(domains))
 	for i, d := range domains {
 		names[i] = d.id
 	}
-	total, inserted, err = storeTokenEachParent(ctx, st, acct, region, agv2GetAPIMappingsOp, apigatewayv2NotFound, names,
+	total, err = storeTokenEachParent(ctx, st, acct, region, agv2GetAPIMappingsOp, apigatewayv2NotFound, names,
 		func(ctx context.Context, domain string, token *string) ([]apigwv2types.ApiMapping, *string, error) {
 			out, err := client.GetApiMappings(ctx, &apigatewayv2.GetApiMappingsInput{DomainName: &domain, NextToken: token})
 			if err != nil {
@@ -185,10 +185,10 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, client apigatewayv2API, ac
 			name := fmt.Sprintf("%s → %s", domain, sv(m.ApiMappingKey))
 			return agv2Row(acct, region, scanID, TypeAPIGatewayBasePathMappingV2, apigatewayARNIn(acct.partition(), region, "domainnames", domain, "apimappings", id), name, m), "", ""
 		})
-	if p.addPhase(agv2GetAPIMappingsOp, total, inserted, err) {
+	if p.addPhase(agv2GetAPIMappingsOp, total, err) {
 		return
 	}
-	total, inserted, err = storeTokenEachParent(ctx, st, acct, region, agv2ListRoutingRulesOp, apigatewayv2NotFound, names,
+	total, err = storeTokenEachParent(ctx, st, acct, region, agv2ListRoutingRulesOp, apigatewayv2NotFound, names,
 		func(ctx context.Context, domain string, token *string) ([]apigwv2types.RoutingRule, *string, error) {
 			out, err := client.ListRoutingRules(ctx, &apigatewayv2.ListRoutingRulesInput{
 				DomainName: &domain, MaxResults: sdkaws.Int32(agv2RoutingRulePageLimit), NextToken: token,
@@ -205,5 +205,5 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, client apigatewayv2API, ac
 			}
 			return agv2Row(acct, region, scanID, TypeAPIGatewayV2RoutingRule, arn, arn, rr), "", ""
 		})
-	p.addPhase(agv2ListRoutingRulesOp, total, inserted, err)
+	p.addPhase(agv2ListRoutingRulesOp, total, err)
 }

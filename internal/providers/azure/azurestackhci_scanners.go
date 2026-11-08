@@ -30,13 +30,13 @@ func init() {
 // VM/network/storage resources of the connected cluster. Clusters live in
 // armazurestackhci; the rest are sub-wide ListAll in the sibling
 // armazurestackhcivm module.
-func scanAzureStackHCI(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureStackHCI(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	clusters, err := armazurestackhci.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhci:NewClustersClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhci:NewClustersClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhci:Clusters.ListBySubscription", TypeAzureStackHCICluster, sub, st, scanID,
 				clusters.NewListBySubscriptionPager(nil),
 				func(p armazurestackhci.ClustersClientListBySubscriptionResponse) []*armazurestackhci.Cluster {
@@ -46,42 +46,42 @@ func scanAzureStackHCI(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
 				})
 		},
-		func() (int, int, error) { return scanAzureStackHCIVM(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanAzureStackHCIVM(ctx, sub, cred, st, scanID) },
 	)
 }
 
 // scanAzureStackHCIVM runs the seven sub-wide ListAll scans in armazurestackhcivm.
-func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	gi, err := armazurestackhcivm.NewGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewGalleryImagesClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewGalleryImagesClient: %w", err)
 	}
 	ln, err := armazurestackhcivm.NewLogicalNetworksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewLogicalNetworksClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewLogicalNetworksClient: %w", err)
 	}
 	mgi, err := armazurestackhcivm.NewMarketplaceGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewMarketplaceGalleryImagesClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewMarketplaceGalleryImagesClient: %w", err)
 	}
 	nic, err := armazurestackhcivm.NewNetworkInterfacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewNetworkInterfacesClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewNetworkInterfacesClient: %w", err)
 	}
 	nsg, err := armazurestackhcivm.NewNetworkSecurityGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewNetworkSecurityGroupsClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewNetworkSecurityGroupsClient: %w", err)
 	}
 	sc, err := armazurestackhcivm.NewStorageContainersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewStorageContainersClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewStorageContainersClient: %w", err)
 	}
 	vhd, err := armazurestackhcivm.NewVirtualHardDisksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armazurestackhcivm:NewVirtualHardDisksClient: %w", err)
+		return 0, fmt.Errorf("armazurestackhcivm:NewVirtualHardDisksClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:GalleryImages.ListAll", TypeAzureStackHCIGalleryImage, sub, st, scanID,
 				gi.NewListAllPager(nil),
 				func(p armazurestackhcivm.GalleryImagesClientListAllResponse) []*armazurestackhcivm.GalleryImage {
@@ -91,7 +91,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:LogicalNetworks.ListAll", TypeAzureStackHCILogicalNetwork, sub, st, scanID,
 				ln.NewListAllPager(nil),
 				func(p armazurestackhcivm.LogicalNetworksClientListAllResponse) []*armazurestackhcivm.LogicalNetwork {
@@ -101,7 +101,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:MarketplaceGalleryImages.ListAll", TypeAzureStackHCIMarketplaceGalleryImage, sub, st, scanID,
 				mgi.NewListAllPager(nil),
 				func(p armazurestackhcivm.MarketplaceGalleryImagesClientListAllResponse) []*armazurestackhcivm.MarketplaceGalleryImage {
@@ -111,7 +111,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:NetworkInterfaces.ListAll", TypeAzureStackHCINetworkInterface, sub, st, scanID,
 				nic.NewListAllPager(nil),
 				func(p armazurestackhcivm.NetworkInterfacesClientListAllResponse) []*armazurestackhcivm.NetworkInterface {
@@ -121,7 +121,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:NetworkSecurityGroups.ListAll", TypeAzureStackHCINetworkSecurityGroup, sub, st, scanID,
 				nsg.NewListAllPager(nil),
 				func(p armazurestackhcivm.NetworkSecurityGroupsClientListAllResponse) []*armazurestackhcivm.NetworkSecurityGroup {
@@ -131,7 +131,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:StorageContainers.ListAll", TypeAzureStackHCIStorageContainer, sub, st, scanID,
 				sc.NewListAllPager(nil),
 				func(p armazurestackhcivm.StorageContainersClientListAllResponse) []*armazurestackhcivm.StorageContainer {
@@ -141,7 +141,7 @@ func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armazurestackhcivm:VirtualHardDisks.ListAll", TypeAzureStackHCIVirtualHardDisk, sub, st, scanID,
 				vhd.NewListAllPager(nil),
 				func(p armazurestackhcivm.VirtualHardDisksClientListAllResponse) []*armazurestackhcivm.VirtualHardDisk {

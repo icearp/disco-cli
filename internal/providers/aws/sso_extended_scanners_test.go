@@ -181,7 +181,7 @@ type ssoChildCase struct {
 	parentType          string
 	parentARN           func(id string) string
 	fill                func(s *stubSSOAdmin, a, b string)
-	run                 func(context.Context, *stubSSOAdmin, *store.Store, []childParent) (int, int, error)
+	run                 func(context.Context, *stubSSOAdmin, *store.Store, []childParent) (int, error)
 	keys                [4]string // NativeID suffix keys of a1, a2, a3, b1
 	names               [4]string // Names of a1, a2, a3, b1; zero = the keys
 	wantStatus          string    // Status of a1; "" = unset
@@ -203,7 +203,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ssoScope("sso:account:access")}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSOApplicationAccessScopes(ctx, s, acct, testRegion, st, testScanID, ps)
 			},
 			keys:    [4]string{"sso:account:access", "redshift:connect", "s3:access:read", "sso:account:access"},
@@ -221,7 +221,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ssoIAMMethod()}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSOApplicationAuthenticationMethods(ctx, s, acct, testRegion, st, testScanID, ps)
 			},
 			keys:    [4]string{"IAM", "OTHER", "THIRD", "IAM"},
@@ -237,7 +237,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ssoGrant(ssotypes.GrantTypeJwtBearer)}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSOApplicationGrants(ctx, s, acct, testRegion, st, testScanID, ps)
 			},
 			keys:    [4]string{"urn:ietf:params:oauth:grant-type:jwt-bearer", "authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:jwt-bearer"},
@@ -253,7 +253,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ssoRegion("us-west-2", true)}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSORegions(ctx, s, acct, testRegion, st, testScanID, ps)
 			},
 			keys:       [4]string{"us-east-1", "eu-west-1", "ap-south-1", "us-west-2"},
@@ -269,7 +269,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ssoManagedPolicy("/", "AdministratorAccess")}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSOManagedPolicies(ctx, s, acct, testRegion, st, testScanID, ps, ssoPolicyInstances(ps))
 			},
 			keys: [4]string{
@@ -293,7 +293,7 @@ func ssoChildCases() []ssoChildCase {
 					b: {{ref(sdkaws.String("/"), "PolicyA")}},
 				}
 			},
-			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, int, error) {
+			run: func(ctx context.Context, s *stubSSOAdmin, st *store.Store, ps []childParent) (int, error) {
 				return scanSSOCustomerManagedPolicyReferences(ctx, s, acct, testRegion, st, testScanID, ps, ssoPolicyInstances(ps))
 			},
 			keys:    [4]string{"PolicyA", "team/PolicyB", "PolicyC", "PolicyA"},
@@ -325,7 +325,9 @@ func TestSSOChildScanners_PagesEveryParent(t *testing.T) {
 			st := newTestStore(t)
 			stub, parents := ssoChildFixture(t, st, tc)
 
-			total, inserted, err := tc.run(context.Background(), stub, st, parents)
+			counted, upserts := countUpserts(st)
+			total, err := tc.run(context.Background(), stub, counted, parents)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -385,7 +387,7 @@ func TestSSOChildScanners_Empty(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			_, parents := ssoChildFixture(t, st, tc)
-			total, _, err := tc.run(context.Background(), &stubSSOAdmin{}, st, parents)
+			total, err := tc.run(context.Background(), &stubSSOAdmin{}, st, parents)
 			if err != nil || total != 0 {
 				t.Fatalf("total=%d err=%v, want 0/nil", total, err)
 			}
@@ -424,7 +426,7 @@ func TestSSOChildScanners_PerParentErrors(t *testing.T) {
 					stub.fail[tc.op+"/"+parents[1].id] = ec.failB
 				}
 
-				_, _, err := tc.run(context.Background(), stub, st, parents)
+				_, err := tc.run(context.Background(), stub, st, parents)
 				if ec.wantErr != "" {
 					if !isAPIErrorCode(err, ec.wantErr) {
 						t.Fatalf("err=%v, want %s propagated", err, ec.wantErr)
@@ -462,7 +464,7 @@ func TestSSOChildScanners_SkippedParent(t *testing.T) {
 			stub, parents := ssoChildFixture(t, st, tc)
 			stub.fail = map[string]error{tc.op + "/" + parents[0].id: apiErr(tc.skipCode, "skip")}
 
-			if _, _, err := tc.run(context.Background(), stub, st, parents); err != nil {
+			if _, err := tc.run(context.Background(), stub, st, parents); err != nil {
 				t.Fatalf("err=%v, want nil", err)
 			}
 			if warnings != 0 {
@@ -473,7 +475,7 @@ func TestSSOChildScanners_SkippedParent(t *testing.T) {
 			}
 
 			stub.fail = map[string]error{tc.op + "/" + parents[0].id: apiErr(tc.propagateCode, "bad")}
-			if _, _, err := tc.run(context.Background(), stub, newTestStore(t), parents); !isAPIErrorCode(err, tc.propagateCode) {
+			if _, err := tc.run(context.Background(), stub, newTestStore(t), parents); !isAPIErrorCode(err, tc.propagateCode) {
 				t.Errorf("err=%v, want %s propagated", err, tc.propagateCode)
 			}
 		})
@@ -489,7 +491,7 @@ func TestScanSSOApplicationAuthenticationMethods_KeepsActorPolicy(t *testing.T) 
 	upsertTestResource(t, st, "aws", testAccountID, TypeSSOApplication, app, testRegion, "{}")
 	stub := &stubSSOAdmin{methods: map[string][][]ssotypes.AuthenticationMethodItem{app: {{ssoIAMMethod()}}}}
 
-	if _, _, err := scanSSOApplicationAuthenticationMethods(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{{id: app, arn: app}}); err != nil {
+	if _, err := scanSSOApplicationAuthenticationMethods(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{{id: app, arn: app}}); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := lmvRows(t, st, TypeSSOApplicationAuthenticationMethod)[app+"/authentication-method/IAM"]
@@ -663,7 +665,9 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 				APIOptions:       []func(*smithymw.Stack) error{stubResponses(t, responses)},
 			}}
 
-			total, inserted, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := scanSSOAdmin(context.Background(), acct, testRegion, counted, testScanID)
+			inserted := upserts()
 			if total != tc.wantCount || inserted != tc.wantCount {
 				t.Errorf("total=%d inserted=%d, want %d each", total, inserted, tc.wantCount)
 			}
@@ -778,7 +782,7 @@ func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(handlers, deny)}
 
-	if _, _, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanSSOAdmin: %v", err)
 	}
 	if got := *warnings["sso-admin:DescribePermissionSet"]; got != (tally{denied: 1}) {
@@ -899,7 +903,7 @@ func TestScanSSOAdmin_FanOutThrottleIsTransient(t *testing.T) {
 			deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: sso:List")
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, deny)}
 
-			_, _, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID)
 			if tc.code == "ConflictException" {
 				if !isAPIErrorCode(err, tc.code) || classifyServiceError(err) != outcomeError || len(warnings) != 0 {
 					t.Errorf("err=%v warnings=%v, want the %s itself (outcomeError) and no warning", err, warnings, tc.code)

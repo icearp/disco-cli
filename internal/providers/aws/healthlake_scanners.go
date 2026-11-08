@@ -66,11 +66,11 @@ var healthLakeNotFound = []string{"ResourceNotFoundException"}
 // phase lists the profiles the profile phase stored. A region whose
 // data transformation host does not resolve still stores its datastores. The
 // tag reads' denials are one warning for the whole scan.
-func scanHealthLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanHealthLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := healthlake.NewFromConfig(acct.cfg, func(o *healthlake.Options) { o.Region = region })
 	tags := healthLakeTags(client).sharingDenials()
 	var profiles []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "health-lake", healthLakeDatastoreHost, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "health-lake", healthLakeDatastoreHost, []hostPhase{
 		{op: healthLakeListDatastoresOp, host: healthLakeDatastoreHost, run: func(p *phaseTotals) bool {
 			return scanHealthLakeDatastores(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -79,12 +79,12 @@ func scanHealthLake(ctx context.Context, acct *account, region string, st *store
 			profiles, failed = scanHealthLakeProfiles(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(healthLakeDataTransformationHost, healthLakeListVersionsOp, func() (int, int, error) {
+		countedPhase(healthLakeDataTransformationHost, healthLakeListVersionsOp, func() (int, error) {
 			return scanHealthLakeProfileVersions(ctx, client, acct, region, st, scanID, profiles)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // healthLakeTags reads a datastore's or a profile's tags with
@@ -197,7 +197,7 @@ func scanHealthLakeProfiles(ctx context.Context, client healthLakeAPI, acct *acc
 // Versions have no tags read: the Service Reference defines no version
 // resource, ListTagsForResource's ARN pattern accepts only datastore and
 // profile ARNs, and no version response carries tags.
-func scanHealthLakeProfileVersions(ctx context.Context, client healthLakeAPI, acct *account, region string, st *store.Store, scanID string, profiles []childParent) (int, int, error) {
+func scanHealthLakeProfileVersions(ctx context.Context, client healthLakeAPI, acct *account, region string, st *store.Store, scanID string, profiles []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, healthLakeListVersionsOp, healthLakeNotFound, profiles, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]healthlaketypes.DataTransformationProfileVersionSummary, *string, error) {
 			out, err := client.ListDataTransformationProfileVersions(ctx, &healthlake.ListDataTransformationProfileVersionsInput{

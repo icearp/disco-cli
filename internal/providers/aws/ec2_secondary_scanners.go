@@ -17,22 +17,22 @@ func init() {
 // scanEC2Secondary discovers multi-VPC secondary networking resources:
 // secondary networks, their secondary subnets, and the secondary interfaces
 // attached across them.
-func scanEC2Secondary(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2Secondary(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSecondaryNetworks(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSecondarySubnets(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSecondaryInterfaces(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanSecondaryNetworks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecondaryNetworks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSecondaryNetworks", acct, region, st,
 		ec2.NewDescribeSecondaryNetworksPaginator(client, &ec2.DescribeSecondaryNetworksInput{}),
@@ -62,7 +62,7 @@ func scanSecondaryNetworks(ctx context.Context, client ec2API, acct *account, re
 	)
 }
 
-func scanSecondarySubnets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecondarySubnets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSecondarySubnets", acct, region, st,
 		ec2.NewDescribeSecondarySubnetsPaginator(client, &ec2.DescribeSecondarySubnetsInput{}),
@@ -93,7 +93,7 @@ func scanSecondarySubnets(ctx context.Context, client ec2API, acct *account, reg
 	)
 }
 
-func scanSecondaryInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecondaryInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSecondaryInterfaces", acct, region, st,
 		ec2.NewDescribeSecondaryInterfacesPaginator(client, &ec2.DescribeSecondaryInterfacesInput{}),

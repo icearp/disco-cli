@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanSpringAppDiscovery discovers springappdiscovery resources.
-func scanSpringAppDiscovery(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpringAppDiscovery(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armspringappdiscovery.NewSpringbootsitesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armspringappdiscovery:NewSpringbootsitesClient: %w", err)
+		return 0, fmt.Errorf("armspringappdiscovery:NewSpringbootsitesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armspringappdiscovery:Springbootsites.ListBySubscription", TypeSpringbootSite, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

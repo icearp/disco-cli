@@ -27,15 +27,15 @@ const maxConcurrentDataflowSnapshotFanout = 10
 // needed; the API exposes a project-wide variant. Snapshots have no such
 // aggregated endpoint, so they fan out per region (Compute regions catalog,
 // same gcpRegions helper used elsewhere).
-func scanDataflow(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataflow(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := dataflow.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("dataflow client: %w", err)
+		return 0, fmt.Errorf("dataflow client: %w", err)
 	}
 	regions, err := gcpRegions(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return scanDataflowWithClient(ctx, svc, regions, p, st, scanID)
 }
@@ -44,7 +44,7 @@ func scanDataflow(ctx context.Context, p *project, st *store.Store, scanID strin
 // pre-built client plus a pre-resolved region list directly, so tests can
 // point the client at a fake server and inject regions without a real
 // compute.Regions.List dependency.
-func scanDataflowWithClient(ctx context.Context, svc *dataflow.Service, regions []string, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataflowWithClient(ctx context.Context, svc *dataflow.Service, regions []string, p *project, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	err = svc.Projects.Jobs.Aggregated(p.ID).Context(ctx).Pages(ctx, func(page *dataflow.ListJobsResponse) error {
 		for _, j := range page.Jobs {
@@ -73,14 +73,14 @@ func scanDataflowWithClient(ctx context.Context, svc *dataflow.Service, regions 
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "dataflow:jobs.aggregated", p.ID, err)
+			return 0, skipIfDenied(st, "dataflow:jobs.aggregated", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) > 0 {
-		total, inserted, err = upsertWithProjClosure(p, st, batch)
+		total, err = upsertWithProjClosure(p, st, batch)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
 
@@ -121,13 +121,12 @@ func scanDataflowWithClient(ctx context.Context, svc *dataflow.Service, regions 
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		st2, sn2, uerr := upsertWithProjClosure(p, st, sbatch)
+		st2, uerr := upsertWithProjClosure(p, st, sbatch)
 		total += st2
-		inserted += sn2
 		return uerr
 	})
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }

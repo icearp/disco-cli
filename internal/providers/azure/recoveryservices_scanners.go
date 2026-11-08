@@ -20,10 +20,10 @@ func init() {
 
 // scanRecoveryServices discovers Recovery Services vaults (Azure Backup +
 // Site Recovery).
-func scanRecoveryServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRecoveryServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armrecoveryservices.NewVaultsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armrecoveryservices:NewVaultsClient: %w", err)
+		return 0, fmt.Errorf("armrecoveryservices:NewVaultsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armrecoveryservices:Vaults.ListBySubscriptionID", TypeRecoveryServicesVault, sub, st, scanID,
 		client.NewListBySubscriptionIDPager(nil),

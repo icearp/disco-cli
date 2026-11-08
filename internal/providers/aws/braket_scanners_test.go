@@ -35,7 +35,9 @@ func TestScanBraketSpendingLimits(t *testing.T) {
 			{SpendingLimitArn: &untagged, DeviceArn: &device},
 		},
 	}
-	total, inserted, err := scanBraketSpendingLimits(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBraketSpendingLimits(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -59,7 +61,9 @@ func TestScanBraketSpendingLimitsEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubBraket{}
-	total, inserted, err := scanBraketSpendingLimits(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBraketSpendingLimits(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

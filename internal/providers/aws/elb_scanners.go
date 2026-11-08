@@ -75,12 +75,12 @@ type elbv2TGWithTargets struct {
 // Listener certificates and trust store revocations take no tags: the
 // Service Reference has no ARN format for either, AddTags lists neither, and
 // their NativeIDs are built here.
-func scanELBv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanELBv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := elasticloadbalancingv2.NewFromConfig(acct.cfg, func(o *elasticloadbalancingv2.Options) { o.Region = region })
 	bulk := elbv2Tags(client)
 	tags := bulk.bulkTagReader().sharingDenials()
 	var lbs, listeners, trustStores []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "elasticloadbalancingv2", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "elasticloadbalancingv2", 0, []hostPhase{
 		{op: "elasticloadbalancing:DescribeLoadBalancers", run: func(p *phaseTotals) (failed bool) {
 			lbs, failed = scanELBv2LoadBalancers(ctx, client, acct, region, st, scanID, bulk, tags, p)
 			return failed
@@ -92,7 +92,7 @@ func scanELBv2(ctx context.Context, acct *account, region string, st *store.Stor
 			trustStores, failed = scanELBv2TrustStores(ctx, client, acct, region, st, scanID, bulk, tags, p)
 			return failed
 		}},
-		countedPhase(0, "elasticloadbalancing:DescribeTrustStoreRevocations", func() (int, int, error) {
+		countedPhase(0, "elasticloadbalancing:DescribeTrustStoreRevocations", func() (int, error) {
 			return scanELBv2TrustStoreRevocations(ctx, client, acct, region, st, scanID, trustStores)
 		}),
 		{op: "elasticloadbalancing:DescribeListeners", run: func(p *phaseTotals) (failed bool) {
@@ -102,12 +102,12 @@ func scanELBv2(ctx context.Context, acct *account, region string, st *store.Stor
 		{op: "elasticloadbalancing:DescribeRules", run: func(p *phaseTotals) bool {
 			return scanELBv2ListenerRules(ctx, client, acct, region, st, scanID, listeners, bulk, tags, p)
 		}},
-		countedPhase(0, "elasticloadbalancing:DescribeListenerCertificates", func() (int, int, error) {
+		countedPhase(0, "elasticloadbalancing:DescribeListenerCertificates", func() (int, error) {
 			return scanELBv2ListenerCertificates(ctx, client, acct, region, st, scanID, listeners)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // elbv2Tags reads the tags of the rows of every tagged type with
@@ -257,7 +257,7 @@ func scanELBv2TrustStores(ctx context.Context, client elbv2API, acct *account, r
 // stored this scan. A revocation has no ARN; its NativeID is the trust
 // store's ARN + ":rev/" + RevocationId, and one without a RevocationId is not
 // stored.
-func scanELBv2TrustStoreRevocations(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string, trustStores []childParent) (int, int, error) {
+func scanELBv2TrustStoreRevocations(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string, trustStores []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "elasticloadbalancing:DescribeTrustStoreRevocations", []string{"TrustStoreNotFound"}, childParentIDs(trustStores),
 		func(ctx context.Context, tsARN string, marker *string) ([]elbv2types.DescribeTrustStoreRevocation, *string, error) {
 			out, err := client.DescribeTrustStoreRevocations(ctx, &elasticloadbalancingv2.DescribeTrustStoreRevocationsInput{TrustStoreArn: &tsARN, Marker: marker, PageSize: aws.Int32(elbPageCap)})
@@ -328,7 +328,7 @@ func scanELBv2ListenerRules(ctx context.Context, client elbv2API, acct *account,
 // stored this scan. A listener certificate has no ARN of its own; its
 // NativeID is the listener's ARN + ":cert/" + CertificateArn, and one without
 // a CertificateArn is not stored.
-func scanELBv2ListenerCertificates(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string, listeners []childParent) (int, int, error) {
+func scanELBv2ListenerCertificates(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string, listeners []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "elasticloadbalancing:DescribeListenerCertificates", []string{"ListenerNotFound"}, childParentIDs(listeners),
 		func(ctx context.Context, listenerARN string, marker *string) ([]elbv2types.Certificate, *string, error) {
 			out, err := client.DescribeListenerCertificates(ctx, &elasticloadbalancingv2.DescribeListenerCertificatesInput{ListenerArn: &listenerARN, Marker: marker, PageSize: aws.Int32(elbPageCap)})

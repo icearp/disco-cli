@@ -122,19 +122,19 @@ type serviceQuotasAPI interface {
 // max, set per call below) keeps the page count near one-per-service, so the
 // wall-time floor stays at calls÷10req/s. The whole scanner is opt-in
 // (optIn:true); see --include-service-quotas.
-func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
 	return scanServiceQuotasWithClient(ctx, client, acct, region, st, scanID, newSQPacers())
 }
 
-func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacers *sqPacers) (total, inserted int, err error) {
+func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacers *sqPacers) (total int, err error) {
 	start := time.Now()
 	codes, err := listQuotaServiceCodes(ctx, client, pacers.services)
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "servicequotas:ListServices", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "servicequotas:ListServices", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("servicequotas:ListServices: %w", err)
+		return 0, fmt.Errorf("servicequotas:ListServices: %w", err)
 	}
 	home := globalQuotaRegion(acct)
 
@@ -180,13 +180,13 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 	reportRateDebug(st, "servicequotas:ListAWSDefaultServiceQuotas", region, pacers.defaults, start)
 
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertQuotas(batch)
+	_, err = st.UpsertQuotas(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert service quotas: %w", err)
+		return 0, fmt.Errorf("upsert service quotas: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // listQuotaServiceCodes enumerates every service code Service Quotas knows about

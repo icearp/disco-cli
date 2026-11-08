@@ -112,7 +112,9 @@ func scanSynCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(handlers, synTestDenied)
-	total, inserted, err := scanSynthetics(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSynthetics(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if inserted != total {
 		t.Errorf("inserted = %d, want total %d", inserted, total)
 	}
@@ -451,9 +453,9 @@ func TestScanSynthetics_GroupsDenied(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSynthetics_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
@@ -462,7 +464,7 @@ func TestScanSynthetics_RescanKeepsTotal(t *testing.T) {
 	h["ListGroups"] = synGroupPages
 	acct.cfg = opStubConfig(h, synTestDenied)
 	for run := range 2 {
-		total, _, err := scanSynthetics(context.Background(), acct, testRegion, st, testScanID)
+		total, err := scanSynthetics(context.Background(), acct, testRegion, st, testScanID)
 		if err != nil {
 			t.Fatalf("run %d: err = %v", run, err)
 		}

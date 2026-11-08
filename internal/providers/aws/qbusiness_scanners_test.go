@@ -52,7 +52,7 @@ func scanQBChatControlsForTest(t *testing.T, st *store.Store, apps []qbAppRef, g
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanQBChatControlsConfigurations(context.Background(), client, acct, testRegion, st, testScanID, apps, &p)
-	total, _, err := p.result(st, acct, testRegion)
+	total, err := p.result(st, acct, testRegion)
 	return total, err
 }
 
@@ -311,7 +311,7 @@ func runScanQBusiness(t *testing.T, st *store.Store, handlers map[string]func(an
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, qbDenied)
-	total, _, err := scanQBusiness(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanQBusiness(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -411,7 +411,7 @@ func TestScanQBChatControlsConfigurations_ContextEndIsAnError(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanQBChatControlsConfigurations(ctx, client, acct, testRegion, st, testScanID, qbTestApps(ids...), &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v; want context.Canceled", err)
 	}

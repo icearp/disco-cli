@@ -125,7 +125,7 @@ var (
 // returned only when nothing was found and nothing failed. A region where the
 // first listing of every host answers NXDOMAIN serves neither product and is
 // reported unavailable.
-func scanTimestream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTimestream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	wc := timestreamwrite.NewFromConfig(acct.cfg, func(o *timestreamwrite.Options) { o.Region = region })
 	qc := timestreamquery.NewFromConfig(acct.cfg, func(o *timestreamquery.Options) { o.Region = region })
 	ic := timestreaminfluxdb.NewFromConfig(acct.cfg, func(o *timestreaminfluxdb.Options) { o.Region = region })
@@ -156,7 +156,7 @@ func scanTimestream(ctx context.Context, acct *account, region string, st *store
 		return ph
 	}
 	var clusters, instances map[string]string
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "timestream", tsNoPrimaryHost, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "timestream", tsNoPrimaryHost, []hostPhase{
 		firstOfHost(hostPhase{op: "timestream:ListDatabases", host: tsWriteHost, run: func(p *phaseTotals) bool {
 			return scanTSDatabases(ctx, wc, acct, region, st, scanID, isClosed, liveTags, p)
 		}}),
@@ -180,22 +180,22 @@ func scanTimestream(ctx context.Context, acct *account, region string, st *store
 			instances, failed = scanTSInfluxInstances(ctx, ic, acct, region, st, scanID, influxTags, p)
 			return failed
 		}},
-		countedPhase(tsInfluxHost, "timestream:ListDbParameterGroups", func() (int, int, error) {
+		countedPhase(tsInfluxHost, "timestream:ListDbParameterGroups", func() (int, error) {
 			return scanTSInfluxParameterGroups(ctx, ic, acct, region, st, scanID)
 		}),
-		countedPhase(tsInfluxHost, "timestream:ListDbBackups", func() (int, int, error) {
+		countedPhase(tsInfluxHost, "timestream:ListDbBackups", func() (int, error) {
 			return scanTSInfluxBackups(ctx, ic, tsInfluxBackupSources(clusters, instances), acct, region, st, scanID)
 		}),
 	})
 	liveTags.warnDenials(st, acct, region)
 	influxTags.warnDenials(st, acct, region)
 	if closed != nil && total == 0 && err == nil {
-		return 0, 0, markServiceNotEntitled(closed)
+		return 0, markServiceNotEntitled(closed)
 	}
 	if len(absent) == tsHostCount && err == nil {
-		return 0, 0, markServiceUnavailable(absent[tsWriteHost])
+		return 0, markServiceUnavailable(absent[tsWriteHost])
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // tsInfluxBackupSources maps the Id of each cluster and instance stored this
@@ -498,16 +498,16 @@ func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *accoun
 	return arnByID, failed
 }
 
-func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := timestreaminfluxdb.NewListDbParameterGroupsPaginator(client, &timestreaminfluxdb.ListDbParameterGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "timestream:ListDbParameterGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "timestream:ListDbParameterGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("timestream:ListDbParameterGroups: %w", err)
+			return 0, fmt.Errorf("timestream:ListDbParameterGroups: %w", err)
 		}
 		for _, pg := range out.Items {
 			arn := sv(pg.Arn)
@@ -538,7 +538,7 @@ func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *
 // read as the op being absent. Once a page has succeeded the op is deployed: a
 // later error of any shape except a denial is returned, after the rows listed
 // so far are stored.
-func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map[string]string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map[string]string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "timestream:ListDbBackups"
 	pager := timestreaminfluxdb.NewListDbBackupsPaginator(client, &timestreaminfluxdb.ListDbBackupsInput{},
 		func(o *timestreaminfluxdb.ListDbBackupsPaginatorOptions) { o.Limit = 100 })
@@ -551,7 +551,7 @@ func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map
 		if perr != nil {
 			switch {
 			case !listed && isOpNotDeployed(perr):
-				return 0, 0, nil
+				return 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
 			default:
@@ -574,9 +574,9 @@ func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map
 			sources = append(sources, parentARNs[sv(b.DbResourceId)])
 		}
 	}
-	t, i, uerr := upsertBatch(st, batch, "timestream influx-db-backups")
+	t, uerr := upsertBatch(st, batch, "timestream influx-db-backups")
 	if uerr != nil {
-		return 0, 0, errors.Join(listErr, uerr)
+		return 0, errors.Join(listErr, uerr)
 	}
 	var pairs [][2]string
 	for n, r := range batch {
@@ -585,7 +585,7 @@ func scanTSInfluxBackups(ctx context.Context, client tsInfluxAPI, parentARNs map
 		}
 	}
 	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return t, i, errors.Join(listErr, fmt.Errorf("closure timestream influx-db-backups: %w", herr))
+		return t, errors.Join(listErr, fmt.Errorf("closure timestream influx-db-backups: %w", herr))
 	}
-	return t, i, listErr
+	return t, listErr
 }

@@ -200,7 +200,7 @@ func scanAITopLevel(t *testing.T, st *store.Store, handlers map[string]func(in a
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, aiDenied)
-	total, _, err := scanApplicationInsights(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanApplicationInsights(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

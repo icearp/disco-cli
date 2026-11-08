@@ -20,17 +20,17 @@ func init() {
 }
 
 // scanLargeInstance discovers Azure Large Instances and large storage instances.
-func scanLargeInstance(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLargeInstance(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	inst, err := armlargeinstance.NewAzureLargeInstanceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armlargeinstance:NewAzureLargeInstanceClient: %w", err)
+		return 0, fmt.Errorf("armlargeinstance:NewAzureLargeInstanceClient: %w", err)
 	}
 	storage, err := armlargeinstance.NewAzureLargeStorageInstanceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armlargeinstance:NewAzureLargeStorageInstanceClient: %w", err)
+		return 0, fmt.Errorf("armlargeinstance:NewAzureLargeStorageInstanceClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armlargeinstance:AzureLargeInstance.ListBySubscription", TypeLargeInstance, sub, st, scanID,
 				inst.NewListBySubscriptionPager(nil),
 				func(p armlargeinstance.AzureLargeInstanceClientListBySubscriptionResponse) []*armlargeinstance.AzureLargeInstance {
@@ -40,7 +40,7 @@ func scanLargeInstance(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(i.ID), name: sv(i.Name), location: sv(i.Location), tags: i.Tags, full: i}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armlargeinstance:AzureLargeStorageInstance.ListBySubscription", TypeLargeInstanceStorage, sub, st, scanID,
 				storage.NewListBySubscriptionPager(nil),
 				func(p armlargeinstance.AzureLargeStorageInstanceClientListBySubscriptionResponse) []*armlargeinstance.AzureLargeStorageInstance {

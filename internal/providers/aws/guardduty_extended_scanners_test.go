@@ -75,7 +75,7 @@ func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
 	st := newTestStore(t)
 	seedGDDetectors(t, st, "d1", "d2")
 	fake := &fakeGDOrgConfig{}
-	total, _, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
+	total, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
 	if err != nil {
 		t.Fatalf("scanGDOrganizationConfigurations: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestScanGDOrganizationConfigurations_ErrorHandling(t *testing.T) {
 			ids := []string{"bad1", "bad2", "ok1", "ok2"}
 			seedGDDetectors(t, st, ids...)
 			fake := &fakeGDOrgConfig{errs: map[string]error{"bad1@" + tc.token: tc.err, "bad2@" + tc.token: tc.err}}
-			_, _, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, ids)
+			_, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, ids)
 			if tc.wantCode != "" {
 				if !isAPIErrorCode(err, tc.wantCode) {
 					t.Fatalf("err = %v; want the %s propagated", err, tc.wantCode)
@@ -186,7 +186,7 @@ func TestScanGDOrganizationConfigurations_NoDetectorsMakesNoCalls(t *testing.T) 
 	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeGDOrgConfig{}
-	total, _, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	total, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Fatalf("got (%d, %v); want (0, nil)", total, err)
 	}
@@ -234,7 +234,7 @@ func TestScanGuardDuty_StoresOrganizationConfigurationUnderDetector(t *testing.T
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = gdServiceStub(t, nil)
-	total, _, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanGuardDuty: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestScanGuardDuty_OrganizationConfigurationErrorPropagates(t *testing.T) {
 	acct.cfg = gdServiceStub(t, map[string][]stubCall{
 		"DescribeOrganizationConfiguration": {{Err: apiErr("ValidationException", "synthetic-test-hard")}},
 	})
-	_, _, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v; want the DescribeOrganizationConfiguration ValidationException", err)
 	}
@@ -274,7 +274,7 @@ func TestScanGuardDuty_OrganizationConfigurationRefusedKeepsDetectorRows(t *test
 	acct.cfg = gdServiceStub(t, map[string][]stubCall{
 		"DescribeOrganizationConfiguration": {{Err: apiErr("BadRequestException", "synthetic-test-400")}},
 	})
-	if _, _, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanGuardDuty: %v; want nil", err)
 	}
 	if want := []string{"guardduty:DescribeOrganizationConfiguration"}; !slices.Equal(warned, want) {

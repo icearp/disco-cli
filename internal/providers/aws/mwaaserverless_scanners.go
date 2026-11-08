@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanMWAAServerless discovers MWAA Serverless workflows.
-func scanMWAAServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMWAAServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := mwaaserverless.NewFromConfig(acct.cfg, func(o *mwaaserverless.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanMWAAServerless(ctx context.Context, acct *account, region string, st *s
 		out, err := client.ListWorkflows(ctx, &mwaaserverless.ListWorkflowsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mwaa-serverless:ListWorkflows", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "mwaa-serverless:ListWorkflows", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("mwaa-serverless:ListWorkflows: %w", err)
+			return 0, fmt.Errorf("mwaa-serverless:ListWorkflows: %w", err)
 		}
 		for _, w := range out.Workflows {
 			arn := sv(w.WorkflowArn)

@@ -24,20 +24,20 @@ type braketAPI interface {
 	SearchSpendingLimits(context.Context, *braket.SearchSpendingLimitsInput, ...func(*braket.Options)) (*braket.SearchSpendingLimitsOutput, error)
 }
 
-func scanBraket(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBraket(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := braket.NewFromConfig(acct.cfg, func(o *braket.Options) { o.Region = region })
 	return scanBraketSpendingLimits(ctx, client, acct, region, st, scanID)
 }
 
-func scanBraketSpendingLimits(ctx context.Context, client braketAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBraketSpendingLimits(ctx context.Context, client braketAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := braket.NewSearchSpendingLimitsPaginator(client, &braket.SearchSpendingLimitsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "braket:SearchSpendingLimits", acct.ID, region, perr)
+				return total, skipIfAccessDenied(st, "braket:SearchSpendingLimits", acct.ID, region, perr)
 			}
-			return total, inserted, fmt.Errorf("braket:SearchSpendingLimits: %w", perr)
+			return total, fmt.Errorf("braket:SearchSpendingLimits: %w", perr)
 		}
 		batch := make([]*store.Resource, 0, len(out.SpendingLimits))
 		for _, sl := range out.SpendingLimits {
@@ -60,13 +60,12 @@ func scanBraketSpendingLimits(ctx context.Context, client braketAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert braket spending limits: %w", uerr)
+				return total, fmt.Errorf("upsert braket spending limits: %w", uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

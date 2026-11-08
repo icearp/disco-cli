@@ -82,7 +82,7 @@ func svSharedTags(tags rowTagReader, acct *account) rowTagReader {
 // does not stop the later ones; a failed write and ctx's end do
 // (runHostPhases). The phases run one at a time, so readEachKey's own bound
 // is the bound on the tag reads in flight.
-func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := pinpointsmsvoicev2.NewFromConfig(acct.cfg, func(o *pinpointsmsvoicev2.Options) { o.Region = region })
 	tags := svTags(client)
 	shared := svSharedTags(tags, acct)

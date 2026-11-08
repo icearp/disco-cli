@@ -43,14 +43,14 @@ type sagemakerStudioAPI interface {
 // scanSageMakerStudio runs all Studio-family phases for one region: Studio
 // domains, the user profiles / spaces / apps that hang off them, plus the
 // account-scoped AppImageConfigs and StudioLifecycleConfigs.
-func scanSageMakerStudio(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerStudio(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListDomains", func() (int, int, error) { return scanSageMakerDomains(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListUserProfiles", func() (int, int, error) { return scanSageMakerUserProfiles(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListSpaces", func() (int, int, error) { return scanSageMakerSpaces(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListApps", func() (int, int, error) { return scanSageMakerApps(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListAppImageConfigs", func() (int, int, error) { return scanSageMakerAppImageConfigs(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListStudioLifecycleConfigs", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListDomains", func() (int, error) { return scanSageMakerDomains(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListUserProfiles", func() (int, error) { return scanSageMakerUserProfiles(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListSpaces", func() (int, error) { return scanSageMakerSpaces(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListApps", func() (int, error) { return scanSageMakerApps(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListAppImageConfigs", func() (int, error) { return scanSageMakerAppImageConfigs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListStudioLifecycleConfigs", func() (int, error) {
 			return scanSageMakerStudioLifecycleConfigs(ctx, client, acct, region, st, scanID)
 		}},
 	)
@@ -59,7 +59,7 @@ func scanSageMakerStudio(ctx context.Context, client sagemakerStudioAPI, acct *a
 // scanSageMakerDomains lists Studio domains then fans out DescribeDomain
 // for full body (DefaultUserSettings, VpcId, SubnetIds, KmsKeyId,
 // AppNetworkAccessType, etc.) — list summary omits all edge-bearing fields.
-func scanSageMakerDomains(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerDomains(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.DomainDetails]{
 		listOp: "sagemaker:ListDomains", describeOp: "sagemaker:DescribeDomain", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.DomainDetails, *string, error) {
@@ -108,7 +108,7 @@ type userProfileKey struct{ domainID, name string }
 
 // scanSageMakerUserProfiles lists user profiles across all domains in the
 // account+region, then fans out DescribeUserProfile for full body.
-func scanSageMakerUserProfiles(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerUserProfiles(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[userProfileKey]{
 		listOp: "sagemaker:ListUserProfiles", describeOp: "sagemaker:DescribeUserProfile", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]userProfileKey, *string, error) {
@@ -166,7 +166,7 @@ type spaceKey struct{ domainID, name string }
 
 // scanSageMakerSpaces lists shared spaces across all domains then fans out
 // DescribeSpace for full body (SpaceSettings, EBS volume, custom file system).
-func scanSageMakerSpaces(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerSpaces(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[spaceKey]{
 		listOp: "sagemaker:ListSpaces", describeOp: "sagemaker:DescribeSpace", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]spaceKey, *string, error) {
@@ -229,7 +229,7 @@ type appKey struct {
 
 // scanSageMakerApps lists apps across all domains then fans out DescribeApp
 // for full body (LastHealthCheckTimestamp, ResourceSpec, BuiltInLifecycleConfigArn).
-func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[appKey]{
 		listOp: "sagemaker:ListApps", describeOp: "sagemaker:DescribeApp", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]appKey, *string, error) {
@@ -293,7 +293,7 @@ func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *acc
 // scanSageMakerAppImageConfigs lists app image configs (account+region scoped)
 // then fans out DescribeAppImageConfig for full body (KernelGatewayImageConfig,
 // JupyterLabAppImageConfig, CodeEditorAppImageConfig).
-func scanSageMakerAppImageConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerAppImageConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.AppImageConfigDetails]{
 		listOp: "sagemaker:ListAppImageConfigs", describeOp: "sagemaker:DescribeAppImageConfig", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.AppImageConfigDetails, *string, error) {
@@ -336,7 +336,7 @@ func scanSageMakerAppImageConfigs(ctx context.Context, client sagemakerStudioAPI
 
 // scanSageMakerStudioLifecycleConfigs lists Studio lifecycle configs then
 // fans out DescribeStudioLifecycleConfig for full body (StudioLifecycleConfigContent).
-func scanSageMakerStudioLifecycleConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerStudioLifecycleConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.StudioLifecycleConfigDetails]{
 		listOp: "sagemaker:ListStudioLifecycleConfigs", describeOp: "sagemaker:DescribeStudioLifecycleConfig", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.StudioLifecycleConfigDetails, *string, error) {

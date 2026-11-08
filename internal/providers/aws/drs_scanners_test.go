@@ -107,7 +107,7 @@ func drsPlanHandlers(listFail error, getFail map[string]error) map[string]func(i
 func scanDRSPlans(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, []childParent, error) {
 	t.Helper()
 	client := drs.NewFromConfig(opStubConfig(handlers, drsDenied))
-	total, _, parents, err := scanDRSRecoveryPlans(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, parents, err := scanDRSRecoveryPlans(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, parents, err
 }
 
@@ -592,7 +592,7 @@ func scanDRSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, drsDenied)
-	_, _, err := scanDRS(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanDRS(context.Background(), acct, testRegion, st, testScanID)
 	return err
 }
 
@@ -814,7 +814,7 @@ func TestScanDRS_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanDRS(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanDRS(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanDRS: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -858,7 +858,7 @@ func drsReplicationConfigHandler(calls *parentCalls, fail map[string]error) func
 
 // scanDRSReplicationConfigs seeds source servers s-1 and s-2 and runs the
 // replication-configuration phase over them.
-func scanDRSReplicationConfigs(t *testing.T, st *store.Store, fail map[string]error) (total, inserted int, calls *parentCalls, err error) {
+func scanDRSReplicationConfigs(t *testing.T, st *store.Store, fail map[string]error) (total int, calls *parentCalls, err error) {
 	t.Helper()
 	calls = &parentCalls{}
 	var servers []childParent
@@ -870,14 +870,14 @@ func scanDRSReplicationConfigs(t *testing.T, st *store.Store, fail map[string]er
 	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"GetReplicationConfiguration": drsReplicationConfigHandler(calls, fail),
 	}, drsDenied))
-	total, inserted, err = scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
-	return total, inserted, calls, err
+	total, err = scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
+	return total, calls, err
 }
 
 func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, calls, err := scanDRSReplicationConfigs(t, st, nil)
+	total, calls, err := scanDRSReplicationConfigs(t, st, nil)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -886,8 +886,8 @@ func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
 	}
 	c1, c2 := drsReplicationConfigNativeID("s-1"), drsReplicationConfigNativeID("s-2")
 	rows := rowsByNativeID(t, st, TypeDRSReplicationConfiguration)
-	if total != 2 || inserted != 2 || !slices.Equal(nativeIDs(rows), []string{c1, c2}) {
-		t.Fatalf("total/inserted = %d/%d, rows = %v; want 2/2 [%s %s]", total, inserted, nativeIDs(rows), c1, c2)
+	if total != 2 || !slices.Equal(nativeIDs(rows), []string{c1, c2}) {
+		t.Fatalf("total = %d, rows = %v; want 2 [%s %s]", total, nativeIDs(rows), c1, c2)
 	}
 	assertContainsNative(t, st, drsTestARN("source-server", "s-1"), c1)
 	assertContainsNative(t, st, drsTestARN("source-server", "s-2"), c2)
@@ -916,7 +916,9 @@ func TestScanDRSReplicationConfigurations_NoServersNoCalls(t *testing.T) {
 	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"GetReplicationConfiguration": drsReplicationConfigHandler(&calls, nil),
 	}, drsDenied))
-	total, inserted, err := scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	counted, upserts := countUpserts(st)
+	total, err := scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID, nil)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 || len(calls.distinct()) != 0 || len(rowsByNativeID(t, st, TypeDRSReplicationConfiguration)) != 0 {
 		t.Errorf("total/inserted = %d/%d, calls = %v, err = %v; want nothing, nil", total, inserted, calls.distinct(), err)
 	}
@@ -940,7 +942,7 @@ func TestScanDRSReplicationConfigurations_FailedServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "drs:GetReplicationConfiguration")
-			total, _, _, err := scanDRSReplicationConfigs(t, st, tc.fail)
+			total, _, err := scanDRSReplicationConfigs(t, st, tc.fail)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -963,7 +965,7 @@ func TestScanDRSReplicationConfigurations_FailedServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, drsReplicationConfigOp)
-			total, _, _, err := scanDRSReplicationConfigs(t, st, map[string]error{"s-1": tc.err})
+			total, _, err := scanDRSReplicationConfigs(t, st, map[string]error{"s-1": tc.err})
 			if !tc.check(err) {
 				t.Errorf("err = %v", err)
 			}
@@ -1224,7 +1226,7 @@ func TestScanDRSReplicationConfigurations_StopsOnContext(t *testing.T) {
 		servers[i] = childParent{id: id, arn: drsTestARN("source-server", id)}
 	}
 	st := newTestStore(t)
-	total, _, err := scanDRSReplicationConfigurations(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
+	total, err := scanDRSReplicationConfigurations(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
 	if !errors.Is(err, context.Canceled) || drsLeaves(err) != 1 {
 		t.Errorf("err = %v (%d errors), want one context.Canceled", err, drsLeaves(err))
 	}
@@ -1274,7 +1276,7 @@ func TestScanDRSRecoveryPlans_StopsOnContext(t *testing.T) {
 		},
 	}, drsDenied))
 	st := newTestStore(t)
-	total, _, _, err := scanDRSRecoveryPlans(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, _, err := scanDRSRecoveryPlans(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) || drsLeaves(err) != 1 {
 		t.Errorf("err = %v (%d errors), want one context.Canceled", err, drsLeaves(err))
 	}
@@ -1315,7 +1317,7 @@ func TestScanDRSReplicationConfigurations_HierarchyWriteFails(t *testing.T) {
 	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"GetReplicationConfiguration": drsReplicationConfigHandler(&parentCalls{}, nil),
 	}, drsDenied))
-	total, _, err := scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{server})
+	total, err := scanDRSReplicationConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []childParent{server})
 	if !errors.Is(err, store.ErrStoreWrite) || total != 1 {
 		t.Errorf("total = %d, err = %v; want 1 and the closure's store write failure", total, err)
 	}

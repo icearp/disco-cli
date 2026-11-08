@@ -43,11 +43,11 @@ func isNilErr(err error) bool { return err == nil }
 
 // scanDZDomains runs the domain phase and returns the errors it filed joined
 // with any write error, as scanDataZone reports them.
-func scanDZDomains(client dataZoneAPI, st *store.Store) ([]*dzDomain, int, int, error) {
+func scanDZDomains(client dataZoneAPI, st *store.Store) ([]*dzDomain, int, error) {
 	acct := newTestAccount(testAccountID)
 	var errs phaseErrs
-	domains, total, inserted, werr := scanDataZoneDomains(context.Background(), client, acct, testRegion, st, testScanID, &errs)
-	return domains, total, inserted, errors.Join(errs.join(st, acct, testRegion), werr)
+	domains, total, werr := scanDataZoneDomains(context.Background(), client, acct, testRegion, st, testScanID, &errs)
+	return domains, total, errors.Join(errs.join(st, acct, testRegion), werr)
 }
 
 func dzOnePage(items ...dztypes.DomainSummary) []func() (any, error) {
@@ -67,7 +67,9 @@ func TestScanDataZoneDomains_ReadsTags(t *testing.T) {
 		return out, nil
 	})
 	st := newTestStore(t)
-	domains, total, inserted, err := scanDZDomains(client, st)
+	counted, upserts := countUpserts(st)
+	domains, total, err := scanDZDomains(client, counted)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataZoneDomains: %v", err)
 	}
@@ -115,7 +117,7 @@ func TestScanDataZoneDomains_GetDomainFails(t *testing.T) {
 			})
 			st := newTestStore(t)
 			warns := countOpWarnings(st, dzGetDomainOp)
-			domains, total, _, err := scanDZDomains(client, st)
+			domains, total, err := scanDZDomains(client, st)
 			if !c.wantErr(err) {
 				t.Fatalf("err = %v, unexpected for %s", err, c.name)
 			}
@@ -164,7 +166,7 @@ func TestScanDataZoneDomains_KeptDomainWarnsOnlyOnceStored(t *testing.T) {
 		closeStore()
 		return nil, apiErr("AccessDeniedException", "not authorized to perform: datazone:GetDomain")
 	})
-	_, _, _, err := scanDZDomains(client, st)
+	_, _, err := scanDZDomains(client, st)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want the store write failure", err)
 	}
@@ -213,7 +215,7 @@ func TestScanDataZoneDomains_ListPageFails(t *testing.T) {
 			})
 			st := newTestStore(t)
 			warns := countOpWarnings(st, dzListDomainsOp)
-			domains, total, _, err := scanDZDomains(client, st)
+			domains, total, err := scanDZDomains(client, st)
 			if !c.wantErr(err) {
 				t.Fatalf("err = %v, unexpected for %s", err, c.name)
 			}
@@ -248,7 +250,7 @@ func TestScanDataZoneDomains_EmptyKeyWarns(t *testing.T) {
 	})
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dzListDomainsOp)
-	domains, total, _, err := scanDZDomains(client, st)
+	domains, total, err := scanDZDomains(client, st)
 	if err != nil {
 		t.Fatalf("scanDataZoneDomains: %v", err)
 	}
@@ -300,7 +302,7 @@ func TestScanDataZone_ChildPhaseErrorRunsLaterPhases(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, profilesErr) || !errors.Is(err, projectsErr) {
 		t.Fatalf("err = %v, want both phase errors", err)
 	}
@@ -333,7 +335,7 @@ func TestScanDataZone_StoreWriteStopsPhases(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want the store write failure", err)
 	}
@@ -360,7 +362,7 @@ func TestScanDataZone_DomainErrorStillListsChildren(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v, want one carrying ValidationException", err)
 	}
@@ -534,7 +536,7 @@ func TestScanDataZoneChildPhases_ErrorKeepsRowsRead(t *testing.T) {
 				}
 				client := datazone.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){c.op: handler}, errors.New("unexpected op")))
 				warns := countOpWarnings(st, "datazone:"+c.op)
-				total, _, err := c.fn(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, domains)
+				total, err := c.fn(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, domains)
 				if got := errors.Is(err, bad); got != e.wantErr || !e.wantErr && err != nil {
 					t.Fatalf("err = %v, want dom-2 failure returned: %v", err, e.wantErr)
 				}
@@ -575,7 +577,7 @@ func TestScanDataZone_ListDomainsFailsReturnsError(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, bad) || total != 0 {
 		t.Fatalf("total=%d err=%v, want 0 and the ListDomains error", total, err)
 	}
@@ -595,7 +597,7 @@ func TestScanDataZone_TransientGetDomainFiledUnderGetDomain(t *testing.T) {
 	listWarns := countOpWarnings(st, dzListDomainsOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, projectsErr) {
 		t.Fatalf("err = %v, want the ListProjects error", err)
 	}

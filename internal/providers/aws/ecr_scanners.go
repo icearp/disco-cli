@@ -51,7 +51,7 @@ type ecrAPI interface {
 // error an earlier phase returned, except a failed store write, which stops
 // the scan; the scanning-configuration phase gets the repositories the first
 // phase stored.
-func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
 
 	var p phaseTotals
@@ -61,40 +61,40 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 	}
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{"ecr:DescribePullThroughCacheRules", func() (int, int, error) {
+		{"ecr:DescribePullThroughCacheRules", func() (int, error) {
 			return scanECRPullThroughCacheRules(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:ListPullTimeUpdateExclusions", func() (int, int, error) {
+		{"ecr:ListPullTimeUpdateExclusions", func() (int, error) {
 			return scanECRPullTimeUpdateExclusions(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:GetRegistryPolicy", func() (int, int, error) {
+		{"ecr:GetRegistryPolicy", func() (int, error) {
 			return scanECRRegistryPolicy(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:GetRegistryScanningConfiguration", func() (int, int, error) {
+		{"ecr:GetRegistryScanningConfiguration", func() (int, error) {
 			return scanECRRegistryScanningConfig(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:DescribeRegistry", func() (int, int, error) {
+		{"ecr:DescribeRegistry", func() (int, error) {
 			return scanECRReplicationConfiguration(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:DescribeRepositoryCreationTemplates", func() (int, int, error) {
+		{"ecr:DescribeRepositoryCreationTemplates", func() (int, error) {
 			return scanECRRepositoryCreationTemplates(ctx, client, acct, region, st, scanID)
 		}},
-		{"ecr:GetSigningConfiguration", func() (int, int, error) {
+		{"ecr:GetSigningConfiguration", func() (int, error) {
 			return scanECRSigningConfiguration(ctx, client, acct, region, st, scanID)
 		}},
 	} {
-		t, i, err := phase.run()
-		if p.addPhase(phase.op, t, i, err) {
+		t, err := phase.run()
+		if p.addPhase(phase.op, t, err) {
 			return p.result(st, acct, region)
 		}
 	}
 	if scanECRPublic(ctx, acct, region, st, scanID, &p) {
 		return p.result(st, acct, region)
 	}
-	t, i, err := scanECRRepositoryScanningConfigs(ctx, client, acct, region, st, scanID, repos)
-	p.addPhase("ecr:BatchGetRepositoryScanningConfiguration", t, i, err)
+	t, err := scanECRRepositoryScanningConfigs(ctx, client, acct, region, st, scanID, repos)
+	p.addPhase("ecr:BatchGetRepositoryScanningConfiguration", t, err)
 	return p.result(st, acct, region)
 }
 

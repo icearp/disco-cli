@@ -54,7 +54,7 @@ func ecsSetting(name ecstypes.SettingName, value string, typ ecstypes.SettingTyp
 	return ecstypes.Setting{Name: name, Value: sdkaws.String(value), PrincipalArn: sdkaws.String(ecsTestRoleARN), Type: typ}
 }
 
-func scanECSAccountSettingsWith(t *testing.T, st *store.Store, handler func(any) (any, error)) (int, int, error) {
+func scanECSAccountSettingsWith(t *testing.T, st *store.Store, handler func(any) (any, error)) (int, error) {
 	t.Helper()
 	client := ecs.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListAccountSettings": handler}, ecsDenied))
 	return scanECSAccountSettings(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -70,7 +70,9 @@ func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
 			{Value: sdkaws.String("enabled")},
 		},
 	}
-	total, inserted, err := scanECSAccountSettingsWith(t, st, ecsAccountSettingsHandler(pages, nil))
+	counted, upserts := countUpserts(st)
+	total, err := scanECSAccountSettingsWith(t, counted, ecsAccountSettingsHandler(pages, nil))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -114,7 +116,9 @@ func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
 func TestScanECSAccountSettings_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := scanECSAccountSettingsWith(t, st, ecsAccountSettingsHandler(nil, nil))
+	counted, upserts := countUpserts(st)
+	total, err := scanECSAccountSettingsWith(t, counted, ecsAccountSettingsHandler(nil, nil))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -146,7 +150,7 @@ func TestScanECSAccountSettings_ListErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, ecsListAccountSettingsOp)
-			total, _, err := scanECSAccountSettingsWith(t, st, ecsAccountSettingsHandler(pages, tc.errs))
+			total, err := scanECSAccountSettingsWith(t, st, ecsAccountSettingsHandler(pages, tc.errs))
 			if tc.wantCode == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -196,7 +200,9 @@ func TestScanECS_StoresSettingsAndClusters(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(ecsTopLevelHandlers(), ecsDenied)}
-	total, inserted, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanECS(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -231,7 +237,7 @@ func TestScanECS_SettingsBeforeClusterDeadline(t *testing.T) {
 		return settings(ctx, in)
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, ecsDenied)}
-	_, _, err := scanECS(ctx, acct, testRegion, st, testScanID)
+	_, err := scanECS(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("err = %v; want the cluster side's deadline", err)
 	}
@@ -259,7 +265,7 @@ func TestScanECS_PhaseErrorKeepsOtherSide(t *testing.T) {
 			h := ecsTopLevelHandlers()
 			h[tc.failOp] = func(any) (any, error) { return nil, apiErr("ClientException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, ecsDenied)}
-			total, _, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ClientException") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v; want the ClientException classified outcomeError", err)
 			}
@@ -291,7 +297,7 @@ func TestScanECS_TransientSideDemoted(t *testing.T) {
 			h[tc.throttleOp] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 			h[tc.failOp] = func(any) (any, error) { return nil, apiErr("ClientException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, ecsDenied)}
-			_, _, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ClientException") {
 				t.Errorf("err = %v classified %v; want the ClientException as outcomeError", err, got)
 			}

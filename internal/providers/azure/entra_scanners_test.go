@@ -43,7 +43,9 @@ func TestScanEntraUsers_HappyPath(t *testing.T) {
 
 	st := newTestStore(t)
 	g := &graphClient{cred: stubTokenIssuer{token: "x"}, http: srv.Client(), baseURL: srv.URL}
-	total, inserted := scanEntraUsers(context.Background(), g, "tenant-1", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total := scanEntraUsers(context.Background(), g, "tenant-1", counted, testScanID)
+	inserted := upserts()
 	if total != 2 || inserted != 2 {
 		t.Errorf("counts: total=%d inserted=%d, want 2/2", total, inserted)
 	}

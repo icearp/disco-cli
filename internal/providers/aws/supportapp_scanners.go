@@ -29,38 +29,37 @@ type supportAppAPI interface {
 // scanSupportApp discovers the SupportApp account alias and per-Slack-team
 // channel/workspace configs. Global service; called in its home region
 // (homeRegion; us-east-1 for aws).
-func scanSupportApp(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSupportApp(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("supportapp")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := supportapp.NewFromConfig(acct.cfg, func(o *supportapp.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSAAccountAlias(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSASlackChannelConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSASlackWorkspaceConfigs(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanSAAccountAlias(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanSASlackChannelConfigs(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanSASlackWorkspaceConfigs(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSAAccountAlias(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSAAccountAlias(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetAccountAlias(ctx, &supportapp.GetAccountAliasInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "supportapp:GetAccountAlias", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "supportapp:GetAccountAlias", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("supportapp:GetAccountAlias: %w", err)
+		return 0, fmt.Errorf("supportapp:GetAccountAlias: %w", err)
 	}
 	if sv(out.AccountAlias) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "supportapp", "", acct.ID, "account-alias")
 	label := sv(out.AccountAlias)
@@ -73,16 +72,16 @@ func scanSAAccountAlias(ctx context.Context, client supportAppAPI, acct *account
 	return upsertBatch(st, []*store.Resource{r}, "supportapp account-alias")
 }
 
-func scanSASlackChannelConfigs(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSASlackChannelConfigs(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := supportapp.NewListSlackChannelConfigurationsPaginator(client, &supportapp.ListSlackChannelConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "supportapp:ListSlackChannelConfigurations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "supportapp:ListSlackChannelConfigurations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("supportapp:ListSlackChannelConfigurations: %w", err)
+			return 0, fmt.Errorf("supportapp:ListSlackChannelConfigurations: %w", err)
 		}
 		for _, c := range out.SlackChannelConfigurations {
 			ch := sv(c.ChannelId)
@@ -106,16 +105,16 @@ func scanSASlackChannelConfigs(ctx context.Context, client supportAppAPI, acct *
 	return upsertBatch(st, batch, "supportapp slack-channel-configurations")
 }
 
-func scanSASlackWorkspaceConfigs(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSASlackWorkspaceConfigs(ctx context.Context, client supportAppAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := supportapp.NewListSlackWorkspaceConfigurationsPaginator(client, &supportapp.ListSlackWorkspaceConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "supportapp:ListSlackWorkspaceConfigurations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "supportapp:ListSlackWorkspaceConfigurations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("supportapp:ListSlackWorkspaceConfigurations: %w", err)
+			return 0, fmt.Errorf("supportapp:ListSlackWorkspaceConfigurations: %w", err)
 		}
 		for _, w := range out.SlackWorkspaceConfigurations {
 			team := sv(w.TeamId)

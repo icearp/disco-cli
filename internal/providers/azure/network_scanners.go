@@ -83,59 +83,58 @@ func init() {
 //     out via azRGFanoutScan.
 //   - ExpressRouteGateways: SDK exposes only ListBySubscription (single
 //     call, no pager); wrap inline.
-func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	circuitsClient, err := armnetwork.NewExpressRouteCircuitsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewExpressRouteCircuitsClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewExpressRouteCircuitsClient: %w", err)
 	}
 	wansClient, err := armnetwork.NewVirtualWansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVirtualWansClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVirtualWansClient: %w", err)
 	}
 	hubsClient, err := armnetwork.NewVirtualHubsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVirtualHubsClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVirtualHubsClient: %w", err)
 	}
 	sitesClient, err := armnetwork.NewVPNSitesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVPNSitesClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVPNSitesClient: %w", err)
 	}
 	gwClient, err := armnetwork.NewVPNGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVPNGatewaysClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVPNGatewaysClient: %w", err)
 	}
 	vngClient, err := armnetwork.NewVirtualNetworkGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVirtualNetworkGatewaysClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVirtualNetworkGatewaysClient: %w", err)
 	}
 	ergClient, err := armnetwork.NewExpressRouteGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewExpressRouteGatewaysClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewExpressRouteGatewaysClient: %w", err)
 	}
 	agwClient, err := armnetwork.NewApplicationGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewApplicationGatewaysClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewApplicationGatewaysClient: %w", err)
 	}
 
 	var (
 		mu       sync.Mutex
 		firstErr error
 	)
-	addTotals := func(t, n int, e error) {
+	addTotals := func(t int, e error) {
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		if e != nil && firstErr == nil {
 			firstErr = e
 		}
 	}
 
-	phases := []func() (int, int, error){
-		func() (int, int, error) { return scanVNets(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanNSGs(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanPublicIPs(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) {
+	phases := []func() (int, error){
+		func() (int, error) { return scanVNets(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanNSGs(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanPublicIPs(ctx, sub, cred, st, scanID) },
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ExpressRouteCircuits.ListAll", TypeNetworkExpressRouteCircuit, sub, st, scanID,
 				circuitsClient.NewListAllPager(nil),
 				func(p armnetwork.ExpressRouteCircuitsClientListAllResponse) []*armnetwork.ExpressRouteCircuit {
@@ -143,25 +142,25 @@ func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 				},
 				ercToBase)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VirtualWans.List", TypeNetworkVirtualWAN, sub, st, scanID,
 				wansClient.NewListPager(nil),
 				func(p armnetwork.VirtualWansClientListResponse) []*armnetwork.VirtualWAN { return p.Value },
 				vwanToBase)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VirtualHubs.List", TypeNetworkVirtualHub, sub, st, scanID,
 				hubsClient.NewListPager(nil),
 				func(p armnetwork.VirtualHubsClientListResponse) []*armnetwork.VirtualHub { return p.Value },
 				vhubToBase)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VPNSites.List", TypeNetworkVPNSite, sub, st, scanID,
 				sitesClient.NewListPager(nil),
 				func(p armnetwork.VPNSitesClientListResponse) []*armnetwork.VPNSite { return p.Value },
 				vpnSiteToBase)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VPNGateways.List", TypeNetworkVPNGateway, sub, st, scanID,
 				gwClient.NewListPager(nil),
 				func(p armnetwork.VPNGatewaysClientListResponse) []*armnetwork.VPNGateway { return p.Value },
@@ -169,7 +168,7 @@ func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		},
 		// Classic VirtualNetworkGateways — RG-scoped only, fan out via
 		// azRGFanoutScan.
-		func() (int, int, error) {
+		func() (int, error) {
 			return azRGFanoutScan(ctx, "armnetwork:VirtualNetworkGateways.List", TypeNetworkVirtualNetworkGW, sub, cred, st, scanID,
 				func(rg string) azPager[armnetwork.VirtualNetworkGatewaysClientListResponse] {
 					return vngClient.NewListPager(rg, nil)
@@ -181,11 +180,11 @@ func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		},
 		// ExpressRouteGateways — SDK only exposes ListBySubscription (single
 		// call, no pager). Inline.
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanExpressRouteGateways(ctx, sub, ergClient, st, scanID)
 		},
 		// Application Gateways — sub-wide ListAll.
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ApplicationGateways.ListAll", TypeNetworkApplicationGateway, sub, st, scanID,
 				agwClient.NewListAllPager(nil),
 				func(p armnetwork.ApplicationGatewaysClientListAllResponse) []*armnetwork.ApplicationGateway {
@@ -195,24 +194,24 @@ func scanNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		},
 		// Coverage sweep — remaining Microsoft.Network types, fanned out as one
 		// nested phase to keep scanNetwork's complexity bounded.
-		func() (int, int, error) { return scanNetworkSweep(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanNetworkSweep(ctx, sub, cred, st, scanID) },
 	}
 
 	var wg sync.WaitGroup
 	for _, fn := range phases {
 		wg.Go(func() {
-			t, n, e := fn()
-			addTotals(t, n, e)
+			t, e := fn()
+			addTotals(t, e)
 		})
 	}
 	wg.Wait()
-	return total, inserted, firstErr
+	return total, firstErr
 }
 
-func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnetwork.NewVirtualNetworksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewVirtualNetworksClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewVirtualNetworksClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -220,9 +219,9 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armnetwork:VirtualNetworks.ListAll", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armnetwork:VirtualNetworks.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
+			return 0, fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		var subnetBatch []*store.Resource
@@ -276,32 +275,30 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 			}
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert VNets: %w", err)
+				return 0, fmt.Errorf("upsert VNets: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if len(subnetBatch) > 0 {
-			n, err := st.UpsertResources(subnetBatch)
+			_, err := st.UpsertResources(subnetBatch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert subnets: %w", err)
+				return 0, fmt.Errorf("upsert subnets: %w", err)
 			}
 			total += len(subnetBatch)
-			inserted += n
 			if err := st.RecordHierarchyBatch(subnetPairs); err != nil {
-				return 0, 0, fmt.Errorf("closure subnets: %w", err)
+				return 0, fmt.Errorf("closure subnets: %w", err)
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanNSGs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNSGs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnetwork.NewSecurityGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
 	}
 	return azPageScan(ctx, "armnetwork:SecurityGroups.ListAll", sub, st,
 		client.NewListAllPager(nil),
@@ -324,10 +321,10 @@ func scanNSGs(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 		})
 }
 
-func scanPublicIPs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPublicIPs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnetwork.NewPublicIPAddressesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
+		return 0, fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
 	}
 	return azPageScan(ctx, "armnetwork:PublicIPAddresses.ListAll", sub, st,
 		client.NewListAllPager(nil),
@@ -353,28 +350,28 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred azcore.TokenCred
 // scanExpressRouteGateways adapts the single-call ListBySubscription API
 // into the standard scanner-phase shape: enumerate, build batch + RG pairs
 // via azTrackedRows, upsert.
-func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *armnetwork.ExpressRouteGatewaysClient, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *armnetwork.ExpressRouteGatewaysClient, st *store.Store, scanID string) (total int, err error) {
 	resp, err := client.ListBySubscription(ctx, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armnetwork:ExpressRouteGateways.ListBySubscription", sub.ID, err)
+			return 0, skipIfAccessDenied(st, "armnetwork:ExpressRouteGateways.ListBySubscription", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armnetwork:ExpressRouteGateways.ListBySubscription: %w", err)
+		return 0, fmt.Errorf("armnetwork:ExpressRouteGateways.ListBySubscription: %w", err)
 	}
 	batch, pairs := azTrackedRows(sub, scanID, TypeNetworkExpressRouteGateway, resp.Value, ergToBase)
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err = st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert ExpressRouteGateways: %w", err)
+		return 0, fmt.Errorf("upsert ExpressRouteGateways: %w", err)
 	}
 	if len(pairs) > 0 {
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return len(batch), n, fmt.Errorf("closure ExpressRouteGateways: %w", err)
+			return len(batch), fmt.Errorf("closure ExpressRouteGateways: %w", err)
 		}
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // azTrackedBase extractors for the subscription-wide and RG-fanout phases.
@@ -416,13 +413,13 @@ func agwToBase(g *armnetwork.ApplicationGateway) azTrackedBase {
 // scanNetworkNamespace runs every Microsoft.network scanner phase concurrently
 // — the namespace spans several disco scanners merged under one serviceEntry
 // so the service name aligns to the namespace.
-func scanNetworkNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanNetwork(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanDNS(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanDNSResolver(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanFrontDoor(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanPrivateEndpoints(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanTrafficManager(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanNetwork(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanDNS(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanDNSResolver(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanFrontDoor(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanPrivateEndpoints(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanTrafficManager(ctx, sub, cred, st, scanID) },
 	)
 }

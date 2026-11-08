@@ -115,7 +115,7 @@ func TestScanSNSPlatformApplications_PagesAndFields(t *testing.T) {
 		{snsApp(snsAppARN2)},
 	}, nil)
 
-	total, _, err := scanSNSPlatformApplications(context.Background(), snsClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSNSPlatformApplications(context.Background(), snsClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -147,7 +147,7 @@ func TestScanSNSOriginationNumbers_PagesAndFields(t *testing.T) {
 		{snsPhone(snsPhone2)},
 	}, nil, &limits)
 
-	total, _, err := scanSNSOriginationNumbers(context.Background(), snsClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSNSOriginationNumbers(context.Background(), snsClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -179,7 +179,7 @@ type snsPhaseCase struct {
 	name string
 	op   string
 	typ  string
-	run  func(*sns.Client, *store.Store) (int, int, error)
+	run  func(*sns.Client, *store.Store) (int, error)
 	// handlers answers two pages of one row each, the second failing with secondErr.
 	handlers func(secondErr error) map[string]func(any) (any, error)
 	// repeated answers every call with one row and NextToken "same".
@@ -191,7 +191,7 @@ func snsPhaseCases(calls *atomic.Int32) []snsPhaseCase {
 	return []snsPhaseCase{
 		{
 			name: "platform applications", op: snsListPlatformApplicationsOp, typ: TypeSNSPlatformApplication,
-			run: func(c *sns.Client, st *store.Store) (int, int, error) {
+			run: func(c *sns.Client, st *store.Store) (int, error) {
 				return scanSNSPlatformApplications(context.Background(), c, acct, testRegion, st, testScanID)
 			},
 			handlers: func(secondErr error) map[string]func(any) (any, error) {
@@ -206,7 +206,7 @@ func snsPhaseCases(calls *atomic.Int32) []snsPhaseCase {
 		},
 		{
 			name: "origination numbers", op: snsListOriginationNumbersOp, typ: TypeSNSOriginationNumber,
-			run: func(c *sns.Client, st *store.Store) (int, int, error) {
+			run: func(c *sns.Client, st *store.Store) (int, error) {
 				return scanSNSOriginationNumbers(context.Background(), c, acct, testRegion, st, testScanID)
 			},
 			handlers: func(secondErr error) map[string]func(any) (any, error) {
@@ -231,7 +231,7 @@ func TestScanSNSNewPhases_Empty(t *testing.T) {
 				"ListPlatformApplications": func(any) (any, error) { return &sns.ListPlatformApplicationsOutput{}, nil },
 				"ListOriginationNumbers":   func(any) (any, error) { return &sns.ListOriginationNumbersOutput{}, nil },
 			}
-			total, _, err := c.run(snsClient(h), st)
+			total, err := c.run(snsClient(h), st)
 			if err != nil || total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
 				t.Errorf("total, err = %d, %v; want 0 rows, nil", total, err)
 			}
@@ -269,7 +269,7 @@ func TestScanSNSNewPhases_Errors(t *testing.T) {
 				} else {
 					client = snsClient(c.handlers(tc.second))
 				}
-				total, _, err := c.run(client, st)
+				total, err := c.run(client, st)
 				if tc.wantCode == "" && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -292,7 +292,7 @@ func TestScanSNSNewPhases_RepeatedTokenStops(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			calls.Store(0)
 			st := newTestStore(t)
-			total, _, err := c.run(snsClient(c.repeated), st)
+			total, err := c.run(snsClient(c.repeated), st)
 			if err != nil || calls.Load() != 2 || total != 2 {
 				t.Errorf("calls, total, err = %d, %d, %v; want 2, 2, nil", calls.Load(), total, err)
 			}
@@ -332,7 +332,7 @@ func TestScanSNSPlatformApplications_CredentialsNeverStored(t *testing.T) {
 	}, func(o *sns.Options) { o.BaseEndpoint = sdkaws.String(srv.URL) })
 
 	st := newTestStore(t)
-	total, _, err := scanSNSPlatformApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSNSPlatformApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d rows, err %v; want 1 row", total, err)
 	}
@@ -395,7 +395,7 @@ func TestScanSNS_StoresEveryPhase(t *testing.T) {
 		snsPhoneHandler([][]snstypes.PhoneNumberInformation{{snsPhone(snsPhone1)}}, nil, nil))
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, snsDenied)}
 
-	total, _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || total != 3 {
 		t.Fatalf("total, err = %d, %v; want 3 (topic, application, number), nil", total, err)
 	}
@@ -420,7 +420,7 @@ func TestScanSNS_NewPhaseFailureKeepsOtherPhases(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, hard }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, snsDenied)}
 
-			total, _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "InvalidParameter") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v; want a hard InvalidParameter", err)
 			}
@@ -440,7 +440,7 @@ func TestScanSNS_TopicFailureStillRunsNewPhases(t *testing.T) {
 		snsPhoneHandler([][]snstypes.PhoneNumberInformation{{snsPhone(snsPhone1)}}, nil, nil))
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, snsDenied)}
 
-	total, _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidParameter") || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v; want a hard InvalidParameter", err)
 	}
@@ -472,7 +472,7 @@ func TestScanSNS_TransientDemotedBesideHardError(t *testing.T) {
 			h[tc.hardOp] = func(any) (any, error) { return nil, hard }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, snsDenied)}
 
-			_, _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanSNS(context.Background(), acct, testRegion, st, testScanID)
 			if classifyServiceError(err) != outcomeError || *warns != 1 {
 				t.Errorf("outcome, warnings = %v, %d; want outcomeError, 1 (err %v)", classifyServiceError(err), *warns, err)
 			}
@@ -546,7 +546,7 @@ func TestScanSNS_TopicPhasesAuthorizationErrorWarns(t *testing.T) {
 			h[tc.deny] = func(any) (any, error) { return nil, snsDenied }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, snsDenied)}
 
-			if _, _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanSNS(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if got := warns(); !maps.Equal(got, tc.wantWarns) {

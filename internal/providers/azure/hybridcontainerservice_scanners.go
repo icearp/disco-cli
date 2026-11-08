@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanHybridContainerService discovers AKS-on-Arc (hybrid) logical networks.
-func scanHybridContainerService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHybridContainerService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armhybridcontainerservice.NewVirtualNetworksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridcontainerservice:NewVirtualNetworksClient: %w", err)
+		return 0, fmt.Errorf("armhybridcontainerservice:NewVirtualNetworksClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armhybridcontainerservice:VirtualNetworks.ListBySubscription", TypeHybridContainerVirtualNetwork, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

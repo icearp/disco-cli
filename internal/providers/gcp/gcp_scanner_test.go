@@ -147,8 +147,8 @@ func TestRegisterOrgService_DuplicatePanics(t *testing.T) {
 			t.Fatal("registerOrgService accepted duplicate name without panicking")
 		}
 	}()
-	noop := func(_ context.Context, _ []orgScope, _ *store.Store, _ string) (int, int, error) {
-		return 0, 0, nil
+	noop := func(_ context.Context, _ []orgScope, _ *store.Store, _ string) (int, error) {
+		return 0, nil
 	}
 	registerOrgService(orgServiceEntry{name: "gcp:dup-test", fn: noop})
 	registerOrgService(orgServiceEntry{name: "gcp:dup-test", fn: noop})
@@ -181,13 +181,13 @@ func TestScanProject_OneServiceFailureDoesNotCancelSiblings(t *testing.T) {
 	saved := registeredServices
 	t.Cleanup(func() { registeredServices = saved })
 	registeredServices = []serviceEntry{
-		{name: "gcp:boom", fn: func(context.Context, *project, *store.Store, string) (int, int, error) {
+		{name: "gcp:boom", fn: func(context.Context, *project, *store.Store, string) (int, error) {
 			record("gcp:boom")
-			return 0, 0, errors.New("500 backend error")
+			return 0, errors.New("500 backend error")
 		}},
-		{name: "gcp:fine", fn: func(context.Context, *project, *store.Store, string) (int, int, error) {
+		{name: "gcp:fine", fn: func(context.Context, *project, *store.Store, string) (int, error) {
 			record("gcp:fine")
-			return 3, 3, nil
+			return 3, nil
 		}},
 	}
 
@@ -250,14 +250,14 @@ func TestScanProject_ReportsQuotasApart(t *testing.T) {
 			}
 			saved := registeredServices
 			t.Cleanup(func() { registeredServices = saved })
-			registeredServices = []serviceEntry{{name: "gcp:test", fn: func(_ context.Context, _ *project, st *store.Store, _ string) (int, int, error) {
+			registeredServices = []serviceEntry{{name: "gcp:test", fn: func(_ context.Context, _ *project, st *store.Store, _ string) (int, error) {
 				if errors.Is(c.err, errServiceDisabled) {
-					return 0, 0, c.err
+					return 0, c.err
 				}
 				if _, err := st.UpsertQuotas(quotas(2, "N1", "N2", "C1", "C2", "C3")); err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return 5, 5, c.err
+				return 5, c.err
 			}}}
 			scanProject(context.Background(), &project{ID: "proj-1"}, nil, st, testScanID)
 			if !slices.Equal(got, c.want) {

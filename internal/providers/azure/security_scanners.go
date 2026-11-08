@@ -24,21 +24,21 @@ func init() {
 // etc.) with its enabled tier (Free / Standard). Auto-provisioning settings,
 // security contacts, workspace settings, assessments, and recommendations
 // deferred — config + evaluation surfaces, not edge sources.
-func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armsecurity.NewPricingsClient(cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsecurity:NewPricingsClient: %w", err)
+		return 0, fmt.Errorf("armsecurity:NewPricingsClient: %w", err)
 	}
 	scope := "/subscriptions/" + sub.ID
 	resp, err := client.List(ctx, scope, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armsecurity:Pricings.List", sub.ID, err)
+			return 0, skipIfAccessDenied(st, "armsecurity:Pricings.List", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armsecurity:Pricings.List: %w", err)
+		return 0, fmt.Errorf("armsecurity:Pricings.List: %w", err)
 	}
 	if len(resp.Value) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batch := make([]*store.Resource, 0, len(resp.Value))
 	for _, p := range resp.Value {
@@ -62,9 +62,9 @@ func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 			ManagedByProvider: managed,
 		})
 	}
-	n, err := st.UpsertResources(batch)
+	_, err = st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert security pricings: %w", err)
+		return 0, fmt.Errorf("upsert security pricings: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

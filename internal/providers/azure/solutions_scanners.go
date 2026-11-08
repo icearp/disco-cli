@@ -23,12 +23,12 @@ func init() {
 // scanSolutions discovers Managed Applications — application definitions,
 // applications, and JIT (just-in-time) access requests. JitRequests has a
 // single-call ListBySubscription (no pager), handled inline.
-func scanSolutions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSolutions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			defClient, err := armmanagedapplications.NewApplicationDefinitionsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armmanagedapplications:NewApplicationDefinitionsClient: %w", err)
+				return 0, fmt.Errorf("armmanagedapplications:NewApplicationDefinitionsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armmanagedapplications:ApplicationDefinitions.ListBySubscription", TypeSolutionsApplicationDefinition, sub, st, scanID,
 				defClient.NewListBySubscriptionPager(nil),
@@ -39,10 +39,10 @@ func scanSolutions(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			appClient, err := armmanagedapplications.NewApplicationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armmanagedapplications:NewApplicationsClient: %w", err)
+				return 0, fmt.Errorf("armmanagedapplications:NewApplicationsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armmanagedapplications:Applications.ListBySubscription", TypeSolutionsApplication, sub, st, scanID,
 				appClient.NewListBySubscriptionPager(nil),
@@ -53,24 +53,24 @@ func scanSolutions(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanSolutionsJitRequests(ctx, sub, cred, st, scanID)
 		},
 	)
 }
 
 // scanSolutionsJitRequests handles the single-call JitRequests list (no pager).
-func scanSolutionsJitRequests(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSolutionsJitRequests(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armmanagedapplications.NewJitRequestsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagedapplications:NewJitRequestsClient: %w", err)
+		return 0, fmt.Errorf("armmanagedapplications:NewJitRequestsClient: %w", err)
 	}
 	resp, err := client.ListBySubscription(ctx, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armmanagedapplications:JitRequests.ListBySubscription", sub.ID, err)
+			return 0, skipIfAccessDenied(st, "armmanagedapplications:JitRequests.ListBySubscription", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armmanagedapplications:JitRequests.ListBySubscription: %w", err)
+		return 0, fmt.Errorf("armmanagedapplications:JitRequests.ListBySubscription: %w", err)
 	}
 	// Non-paginated List → feed the one response through azSimpleScan via a
 	// one-shot pager so the build+upsert+closure tail matches paged scanners.

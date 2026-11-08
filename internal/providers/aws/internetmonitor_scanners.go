@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanInternetMonitor discovers CloudWatch Internet Monitor monitors.
-func scanInternetMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInternetMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := internetmonitor.NewFromConfig(acct.cfg, func(o *internetmonitor.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanInternetMonitor(ctx context.Context, acct *account, region string, st *
 		out, err := client.ListMonitors(ctx, &internetmonitor.ListMonitorsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "internet-monitor:ListMonitors", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "internet-monitor:ListMonitors", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("internet-monitor:ListMonitors: %w", err)
+			return 0, fmt.Errorf("internet-monitor:ListMonitors: %w", err)
 		}
 		for _, m := range out.Monitors {
 			arn := sv(m.MonitorArn)

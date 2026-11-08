@@ -407,7 +407,7 @@ func TestScanSubscriptionResource_WarnsWhenThePinNeverAppears(t *testing.T) {
 		}}},
 	}}}
 
-	if _, _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
+	if _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
 		t.Fatalf("scanSubscriptionResourceWithPager() error = %v", err)
 	}
 	if len(warnings) != 1 {
@@ -433,7 +433,7 @@ func TestScanSubscriptionResource_DoesNotBlameRevocationForAccessDenied(t *testi
 	sub := &subscription{ID: "11111111-1111-1111-1111-111111111111"}
 	pager := &fakeSubscriptionPager{err: &azcore.ResponseError{StatusCode: 403, ErrorCode: "AuthorizationFailed"}}
 
-	if _, _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
+	if _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
 		t.Fatalf("scanSubscriptionResourceWithPager() error = %v; access denied is skipped, not raised", err)
 	}
 	for _, w := range warnings {
@@ -468,7 +468,7 @@ func TestScanSubscriptionResource_DoesNotBlameRevocationForAMidPaginationDenial(
 		err: &azcore.ResponseError{StatusCode: 403, ErrorCode: "AuthorizationFailed"},
 	}
 
-	if _, _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
+	if _, err := scanSubscriptionResourceWithPager(t.Context(), sub, st, testScanID, pager); err != nil {
 		t.Fatalf("scanSubscriptionResourceWithPager() error = %v; access denied is skipped, not raised", err)
 	}
 	for _, w := range warnings {

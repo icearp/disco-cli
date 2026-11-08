@@ -60,7 +60,7 @@ func runECRRepos(t *testing.T, st *store.Store, repos []ecrtypes.Repository, tag
 	if stop {
 		t.Fatal("stop = true; want false (the write succeeded)")
 	}
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	return parents, p, err
 }
 
@@ -201,7 +201,7 @@ func TestScanECRRepositories_FailedPageKeepsEarlierPages(t *testing.T) {
 	var p phaseTotals
 	acct := newTestAccount(testAccountID)
 	parents, _ := scanECRRepositories(context.Background(), client, acct, testRegion, st, testScanID, &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	assertAPICode(t, err, "InvalidParameterException")
 	if _, ok := rowsByNativeID(t, st, TypeECRRepository)[ecrRepoARN("a")]; !ok || p.total != 1 || len(parents) != 1 {
 		t.Errorf("a stored %v, total %d, parents %v; want true, 1, [a]", ok, p.total, parents)
@@ -223,7 +223,7 @@ func TestScanECR_PhaseErrorRunsLaterPhases(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	_, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ServerException")
 	for _, name := range []string{"a", "team/app"} {
 		assertContainsNative(t, st, ecrRepoARN(name), ecrScanCfgNativeID(name))
@@ -246,7 +246,7 @@ func TestScanECR_FailedRepositoryWriteStops(t *testing.T) {
 	}, ecrPubDenied)
 	closeStore()
 
-	_, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -270,7 +270,7 @@ func TestScanECR_TagReadErrorRunsLaterPhases(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	total, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "InvalidParameterException")
 	if total != 3 {
 		t.Errorf("total = %d; want 3 (two repositories, pull-through-cache rule)", total)
@@ -342,7 +342,7 @@ func TestScanECR_FailedLaterWriteStops(t *testing.T) {
 				"BatchGetRepositoryScanningConfiguration": calls.record("BatchGetRepositoryScanningConfiguration", ok(&ecr.BatchGetRepositoryScanningConfigurationOutput{})),
 			}, ecrPubDenied)
 
-			_, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -398,7 +398,7 @@ func TestScanECR_PhaseLabelsNameTheirCalls(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, ecrPubDenied)
 
-			_, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 			assertAPICode(t, err, "ServerException")
 			if *warns != 1 {
 				t.Errorf("%s warnings = %d; want 1 (the demoted throttle)", label, *warns)
@@ -416,7 +416,7 @@ func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
 		op, typ                   string
 		wantID, wantName, attrKey string
 		page                      func(in any) (any, *int32)
-		scan                      func(ecrExtAPI, *store.Store) (int, int, error)
+		scan                      func(ecrExtAPI, *store.Store) (int, error)
 	}{
 		{
 			"ecr:DescribePullThroughCacheRules", TypeECRPullThroughCacheRule,
@@ -424,7 +424,7 @@ func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
 			func(in any) (any, *int32) {
 				return &ecr.DescribePullThroughCacheRulesOutput{PullThroughCacheRules: []ecrtypes.PullThroughCacheRule{{EcrRepositoryPrefix: ptrStr("hub")}, {}}, NextToken: ptrStr("p2")}, in.(*ecr.DescribePullThroughCacheRulesInput).MaxResults
 			},
-			func(c ecrExtAPI, st *store.Store) (int, int, error) {
+			func(c ecrExtAPI, st *store.Store) (int, error) {
 				return scanECRPullThroughCacheRules(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 		},
@@ -434,7 +434,7 @@ func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
 			func(in any) (any, *int32) {
 				return &ecr.ListPullTimeUpdateExclusionsOutput{PullTimeUpdateExclusions: []string{ecrRepoARN("a"), ""}, NextToken: ptrStr("p2")}, in.(*ecr.ListPullTimeUpdateExclusionsInput).MaxResults
 			},
-			func(c ecrExtAPI, st *store.Store) (int, int, error) {
+			func(c ecrExtAPI, st *store.Store) (int, error) {
 				return scanECRPullTimeUpdateExclusions(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 		},
@@ -444,7 +444,7 @@ func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
 			func(in any) (any, *int32) {
 				return &ecr.DescribeRepositoryCreationTemplatesOutput{RepositoryCreationTemplates: []ecrtypes.RepositoryCreationTemplate{{Prefix: ptrStr("team")}, {}}, NextToken: ptrStr("p2")}, in.(*ecr.DescribeRepositoryCreationTemplatesInput).MaxResults
 			},
-			func(c ecrExtAPI, st *store.Store) (int, int, error) {
+			func(c ecrExtAPI, st *store.Store) (int, error) {
 				return scanECRRepositoryCreationTemplates(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 		},
@@ -468,7 +468,7 @@ func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
 					return out, nil
 				},
 			}, ecrPubDenied))
-			total, _, err := c.scan(client, st)
+			total, err := c.scan(client, st)
 			assertAPICode(t, err, "InvalidParameterException")
 			rows := rowsByNativeID(t, st, c.typ)
 			if total != 1 || len(rows) != 1 {

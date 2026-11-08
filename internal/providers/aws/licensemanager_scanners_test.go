@@ -54,7 +54,7 @@ func scanLMReceivedForTest(t *testing.T, st *store.Store, list func(in *licensem
 	client := lmTestClient(map[string]func(any) (any, error){
 		"ListReceivedLicenses": func(in any) (any, error) { return list(in.(*licensemanager.ListReceivedLicensesInput)) },
 	})
-	total, _, err := scanLMReceivedLicenses(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
+	total, err := scanLMReceivedLicenses(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
 	return total, err
 }
 
@@ -63,7 +63,7 @@ func scanLMTokensForTest(t *testing.T, st *store.Store, list func(in *licenseman
 	client := lmTestClient(map[string]func(any) (any, error){
 		"ListTokens": func(in any) (any, error) { return list(in.(*licensemanager.ListTokensInput)) },
 	})
-	total, _, err := scanLMTokens(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
+	total, err := scanLMTokens(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
 	return total, err
 }
 
@@ -363,7 +363,7 @@ func scanLicenseManagerForTest(t *testing.T, st *store.Store, received, tokens f
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(lmTopLevelHandlers(received, tokens), lmDenied)
-	total, _, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
+	total, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
 	return total, err
 }
 
@@ -510,7 +510,7 @@ func TestScanLicenseManager_RateLimitExceededOnceIsRetried(t *testing.T) {
 		})
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lmRetryingConfig(handlers)
-	total, _, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
+	total, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
 	if err != nil || total != 2 || calls != 2 {
 		t.Fatalf("total, ListTokens calls, err = %d, %d, %v; want 2 (license, token), 2, nil", total, calls, err)
 	}
@@ -601,7 +601,7 @@ func scanLicenseManagerWith(t *testing.T, st *store.Store, h map[string]func(any
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lmDenied)
-	total, _, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
+	total, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
 	return total, err
 }
 
@@ -1003,7 +1003,7 @@ func lmTagHandlers(c *lmCalls, partition, region string) map[string]func(any) (a
 }
 
 // lmTagScan runs scanLicenseManager for an account of partition against h.
-func lmTagScan(ctx context.Context, st *store.Store, partition string, h map[string]func(any) (any, error)) (int, int, error) {
+func lmTagScan(ctx context.Context, st *store.Store, partition string, h map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = partition
 	acct.cfg = opStubConfig(h, lmDenied)
@@ -1018,7 +1018,7 @@ func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newLMCalls("aws", testRegion)
-	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
+	total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
 	if err != nil || total != lmTestTagTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, lmTestTagTotal)
 	}
@@ -1062,16 +1062,16 @@ func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanLicenseManager_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion)); err != nil {
+	if _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion))
+	total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion))
 	if err != nil || total != lmTestTagTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, lmTestTagTotal)
 	}
@@ -1112,7 +1112,7 @@ func TestScanLicenseManager_TagReadFailures(t *testing.T) {
 			calls := newLMCalls("aws", testRegion)
 			calls.errs[c.arn] = c.err
 
-			total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
+			total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1154,7 +1154,7 @@ func TestScanLicenseManager_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[licenses.arn("aws", testRegion, "tagged")] = lmDenied
 	calls.errs[rulesets.arn("aws", testRegion, "bare")] = lmDenied
 
-	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
+	total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
 	if err != nil || total != lmTestTagTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, lmTestTagTotal)
 	}
@@ -1173,7 +1173,7 @@ func TestScanLicenseManager_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[lmKindOf(t, "ListLicenses").arn("aws", testRegion, "tagged")] = lmThrottle
 	calls.errs[lmKindOf(t, "ListLicenseAssetRulesets").arn("aws", testRegion, "bare")] = lmBadInput
 
-	_, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
+	_, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1207,7 +1207,7 @@ func TestScanLicenseManager_OtherAccountConfigurationUntaggedSilently(t *testing
 				k := lmKindOf(t, c.op)
 				h[c.op] = func(any) (any, error) { return k.page([]lmElem{{arn: c.arn, name: "other"}}), nil }
 
-				total, _, err := lmTagScan(context.Background(), st, "aws", h)
+				total, err := lmTagScan(context.Background(), st, "aws", h)
 				if err != nil || total != lmTestTagTotal-1 {
 					t.Fatalf("scan = %d, %v; want %d, nil", total, err, lmTestTagTotal-1)
 				}
@@ -1232,7 +1232,7 @@ func TestScanLicenseManager_FailedWriteStopsScan(t *testing.T) {
 	calls := newLMCalls("aws", testRegion)
 	calls.errs[lmKindOf(t, "ListLicenseConfigurations").arn("aws", testRegion, "tagged")] = lmDenied
 
-	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
+	total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1258,7 +1258,7 @@ func TestScanLicenseManager_TagReadsKeepPartitionARNs(t *testing.T) {
 	const partition, home = "aws-iso-b", "us-isob-east-1"
 	st := newTestStore(t)
 	calls := newLMCalls(partition, home)
-	total, _, err := lmTagScan(context.Background(), st, partition, lmTagHandlers(calls, partition, home))
+	total, err := lmTagScan(context.Background(), st, partition, lmTagHandlers(calls, partition, home))
 	if err != nil || total != lmTestTagTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, lmTestTagTotal)
 	}
@@ -1287,7 +1287,7 @@ func TestScanLicenseManager_EmptyListings(t *testing.T) {
 	for _, k := range lmKinds() {
 		h[k.op] = func(any) (any, error) { return k.page(nil), nil }
 	}
-	total, _, err := lmTagScan(context.Background(), st, "aws", h)
+	total, err := lmTagScan(context.Background(), st, "aws", h)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = %d, %v; want 0, nil", total, err)
 	}
@@ -1318,7 +1318,7 @@ func TestScanLicenseManager_NotSetUpOnAnyListingIsDisabled(t *testing.T) {
 			}
 			h[op] = func(any) (any, error) { return nil, notSetUp }
 
-			total, _, err := lmTagScan(context.Background(), st, "aws", h)
+			total, err := lmTagScan(context.Background(), st, "aws", h)
 			if !errors.Is(err, errServiceDisabled) || total != 0 {
 				t.Errorf("scan = %d, %v; want 0, errServiceDisabled", total, err)
 			}
@@ -1349,7 +1349,7 @@ func TestScanLicenseManager_ContextEndReportedOnce(t *testing.T) {
 		return out, nil
 	}
 
-	_, _, err := lmTagScan(ctx, st, "aws", h)
+	_, err := lmTagScan(ctx, st, "aws", h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1397,7 +1397,7 @@ func TestScanLicenseManager_AuthorizationExceptionListingWarns(t *testing.T) {
 					return lmPageWithNext(k.page([]lmElem{{first, "first", map[string]string{"type": k.typ}}}), "p2"), nil
 				}
 
-				total, _, err := lmTagScan(context.Background(), st, "aws", h)
+				total, err := lmTagScan(context.Background(), st, "aws", h)
 				wantRows := 0
 				if afterFirst {
 					wantRows = 1
@@ -1438,7 +1438,7 @@ func TestScanLMReportGenerators_DenialAfterFailedWriteNotWarned(t *testing.T) {
 		return lmPageWithNext(k.page([]lmElem{{k.arn("aws", testRegion, "tagged"), "first", nil}}), "p2"), nil
 	}
 
-	_, _, err := lmTagScan(context.Background(), st, "aws", h)
+	_, err := lmTagScan(context.Background(), st, "aws", h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1465,7 +1465,7 @@ func TestScanLicenseManager_TaggedListingWritesEachPageBeforeTheNext(t *testing.
 		return licenses.page([]lmElem{{arn: second, name: "second"}}), nil
 	}
 
-	total, _, err := lmTagScan(context.Background(), st, "aws", h)
+	total, err := lmTagScan(context.Background(), st, "aws", h)
 	if err != nil || total != lmTestTagTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, lmTestTagTotal)
 	}
@@ -1493,7 +1493,7 @@ func TestScanLicenseManager_FirstListingNXDOMAINSkipsTheRest(t *testing.T) {
 		return nil, &net.DNSError{Err: "no such host", Name: "license-manager.us-east-1.amazonaws.com", IsNotFound: true}
 	}
 
-	total, _, err := lmTagScan(context.Background(), st, "aws", h)
+	total, err := lmTagScan(context.Background(), st, "aws", h)
 	assertGlueOutcome(t, err, outcomeUnavailable)
 	if total != 0 {
 		t.Errorf("total = %d; want 0", total)

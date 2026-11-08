@@ -24,12 +24,12 @@ func init() {
 // disaster-recovery configs, application groups, and clusters deferred —
 // sub-resources whose graph value is mostly subsumed by the namespace
 // row's CMEK + identity edges.
-func scanEventHub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEventHub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armeventhub.NewNamespacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventhub:NewNamespacesClient: %w", err)
+				return 0, fmt.Errorf("armeventhub:NewNamespacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventhub:Namespaces.List", TypeEventHubNamespace, sub, st, scanID,
 				client.NewListPager(nil),
@@ -38,10 +38,10 @@ func scanEventHub(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			clClient, err := armeventhub.NewClustersClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventhub:NewClustersClient: %w", err)
+				return 0, fmt.Errorf("armeventhub:NewClustersClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventhub:Clusters.ListBySubscription", TypeEventHubCluster, sub, st, scanID,
 				clClient.NewListBySubscriptionPager(nil),

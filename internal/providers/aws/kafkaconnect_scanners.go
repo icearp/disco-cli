@@ -45,11 +45,11 @@ const (
 // the region does not serve the service (runHostPhases). Each listing is
 // written a page at a time, and the tag reads' denials are one warning for
 // the whole scan.
-func scanKafkaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafkaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := kafkaconnect.NewFromConfig(acct.cfg, func(o *kafkaconnect.Options) { o.Region = region })
 
 	tags := kafkaConnectTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "kafkaconnect", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "kafkaconnect", 0, []hostPhase{
 		{op: kcListConnectorsOp, run: func(p *phaseTotals) bool {
 			return scanKCConnectors(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -61,7 +61,7 @@ func scanKafkaConnect(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // kafkaConnectTags reads a row's tags with ListTagsForResource, sent the

@@ -347,7 +347,7 @@ var kendraListOps = []string{
 
 // kendraScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func kendraScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func kendraScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, kendraDenied)
@@ -356,7 +356,7 @@ func kendraScan(ctx context.Context, t *testing.T, st *store.Store, handlers map
 
 func scanKendraTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := kendraScan(context.Background(), t, st, handlers)
+	total, err := kendraScan(context.Background(), t, st, handlers)
 	return total, err
 }
 
@@ -381,7 +381,9 @@ func TestScanKendra_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls, h := kendraFixture()
 
-	total, inserted, err := kendraScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := kendraScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -461,7 +463,7 @@ func TestScanKendra_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, kendraDenied)
 
-	total, _, err := scanKendra(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanKendra(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != kendraTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, kendraTotal)
 	}
@@ -501,7 +503,9 @@ func TestScanKendra_EmptyListings(t *testing.T) {
 		calls, h := kendraFixture()
 		h["ListIndices"] = calls.answer("ListIndices", func(any) any { return &kendra.ListIndicesOutput{} })
 
-		total, inserted, err := kendraScan(context.Background(), t, st, h)
+		counted, upserts := countUpserts(st)
+		total, err := kendraScan(context.Background(), t, counted, h)
+		inserted := upserts()
 		if err != nil || total != 0 || inserted != 0 {
 			t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 		}
@@ -527,7 +531,7 @@ func TestScanKendra_EmptyListings(t *testing.T) {
 			h[op] = calls.answer(op, func(any) any { return out })
 		}
 
-		total, _, err := kendraScan(context.Background(), t, st, h)
+		total, err := kendraScan(context.Background(), t, st, h)
 		if err != nil || total != 2 {
 			t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 		}
@@ -544,18 +548,18 @@ func TestScanKendra_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanKendra_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
-	if _, _, err := kendraScan(context.Background(), t, st, h); err != nil {
+	if _, err := kendraScan(context.Background(), t, st, h); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	_, h = kendraFixture()
-	total, _, err := kendraScan(context.Background(), t, st, h)
+	total, err := kendraScan(context.Background(), t, st, h)
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -594,7 +598,7 @@ func TestScanKendra_TagReadFailures(t *testing.T) {
 					calls, h := kendraFixture()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := kendraScan(context.Background(), t, st, h)
+					total, err := kendraScan(context.Background(), t, st, h)
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -642,7 +646,7 @@ func TestScanKendra_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[d.arn] = kendraDenied
 	}
 
-	if _, _, err := kendraScan(context.Background(), t, st, h); err != nil {
+	if _, err := kendraScan(context.Background(), t, st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
@@ -665,7 +669,7 @@ func TestScanKendra_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[kendraChildARN(kendraTaggedKinds[0], kendraTestIdx1, "t")] = kendraThrottled
 	calls.errs[kendraChildARN(kendraTaggedKinds[1], kendraTestIdx2, "b")] = apiErr("ValidationException", "bad arn")
 
-	_, _, err := kendraScan(context.Background(), t, st, h)
+	_, err := kendraScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -705,7 +709,7 @@ func TestScanKendra_DescribeIndexFailures(t *testing.T) {
 				return describe(in)
 			}
 
-			total, _, err := kendraScan(context.Background(), t, st, h)
+			total, err := kendraScan(context.Background(), t, st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -759,7 +763,7 @@ func TestScanKendra_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			_, h := kendraFixture()
 			h[op] = func(any) (any, error) { return nil, kendraDenied }
 
-			total, _, err := kendraScan(context.Background(), t, st, h)
+			total, err := kendraScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -787,7 +791,7 @@ func TestScanKendra_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls, h := kendraFixture()
 	calls.errs[kendraChildARN(kendraTaggedKinds[0], kendraTestIdx1, "t")] = kendraDenied
 
-	_, _, err := kendraScan(context.Background(), t, st, h)
+	_, err := kendraScan(context.Background(), t, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -813,7 +817,7 @@ func TestScanKendra_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		_, h := kendraFixture()
 		h["ListIndices"] = failOnCall(2, kendraBadInput, h["ListIndices"])
 
-		total, _, err := kendraScan(context.Background(), t, st, h)
+		total, err := kendraScan(context.Background(), t, st, h)
 		assertAPICode(t, err, "ConflictException")
 		// Index 1, its 12 children, experience A's 2 entities and 2 personas.
 		if total != 17 {
@@ -842,7 +846,7 @@ func TestScanKendra_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		failFor("ListQuerySuggestionsBlockLists", kendraTestIdx2, true, kendraGone)
 		failFor("ListThesauri", kendraTestIdx1, false, apiErr("ValidationException", "bad index"))
 
-		total, _, err := kendraScan(context.Background(), t, st, h)
+		total, err := kendraScan(context.Background(), t, st, h)
 		for _, code := range []string{"ConflictException", "ValidationException"} {
 			if !joinCarriesAPIErrorCode(err, code) {
 				t.Errorf("err = %v; want it to carry %s", err, code)
@@ -900,7 +904,7 @@ func TestScanKendra_IndexGoneFromListingIsSkipped(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := kendraScan(context.Background(), t, st, h)
+			total, err := kendraScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -954,7 +958,7 @@ func TestScanKendra_EmptyStatusIsStored(t *testing.T) {
 		return &kendra.ListDataSourcesOutput{SummaryItems: []kendratypes.DataSourceSummary{{Id: sdkaws.String("ds-empty")}}}, nil
 	}
 
-	if _, _, err := kendraScan(context.Background(), t, st, h); err != nil {
+	if _, err := kendraScan(context.Background(), t, st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	for _, want := range []struct{ typ, arn string }{
@@ -988,7 +992,7 @@ func TestScanKendra_RepeatedTokenKeepsPages(t *testing.T) {
 			calls, h := kendraFixture()
 			h[c.op] = calls.answer(c.op, c.out)
 
-			_, _, err := kendraScan(context.Background(), t, st, h)
+			_, err := kendraScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1017,7 +1021,7 @@ func TestScanKendra_UnstorableItemsWarn(t *testing.T) {
 			calls, h := kendraFixture()
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			if _, _, err := kendraScan(context.Background(), t, st, h); err != nil {
+			if _, err := kendraScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -1042,7 +1046,7 @@ func TestScanKendra_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := kendraScan(ctx, t, st, h)
+	_, err := kendraScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1070,7 +1074,7 @@ func TestScanKendra_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls, h := kendraFixture()
 		h["ListIndices"] = func(any) (any, error) { return nil, nx }
-		total, _, err := kendraScan(context.Background(), t, st, h)
+		total, err := kendraScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || len(calls.tagARNs) != 0 || calls.count("ListDataSources") != 0 {
 			t.Errorf("total, tag reads, ListDataSources calls = %d, %d, %d; want 0", total, len(calls.tagARNs), calls.count("ListDataSources"))
@@ -1080,7 +1084,7 @@ func TestScanKendra_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls, h := kendraFixture()
 		calls.errs[kendraTestThes] = nx
-		total, _, err := kendraScan(context.Background(), t, st, h)
+		total, err := kendraScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != kendraTotal {
 			t.Errorf("total = %d; want %d", total, kendraTotal)
@@ -1099,7 +1103,7 @@ func TestScanKendra_ClosedToAccountIsNotEntitled(t *testing.T) {
 		return nil, apiErr("NotAuthorizedException", "Your account is not authorized to make this call.")
 	}
 
-	total, _, err := kendraScan(context.Background(), t, st, h)
+	total, err := kendraScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeNotEntitled)
 	if total != 0 || *warns != 0 || len(calls.tagARNs) != 0 || calls.count("ListDataSources") != 0 {
 		t.Errorf("total, warnings, tag reads, ListDataSources calls = %d, %d, %d, %d; want 0", total, *warns, len(calls.tagARNs), calls.count("ListDataSources"))

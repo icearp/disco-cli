@@ -83,7 +83,7 @@ const (
 	glueOrchestrationPageSize200 int32 = 200  // GetTriggers, ListUsageProfiles
 )
 
-func scanGlue(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGlue(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := glue.NewFromConfig(acct.cfg, func(o *glue.Options) { o.Region = region })
 	return scanGlueAll(ctx, client, acct, region, st, scanID)
 }
@@ -98,7 +98,7 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 // is the bound on the GetTags reads in flight. Every phase calls the one
 // Glue endpoint, so an NXDOMAIN after rows were stored is a failure of this
 // scan, not a region gap (resultLateNXDOMAIN).
-func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p               phaseTotals
 		tags            = glueTags(client)
@@ -107,10 +107,10 @@ func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region stri
 		schemaARNs      []string
 		versionIDs      []string
 	)
-	counted := func(op string, run func() (int, int, error)) func() bool {
+	counted := func(op string, run func() (int, error)) func() bool {
 		return func() bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
+			t, err := run()
+			return p.addPhase(op, t, err)
 		}
 	}
 	phases := []func() bool{
@@ -119,14 +119,14 @@ func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region stri
 			return stop
 		},
 		func() bool {
-			t, i, refs, err := scanGlueTables(ctx, client, acct, region, st, scanID, childParentIDs(databases))
+			t, refs, err := scanGlueTables(ctx, client, acct, region, st, scanID, childParentIDs(databases))
 			tableRefs = refs
-			return p.addPhase("glue:GetTables", t, i, err)
+			return p.addPhase("glue:GetTables", t, err)
 		},
-		counted("glue:GetPartitions", func() (int, int, error) {
+		counted("glue:GetPartitions", func() (int, error) {
 			return scanGluePartitions(ctx, client, acct, region, st, scanID, tableRefs)
 		}),
-		counted("glue:GetTableOptimizer", func() (int, int, error) {
+		counted("glue:GetTableOptimizer", func() (int, error) {
 			return scanGlueTableOptimizers(ctx, client, acct, region, st, scanID, tableRefs)
 		}),
 		func() (stop bool) {
@@ -138,11 +138,11 @@ func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region stri
 			return stop
 		},
 		func() bool {
-			ids, t, i, err := scanGlueSchemaVersions(ctx, client, schemaARNs, acct, region, st, scanID)
+			ids, t, err := scanGlueSchemaVersions(ctx, client, schemaARNs, acct, region, st, scanID)
 			versionIDs = ids
-			return p.addPhase("glue:ListSchemaVersions", t, i, err)
+			return p.addPhase("glue:ListSchemaVersions", t, err)
 		},
-		counted("glue:QuerySchemaVersionMetadata", func() (int, int, error) {
+		counted("glue:QuerySchemaVersionMetadata", func() (int, error) {
 			return scanGlueSchemaVersionMetadata(ctx, client, versionIDs, acct, region, st, scanID)
 		}),
 		func() bool { return scanGlueJobsPhase(ctx, client, acct, region, st, scanID, tags, &p) },
@@ -152,31 +152,31 @@ func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region stri
 		func() bool { return scanGlueDevEndpoints(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanGlueCatalogs(ctx, client, acct, region, st, scanID, &p) },
 		func() bool { return scanGlueCustomEntityTypes(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("glue:GetDataCatalogEncryptionSettings", func() (int, int, error) {
+		counted("glue:GetDataCatalogEncryptionSettings", func() (int, error) {
 			return scanGlueDataCatalogEncryption(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanGlueDataQualityRulesets(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("glue:GetGlueIdentityCenterConfiguration", func() (int, int, error) {
+		counted("glue:GetGlueIdentityCenterConfiguration", func() (int, error) {
 			return scanGlueIdentityCenter(ctx, client, acct, region, st, scanID)
 		}),
-		counted("glue:DescribeIntegrations", func() (int, int, error) {
+		counted("glue:DescribeIntegrations", func() (int, error) {
 			return scanGlueIntegrations(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanGlueIntegrationResourceProps(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("glue:GetSecurityConfigurations", func() (int, int, error) {
+		counted("glue:GetSecurityConfigurations", func() (int, error) {
 			return scanGlueSecurityConfigurations(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanGlueUsageProfiles(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanGlueCrawlers(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanGlueConnections(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("glue:GetClassifiers", func() (int, int, error) {
+		counted("glue:GetClassifiers", func() (int, error) {
 			return scanGlueClassifiers(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanGlueBlueprints(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("glue:GetUserDefinedFunctions", func() (int, int, error) {
+		counted("glue:GetUserDefinedFunctions", func() (int, error) {
 			return scanGlueUserDefinedFunctions(ctx, client, acct, region, st, scanID, childParentIDs(databases))
 		}),
-		counted("glue:GetResourcePolicy", func() (int, int, error) {
+		counted("glue:GetResourcePolicy", func() (int, error) {
 			return scanGlueMetadata(ctx, client, acct, region, st, scanID)
 		}),
 	}
@@ -322,7 +322,7 @@ type glueTableRef struct {
 	isIceberg bool
 }
 
-func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total, inserted int, refs []glueTableRef, err error) {
+func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total int, refs []glueTableRef, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
@@ -332,7 +332,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 	g, gctx := errgroup.WithContext(ctx)
 	for _, dbName := range dbNames {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, nil, err
+			return 0, nil, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -380,17 +380,17 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, nil, werr
+		return 0, nil, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, refs, nil
+		return 0, refs, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert glue tables: %w", uerr)
+		return 0, nil, fmt.Errorf("upsert glue tables: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, nil, fmt.Errorf("closure glue tables: %w", err)
+		return 0, nil, fmt.Errorf("closure glue tables: %w", err)
 	}
-	return len(batch), n, refs, nil
+	return len(batch), refs, nil
 }

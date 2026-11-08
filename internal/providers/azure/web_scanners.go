@@ -52,7 +52,7 @@ type staticSiteEntry struct {
 // web apps and deployment slots, App Service Environments and their pools,
 // Kube Environments, Static Web Apps and their builds, and TLS certificates.
 // Top-level scanners run in parallel; each fanout chain runs sequentially.
-func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	var (
 		mu      sync.Mutex
 		planErr = make(chan error, 1)
@@ -62,10 +62,9 @@ func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		ssErr   = make(chan error, 1)
 		certErr = make(chan error, 1)
 	)
-	addTotals := func(t, n int) {
+	addTotals := func(t int) {
 		mu.Lock()
 		total += t
-		inserted += n
 		mu.Unlock()
 	}
 
@@ -74,48 +73,48 @@ func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCre
 
 	go func() {
 		defer wg.Done()
-		t, n, e := scanAppServicePlans(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanAppServicePlans(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			planErr <- e
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		t, n, e := scanWebAppsChain(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanWebAppsChain(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			webErr <- e
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		t, n, e := scanEnvironmentsChain(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanEnvironmentsChain(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			aseErr <- e
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		t, n, e := scanKubeEnvironments(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanKubeEnvironments(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			kubeErr <- e
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		t, n, e := scanStaticSitesChain(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanStaticSitesChain(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			ssErr <- e
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		t, n, e := scanCertificates(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanCertificates(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			certErr <- e
 		}
@@ -126,18 +125,18 @@ func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCre
 	for _, ch := range []chan error{planErr, webErr, aseErr, kubeErr, ssErr, certErr} {
 		select {
 		case e := <-ch:
-			return 0, 0, e
+			return 0, e
 		default:
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanAppServicePlans discovers App Service Plans (Microsoft.Web/serverFarms).
-func scanAppServicePlans(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppServicePlans(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewPlansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewPlansClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewPlansClient: %w", err)
 	}
 	return azPageScan(ctx, "armappservice:Plans.List", sub, st,
 		client.NewListPager(nil),
@@ -164,10 +163,10 @@ func scanAppServicePlans(ctx context.Context, sub *subscription, cred azcore.Tok
 
 // scanWebAppsChain discovers web apps (Microsoft.Web/sites) then fans out to
 // scan deployment slots (Microsoft.Web/sites/slots) per app.
-func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewWebAppsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewWebAppsClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewWebAppsClient: %w", err)
 	}
 
 	var (
@@ -181,9 +180,9 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:WebApps.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:WebApps.List: %w", err)
+			return 0, fmt.Errorf("armappservice:WebApps.List: %w", err)
 		}
 		for _, s := range page.Value {
 			if s.ID == nil {
@@ -218,25 +217,24 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure web apps: %w", err)
+			return 0, fmt.Errorf("upsert Azure web apps: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure web apps: %w", err)
+			return 0, fmt.Errorf("closure Azure web apps: %w", err)
 		}
 	}
 	if len(entries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out slot scans per web app, plus app-settings fetch for function
 	// apps; both share the maxConcurrentFanout budget.
 	var (
-		mu                sync.Mutex
-		sTotal, sInserted int
+		mu     sync.Mutex
+		sTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -247,13 +245,12 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 				return err
 			}
 			defer sem.Release(1)
-			t, n, e := scanWebAppSlots(gCtx, sub, client, st, scanID, entry)
+			t, e := scanWebAppSlots(gCtx, sub, client, st, scanID, entry)
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			sTotal += t
-			sInserted += n
 			mu.Unlock()
 			return nil
 		})
@@ -268,9 +265,9 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 		}
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + sTotal, inserted + sInserted, nil
+	return total + sTotal, nil
 }
 
 // fetchFunctionAppSettings calls WebAppsClient.ListApplicationSettings for one
@@ -301,7 +298,7 @@ func fetchFunctionAppSettings(ctx context.Context, sub *subscription, client *ar
 }
 
 // scanWebAppSlots lists deployment slots for a single web app.
-func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservice.WebAppsClient, st *store.Store, scanID string, site siteEntry) (total, inserted int, err error) {
+func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservice.WebAppsClient, st *store.Store, scanID string, site siteEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 
@@ -310,9 +307,9 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.ListSlots", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:WebApps.ListSlots", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:WebApps.ListSlots %s/%s: %w", site.rg, site.name, err)
+			return 0, fmt.Errorf("armappservice:WebApps.ListSlots %s/%s: %w", site.rg, site.name, err)
 		}
 		for _, s := range page.Value {
 			if s.ID == nil {
@@ -340,25 +337,24 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure web app slots %s: %w", site.name, err)
+			return 0, fmt.Errorf("upsert Azure web app slots %s: %w", site.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure web app slots %s: %w", site.name, err)
+			return 0, fmt.Errorf("closure Azure web app slots %s: %w", site.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanEnvironmentsChain discovers App Service Environments (Microsoft.Web/hostingEnvironments)
 // then fans out to scan worker pools and the multi-role pool per ASE.
-func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewEnvironmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewEnvironmentsClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewEnvironmentsClient: %w", err)
 	}
 
 	var (
@@ -372,9 +368,9 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:Environments.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:Environments.List: %w", err)
+			return 0, fmt.Errorf("armappservice:Environments.List: %w", err)
 		}
 		for _, e := range page.Value {
 			if e.ID == nil {
@@ -407,24 +403,23 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure App Service Environments: %w", err)
+			return 0, fmt.Errorf("upsert Azure App Service Environments: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure App Service Environments: %w", err)
+			return 0, fmt.Errorf("closure Azure App Service Environments: %w", err)
 		}
 	}
 	if len(entries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out pool scans per ASE.
 	var (
-		mu                sync.Mutex
-		pTotal, pInserted int
+		mu     sync.Mutex
+		pTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -435,26 +430,25 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 				return err
 			}
 			defer sem.Release(1)
-			t, n, e := scanASEPools(gCtx, sub, client, st, scanID, entry)
+			t, e := scanASEPools(gCtx, sub, client, st, scanID, entry)
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			pTotal += t
-			pInserted += n
 			mu.Unlock()
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + pTotal, inserted + pInserted, nil
+	return total + pTotal, nil
 }
 
 // scanASEPools scans worker pools (Microsoft.Web/hostingEnvironments/workerPools)
 // and multi-role pools (Microsoft.Web/hostingEnvironments/multiRolePools) for one ASE.
-func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.EnvironmentsClient, st *store.Store, scanID string, ase aseEntry) (total, inserted int, err error) {
+func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.EnvironmentsClient, st *store.Store, scanID string, ase aseEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 
@@ -464,9 +458,9 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 		page, err := wpPager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListWorkerPools", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:Environments.ListWorkerPools", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:Environments.ListWorkerPools %s/%s: %w", ase.rg, ase.name, err)
+			return 0, fmt.Errorf("armappservice:Environments.ListWorkerPools %s/%s: %w", ase.rg, ase.name, err)
 		}
 		for _, wp := range page.Value {
 			if wp.ID == nil {
@@ -496,9 +490,9 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 		page, err := mrpPager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListMultiRolePools", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:Environments.ListMultiRolePools", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:Environments.ListMultiRolePools %s/%s: %w", ase.rg, ase.name, err)
+			return 0, fmt.Errorf("armappservice:Environments.ListMultiRolePools %s/%s: %w", ase.rg, ase.name, err)
 		}
 		for _, mrp := range page.Value {
 			if mrp.ID == nil {
@@ -523,24 +517,23 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 	}
 
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure ASE pools %s: %w", ase.name, err)
+			return 0, fmt.Errorf("upsert Azure ASE pools %s: %w", ase.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure ASE pools %s: %w", ase.name, err)
+			return 0, fmt.Errorf("closure Azure ASE pools %s: %w", ase.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanKubeEnvironments discovers Kubernetes Environments (Microsoft.Web/kubeEnvironments).
-func scanKubeEnvironments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKubeEnvironments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewKubeEnvironmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewKubeEnvironmentsClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewKubeEnvironmentsClient: %w", err)
 	}
 	return azPageScan(ctx, "armappservice:KubeEnvironments.ListBySubscription", sub, st,
 		client.NewListBySubscriptionPager(nil),
@@ -567,10 +560,10 @@ func scanKubeEnvironments(ctx context.Context, sub *subscription, cred azcore.To
 
 // scanStaticSitesChain discovers Static Web Apps (Microsoft.Web/staticSites) then
 // fans out to scan their builds (Microsoft.Web/staticSites/builds).
-func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewStaticSitesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewStaticSitesClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewStaticSitesClient: %w", err)
 	}
 
 	var (
@@ -584,9 +577,9 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:StaticSites.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:StaticSites.List: %w", err)
+			return 0, fmt.Errorf("armappservice:StaticSites.List: %w", err)
 		}
 		for _, ss := range page.Value {
 			if ss.ID == nil {
@@ -619,24 +612,23 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure Static Sites: %w", err)
+			return 0, fmt.Errorf("upsert Azure Static Sites: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure Static Sites: %w", err)
+			return 0, fmt.Errorf("closure Azure Static Sites: %w", err)
 		}
 	}
 	if len(entries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out build scans per static site.
 	var (
-		mu                sync.Mutex
-		bTotal, bInserted int
+		mu     sync.Mutex
+		bTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -647,25 +639,24 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 				return err
 			}
 			defer sem.Release(1)
-			t, n, e := scanStaticSiteBuilds(gCtx, sub, client, st, scanID, entry)
+			t, e := scanStaticSiteBuilds(gCtx, sub, client, st, scanID, entry)
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			bTotal += t
-			bInserted += n
 			mu.Unlock()
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + bTotal, inserted + bInserted, nil
+	return total + bTotal, nil
 }
 
 // scanStaticSiteBuilds lists builds (Microsoft.Web/staticSites/builds) for one static site.
-func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armappservice.StaticSitesClient, st *store.Store, scanID string, ss staticSiteEntry) (total, inserted int, err error) {
+func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armappservice.StaticSitesClient, st *store.Store, scanID string, ss staticSiteEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 
@@ -674,9 +665,9 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.GetStaticSiteBuilds", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armappservice:StaticSites.GetStaticSiteBuilds", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armappservice:StaticSites.GetStaticSiteBuilds %s/%s: %w", ss.rg, ss.name, err)
+			return 0, fmt.Errorf("armappservice:StaticSites.GetStaticSiteBuilds %s/%s: %w", ss.rg, ss.name, err)
 		}
 		for _, b := range page.Value {
 			if b.ID == nil {
@@ -701,24 +692,23 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure Static Site builds %s: %w", ss.name, err)
+			return 0, fmt.Errorf("upsert Azure Static Site builds %s: %w", ss.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure Static Site builds %s: %w", ss.name, err)
+			return 0, fmt.Errorf("closure Azure Static Site builds %s: %w", ss.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCertificates discovers App Service TLS certificates (Microsoft.Web/certificates).
-func scanCertificates(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCertificates(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappservice.NewCertificatesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappservice:NewCertificatesClient: %w", err)
+		return 0, fmt.Errorf("armappservice:NewCertificatesClient: %w", err)
 	}
 	return azPageScan(ctx, "armappservice:Certificates.List", sub, st,
 		client.NewListPager(nil),

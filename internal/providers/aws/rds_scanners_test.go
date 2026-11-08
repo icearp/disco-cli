@@ -241,7 +241,7 @@ func rdsHandlers(c *rdsCalls) map[string]func(in any) (any, error) {
 
 // rdsScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func rdsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rdsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, rdsDenied)
 	return scanRDS(ctx, acct, testRegion, st, testScanID)
@@ -274,7 +274,9 @@ func TestScanRDS_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
 
-	total, inserted, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := rdsScan(context.Background(), counted, rdsHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -353,10 +355,12 @@ func TestScanRDS_StoresTagsOfEveryType(t *testing.T) {
 func TestScanRDS_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := rdsScan(context.Background(), st, rdsHandlers(newRDSCalls())); err != nil {
+	if _, err := rdsScan(context.Background(), st, rdsHandlers(newRDSCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := rdsScan(context.Background(), st, rdsHandlers(newRDSCalls()))
+	counted, upserts := countUpserts(st)
+	total, err := rdsScan(context.Background(), counted, rdsHandlers(newRDSCalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -410,7 +414,7 @@ func TestScanRDS_TagReadFailures(t *testing.T) {
 			calls := newRDSCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+			total, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -451,7 +455,7 @@ func TestScanRDS_ProxyGoneAtTagReadHasNoTargetGroupRead(t *testing.T) {
 	proxies := rdsProxies()
 	calls.errs[proxies.arn("tagged")] = apiErr("DBProxyNotFoundFault", "gone")
 
-	total, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+	total, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -493,7 +497,7 @@ func TestScanRDS_TargetGroupListingFailures(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := rdsScan(context.Background(), st, handlers)
+			total, err := rdsScan(context.Background(), st, handlers)
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -529,7 +533,7 @@ func TestScanRDS_TagReadsShareOneBound(t *testing.T) {
 		return &rds.ListTagsForResourceOutput{}, nil
 	}
 
-	if _, _, err := rdsScan(context.Background(), st, handlers); err != nil {
+	if _, err := rdsScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := gate.calls.Load(); got != rdsTestTagReads {
@@ -550,7 +554,7 @@ func TestScanRDS_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[rdsKindOf(t, "DescribeDBParameterGroups").arn("tagged")] = rdsTestThrottle
 	calls.errs[rdsKindOf(t, "DescribeOptionGroups").arn("bare")] = rdsTestInvalid
 
-	_, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+	_, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValue")
 	if *warns != 1 {
@@ -569,7 +573,7 @@ func TestScanRDS_FailedWriteKeepsOtherFamilies(t *testing.T) {
 	k := rdsKindOf(t, "DescribeDBParameterGroups")
 	calls.errs[k.arn("tagged")] = rdsDenied
 
-	total, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+	total, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -595,7 +599,7 @@ func TestScanRDS_FailedProxyWriteListsNoTargetGroups(t *testing.T) {
 	refuseStoreWrites(t, st, TypeRDSDBProxy)
 	calls := newRDSCalls()
 
-	_, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+	_, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -621,7 +625,7 @@ func TestScanRDS_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
 			k := rdsKindOf(t, c.op)
 			handlers[c.op] = failOnCall(2, rdsTestInvalid, handlers[c.op])
 
-			total, _, err := rdsScan(context.Background(), st, handlers)
+			total, err := rdsScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterValue")
 			if total != c.wantTotal {
@@ -652,7 +656,7 @@ func TestScanRDS_RepeatedMarkerKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := rdsScan(context.Background(), st, handlers)
+	total, err := rdsScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -691,7 +695,7 @@ func TestScanRDS_ElementWithoutARNWarns(t *testing.T) {
 			handlers := rdsHandlers(calls)
 			handlers[c.op] = c.answer
 
-			total, _, err := rdsScan(context.Background(), st, handlers)
+			total, err := rdsScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -730,7 +734,7 @@ func TestScanRDS_ReservedInstanceWithoutARNStoredUnderItsARN(t *testing.T) {
 	want := rdsTestARNPrefix + "ri:ri-x"
 	calls.tags[want] = map[string]string{"k": "v"}
 
-	total, _, err := rdsScan(context.Background(), st, handlers)
+	total, err := rdsScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -771,7 +775,7 @@ func TestScanRDS_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, rdsDenied)
-			if _, _, err := scanRDS(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanRDS(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, want := range []string{pgARN, prefix + "ri:ri-p"} {
@@ -809,7 +813,7 @@ func TestScanRDS_DefaultGroupTagFailureWarnsOnce(t *testing.T) {
 		calls.errs[arn] = rdsTestInvalid
 	}
 
-	total, _, err := rdsScan(context.Background(), st, handlers)
+	total, err := rdsScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -847,7 +851,7 @@ func TestScanRDS_DefaultGroupFailureAfterFailedWriteWarnsNothing(t *testing.T) {
 	}
 	calls.errs[pg] = rdsTestInvalid
 
-	_, _, err := rdsScan(context.Background(), st, handlers)
+	_, err := rdsScan(context.Background(), st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -887,7 +891,7 @@ func TestScanRDS_DefaultGroupUnexpectedCodeIsError(t *testing.T) {
 	}
 	calls.errs[pg] = apiErr("DBParameterGroupNotFound", "gone")
 
-	_, _, err := rdsScan(context.Background(), st, handlers)
+	_, err := rdsScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "DBParameterGroupNotFound")
 	if w := warns(); len(w) != 0 {
@@ -921,7 +925,7 @@ func TestScanRDS_DefaultGroupReadCutByStopIsNoRefusal(t *testing.T) {
 		return tags(in)
 	}
 
-	_, _, err := rdsScan(ctx, st, handlers)
+	_, err := rdsScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -955,7 +959,7 @@ func TestScanRDS_DefaultGroupKeepsDenialAndTransientPaths(t *testing.T) {
 			if c.outcome < 0 {
 				calls.errs[rdsKindOf(t, "DescribeOptionGroups").arn("tagged")] = c.err
 			}
-			_, _, err := rdsScan(context.Background(), st, handlers)
+			_, err := rdsScan(context.Background(), st, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -995,7 +999,7 @@ func TestScanRDS_BuiltInClusterEndpointsStoredUntagged(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := rdsScan(context.Background(), st, handlers)
+	total, err := rdsScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1030,7 +1034,7 @@ func TestScanRDS_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			k := rdsKindOf(t, "DescribeDBSubnetGroups")
 			handlers[k.op] = failOnCall(call, rdsDenied, handlers[k.op])
 
-			total, _, err := rdsScan(context.Background(), st, handlers)
+			total, err := rdsScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1067,7 +1071,7 @@ func TestScanRDS_ContextEndReportedOnce(t *testing.T) {
 		}
 	}
 
-	_, _, err := rdsScan(ctx, st, handlers)
+	_, err := rdsScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1091,7 +1095,7 @@ func TestScanRDS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := rdsHandlers(newRDSCalls())
 		handlers["DescribeOptionGroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := rdsScan(context.Background(), st, handlers)
+		total, err := rdsScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != rdsTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, rdsTestTotal-2)
@@ -1101,7 +1105,7 @@ func TestScanRDS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newRDSCalls()
 		calls.errs[rdsKindOf(t, "DescribeDBSubnetGroups").arn("bare")] = nx
-		_, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
+		_, err := rdsScan(context.Background(), st, rdsHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1109,7 +1113,7 @@ func TestScanRDS_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanRDS(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanRDS(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

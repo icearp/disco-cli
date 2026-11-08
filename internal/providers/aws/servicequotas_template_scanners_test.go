@@ -54,7 +54,7 @@ func TestScanSQTemplateEntries_PaginatesAndStoresEveryPage(t *testing.T) {
 		}},
 	}}
 
-	total, _, err := scanSQTemplateEntries(context.Background(), fake, newTestAccount(testAccountID), st, testScanID)
+	total, err := scanSQTemplateEntries(context.Background(), fake, newTestAccount(testAccountID), st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSQTemplateEntries: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestScanSQTemplateEntries_EmptyTemplate(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeSQTemplate{pages: []*servicequotas.ListServiceQuotaIncreaseRequestsInTemplateOutput{{}}}
-	total, _, err := scanSQTemplateEntries(context.Background(), fake, newTestAccount(testAccountID), st, testScanID)
+	total, err := scanSQTemplateEntries(context.Background(), fake, newTestAccount(testAccountID), st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("got (%d, %v); want (0, nil)", total, err)
 	}
@@ -134,7 +134,7 @@ func TestScanSQTemplateEntries_Errors(t *testing.T) {
 					scopes = append(scopes, w.Scope)
 				}
 			}
-			_, _, err := scanSQTemplateEntries(context.Background(), &fakeSQTemplate{err: tc.err}, newTestAccount(testAccountID), st, testScanID)
+			_, err := scanSQTemplateEntries(context.Background(), &fakeSQTemplate{err: tc.err}, newTestAccount(testAccountID), st, testScanID)
 			if tc.fatal {
 				if !errors.Is(err, tc.err) {
 					t.Errorf("err = %v; want wrapping %v", err, tc.err)
@@ -189,7 +189,7 @@ func TestScanServiceQuotasTemplate_GlobalPinnedRegion(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := entry.fn(context.Background(), acct, "", st, testScanID); err != nil {
+	if _, err := entry.fn(context.Background(), acct, "", st, testScanID); err != nil {
 		t.Fatalf("fn: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"us-east-1"}) {

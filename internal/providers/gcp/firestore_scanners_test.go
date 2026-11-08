@@ -52,7 +52,9 @@ func TestScanFirestoreBackups_ParentedByOwnDatabaseField(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeFirestoreService(t, srv)
 
-	total, inserted, err := scanFirestoreBackups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanFirestoreBackups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFirestoreBackups: %v", err)
 	}
@@ -126,7 +128,9 @@ func TestScanFirestoreBackupSchedules_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeFirestoreService(t, srv)
 
-	total, inserted, err := scanFirestoreBackupSchedules(t.Context(), svc, p, []string{db1Native, db2Native}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanFirestoreBackupSchedules(t.Context(), svc, p, []string{db1Native, db2Native}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFirestoreBackupSchedules: %v", err)
 	}
@@ -162,7 +166,9 @@ func TestScanFirestoreUserCreds_SecurePasswordRedacted(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeFirestoreService(t, srv)
 
-	total, inserted, err := scanFirestoreUserCreds(t.Context(), svc, p, []string{dbNative}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanFirestoreUserCreds(t.Context(), svc, p, []string{dbNative}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFirestoreUserCreds: %v", err)
 	}
@@ -214,7 +220,9 @@ func TestScanFirestoreDatabases_ReturnsNamesForFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeFirestoreService(t, srv)
 
-	databaseNames, total, inserted, err := scanFirestoreDatabases(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	databaseNames, total, err := scanFirestoreDatabases(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFirestoreDatabases: %v", err)
 	}
@@ -234,7 +242,9 @@ func TestScanFirestoreBackups_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeFirestoreService(t, srv)
 
-	total, inserted, err := scanFirestoreBackups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanFirestoreBackups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFirestoreBackups (denied): expected nil error, got %v", err)
 	}

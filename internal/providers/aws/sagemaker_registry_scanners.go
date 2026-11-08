@@ -39,15 +39,15 @@ type sagemakerRegistryAPI interface {
 }
 
 // scanSageMakerRegistry runs all model-registry-family phases for one region.
-func scanSageMakerRegistry(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerRegistry(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListModelPackages", func() (int, int, error) { return scanSageMakerModelPackages(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListModelPackageGroups", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListModelPackages", func() (int, error) { return scanSageMakerModelPackages(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListModelPackageGroups", func() (int, error) {
 			return scanSageMakerModelPackageGroups(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListModelCards", func() (int, int, error) { return scanSageMakerModelCards(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListFeatureGroups", func() (int, int, error) { return scanSageMakerFeatureGroups(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListMlflowTrackingServers", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListModelCards", func() (int, error) { return scanSageMakerModelCards(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListFeatureGroups", func() (int, error) { return scanSageMakerFeatureGroups(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListMlflowTrackingServers", func() (int, error) {
 			return scanSageMakerMlflowTrackingServers(ctx, client, acct, region, st, scanID)
 		}},
 	)
@@ -56,7 +56,7 @@ func scanSageMakerRegistry(ctx context.Context, client sagemakerRegistryAPI, acc
 // scanSageMakerModelPackages fans out by ARN — versioned entries may leave
 // ModelPackageName empty, but every entry (versioned or not) carries
 // ModelPackageArn; DescribeModelPackage accepts either name or ARN as input.
-func scanSageMakerModelPackages(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelPackages(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ModelPackageSummary]{
 		listOp: "sagemaker:ListModelPackages", describeOp: "sagemaker:DescribeModelPackage",
 		list: func(ctx context.Context, token *string) ([]smtypes.ModelPackageSummary, *string, error) {
@@ -99,7 +99,7 @@ func scanSageMakerModelPackages(ctx context.Context, client sagemakerRegistryAPI
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelPackages"))
 }
 
-func scanSageMakerModelPackageGroups(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelPackageGroups(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ModelPackageGroupSummary]{
 		listOp: "sagemaker:ListModelPackageGroups", describeOp: "sagemaker:DescribeModelPackageGroup",
 		list: func(ctx context.Context, token *string) ([]smtypes.ModelPackageGroupSummary, *string, error) {
@@ -142,7 +142,7 @@ func scanSageMakerModelPackageGroups(ctx context.Context, client sagemakerRegist
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelPackageGroups"))
 }
 
-func scanSageMakerModelCards(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelCards(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ModelCardSummary]{
 		listOp: "sagemaker:ListModelCards", describeOp: "sagemaker:DescribeModelCard", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.ModelCardSummary, *string, error) {
@@ -185,7 +185,7 @@ func scanSageMakerModelCards(ctx context.Context, client sagemakerRegistryAPI, a
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelCards"))
 }
 
-func scanSageMakerFeatureGroups(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerFeatureGroups(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.FeatureGroupSummary]{
 		listOp: "sagemaker:ListFeatureGroups", describeOp: "sagemaker:DescribeFeatureGroup", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.FeatureGroupSummary, *string, error) {
@@ -228,7 +228,7 @@ func scanSageMakerFeatureGroups(ctx context.Context, client sagemakerRegistryAPI
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListFeatureGroups"))
 }
 
-func scanSageMakerMlflowTrackingServers(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMlflowTrackingServers(ctx context.Context, client sagemakerRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.TrackingServerSummary]{
 		listOp: "sagemaker:ListMlflowTrackingServers", describeOp: "sagemaker:DescribeMlflowTrackingServer", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.TrackingServerSummary, *string, error) {

@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanIoTFirmwareDefense discovers IoT Firmware Defense (Defender for IoT firmware analysis) workspaces.
-func scanIoTFirmwareDefense(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTFirmwareDefense(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armiotfirmwaredefense.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armiotfirmwaredefense:NewWorkspacesClient: %w", err)
+		return 0, fmt.Errorf("armiotfirmwaredefense:NewWorkspacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armiotfirmwaredefense:Workspaces.ListBySubscription", TypeIoTFirmwareDefenseWorkspace, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

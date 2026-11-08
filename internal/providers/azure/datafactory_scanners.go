@@ -23,10 +23,10 @@ func init() {
 // VNet sub-resources deferred — pipeline graphs would explode in volume, and
 // most edges (linked services → backing resources) live in per-linked-service
 // typed payloads warranting their own resolver pass.
-func scanDataFactory(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataFactory(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdatafactory.NewFactoriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdatafactory:NewFactoriesClient: %w", err)
+		return 0, fmt.Errorf("armdatafactory:NewFactoriesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdatafactory:Factories.List", TypeDataFactoryFactory, sub, st, scanID,
 		client.NewListPager(nil),

@@ -63,31 +63,31 @@ type servicecatalogAPI interface {
 // attrs. Every phase runs whatever the others returned, and their counts are
 // summed; only a store write failure stops the scan. A failed portfolio or
 // product phase hands the phases keyed on it no portfolios or products.
-func scanServiceCatalog(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanServiceCatalog(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := servicecatalog.NewFromConfig(acct.cfg, func(o *servicecatalog.Options) { o.Region = region })
 	var phases phaseTotals
-	portfolioIDs, t, i, err := scanServiceCatalogPortfolios(ctx, client, acct, region, st, scanID)
-	if phases.addPhase("servicecatalog:ListPortfolios", t, i, err) {
+	portfolioIDs, t, err := scanServiceCatalogPortfolios(ctx, client, acct, region, st, scanID)
+	if phases.addPhase("servicecatalog:ListPortfolios", t, err) {
 		return phases.result(st, acct, region)
 	}
-	productIDs, t, i, err := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID)
-	if phases.addPhase("servicecatalog:SearchProductsAsAdmin", t, i, err) {
+	productIDs, t, err := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID)
+	if phases.addPhase("servicecatalog:SearchProductsAsAdmin", t, err) {
 		return phases.result(st, acct, region)
 	}
 	for _, phase := range scanServiceCatalogExtendedPhases(ctx, client, acct, region, st, scanID, portfolioIDs) {
-		t, i, err := phase.run()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.run()
+		if phases.addPhase(phase.op, t, err) {
 			return phases.result(st, acct, region)
 		}
 	}
 	if len(productIDs) > 0 {
-		t, i, err := scanServiceCatalogAssociations(ctx, client, acct, region, st, scanID, productIDs)
-		phases.addPhase("servicecatalog:ListPortfoliosForProduct", t, i, err)
+		t, err := scanServiceCatalogAssociations(ctx, client, acct, region, st, scanID, productIDs)
+		phases.addPhase("servicecatalog:ListPortfoliosForProduct", t, err)
 	}
 	return phases.result(st, acct, region)
 }
 
-func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (portfolioIDs []string, total, inserted int, err error) {
+func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (portfolioIDs []string, total int, err error) {
 	pager := servicecatalog.NewListPortfoliosPaginator(client, &servicecatalog.ListPortfoliosInput{})
 	var details []portfolioWithConstraints
 	for pager.HasMorePages() {
@@ -95,9 +95,9 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "servicecatalog:ListPortfolios", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("servicecatalog:ListPortfolios: %w", perr)
+			return nil, 0, fmt.Errorf("servicecatalog:ListPortfolios: %w", perr)
 		}
 		for _, p := range out.PortfolioDetails {
 			if p.Id != nil {
@@ -107,7 +107,7 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 		}
 	}
 	if len(details) == 0 {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
 
 	// Per-portfolio enrichment fan-out: constraints + member products.
@@ -120,7 +120,7 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 		idx := i
 		portfolioID := *details[i].detail.Id
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return nil, 0, 0, err
+			return nil, 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -174,7 +174,7 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return nil, 0, 0, werr
+		return nil, 0, werr
 	}
 
 	batch := make([]*store.Resource, 0, len(details))
@@ -201,13 +201,13 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 		})
 	}
 	if len(batch) == 0 {
-		return portfolioIDs, 0, 0, nil
+		return portfolioIDs, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert servicecatalog portfolios: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert servicecatalog portfolios: %w", uerr)
 	}
-	return portfolioIDs, len(batch), n, nil
+	return portfolioIDs, len(batch), nil
 }
 
 type portfolioWithConstraints struct {
@@ -216,7 +216,7 @@ type portfolioWithConstraints struct {
 	productARNs []string
 }
 
-func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (productIDs []string, total, inserted int, err error) {
+func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (productIDs []string, total int, err error) {
 	pager := servicecatalog.NewSearchProductsAsAdminPaginator(client, &servicecatalog.SearchProductsAsAdminInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -224,9 +224,9 @@ func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "servicecatalog:SearchProductsAsAdmin", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("servicecatalog:SearchProductsAsAdmin: %w", perr)
+			return nil, 0, fmt.Errorf("servicecatalog:SearchProductsAsAdmin: %w", perr)
 		}
 		for _, p := range out.ProductViewDetails {
 			arn := sv(p.ProductARN)
@@ -257,13 +257,13 @@ func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, a
 		}
 	}
 	if len(batch) == 0 {
-		return productIDs, 0, 0, nil
+		return productIDs, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert servicecatalog products: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert servicecatalog products: %w", uerr)
 	}
-	return productIDs, len(batch), n, nil
+	return productIDs, len(batch), nil
 }
 
 // scanServiceCatalogAssociations fans out per-product to:
@@ -276,7 +276,7 @@ func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, a
 //
 // Concurrency capped at fanoutMed across products. Per-product errors
 // tolerate AccessDenied + ResourceNotFoundException without aborting siblings.
-func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, productIDs []string) (total, inserted int, err error) {
+func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, productIDs []string) (total int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu       sync.Mutex
@@ -287,7 +287,7 @@ func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAP
 	for _, prodID := range productIDs {
 		prodID := prodID
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -373,12 +373,12 @@ func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAP
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
-	tp, ip, perr := upsertBatch(st, ppaBatch, "servicecatalog portfolio-product-associations")
+	tp, perr := upsertBatch(st, ppaBatch, "servicecatalog portfolio-product-associations")
 	if perr != nil {
-		return tp, ip, perr
+		return tp, perr
 	}
-	ts, is, serr := upsertBatch(st, saaBatch, "servicecatalog service-action-associations")
-	return tp + ts, ip + is, serr
+	ts, serr := upsertBatch(st, saaBatch, "servicecatalog service-action-associations")
+	return tp + ts, serr
 }

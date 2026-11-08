@@ -97,7 +97,7 @@ func TestScanKMSCustomKeyStores_PagesAndFields(t *testing.T) {
 		),
 	})
 
-	total, _, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanKMSCustomKeyStores: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestScanKMSCustomKeyStores_Empty(t *testing.T) {
 	client := newKMSTestClient(map[string]func(any) (any, error){
 		"DescribeCustomKeyStores": kmsKeyStorePages(&limits, &mu),
 	})
-	total, _, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -164,7 +164,7 @@ func TestScanKMSCustomKeyStores_DeniedWarns(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kms:DescribeCustomKeyStores")
 	client := newKMSTestClient(nil)
-	total, _, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -179,7 +179,7 @@ func TestScanKMSCustomKeyStores_OtherErrorReturned(t *testing.T) {
 	client := newKMSTestClient(map[string]func(any) (any, error){
 		"DescribeCustomKeyStores": func(any) (any, error) { return nil, apiErr("KMSInternalException", "boom") },
 	})
-	_, _, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanKMSCustomKeyStores(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "KMSInternalException") {
 		t.Errorf("err = %v; want KMSInternalException", err)
 	}
@@ -213,7 +213,7 @@ func TestScanKMS_StoresKeysAndCustomKeyStores(t *testing.T) {
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(kmsTopLevelHandlers(), kmsDenied)}
 
-	total, _, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanKMS: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestScanKMS_KeyStoresListedBeforeKeyDeadline(t *testing.T) {
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(withCtx, kmsDenied)}
 
-	_, _, err := scanKMS(ctx, acct, testRegion, st, testScanID)
+	_, err := scanKMS(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("err = %v; want the key phase's deadline", err)
 	}
@@ -268,7 +268,7 @@ func TestScanKMS_KeyPhaseErrorStillScansKeyStores(t *testing.T) {
 	h["ListKeys"] = func(any) (any, error) { return nil, apiErr("KMSInternalException", "keys down") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, kmsDenied)}
 
-	total, _, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "KMSInternalException") {
 		t.Errorf("err = %v; want the ListKeys KMSInternalException", err)
 	}
@@ -291,7 +291,7 @@ func TestScanKMS_TransientKeyPhaseDoesNotMaskKeyStoreError(t *testing.T) {
 	h["DescribeCustomKeyStores"] = func(any) (any, error) { return nil, apiErr("KMSInternalException", "boom") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, kmsDenied)}
 
-	_, _, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "KMSInternalException") {
 		t.Errorf("err = %v; want the key store phase's KMSInternalException", err)
 	}
@@ -314,7 +314,7 @@ func TestScanKMS_TransientKeyStorePhaseDoesNotMaskKeyError(t *testing.T) {
 	h["DescribeCustomKeyStores"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, kmsDenied)}
 
-	total, _, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKMS(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 	}

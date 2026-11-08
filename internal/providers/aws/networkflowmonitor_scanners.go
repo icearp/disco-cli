@@ -20,27 +20,27 @@ func init() {
 
 // scanNetworkFlowMonitor discovers Network Flow Monitor monitors and the
 // per-account monitoring scopes (which accounts/regions are observed).
-func scanNetworkFlowMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFlowMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := networkflowmonitor.NewFromConfig(acct.cfg, func(o *networkflowmonitor.Options) { o.Region = region })
 
-	mt, mi, err := scanNFMMonitors(ctx, client, acct, region, st, scanID)
+	mt, err := scanNFMMonitors(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return mt, mi, err
+		return mt, err
 	}
-	st2, si, err := scanNFMScopes(ctx, client, acct, region, st, scanID)
-	return mt + st2, mi + si, err
+	st2, err := scanNFMScopes(ctx, client, acct, region, st, scanID)
+	return mt + st2, err
 }
 
-func scanNFMMonitors(ctx context.Context, client *networkflowmonitor.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNFMMonitors(ctx context.Context, client *networkflowmonitor.Client, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := networkflowmonitor.NewListMonitorsPaginator(client, &networkflowmonitor.ListMonitorsInput{})
 	for p.HasMorePages() {
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkflowmonitor:ListMonitors", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "networkflowmonitor:ListMonitors", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("networkflowmonitor:ListMonitors: %w", err)
+			return 0, fmt.Errorf("networkflowmonitor:ListMonitors: %w", err)
 		}
 		for _, m := range out.Monitors {
 			arn := sv(m.MonitorArn)
@@ -59,16 +59,16 @@ func scanNFMMonitors(ctx context.Context, client *networkflowmonitor.Client, acc
 	return upsertBatch(st, batch, "networkflowmonitor monitors")
 }
 
-func scanNFMScopes(ctx context.Context, client *networkflowmonitor.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNFMScopes(ctx context.Context, client *networkflowmonitor.Client, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := networkflowmonitor.NewListScopesPaginator(client, &networkflowmonitor.ListScopesInput{})
 	for p.HasMorePages() {
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkflowmonitor:ListScopes", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "networkflowmonitor:ListScopes", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("networkflowmonitor:ListScopes: %w", err)
+			return 0, fmt.Errorf("networkflowmonitor:ListScopes: %w", err)
 		}
 		for _, s := range out.Scopes {
 			arn := sv(s.ScopeArn)

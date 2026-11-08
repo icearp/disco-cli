@@ -184,7 +184,7 @@ func scanRSTopLevel(t *testing.T, st *store.Store, fail map[string]map[string]er
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(rfsHandlers(newRSFixture(), fail, calls), rfsDenied)
-	total, _, err := scanRefactorSpaces(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRefactorSpaces(context.Background(), acct, testRegion, st, testScanID)
 	return total, warns, err
 }
 

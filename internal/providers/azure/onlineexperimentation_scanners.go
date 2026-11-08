@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanOnlineExperimentation discovers Azure Online Experimentation workspaces.
-func scanOnlineExperimentation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOnlineExperimentation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armonlineexperimentation.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armonlineexperimentation:NewWorkspacesClient: %w", err)
+		return 0, fmt.Errorf("armonlineexperimentation:NewWorkspacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armonlineexperimentation:Workspaces.ListBySubscription", TypeOnlineExperimentationWorkspace, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

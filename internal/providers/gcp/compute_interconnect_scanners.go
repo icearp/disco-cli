@@ -19,10 +19,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeInterconnectAttachmentGroup, Service: "compute"})
 }
 
-func scanComputeInterconnects(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInterconnects(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:interconnects.list",
 		svc.Interconnects.List(p.ID),
-		func(page *compute.InterconnectList) (int, int, error) {
+		func(page *compute.InterconnectList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, ic := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -36,10 +36,10 @@ func scanComputeInterconnects(ctx context.Context, svc *compute.Service, p *proj
 		})
 }
 
-func scanComputeInterconnectAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInterconnectAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:interconnectAttachments.aggregatedList",
 		svc.InterconnectAttachments.AggregatedList(p.ID),
-		func(page *compute.InterconnectAttachmentAggregatedList) (int, int, error) {
+		func(page *compute.InterconnectAttachmentAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -61,10 +61,10 @@ func scanComputeInterconnectAttachments(ctx context.Context, svc *compute.Servic
 		})
 }
 
-func scanComputeInterconnectGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInterconnectGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:interconnectGroups.list",
 		svc.InterconnectGroups.List(p.ID),
-		func(page *compute.InterconnectGroupsListResponse) (int, int, error) {
+		func(page *compute.InterconnectGroupsListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, ig := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -78,10 +78,10 @@ func scanComputeInterconnectGroups(ctx context.Context, svc *compute.Service, p 
 		})
 }
 
-func scanComputeInterconnectAttachmentGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInterconnectAttachmentGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:interconnectAttachmentGroups.list",
 		svc.InterconnectAttachmentGroups.List(p.ID),
-		func(page *compute.InterconnectAttachmentGroupsListResponse) (int, int, error) {
+		func(page *compute.InterconnectAttachmentGroupsListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, iag := range page.Items {
 				batch = append(batch, &store.Resource{

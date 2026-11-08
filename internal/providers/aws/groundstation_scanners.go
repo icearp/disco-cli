@@ -61,11 +61,11 @@ var gsNotFound = []string{"ResourceNotFoundException"}
 // NXDOMAIN, since the region does not serve the service (runHostPhases).
 // Each listing is written a page at a time, and each tag op's denials are one
 // warning for the whole scan.
-func scanGroundStation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGroundStation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := groundstation.NewFromConfig(acct.cfg, func(o *groundstation.Options) { o.Region = region })
 	tags := gsTags(client).sharingDenials()
 	ephemerisTags := gsEphemerisTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "groundstation", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "groundstation", 0, []hostPhase{
 		{op: gsListConfigsOp, run: func(p *phaseTotals) bool {
 			return scanGSConfigs(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -81,7 +81,7 @@ func scanGroundStation(ctx context.Context, acct *account, region string, st *st
 	})
 	tags.warnDenials(st, acct, region)
 	ephemerisTags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // gsTags reads a config's, dataflow endpoint group's or mission profile's

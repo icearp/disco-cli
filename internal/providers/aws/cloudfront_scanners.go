@@ -65,7 +65,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:cloudfront",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			return scanCloudFront(ctx, acct, st, scanID)
 		},
 	})
@@ -80,10 +80,10 @@ func init() {
 // once. The types ListTagsForResource accepts have their tags read (cfTags),
 // fanoutMed reads at a time across every family, and every tag denial of the
 // scan is one warning.
-func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (int, error) {
 	home, err := acct.homeRegion("cloudfront")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = home })
 	region := sv(regionGlobal)
@@ -91,55 +91,55 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 	p := runFamilies(ctx, "cloudfront",
 		phaseFamily(func(p *phaseTotals) {
 			dists := scanCloudFrontDistributions(ctx, client, acct, region, st, scanID, tags, p)
-			total, inserted, err := scanCloudFrontMonitoringSubscriptions(ctx, client, acct, region, st, scanID, dists)
-			p.addPhase(cfMonitoringOp, total, inserted, err)
+			total, err := scanCloudFrontMonitoringSubscriptions(ctx, client, acct, region, st, scanID, dists)
+			p.addPhase(cfMonitoringOp, total, err)
 		}),
-		countedFamily("cloudfront:ListStreamingDistributions", func() (int, int, error) {
+		countedFamily("cloudfront:ListStreamingDistributions", func() (int, error) {
 			return scanCloudFrontStreamingDistributions(ctx, acct, client, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) {
 			scanCloudFrontDistributionTenants(ctx, client, acct, region, st, scanID, tags, p)
 		}),
-		countedFamily("cloudfront:ListCachePolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListCachePolicies", func() (int, error) {
 			return scanCloudFrontCachePolicies(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListOriginRequestPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListOriginRequestPolicies", func() (int, error) {
 			return scanCloudFrontOriginRequestPolicies(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListResponseHeadersPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListResponseHeadersPolicies", func() (int, error) {
 			return scanCloudFrontResponseHeadersPolicies(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListContinuousDeploymentPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListContinuousDeploymentPolicies", func() (int, error) {
 			return scanCloudFrontContinuousDeploymentPolicies(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListCloudFrontOriginAccessIdentities", func() (int, int, error) {
+		countedFamily("cloudfront:ListCloudFrontOriginAccessIdentities", func() (int, error) {
 			return scanCloudFrontOAIs(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListOriginAccessControls", func() (int, int, error) {
+		countedFamily("cloudfront:ListOriginAccessControls", func() (int, error) {
 			return scanCloudFrontOriginAccessControls(ctx, acct, client, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontFunctions(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) {
 			scanCloudFrontConnectionFunctions(ctx, client, acct, region, st, scanID, tags, p)
 		}),
-		countedFamily("cloudfront:ListKeyGroups", func() (int, int, error) {
+		countedFamily("cloudfront:ListKeyGroups", func() (int, error) {
 			return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontKeyValueStores(ctx, client, acct, region, st, scanID, tags, p) }),
-		countedFamily("cloudfront:ListPublicKeys", func() (int, int, error) {
+		countedFamily("cloudfront:ListPublicKeys", func() (int, error) {
 			return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListRealtimeLogConfigs", func() (int, int, error) {
+		countedFamily("cloudfront:ListRealtimeLogConfigs", func() (int, error) {
 			return scanCloudFrontRealtimeLogConfigs(ctx, acct, client, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontTrustStores(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontConnectionGroups(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontAnycastIPLists(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanCloudFrontVpcOrigins(ctx, client, acct, region, st, scanID, tags, p) }),
-		countedFamily("cloudfront:ListFieldLevelEncryptionConfigs", func() (int, int, error) {
+		countedFamily("cloudfront:ListFieldLevelEncryptionConfigs", func() (int, error) {
 			return scanCloudFrontFieldLevelEncryptionConfigs(ctx, acct, client, st, scanID)
 		}),
-		countedFamily("cloudfront:ListFieldLevelEncryptionProfiles", func() (int, int, error) {
+		countedFamily("cloudfront:ListFieldLevelEncryptionProfiles", func() (int, error) {
 			return scanCloudFrontFieldLevelEncryptionProfiles(ctx, acct, client, st, scanID)
 		}),
 	)
@@ -152,31 +152,30 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 
 // cfMarkerScan abstracts Marker-based pagination for CloudFront list APIs that
 // lack a dedicated SDK paginator. listFn returns (output, nextMarker, error);
-// when nextMarker is nil there are no more pages. processFn returns (total, inserted, error).
+// when nextMarker is nil there are no more pages. processFn returns (total, error).
 func cfMarkerScan[Output any](
 	ctx context.Context,
 	opName string,
 	st *store.Store,
 	listFn func(ctx context.Context, marker *string) (Output, *string, error),
-	processFn func(Output) (int, int, error),
-) (total, inserted int, err error) {
+	processFn func(Output) (int, error),
+) (total int, err error) {
 	var marker *string
 	for {
 		out, next, apiErr := listFn(ctx, marker)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied(st, opName, "", "global", apiErr)
+				return total, skipIfAccessDenied(st, opName, "", "global", apiErr)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", opName, apiErr)
+			return total, fmt.Errorf("%s: %w", opName, apiErr)
 		}
-		tt, nn, pErr := processFn(out)
+		tt, pErr := processFn(out)
 		if pErr != nil {
-			return total, inserted, pErr
+			return total, pErr
 		}
 		total += tt
-		inserted += nn
 		if next == nil {
-			return total, inserted, nil
+			return total, nil
 		}
 		marker = next
 	}
@@ -201,7 +200,7 @@ var cfMonitoringSkip = []string{"NoSuchMonitoringSubscription", "NoSuchDistribut
 // The row's NativeID is the distribution's ARN plus a suffix, which keeps it
 // apart from the distribution while the parent stays derivable; dists holds
 // only distributions stored with an ARN and an id.
-func scanCloudFrontMonitoringSubscriptions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, dists []childParent) (int, int, error) {
+func scanCloudFrontMonitoringSubscriptions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, dists []childParent) (int, error) {
 	arns := make(map[string]string, len(dists))
 	for _, d := range dists {
 		arns[d.id] = d.arn
@@ -229,15 +228,15 @@ func scanCloudFrontMonitoringSubscriptions(ctx context.Context, client cloudfron
 // --- Streaming Distributions ---
 
 // scanCloudFrontStreamingDistributions discovers RTMP streaming distributions.
-func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	pager := cloudfront.NewListStreamingDistributionsPaginator(client, &cloudfront.ListStreamingDistributionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListStreamingDistributions", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "cloudfront:ListStreamingDistributions", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("cloudfront:ListStreamingDistributions: %w", err)
+			return total, fmt.Errorf("cloudfront:ListStreamingDistributions: %w", err)
 		}
 		if page.StreamingDistributionList == nil {
 			continue
@@ -259,12 +258,11 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront streaming distributions: %w", err)
+				return total, fmt.Errorf("upsert CloudFront streaming distributions: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -276,7 +274,7 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 // catalogue). Each summary carries `Type=managed|custom`; managed entries
 // flag ManagedByProvider=true so they're hidden from default list/graph
 // output but available for explicit lookup + edge resolution.
-func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListCachePolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListCachePoliciesOutput, *string, error) {
@@ -289,9 +287,9 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 			}
 			return out, out.CachePolicyList.NextMarker, nil
 		},
-		func(out *cloudfront.ListCachePoliciesOutput) (int, int, error) {
+		func(out *cloudfront.ListCachePoliciesOutput) (int, error) {
 			if out.CachePolicyList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.CachePolicyList.Items {
@@ -318,13 +316,13 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -334,7 +332,7 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 // scanCloudFrontOriginRequestPolicies discovers origin-request policies
 // (custom + AWS-managed catalogue). Managed entries flag
 // ManagedByProvider=true via the per-summary Type field.
-func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListOriginRequestPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListOriginRequestPoliciesOutput, *string, error) {
@@ -347,9 +345,9 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 			}
 			return out, out.OriginRequestPolicyList.NextMarker, nil
 		},
-		func(out *cloudfront.ListOriginRequestPoliciesOutput) (int, int, error) {
+		func(out *cloudfront.ListOriginRequestPoliciesOutput) (int, error) {
 			if out.OriginRequestPolicyList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.OriginRequestPolicyList.Items {
@@ -376,13 +374,13 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -392,7 +390,7 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 // scanCloudFrontResponseHeadersPolicies discovers response-headers policies
 // (custom + AWS-managed catalogue). Managed entries flag
 // ManagedByProvider=true via the per-summary Type field.
-func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListResponseHeadersPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListResponseHeadersPoliciesOutput, *string, error) {
@@ -405,9 +403,9 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 			}
 			return out, out.ResponseHeadersPolicyList.NextMarker, nil
 		},
-		func(out *cloudfront.ListResponseHeadersPoliciesOutput) (int, int, error) {
+		func(out *cloudfront.ListResponseHeadersPoliciesOutput) (int, error) {
 			if out.ResponseHeadersPolicyList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.ResponseHeadersPolicyList.Items {
@@ -434,13 +432,13 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -448,7 +446,7 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 // --- Continuous Deployment Policies ---
 
 // scanCloudFrontContinuousDeploymentPolicies discovers continuous deployment policies.
-func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListContinuousDeploymentPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListContinuousDeploymentPoliciesOutput, *string, error) {
@@ -461,9 +459,9 @@ func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *accou
 			}
 			return out, out.ContinuousDeploymentPolicyList.NextMarker, nil
 		},
-		func(out *cloudfront.ListContinuousDeploymentPoliciesOutput) (int, int, error) {
+		func(out *cloudfront.ListContinuousDeploymentPoliciesOutput) (int, error) {
 			if out.ContinuousDeploymentPolicyList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.ContinuousDeploymentPolicyList.Items {
@@ -484,13 +482,13 @@ func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *accou
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -498,15 +496,15 @@ func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *accou
 // --- Origin Access Identities (legacy) ---
 
 // scanCloudFrontOAIs discovers CloudFront origin access identities (legacy OAI).
-func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	pager := cloudfront.NewListCloudFrontOriginAccessIdentitiesPaginator(client, &cloudfront.ListCloudFrontOriginAccessIdentitiesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListCloudFrontOriginAccessIdentities", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "cloudfront:ListCloudFrontOriginAccessIdentities", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("cloudfront:ListCloudFrontOriginAccessIdentities: %w", err)
+			return total, fmt.Errorf("cloudfront:ListCloudFrontOriginAccessIdentities: %w", err)
 		}
 		if page.CloudFrontOriginAccessIdentityList == nil {
 			continue
@@ -525,12 +523,11 @@ func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront OAIs: %w", err)
+				return total, fmt.Errorf("upsert CloudFront OAIs: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -539,15 +536,15 @@ func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI
 // --- Origin Access Controls ---
 
 // scanCloudFrontOriginAccessControls discovers origin access controls (modern OAI replacement).
-func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	pager := cloudfront.NewListOriginAccessControlsPaginator(client, &cloudfront.ListOriginAccessControlsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListOriginAccessControls", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "cloudfront:ListOriginAccessControls", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("cloudfront:ListOriginAccessControls: %w", err)
+			return total, fmt.Errorf("cloudfront:ListOriginAccessControls: %w", err)
 		}
 		if page.OriginAccessControlList == nil {
 			continue
@@ -567,12 +564,11 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront origin access controls: %w", err)
+				return total, fmt.Errorf("upsert CloudFront origin access controls: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -581,7 +577,7 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 // --- Key Groups ---
 
 // scanCloudFrontKeyGroups discovers key groups used to sign URLs/cookies.
-func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListKeyGroups", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListKeyGroupsOutput, *string, error) {
@@ -594,9 +590,9 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfro
 			}
 			return out, out.KeyGroupList.NextMarker, nil
 		},
-		func(out *cloudfront.ListKeyGroupsOutput) (int, int, error) {
+		func(out *cloudfront.ListKeyGroupsOutput) (int, error) {
 			if out.KeyGroupList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.KeyGroupList.Items {
@@ -622,13 +618,13 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfro
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -636,15 +632,15 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfro
 // --- Public Keys ---
 
 // scanCloudFrontPublicKeys discovers public keys used with signed URLs/cookies.
-func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	pager := cloudfront.NewListPublicKeysPaginator(client, &cloudfront.ListPublicKeysInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListPublicKeys", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "cloudfront:ListPublicKeys", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("cloudfront:ListPublicKeys: %w", err)
+			return total, fmt.Errorf("cloudfront:ListPublicKeys: %w", err)
 		}
 		if page.PublicKeyList == nil {
 			continue
@@ -666,12 +662,11 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfr
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront public keys: %w", err)
+				return total, fmt.Errorf("upsert CloudFront public keys: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -680,7 +675,7 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfr
 // --- Real-time Log Configs ---
 
 // scanCloudFrontRealtimeLogConfigs discovers real-time log configurations.
-func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListRealtimeLogConfigs", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListRealtimeLogConfigsOutput, *string, error) {
@@ -693,9 +688,9 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 			}
 			return out, out.RealtimeLogConfigs.NextMarker, nil
 		},
-		func(out *cloudfront.ListRealtimeLogConfigsOutput) (int, int, error) {
+		func(out *cloudfront.ListRealtimeLogConfigsOutput) (int, error) {
 			if out.RealtimeLogConfigs == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, c := range out.RealtimeLogConfigs.Items {
@@ -712,13 +707,13 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
@@ -728,7 +723,7 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 // scanCloudFrontFieldLevelEncryptionConfigs discovers FLE configs. The summary
 // carries the profile references (ContentTypeProfileConfig / QueryArgProfileConfig)
 // the resolver wires to FLE profiles.
-func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListFieldLevelEncryptionConfigs", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListFieldLevelEncryptionConfigsOutput, *string, error) {
@@ -741,9 +736,9 @@ func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *accoun
 			}
 			return out, out.FieldLevelEncryptionList.NextMarker, nil
 		},
-		func(out *cloudfront.ListFieldLevelEncryptionConfigsOutput) (int, int, error) {
+		func(out *cloudfront.ListFieldLevelEncryptionConfigsOutput) (int, error) {
 			if out.FieldLevelEncryptionList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.FieldLevelEncryptionList.Items {
@@ -760,20 +755,20 @@ func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }
 
 // scanCloudFrontFieldLevelEncryptionProfiles discovers FLE profiles (the public-
 // key/field-pattern mapping configs FLE configs reference).
-func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total int, err error) {
 	return cfMarkerScan(
 		ctx, "cloudfront:ListFieldLevelEncryptionProfiles", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListFieldLevelEncryptionProfilesOutput, *string, error) {
@@ -786,9 +781,9 @@ func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *accou
 			}
 			return out, out.FieldLevelEncryptionProfileList.NextMarker, nil
 		},
-		func(out *cloudfront.ListFieldLevelEncryptionProfilesOutput) (int, int, error) {
+		func(out *cloudfront.ListFieldLevelEncryptionProfilesOutput) (int, error) {
 			if out.FieldLevelEncryptionProfileList == nil {
-				return 0, 0, nil
+				return 0, nil
 			}
 			var batch []*store.Resource
 			for _, s := range out.FieldLevelEncryptionProfileList.Items {
@@ -806,13 +801,13 @@ func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *accou
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return len(batch), n, nil
+				return len(batch), nil
 			}
-			return 0, 0, nil
+			return 0, nil
 		},
 	)
 }

@@ -152,7 +152,7 @@ func deadlineTags(client deadlineAPI) rowTagReader {
 	}
 }
 
-func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := deadline.NewFromConfig(acct.cfg, func(o *deadline.Options) { o.Region = region })
 	return scanDeadlineAll(ctx, client, acct, region, st, scanID)
 }
@@ -167,17 +167,17 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 // so readRowTags's own bound is the bound on the tag reads in flight. Every op
 // calls the one Deadline management endpoint, so an NXDOMAIN after rows were
 // stored is a failure of this scan, not a region gap (resultLateNXDOMAIN).
-func scanDeadlineAll(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDeadlineAll(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p     phaseTotals
 		tags  = deadlineTags(client)
 		farms []dlFarmRef
 		les   []childParent
 	)
-	counted := func(op string, run func() (int, int, error)) func() bool {
+	counted := func(op string, run func() (int, error)) func() bool {
 		return func() bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
+			t, err := run()
+			return p.addPhase(op, t, err)
 		}
 	}
 	phases := []func() bool{
@@ -186,21 +186,21 @@ func scanDeadlineAll(ctx context.Context, client deadlineAPI, acct *account, reg
 			return stop
 		},
 		func() bool { return scanDeadlineFleets(ctx, client, acct, region, st, scanID, farms, tags, &p) },
-		counted("deadline:ListLimits", func() (int, int, error) {
+		counted("deadline:ListLimits", func() (int, error) {
 			return scanDeadlineLimits(ctx, client, acct, region, st, scanID, farms)
 		}),
-		counted("deadline:ListStorageProfiles", func() (int, int, error) {
+		counted("deadline:ListStorageProfiles", func() (int, error) {
 			return scanDeadlineStorageProfiles(ctx, client, acct, region, st, scanID, farms)
 		}),
 		func() bool { return scanDeadlineBudgets(ctx, client, acct, region, st, scanID, farms, tags, &p) },
 		func() bool { return scanDeadlineQueues(ctx, client, acct, region, st, scanID, farms, tags, &p) },
-		counted("deadline:ListQueueFleetAssociations", func() (int, int, error) {
+		counted("deadline:ListQueueFleetAssociations", func() (int, error) {
 			return scanDeadlineQueueFleetAssociations(ctx, client, acct, region, st, scanID, farms)
 		}),
-		counted("deadline:ListQueueLimitAssociations", func() (int, int, error) {
+		counted("deadline:ListQueueLimitAssociations", func() (int, error) {
 			return scanDeadlineQueueLimitAssociations(ctx, client, acct, region, st, scanID, farms)
 		}),
-		counted("deadline:ListQueueEnvironments", func() (int, int, error) {
+		counted("deadline:ListQueueEnvironments", func() (int, error) {
 			return scanDeadlineQueueEnvironments(ctx, client, acct, region, st, scanID, farms)
 		}),
 		func() bool { return scanDeadlineVolumes(ctx, client, acct, region, st, scanID, farms, tags, &p) },
@@ -208,17 +208,17 @@ func scanDeadlineAll(ctx context.Context, client deadlineAPI, acct *account, reg
 			les, stop = scanDeadlineLicenseEndpoints(ctx, client, acct, region, st, scanID, tags, &p)
 			return stop
 		},
-		counted("deadline:ListMeteredProducts", func() (int, int, error) {
+		counted("deadline:ListMeteredProducts", func() (int, error) {
 			return scanDeadlineMeteredProducts(ctx, client, acct, region, st, scanID, les)
 		}),
 		func() bool { return scanDeadlineMonitors(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted(deadlineListFarmMembersOp, func() (int, int, error) {
+		counted(deadlineListFarmMembersOp, func() (int, error) {
 			return scanDeadlineFarmMembers(ctx, client, acct, region, st, scanID, farms)
 		}),
-		counted(deadlineListFleetMembersOp, func() (int, int, error) {
+		counted(deadlineListFleetMembersOp, func() (int, error) {
 			return scanDeadlineFleetMembers(ctx, client, acct, region, st, scanID, farms)
 		}),
-		counted(deadlineListQueueMembersOp, func() (int, int, error) {
+		counted(deadlineListQueueMembersOp, func() (int, error) {
 			return scanDeadlineQueueMembers(ctx, client, acct, region, st, scanID, farms)
 		}),
 	}
@@ -331,7 +331,7 @@ func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, 
 
 // scanDeadlineLimits stores the limits of each farm the farm phase stored. A
 // farm ListLimits no longer finds is skipped.
-func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListLimits", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
 		func(ctx context.Context, farmID string, token *string) ([]dltypes.LimitSummary, *string, error) {
 			out, err := client.ListLimits(ctx, &deadline.ListLimitsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
@@ -351,7 +351,7 @@ func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, 
 
 // scanDeadlineStorageProfiles stores the storage profiles of each farm the
 // farm phase stored. A farm ListStorageProfiles no longer finds is skipped.
-func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListStorageProfiles", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
 		func(ctx context.Context, farmID string, token *string) ([]dltypes.StorageProfileSummary, *string, error) {
 			out, err := client.ListStorageProfiles(ctx, &deadline.ListStorageProfilesInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
@@ -372,7 +372,7 @@ func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *
 // scanDeadlineQueueFleetAssociations stores the queue-fleet associations of
 // each farm the farm phase stored. A farm the listing no longer finds is
 // skipped.
-func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueFleetAssociations", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
 		func(ctx context.Context, farmID string, token *string) ([]dltypes.QueueFleetAssociationSummary, *string, error) {
 			out, err := client.ListQueueFleetAssociations(ctx, &deadline.ListQueueFleetAssociationsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
@@ -394,7 +394,7 @@ func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI,
 // scanDeadlineQueueLimitAssociations stores the queue-limit associations of
 // each farm the farm phase stored. A farm the listing no longer finds is
 // skipped.
-func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueLimitAssociations", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
 		func(ctx context.Context, farmID string, token *string) ([]dltypes.QueueLimitAssociationSummary, *string, error) {
 			out, err := client.ListQueueLimitAssociations(ctx, &deadline.ListQueueLimitAssociationsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
@@ -415,7 +415,7 @@ func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI,
 
 // scanDeadlineQueueEnvironments stores the environments of each queue the
 // queue phase stored. A queue the listing no longer finds is skipped.
-func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	queues, keys := deadlineFarmChildren(farms, func(f dlFarmRef) []childParent { return f.queues })
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueEnvironments", deadlineNotFound, childParentIDs(queues),
 		func(ctx context.Context, queueARN string, token *string) ([]dltypes.QueueEnvironmentSummary, *string, error) {
@@ -463,7 +463,7 @@ func scanDeadlineLicenseEndpoints(ctx context.Context, client deadlineAPI, acct 
 // scanDeadlineMeteredProducts stores the metered products of each license
 // endpoint the license-endpoint phase stored. An endpoint the listing no
 // longer finds is skipped.
-func scanDeadlineMeteredProducts(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, les []childParent) (int, int, error) {
+func scanDeadlineMeteredProducts(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, les []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListMeteredProducts", deadlineNotFound, childParentIDs(les),
 		func(ctx context.Context, leID string, token *string) ([]dltypes.MeteredProductSummary, *string, error) {
 			out, err := client.ListMeteredProducts(ctx, &deadline.ListMeteredProductsInput{LicenseEndpointId: &leID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})

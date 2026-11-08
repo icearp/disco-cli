@@ -78,7 +78,7 @@ const (
 	sesMailManagerHost
 )
 
-func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := sesv2.NewFromConfig(acct.cfg, func(o *sesv2.Options) { o.Region = region })
 	v1client := sesv1.NewFromConfig(acct.cfg, func(o *sesv1.Options) { o.Region = region })
 	mmclient := mailmanager.NewFromConfig(acct.cfg, func(o *mailmanager.Options) { o.Region = region })
@@ -118,7 +118,7 @@ func sesPhases(ctx context.Context, client sesv2API, v1client sesV1API, mmclient
 		{"sesv2:ListDedicatedIpPools", sesHost, func(p *phaseTotals) bool {
 			return scanSESDedicatedIPPools(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(sesHost, "sesv2:ListMultiRegionEndpoints", func() (int, int, error) {
+		countedPhase(sesHost, "sesv2:ListMultiRegionEndpoints", func() (int, error) {
 			return scanSESMultiRegionEndpoints(ctx, client, acct, region, st, scanID)
 		}),
 		{"sesv2:ListEmailTemplates", sesHost, func(p *phaseTotals) bool {
@@ -127,16 +127,16 @@ func sesPhases(ctx context.Context, client sesv2API, v1client sesV1API, mmclient
 		{"sesv2:ListTenants", sesHost, func(p *phaseTotals) bool {
 			return scanSESTenants(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(sesHost, "sesv2:GetAccount", func() (int, int, error) {
+		countedPhase(sesHost, "sesv2:GetAccount", func() (int, error) {
 			return scanSESVdmAttributes(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(sesHost, sesEventDestinationsOp, func() (int, int, error) {
+		countedPhase(sesHost, sesEventDestinationsOp, func() (int, error) {
 			return scanSESEventDestinations(ctx, client, acct, region, st, scanID, childParentIDs(configSets))
 		}),
-		countedPhase(sesHost, "ses:ListReceiptFilters", func() (int, int, error) {
+		countedPhase(sesHost, "ses:ListReceiptFilters", func() (int, error) {
 			return scanSESReceiptFilters(ctx, v1client, acct, region, st, scanID)
 		}),
-		countedPhase(sesHost, "ses:ListReceiptRuleSets", func() (int, int, error) {
+		countedPhase(sesHost, "ses:ListReceiptRuleSets", func() (int, error) {
 			return scanSESReceiptRuleSets(ctx, v1client, acct, region, st, scanID)
 		}),
 		{"mailmanager:ListAddonInstances", sesMailManagerHost, func(p *phaseTotals) bool {
@@ -163,7 +163,7 @@ func sesPhases(ctx context.Context, client sesv2API, v1client sesV1API, mmclient
 		{"mailmanager:ListTrafficPolicies", sesMailManagerHost, func(p *phaseTotals) bool {
 			return scanMMTrafficPolicies(ctx, mmclient, acct, region, st, scanID, mmTags, p)
 		}},
-		countedPhase(sesHost, sesCertificateOp, func() (int, int, error) {
+		countedPhase(sesHost, sesCertificateOp, func() (int, error) {
 			return scanSESEmailIdentityCertificates(ctx, client, acct, region, st, scanID, identities)
 		}),
 	}
@@ -280,7 +280,7 @@ const sesIdentityPageCap int32 = 1000
 func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (identities []sesIdentity, storeWriteFailed bool) {
 	emailAddress := map[string]bool{}
 	d := newSESDetailed(client, sesGetIdentityOp, "email identities")
-	total, inserted, parents, err := storeParentListWith(ctx, st, acct, region, sesListIdentitiesOp, "email identities", "IdentityName",
+	total, parents, err := storeParentListWith(ctx, st, acct, region, sesListIdentitiesOp, "email identities", "IdentityName",
 		func(ctx context.Context, token *string) ([]sesv2types.IdentityInfo, *string, error) {
 			out, err := client.ListEmailIdentities(ctx, &sesv2.ListEmailIdentitiesInput{NextToken: token, PageSize: sdkaws.Int32(sesIdentityPageCap)})
 			if err != nil {
@@ -306,7 +306,7 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 			}
 			return out, sesv2TagsJSON(out.Tags), nil
 		}))
-	if d.addPhase(p, sesListIdentitiesOp, total, inserted, err) {
+	if d.addPhase(p, sesListIdentitiesOp, total, err) {
 		return nil, true
 	}
 	for _, parent := range parents {
@@ -324,7 +324,7 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 // PageSize cap for the listing, so none is sent.
 func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (sets []childParent, storeWriteFailed bool) {
 	d := newSESDetailed(client, sesGetConfigSetOp, "configuration sets")
-	total, inserted, sets, err := storeParentListWith(ctx, st, acct, region, sesListConfigSetsOp, "configuration sets", "ConfigurationSetName",
+	total, sets, err := storeParentListWith(ctx, st, acct, region, sesListConfigSetsOp, "configuration sets", "ConfigurationSetName",
 		func(ctx context.Context, token *string) ([]string, *string, error) {
 			out, err := client.ListConfigurationSets(ctx, &sesv2.ListConfigurationSetsInput{NextToken: token})
 			if err != nil {
@@ -348,7 +348,7 @@ func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *accoun
 			}
 			return flattenSESConfigurationSet(out), sesv2TagsJSON(out.Tags), nil
 		}))
-	if d.addPhase(p, sesListConfigSetsOp, total, inserted, err) {
+	if d.addPhase(p, sesListConfigSetsOp, total, err) {
 		return nil, true
 	}
 	return sets, false

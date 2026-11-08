@@ -20,17 +20,17 @@ func init() {
 }
 
 // scanPowerBIDedicated discovers Power BI Dedicated capacities and autoscale v-cores.
-func scanPowerBIDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPowerBIDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	caps, err := armpowerbidedicated.NewCapacitiesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armpowerbidedicated:NewCapacitiesClient: %w", err)
+		return 0, fmt.Errorf("armpowerbidedicated:NewCapacitiesClient: %w", err)
 	}
 	vcores, err := armpowerbidedicated.NewAutoScaleVCoresClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armpowerbidedicated:NewAutoScaleVCoresClient: %w", err)
+		return 0, fmt.Errorf("armpowerbidedicated:NewAutoScaleVCoresClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armpowerbidedicated:Capacities.List", TypePowerBIDedicatedCapacity, sub, st, scanID,
 				caps.NewListPager(nil),
 				func(p armpowerbidedicated.CapacitiesClientListResponse) []*armpowerbidedicated.DedicatedCapacity {
@@ -40,7 +40,7 @@ func scanPowerBIDedicated(ctx context.Context, sub *subscription, cred azcore.To
 					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armpowerbidedicated:AutoScaleVCores.ListBySubscription", TypePowerBIDedicatedAutoScaleVCore, sub, st, scanID,
 				vcores.NewListBySubscriptionPager(nil),
 				func(p armpowerbidedicated.AutoScaleVCoresClientListBySubscriptionResponse) []*armpowerbidedicated.AutoScaleVCore {

@@ -24,7 +24,7 @@ import (
 // service authorization reference defines no activation ARN format, so the
 // NativeID is synthesized from the ActivationId:
 // arn:{p}:ssm:{region}:{acct}:activation/{ActivationId}.
-func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ssmDescribeActivationsOp,
 		func(ctx context.Context, token *string) ([]types.Activation, *string, error) {
 			out, err := client.DescribeActivations(ctx, &ssm.DescribeActivationsInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
@@ -221,7 +221,7 @@ func scanSSMMaintenanceWindows(ctx context.Context, client ssmAPI, acct *account
 
 // scanSSMMaintenanceWindowTargets lists the targets of each window stored
 // this scan, the windows read concurrently (storeTokenEachParent).
-func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, int, error) {
+func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, ssmDescribeMaintenanceWindowTargetsOp, ssmWindowNotFound, childParentIDs(windows),
 		func(ctx context.Context, wid string, token *string) ([]types.MaintenanceWindowTarget, *string, error) {
 			out, err := client.DescribeMaintenanceWindowTargets(ctx, &ssm.DescribeMaintenanceWindowTargetsInput{
@@ -249,7 +249,7 @@ func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *a
 
 // scanSSMMaintenanceWindowTasks lists the tasks of each window stored this
 // scan, the windows read concurrently (storeTokenEachParent).
-func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, int, error) {
+func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, ssmDescribeMaintenanceWindowTasksOp, ssmWindowNotFound, childParentIDs(windows),
 		func(ctx context.Context, wid string, token *string) ([]types.MaintenanceWindowTask, *string, error) {
 			out, err := client.DescribeMaintenanceWindowTasks(ctx, &ssm.DescribeMaintenanceWindowTasksInput{
@@ -275,7 +275,7 @@ func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *acc
 		})
 }
 
-func scanSSMResourceDataSync(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSMResourceDataSync(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ssmListResourceDataSyncOp,
 		func(ctx context.Context, token *string) ([]types.ResourceDataSyncItem, *string, error) {
 			out, err := client.ListResourceDataSync(ctx, &ssm.ListResourceDataSyncInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})

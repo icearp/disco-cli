@@ -184,7 +184,7 @@ func nmTestAttachment(id string) string {
 func nmScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := networkmanager.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanNMAll(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
+	total, err := scanNMAll(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
 	return total, err
 }
 
@@ -318,7 +318,7 @@ func nmPageIndex(t *testing.T, op, token string, n int) (int, error) {
 func nmScanSites(t *testing.T, st *store.Store, h map[string]func(in any) (any, error), gids ...string) (int, error) {
 	t.Helper()
 	client := networkmanager.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanNMSites(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID, gids)
+	total, err := scanNMSites(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID, gids)
 	return total, err
 }
 
@@ -438,7 +438,7 @@ func TestScanNMSites_CancelStopsParents(t *testing.T) {
 	}
 	st := newTestStore(t)
 	client := networkmanager.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	_, _, err := scanNMSites(ctx, client, newTestAccount(testAccountID), nmTestRegion, st, testScanID, []string{"gn-1", "gn-2"})
+	_, err := scanNMSites(ctx, client, newTestAccount(testAccountID), nmTestRegion, st, testScanID, []string{"gn-1", "gn-2"})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -512,7 +512,7 @@ func TestScanNMAttachments_ListOutcomes(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, nmListAttachmentsOp)
 			client := networkmanager.NewFromConfig(opStubConfig(nmAttachmentsHandler(t, c.pages), errors.New("unexpected op")))
-			total, _, err := scanNMAttachments(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
+			total, err := scanNMAttachments(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -554,7 +554,7 @@ func TestScanNMAttachments_WriteFailsWarnsNothing(t *testing.T) {
 		nmFailPage(denied),
 	}
 	client := networkmanager.NewFromConfig(opStubConfig(nmAttachmentsHandler(t, pages), errors.New("unexpected op")))
-	_, _, err := scanNMAttachments(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
+	_, err := scanNMAttachments(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -578,7 +578,7 @@ func TestScanNMPeerings_UnmappedTypeWarns(t *testing.T) {
 		},
 	}
 	client := networkmanager.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanNMPeerings(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
+	total, err := scanNMPeerings(context.Background(), client, newTestAccount(testAccountID), nmTestRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}

@@ -145,7 +145,7 @@ func lmvManaged(name string) lambdamicrovmstypes.ManagedMicrovmImageSummary {
 type lmvListCase struct {
 	name, op, typ string
 	fill          func(*stubLambdaNew)
-	run           func(context.Context, *stubLambdaNew, *store.Store) (int, int, error)
+	run           func(context.Context, *stubLambdaNew, *store.Store) (int, error)
 	wantIDs       []string // NativeIDs of a, b, c
 	wantName      string   // Name of a
 	wantStatus    string   // Status of a; "" = unset
@@ -160,7 +160,7 @@ type lmvListCase struct {
 
 // lmvTaggedPhase runs a tagged phase and returns its counts and joined
 // errors.
-func lmvTaggedPhase(st *store.Store, run func(p *phaseTotals) bool) (int, int, error) {
+func lmvTaggedPhase(st *store.Store, run func(p *phaseTotals) bool) (int, error) {
 	var p phaseTotals
 	run(&p)
 	return p.result(st, newTestAccount(testAccountID), testRegion)
@@ -181,7 +181,7 @@ func lmvListCases() []lmvListCase {
 				}
 				s.connectors = [][]lambdacoretypes.NetworkConnectorSummary{{nc("a"), nc("b"), {Id: sdkaws.String("x")}}, {nc("c")}}
 			},
-			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, error) {
 				return lmvTaggedPhase(st, func(p *phaseTotals) bool {
 					return scanLambdaNetworkConnectors(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaTags(&stubLambdaPerFn{}), p)
 				})
@@ -195,7 +195,7 @@ func lmvListCases() []lmvListCase {
 			fill: func(s *stubLambdaNew) {
 				s.images = [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a"), lmvImage("b"), {Name: sdkaws.String("x")}}, {lmvImage("c")}}
 			},
-			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, error) {
 				return lmvTaggedPhase(st, func(p *phaseTotals) bool {
 					_, failed := scanLambdaMicrovmImages(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaMicrovmTags(s), p)
 					return failed
@@ -210,7 +210,7 @@ func lmvListCases() []lmvListCase {
 			fill: func(s *stubLambdaNew) {
 				s.microvms = [][]lambdamicrovmstypes.MicrovmItem{{lmvMicrovm("a"), lmvMicrovm("b"), {ImageArn: sdkaws.String(lmvARN("microvm-image", "img"))}}, {lmvMicrovm("c")}}
 			},
-			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, error) {
 				return scanLambdaMicrovms(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			wantIDs:  []string{vmNative("a"), vmNative("b"), vmNative("c")},
@@ -221,7 +221,7 @@ func lmvListCases() []lmvListCase {
 			fill: func(s *stubLambdaNew) {
 				s.managed = [][]lambdamicrovmstypes.ManagedMicrovmImageSummary{{lmvManaged("a"), lmvManaged("b"), {CreatedAt: &lmvCreated}}, {lmvManaged("c")}}
 			},
-			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, error) {
 				return scanLambdaManagedMicrovmImages(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			wantIDs:  []string{managedARN("a"), managedARN("b"), managedARN("c")},
@@ -239,7 +239,7 @@ func TestLambdaNewListScanners_PagesAndFields(t *testing.T) {
 			stub := &stubLambdaNew{}
 			tc.fill(stub)
 
-			total, _, err := tc.run(context.Background(), stub, st)
+			total, err := tc.run(context.Background(), stub, st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -289,7 +289,7 @@ func TestLambdaNewListScanners_Empty(t *testing.T) {
 	for _, tc := range lmvListCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := tc.run(context.Background(), &stubLambdaNew{}, st)
+			total, err := tc.run(context.Background(), &stubLambdaNew{}, st)
 			if err != nil || total != 0 {
 				t.Fatalf("total=%d err=%v, want 0/nil", total, err)
 			}
@@ -327,7 +327,7 @@ func TestLambdaNewListScanners_ErrorHandling(t *testing.T) {
 				stub := &stubLambdaNew{fail: map[string]lambdaStubFail{tc.op: ec.fail}}
 				tc.fill(stub)
 
-				_, _, err := tc.run(context.Background(), stub, st)
+				_, err := tc.run(context.Background(), stub, st)
 				if ec.wantErr != "" {
 					if !isAPIErrorCode(err, ec.wantErr) {
 						t.Fatalf("err=%v, want %s propagated", err, ec.wantErr)
@@ -363,7 +363,7 @@ func TestScanLambdaMicrovmImages_ReturnsStoredImagesAsParents(t *testing.T) {
 	st := newTestStore(t)
 	var p phaseTotals
 	parents, failed := scanLambdaMicrovmImages(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaMicrovmTags(stub), &p)
-	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); failed || err != nil {
+	if _, err := p.result(st, newTestAccount(testAccountID), testRegion); failed || err != nil {
 		t.Fatalf("scan: failed %v, err %v", failed, err)
 	}
 	want := []childParent{{id: lmvARN("microvm-image", "a"), arn: lmvARN("microvm-image", "a")}, {id: lmvARN("microvm-image", "c"), arn: lmvARN("microvm-image", "c")}}
@@ -403,7 +403,7 @@ func TestScanLambdaMicrovmImageVersions_PagesEveryImage(t *testing.T) {
 	st := newTestStore(t)
 	stub, parents := lmvVersionsFixture(t, st)
 
-	total, _, err := scanLambdaMicrovmImageVersions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanLambdaMicrovmImageVersions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestScanLambdaMicrovmImageVersions_PerImageErrors(t *testing.T) {
 				stub.fail["ListMicrovmImageVersions/"+parents[1].id] = lambdaStubFail{err: tc.failB}
 			}
 
-			_, _, err := scanLambdaMicrovmImageVersions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanLambdaMicrovmImageVersions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) {
 					t.Fatalf("err=%v, want %s propagated", err, tc.wantErr)

@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDevTestLab discovers devtestlab resources.
-func scanDevTestLab(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevTestLab(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdevtestlabs.NewLabsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdevtestlabs:NewLabsClient: %w", err)
+		return 0, fmt.Errorf("armdevtestlabs:NewLabsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdevtestlabs:Labs.ListBySubscription", TypeDevTestLab, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -35,9 +35,9 @@ func scanDevTestLab(ctx context.Context, sub *subscription, cred azcore.TokenCre
 // scanDevTestLabNamespace runs every Microsoft.devtestlab phase concurrently; the
 // ARM namespace spans several scanners merged under one serviceEntry so the
 // service name matches the namespace.
-func scanDevTestLabNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevTestLabNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanDevTestLab(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanDevTestLabs(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanDevTestLab(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanDevTestLabs(ctx, sub, cred, st, scanID) },
 	)
 }

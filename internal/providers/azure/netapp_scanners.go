@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanNetApp discovers Azure NetApp Files accounts.
-func scanNetApp(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetApp(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnetapp.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetapp:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armnetapp:NewAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armnetapp:Accounts.ListBySubscription", TypeNetAppAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

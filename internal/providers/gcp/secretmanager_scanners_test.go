@@ -42,7 +42,9 @@ func TestScanSecrets_SecretVersionChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSecretManagerService(t, srv)
 
-	total, inserted, err := scanSecretsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSecretsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSecretsWithClient: %v", err)
 	}
@@ -86,7 +88,9 @@ func TestScanSecrets_VersionsAPINotEnabledShapeDoesNotDisableWholeService(t *tes
 	t.Cleanup(srv.Close)
 	svc := fakeSecretManagerService(t, srv)
 
-	total, inserted, err := scanSecretsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSecretsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSecretsWithClient: %v (Versions' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -105,7 +109,9 @@ func TestScanSecrets_EmptyProjectNoSecrets(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSecretManagerService(t, srv)
 
-	total, inserted, err := scanSecretsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSecretsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSecretsWithClient: %v", err)
 	}

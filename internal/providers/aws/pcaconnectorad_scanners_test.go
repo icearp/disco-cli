@@ -276,12 +276,12 @@ func pcaADHandlers(c *pcaADCalls) map[string]func(in any) (any, error) {
 
 // pcaADScanIn runs the scan's real entry point for acct in region against
 // handlers; every op they do not answer is denied.
-func pcaADScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func pcaADScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, pcaADTestDenied)
 	return scanPCAConnectorAD(ctx, acct, region, st, testScanID)
 }
 
-func pcaADScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func pcaADScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return pcaADScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers)
 }
 
@@ -323,7 +323,9 @@ func TestScanPCAConnectorAD_StoresEveryRowWithItsTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newPCAADCalls(t)
 
-	total, inserted, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := pcaADScan(context.Background(), counted, pcaADHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -392,16 +394,16 @@ func TestScanPCAConnectorAD_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanPCAConnectorAD_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t))); err != nil {
+	if _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t)))
+	total, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -437,7 +439,7 @@ func TestScanPCAConnectorAD_NoConnectors(t *testing.T) {
 				return &pcaconnectorad.ListConnectorsOutput{}, nil
 			}
 
-			total, _, err := pcaADScan(context.Background(), st, handlers)
+			total, err := pcaADScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -472,7 +474,9 @@ func TestScanPCAConnectorAD_EmptyListings(t *testing.T) {
 		return &pcaconnectorad.ListDirectoryRegistrationsOutput{}, nil
 	}
 
-	total, inserted, err := pcaADScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := pcaADScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -526,7 +530,7 @@ func TestScanPCAConnectorAD_TagReadFailures(t *testing.T) {
 			calls := newPCAADCalls(t)
 			calls.errs[c.arn] = c.err
 
-			total, _, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+			total, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -582,7 +586,7 @@ func TestScanPCAConnectorAD_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+	total, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -604,7 +608,7 @@ func TestScanPCAConnectorAD_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[pcaADDirRegARN("bare")] = pcaADTestThrottle
 	calls.errs[pcaADKindOf(t, "ListTemplates").nativesPCAAD(t)[3]] = pcaADTestBad
 
-	_, _, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+	_, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -623,7 +627,7 @@ func TestScanPCAConnectorAD_FailedWriteStopsScan(t *testing.T) {
 	calls := newPCAADCalls(t)
 	calls.errs[pcaADDirRegARN("tagged")] = pcaADTestDenied
 
-	total, _, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+	total, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -672,7 +676,7 @@ func TestScanPCAConnectorAD_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := pcaADScan(context.Background(), st, handlers)
+			total, err := pcaADScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -706,7 +710,7 @@ func TestScanPCAConnectorAD_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := pcaADScan(context.Background(), st, handlers)
+	total, err := pcaADScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -751,7 +755,7 @@ func TestScanPCAConnectorAD_PerParentFailures(t *testing.T) {
 				handlers := pcaADHandlers(calls)
 				failPCAAD(calls, handlers, c.op, c.parent, e.err)
 
-				total, _, err := pcaADScan(context.Background(), st, handlers)
+				total, err := pcaADScan(context.Background(), st, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -857,7 +861,7 @@ func TestScanPCAConnectorAD_ElementWithoutID(t *testing.T) {
 				return c.answer(in), nil
 			}
 
-			total, _, err := pcaADScan(context.Background(), st, handlers)
+			total, err := pcaADScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -912,7 +916,7 @@ func TestScanPCAConnectorAD_PartitionARNs(t *testing.T) {
 				return &pcaconnectorad.ListTemplateGroupAccessControlEntriesOutput{AccessControlEntries: []pcaadtypes.AccessControlEntrySummary{{GroupSecurityIdentifier: sdkaws.String("S-1")}}}, nil
 			}
 
-			if _, _, err := pcaADScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
+			if _, err := pcaADScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := []string{connectorARN, templateARN, dirRegARN}
@@ -950,7 +954,7 @@ func TestScanPCAConnectorAD_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := pcaADScan(ctx, st, handlers)
+	_, err := pcaADScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -979,7 +983,7 @@ func TestScanPCAConnectorAD_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := pcaADHandlers(newPCAADCalls(t))
 		handlers["ListTemplateGroupAccessControlEntries"] = func(any) (any, error) { return nil, nx }
-		total, _, err := pcaADScan(context.Background(), st, handlers)
+		total, err := pcaADScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := pcaADTestTotal - 8; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -989,7 +993,7 @@ func TestScanPCAConnectorAD_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newPCAADCalls(t)
 		calls.errs[pcaADConnectorARN("bare")] = nx
-		_, _, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
+		_, err := pcaADScan(context.Background(), st, pcaADHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -997,7 +1001,7 @@ func TestScanPCAConnectorAD_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanPCAConnectorAD(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanPCAConnectorAD(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

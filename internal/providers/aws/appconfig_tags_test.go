@@ -250,7 +250,7 @@ var acTestListOps = []string{
 
 // acScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func acScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func acScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, acDenied)
 	return scanAppConfig(ctx, acct, testRegion, st, testScanID)
@@ -277,7 +277,9 @@ func TestScanAppConfig_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newACCalls()
 
-	total, inserted, err := acScan(context.Background(), st, acHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := acScan(context.Background(), counted, acHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -334,16 +336,16 @@ func TestScanAppConfig_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAppConfig_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := acScan(context.Background(), st, acHandlers(newACCalls())); err != nil {
+	if _, err := acScan(context.Background(), st, acHandlers(newACCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := acScan(context.Background(), st, acHandlers(newACCalls()))
+	total, err := acScan(context.Background(), st, acHandlers(newACCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -391,7 +393,7 @@ func TestScanAppConfig_TagReadFailures(t *testing.T) {
 				calls := newACCalls()
 				calls.errs[c.arn] = c.err
 
-				total, _, err := acScan(context.Background(), st, acHandlers(calls))
+				total, err := acScan(context.Background(), st, acHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -441,7 +443,7 @@ func TestScanAppConfig_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := acScan(context.Background(), st, acHandlers(calls))
+	total, err := acScan(context.Background(), st, acHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -463,7 +465,7 @@ func TestScanAppConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[acTestAppARN("a1")+"/environment/e1"] = acTestThrottle
 	calls.errs[acTestARNPrefix+"extensionassociation/ea2"] = acBadRequest
 
-	_, _, err := acScan(context.Background(), st, acHandlers(calls))
+	_, err := acScan(context.Background(), st, acHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -483,7 +485,7 @@ func TestScanAppConfig_FailedWriteStopsScan(t *testing.T) {
 		calls := newACCalls()
 		calls.errs[acTestARNPrefix+"deploymentstrategy/ds1"] = acDenied
 
-		total, _, err := acScan(context.Background(), st, acHandlers(calls))
+		total, err := acScan(context.Background(), st, acHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -505,7 +507,7 @@ func TestScanAppConfig_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeAppConfigEnvironment)
 		calls := newACCalls()
 
-		_, _, err := acScan(context.Background(), st, acHandlers(calls))
+		_, err := acScan(context.Background(), st, acHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -534,7 +536,7 @@ func TestScanAppConfig_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers := acHandlers(calls)
 			handlers[c.op] = failOnCall(2, acBadRequest, handlers[c.op])
 
-			total, _, err := acScan(context.Background(), st, handlers)
+			total, err := acScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "BadRequestException")
 			if want := acTestTotal - c.lost; total != want {
@@ -560,7 +562,7 @@ func TestScanAppConfig_RepeatedTokenKeepsPages(t *testing.T) {
 		return &appconfig.ListExtensionAssociationsOutput{NextToken: sdkaws.String("same"), Items: []actypes.ExtensionAssociationSummary{{Id: &id}}}, nil
 	}
 
-	total, _, err := acScan(context.Background(), st, handlers)
+	total, err := acScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -613,7 +615,7 @@ func TestScanAppConfig_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := acScan(context.Background(), st, handlers)
+				total, err := acScan(context.Background(), st, handlers)
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -685,7 +687,7 @@ func TestScanAppConfig_ElementWithoutID(t *testing.T) {
 				return c.answer, nil
 			}
 
-			total, _, err := acScan(context.Background(), st, handlers)
+			total, err := acScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -731,7 +733,7 @@ func TestScanAppConfig_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, acDenied)
 
-			if _, _, err := scanAppConfig(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanAppConfig(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			read := calls.readARNs()
@@ -764,7 +766,7 @@ func TestScanAppConfig_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := acScan(ctx, st, handlers)
+	_, err := acScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -791,7 +793,7 @@ func TestScanAppConfig_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := acHandlers(newACCalls())
 		handlers["ListExtensions"] = func(any) (any, error) { return nil, nx }
-		total, _, err := acScan(context.Background(), st, handlers)
+		total, err := acScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != acTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, acTestTotal-2)
@@ -801,7 +803,7 @@ func TestScanAppConfig_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newACCalls()
 		calls.errs[acTestARNPrefix+"extensionassociation/ea2"] = nx
-		_, _, err := acScan(context.Background(), st, acHandlers(calls))
+		_, err := acScan(context.Background(), st, acHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -809,7 +811,7 @@ func TestScanAppConfig_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -835,7 +837,7 @@ func TestScanAppConfig_ExperimentDefinitionPhaseRunsLast(t *testing.T) {
 		return list(in)
 	}
 
-	if _, _, err := acScan(context.Background(), st, handlers); err != nil {
+	if _, err := acScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(notYet) != 0 {

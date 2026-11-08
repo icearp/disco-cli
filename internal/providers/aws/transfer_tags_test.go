@@ -240,7 +240,7 @@ func transferHandlers(c *transferCalls) map[string]func(in any) (any, error) {
 
 // transferScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func transferScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func transferScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, transferDenied)
 	return scanTransfer(ctx, acct, testRegion, st, testScanID)
@@ -280,7 +280,9 @@ func TestScanTransfer_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newTransferCalls()
 
-	total, inserted, err := transferScan(context.Background(), st, transferHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := transferScan(context.Background(), counted, transferHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -349,10 +351,12 @@ func TestScanTransfer_StoresTagsOfEveryType(t *testing.T) {
 func TestScanTransfer_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := transferScan(context.Background(), st, transferHandlers(newTransferCalls())); err != nil {
+	if _, err := transferScan(context.Background(), st, transferHandlers(newTransferCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := transferScan(context.Background(), st, transferHandlers(newTransferCalls()))
+	counted, upserts := countUpserts(st)
+	total, err := transferScan(context.Background(), counted, transferHandlers(newTransferCalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -403,7 +407,7 @@ func TestScanTransfer_TagReadFailures(t *testing.T) {
 			calls := newTransferCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+			total, err := transferScan(context.Background(), st, transferHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -455,7 +459,7 @@ func TestScanTransfer_WebAppTagReadWithoutBodyOrID(t *testing.T) {
 			}
 			return describe(in)
 		}
-		total, _, err := transferScan(context.Background(), st, handlers)
+		total, err := transferScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != transferTestTotal {
 			t.Errorf("total = %d; want %d", total, transferTestTotal)
@@ -473,7 +477,7 @@ func TestScanTransfer_WebAppTagReadWithoutBodyOrID(t *testing.T) {
 			calls.record("ListWebApps", in)
 			return &transfer.ListWebAppsOutput{WebApps: []transfertypes.ListedWebApp{{Arn: &arn}}}, nil
 		}
-		total, _, err := transferScan(context.Background(), st, handlers)
+		total, err := transferScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != transferTestTotal-1 {
 			t.Errorf("total = %d; want %d", total, transferTestTotal-1)
@@ -513,7 +517,7 @@ func TestScanTransfer_WebAppsDescribedByOwnIDAcrossPages(t *testing.T) {
 		return out, nil
 	}
 
-	if _, _, err := transferScan(context.Background(), st, handlers); err != nil {
+	if _, err := transferScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := slices.Sorted(slices.Values(calls.webAppIDs)), []string{"webapp-a", "webapp-b", "webapp-c"}; !slices.Equal(got, want) {
@@ -555,7 +559,7 @@ func TestScanTransfer_TagPages(t *testing.T) {
 				}
 				return pageOf(c.second, "b", "2"), nil
 			}
-			_, _, err := transferScan(context.Background(), st, handlers)
+			_, err := transferScan(context.Background(), st, handlers)
 			r := rowsByNativeID(t, st, TypeTransferConnector)[arn]
 			if c.wantTags == nil {
 				if !errors.Is(err, errRepeatedNextToken) {
@@ -587,7 +591,7 @@ func TestScanTransfer_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+	total, err := transferScan(context.Background(), st, transferHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -609,7 +613,7 @@ func TestScanTransfer_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[transferKindOf(t, "ListCertificates").arn("", "tagged")] = transferTestThrottle
 	calls.errs[transferKindOf(t, "ListWorkflows").arn("", "bare")] = transferTestInvalid
 
-	_, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+	_, err := transferScan(context.Background(), st, transferHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -629,7 +633,7 @@ func TestScanTransfer_FailedWriteStopsScan(t *testing.T) {
 		calls := newTransferCalls()
 		calls.errs[transferKindOf(t, "ListCertificates").arn("", "tagged")] = transferDenied
 
-		total, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+		total, err := transferScan(context.Background(), st, transferHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -651,7 +655,7 @@ func TestScanTransfer_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeTransferServer)
 		calls := newTransferCalls()
 
-		_, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+		_, err := transferScan(context.Background(), st, transferHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -681,7 +685,7 @@ func TestScanTransfer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := transferKindOf(t, c.op)
 			handlers[c.op] = failOnCall(2, transferTestInvalid, handlers[c.op])
 
-			total, _, err := transferScan(context.Background(), st, handlers)
+			total, err := transferScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			if total != c.wantTotal {
@@ -712,7 +716,7 @@ func TestScanTransfer_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(&arn, &id, sdkaws.String("same")), nil
 	}
 
-	total, _, err := transferScan(context.Background(), st, handlers)
+	total, err := transferScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -749,7 +753,7 @@ func TestScanTransfer_PerServerListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := transferScan(context.Background(), st, handlers)
+				total, err := transferScan(context.Background(), st, handlers)
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -821,7 +825,7 @@ func TestScanTransfer_ElementWithoutARNOrID(t *testing.T) {
 				return c.answer, nil
 			}
 
-			total, _, err := transferScan(context.Background(), st, handlers)
+			total, err := transferScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -876,7 +880,7 @@ func TestScanTransfer_TagReadsKeepPartitionARNs(t *testing.T) {
 				return &transfer.ListServersOutput{Servers: []transfertypes.ListedServer{{Arn: sdkaws.String(arn), ServerId: sdkaws.String("s-x")}}}, nil
 			}
 
-			if _, _, err := transferScan(context.Background(), st, handlers); err != nil {
+			if _, err := transferScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.tagARNs, arn) {
@@ -906,7 +910,7 @@ func TestScanTransfer_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := transferScan(ctx, st, handlers)
+	_, err := transferScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -933,7 +937,7 @@ func TestScanTransfer_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := transferHandlers(newTransferCalls())
 		handlers["ListProfiles"] = func(any) (any, error) { return nil, nx }
-		total, _, err := transferScan(context.Background(), st, handlers)
+		total, err := transferScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != transferTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, transferTestTotal-2)
@@ -943,7 +947,7 @@ func TestScanTransfer_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newTransferCalls()
 		calls.errs[transferKindOf(t, "ListHostKeys").arn("server-bare", "bare")] = nx
-		_, _, err := transferScan(context.Background(), st, transferHandlers(calls))
+		_, err := transferScan(context.Background(), st, transferHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -951,7 +955,7 @@ func TestScanTransfer_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanTransfer(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanTransfer(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -977,7 +981,7 @@ func TestScanTransfer_AccessPhaseRunsLast(t *testing.T) {
 		return nil, apiErr("ConflictException", "conflict")
 	}
 
-	total, _, err := transferScan(context.Background(), st, handlers)
+	total, err := transferScan(context.Background(), st, handlers)
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want ConflictException", err)
 	}

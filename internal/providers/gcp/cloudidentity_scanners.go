@@ -76,7 +76,7 @@ const maxConcurrentCloudIdentityFanout = 10
 //     same warning path.
 //   - API not enabled in the consumer project (rare for these tenant APIs) →
 //     `errServiceDisabled` sentinel, scan continues with `(project: disabled)`.
-func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 
 	// Phase 1: Workspace Directory users (`customer=my_customer` alias resolves
@@ -84,105 +84,93 @@ func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanI
 	// Returns CustomerId per user — captured for every later phase.
 	dirSvc, derr := directory.NewService(ctx, opts...)
 	if derr != nil {
-		return 0, 0, fmt.Errorf("admin/directory client: %w", derr)
+		return 0, fmt.Errorf("admin/directory client: %w", derr)
 	}
-	customerID, t, n, err := scanWorkspaceUsers(ctx, dirSvc, st, scanID)
+	customerID, t, err := scanWorkspaceUsers(ctx, dirSvc, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phases 2+ need a resolved customer ID (no users, all 403 → skip).
 	if customerID == "" {
-		return total, inserted, nil
+		return total, nil
 	}
 	ciSvc, gerr := cloudidentity.NewService(ctx, opts...)
 	if gerr != nil {
-		return total, inserted, fmt.Errorf("cloudidentity client: %w", gerr)
+		return total, fmt.Errorf("cloudidentity client: %w", gerr)
 	}
 
 	// Phase 2: Cloud Identity groups.
-	groupNames, t, n, err := scanCloudIdentityGroups(ctx, ciSvc, customerID, st, scanID)
+	groupNames, t, err := scanCloudIdentityGroups(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 3: devices, device users, client states.
-	t, n, err = scanCloudIdentityDevices(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityDevices(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanCloudIdentityDeviceUsers(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityDeviceUsers(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanCloudIdentityClientStates(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityClientStates(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 4: memberships, fan-out per already-scanned group.
-	t, n, err = scanCloudIdentityMemberships(ctx, ciSvc, customerID, groupNames, st, scanID)
+	t, err = scanCloudIdentityMemberships(ctx, ciSvc, customerID, groupNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 5: inbound SSO profiles + per-SAML-profile IdP credentials.
-	t, n, err = scanCloudIdentityInboundOidcSsoProfiles(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityInboundOidcSsoProfiles(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	samlProfileNames, t, n, err := scanCloudIdentityInboundSamlSsoProfiles(ctx, ciSvc, customerID, st, scanID)
+	samlProfileNames, t, err := scanCloudIdentityInboundSamlSsoProfiles(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanCloudIdentityIdpCredentials(ctx, ciSvc, customerID, samlProfileNames, st, scanID)
+	t, err = scanCloudIdentityIdpCredentials(ctx, ciSvc, customerID, samlProfileNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 6: inbound SSO assignments + policies.
-	t, n, err = scanCloudIdentityInboundSsoAssignments(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityInboundSsoAssignments(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanCloudIdentityPolicies(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityPolicies(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 7: user invitations.
-	t, n, err = scanCloudIdentityUserinvitations(ctx, ciSvc, customerID, st, scanID)
+	t, err = scanCloudIdentityUserinvitations(ctx, ciSvc, customerID, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanWorkspaceUsers paginates over admin/directory/v1 Users.List with the
 // `my_customer` alias. Returns the resolved customer ID plus counts so
 // scanCloudIdentity can pass it to the groups phase.
-func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.Store, scanID string) (customerID string, total, inserted int, err error) {
+func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.Store, scanID string) (customerID string, total int, err error) {
 	var batch []*store.Resource
 	req := svc.Users.List().Customer("my_customer").MaxResults(500)
 	if err := req.Pages(ctx, func(page *directory.Users) error {
@@ -210,18 +198,18 @@ func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.S
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return customerID, 0, 0, skipIfDenied(st, "admin:users.list", "tenant", err)
+			return customerID, 0, skipIfDenied(st, "admin:users.list", "tenant", err)
 		}
-		return customerID, 0, 0, err
+		return customerID, 0, err
 	}
 	if len(batch) == 0 {
-		return customerID, 0, 0, nil
+		return customerID, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return customerID, 0, 0, fmt.Errorf("upsert workspace users: %w", uerr)
+		return customerID, 0, fmt.Errorf("upsert workspace users: %w", uerr)
 	}
-	return customerID, len(batch), n, nil
+	return customerID, len(batch), nil
 }
 
 // scanCloudIdentityGroups paginates over cloudidentity/v1 Groups.List with
@@ -230,7 +218,7 @@ func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.S
 // resolver wins (R5 GCP non-SA member edges). Returns every scanned group's
 // resource name (`groups/{id}`) so scanCloudIdentityMemberships can fan out
 // per group.
-func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (groupNames []string, total, inserted int, err error) {
+func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (groupNames []string, total int, err error) {
 	var batch []*store.Resource
 	parent := "customers/" + customerID
 	req := svc.Groups.List().Parent(parent).View("BASIC").PageSize(500)
@@ -265,23 +253,23 @@ func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, cu
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return nil, 0, 0, skipIfDenied(st, "cloudidentity:groups.list", parent, err)
+			return nil, 0, skipIfDenied(st, "cloudidentity:groups.list", parent, err)
 		}
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	if len(batch) == 0 {
-		return groupNames, 0, 0, nil
+		return groupNames, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert cloud-identity groups: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert cloud-identity groups: %w", uerr)
 	}
-	return groupNames, len(batch), n, nil
+	return groupNames, len(batch), nil
 }
 
 // scanCloudIdentityDevices paginates over Devices.List, customer-scoped, no
 // closure parent (flat tenant resource, like Group/WorkspaceUser).
-func scanCloudIdentityDevices(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityDevices(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	req := svc.Devices.List().Customer("customers/" + customerID).PageSize(100)
 	if err := req.Pages(ctx, func(page *cloudidentity.GoogleAppsCloudidentityDevicesV1ListDevicesResponse) error {
@@ -311,18 +299,18 @@ func scanCloudIdentityDevices(ctx context.Context, svc *cloudidentity.Service, c
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:devices.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:devices.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity devices: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity devices: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityDeviceUsers paginates over DeviceUsers.List with the
@@ -331,7 +319,7 @@ func scanCloudIdentityDevices(ctx context.Context, svc *cloudidentity.Service, c
 // Device. Each row closure-parents to its owning Device, derived by trimming
 // the `/deviceUsers/{id}` suffix off the row's own resource name (KMS-style
 // multi-parent batch — parent varies per row within the same page).
-func scanCloudIdentityDeviceUsers(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityDeviceUsers(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	req := svc.Devices.DeviceUsers.List("devices/-").Customer("customers/" + customerID).PageSize(100)
@@ -364,28 +352,28 @@ func scanCloudIdentityDeviceUsers(ctx context.Context, svc *cloudidentity.Servic
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:deviceUsers.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:deviceUsers.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity device users: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity device users: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return len(batch), n, fmt.Errorf("hierarchy cloud-identity device users: %w", err)
+		return len(batch), fmt.Errorf("hierarchy cloud-identity device users: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityClientStates paginates over ClientStates.List with the
 // wildcard parent `devices/-/deviceUsers/-`, closure-parenting each row to
 // its owning DeviceUser (same multi-parent-batch shape as
 // scanCloudIdentityDeviceUsers, one level deeper).
-func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	req := svc.Devices.DeviceUsers.ClientStates.List("devices/-/deviceUsers/-").Customer("customers/" + customerID)
@@ -421,26 +409,26 @@ func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Servi
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:clientStates.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:clientStates.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity client states: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity client states: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return len(batch), n, fmt.Errorf("hierarchy cloud-identity client states: %w", err)
+		return len(batch), fmt.Errorf("hierarchy cloud-identity client states: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityMemberships fans out Memberships.List per already-scanned
 // Group — GCP requires an explicit `groups/{group}` parent, no wildcard.
-func scanCloudIdentityMemberships(ctx context.Context, svc *cloudidentity.Service, customerID string, groupNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityMemberships(ctx context.Context, svc *cloudidentity.Service, customerID string, groupNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentCloudIdentityFanout, groupNames, func(gctx context.Context, groupName string) error {
 		groupID := store.ResourceID("gcp", customerID, groupName)
@@ -476,14 +464,13 @@ func scanCloudIdentityMemberships(ctx context.Context, svc *cloudidentity.Servic
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, groupID)
+		t, uerr := upsertWithParent(st, batch, groupID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCloudIdentityInboundOidcSsoProfiles paginates over
@@ -491,7 +478,7 @@ func scanCloudIdentityMemberships(ctx context.Context, svc *cloudidentity.Servic
 // caller's own customer, which is exactly this scanner's single-tenant
 // scope, so no hand-built CEL filter expression is needed. Flat tenant
 // resource, no closure parent.
-func scanCloudIdentityInboundOidcSsoProfiles(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityInboundOidcSsoProfiles(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	req := svc.InboundOidcSsoProfiles.List().PageSize(100)
 	if err := req.Pages(ctx, func(page *cloudidentity.ListInboundOidcSsoProfilesResponse) error {
@@ -514,25 +501,25 @@ func scanCloudIdentityInboundOidcSsoProfiles(ctx context.Context, svc *cloudiden
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:inboundOidcSsoProfiles.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:inboundOidcSsoProfiles.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity inbound OIDC SSO profiles: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity inbound OIDC SSO profiles: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityInboundSamlSsoProfiles paginates over
 // InboundSamlSsoProfiles.List (same no-filter default-customer rationale as
 // the OIDC phase). Returns every scanned profile's resource name so
 // scanCloudIdentityIdpCredentials can fan out per profile.
-func scanCloudIdentityInboundSamlSsoProfiles(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (profileNames []string, total, inserted int, err error) {
+func scanCloudIdentityInboundSamlSsoProfiles(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (profileNames []string, total int, err error) {
 	var batch []*store.Resource
 	req := svc.InboundSamlSsoProfiles.List().PageSize(100)
 	if err := req.Pages(ctx, func(page *cloudidentity.ListInboundSamlSsoProfilesResponse) error {
@@ -556,23 +543,23 @@ func scanCloudIdentityInboundSamlSsoProfiles(ctx context.Context, svc *cloudiden
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return nil, 0, 0, skipIfDenied(st, "cloudidentity:inboundSamlSsoProfiles.list", customerID, err)
+			return nil, 0, skipIfDenied(st, "cloudidentity:inboundSamlSsoProfiles.list", customerID, err)
 		}
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	if len(batch) == 0 {
-		return profileNames, 0, 0, nil
+		return profileNames, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert cloud-identity inbound SAML SSO profiles: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert cloud-identity inbound SAML SSO profiles: %w", uerr)
 	}
-	return profileNames, len(batch), n, nil
+	return profileNames, len(batch), nil
 }
 
 // scanCloudIdentityIdpCredentials fans out IdpCredentials.List per
 // already-scanned InboundSamlSsoProfile — the API has no wildcard/flat list.
-func scanCloudIdentityIdpCredentials(ctx context.Context, svc *cloudidentity.Service, customerID string, profileNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityIdpCredentials(ctx context.Context, svc *cloudidentity.Service, customerID string, profileNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentCloudIdentityFanout, profileNames, func(gctx context.Context, profileName string) error {
 		profileID := store.ResourceID("gcp", customerID, profileName)
@@ -604,20 +591,19 @@ func scanCloudIdentityIdpCredentials(ctx context.Context, svc *cloudidentity.Ser
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, profileID)
+		t, uerr := upsertWithParent(st, batch, profileID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCloudIdentityInboundSsoAssignments paginates over
 // InboundSsoAssignments.List (same no-filter default-customer rationale).
 // Flat tenant resource, no closure parent.
-func scanCloudIdentityInboundSsoAssignments(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityInboundSsoAssignments(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	req := svc.InboundSsoAssignments.List().PageSize(100)
 	if err := req.Pages(ctx, func(page *cloudidentity.ListInboundSsoAssignmentsResponse) error {
@@ -640,23 +626,23 @@ func scanCloudIdentityInboundSsoAssignments(ctx context.Context, svc *cloudident
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:inboundSsoAssignments.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:inboundSsoAssignments.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity inbound SSO assignments: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity inbound SSO assignments: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityPolicies paginates over Policies.List (same no-filter
 // default-customer rationale). Flat tenant resource, no closure parent.
-func scanCloudIdentityPolicies(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityPolicies(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	req := svc.Policies.List().PageSize(100)
 	if err := req.Pages(ctx, func(page *cloudidentity.ListPoliciesResponse) error {
@@ -679,25 +665,25 @@ func scanCloudIdentityPolicies(ctx context.Context, svc *cloudidentity.Service, 
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:policies.list", customerID, err)
+			return 0, skipIfDenied(st, "cloudidentity:policies.list", customerID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity policies: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity policies: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanCloudIdentityUserinvitations paginates over Userinvitations.List,
 // parented at customers/{customerID} — a required path param with no
 // default, unlike the filter-based phases above. Flat tenant resource, no
 // closure parent.
-func scanCloudIdentityUserinvitations(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudIdentityUserinvitations(ctx context.Context, svc *cloudidentity.Service, customerID string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	parent := "customers/" + customerID
 	req := svc.Customers.Userinvitations.List(parent).PageSize(100)
@@ -721,16 +707,16 @@ func scanCloudIdentityUserinvitations(ctx context.Context, svc *cloudidentity.Se
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudidentity:userinvitations.list", parent, err)
+			return 0, skipIfDenied(st, "cloudidentity:userinvitations.list", parent, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert cloud-identity user invitations: %w", uerr)
+		return 0, fmt.Errorf("upsert cloud-identity user invitations: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

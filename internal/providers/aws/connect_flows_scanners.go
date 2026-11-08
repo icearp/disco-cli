@@ -36,9 +36,9 @@ type connectFlowsAPI interface {
 // Flows and modules are listed once each: the version and alias phases walk
 // the same listings, so a listing error is returned once, by the flow or
 // module phase.
-func scanConnectFlows(ctx context.Context, client connectFlowsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectFlows(ctx context.Context, client connectFlowsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	// Default ListContactFlows (no ContactFlowTypes filter) returns every flow type.
 	flows := connectListPerInstance(ctx, st, acct, region, "connect:ListContactFlows", instances,
@@ -58,19 +58,19 @@ func scanConnectFlows(ctx context.Context, client connectFlowsAPI, instances []c
 		},
 		func(s cttypes.ContactFlowModuleSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect contact flows", func() (int, int, error) {
+		connectPhase{"connect contact flows", func() (int, error) {
 			return scanConnectContactFlows(ctx, client, flows, acct, region, st, scanID)
 		}},
-		connectPhase{"connect contact flow versions", func() (int, int, error) {
+		connectPhase{"connect contact flow versions", func() (int, error) {
 			return scanConnectContactFlowVersions(ctx, client, flows.items, acct, region, st, scanID)
 		}},
-		connectPhase{"connect contact flow modules", func() (int, int, error) {
+		connectPhase{"connect contact flow modules", func() (int, error) {
 			return scanConnectContactFlowModules(ctx, client, modules, acct, region, st, scanID)
 		}},
-		connectPhase{"connect contact flow module versions", func() (int, int, error) {
+		connectPhase{"connect contact flow module versions", func() (int, error) {
 			return scanConnectContactFlowModuleVersions(ctx, client, modules.items, acct, region, st, scanID)
 		}},
-		connectPhase{"connect contact flow module aliases", func() (int, int, error) {
+		connectPhase{"connect contact flow module aliases", func() (int, error) {
 			return scanConnectContactFlowModuleAliases(ctx, client, modules.items, acct, region, st, scanID)
 		}},
 	)
@@ -85,7 +85,7 @@ func connectVersionName(parentID string, version *int64) string {
 	return fmt.Sprintf("%s:%d", parentID, ver)
 }
 
-func scanConnectContactFlows(ctx context.Context, client connectFlowsAPI, listed *connectListing[cttypes.ContactFlowSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectContactFlows(ctx context.Context, client connectFlowsAPI, listed *connectListing[cttypes.ContactFlowSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return connectDescribe[cttypes.ContactFlowSummary]{
 		rtype: TypeConnectContactFlow, op: "connect:DescribeContactFlow", label: "connect contact flows",
 		notReady: "ContactFlowNotPublishedException", why: "a flow never published has no published content to describe",
@@ -112,7 +112,7 @@ func scanConnectContactFlows(ctx context.Context, client connectFlowsAPI, listed
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectContactFlowModules(ctx context.Context, client connectFlowsAPI, listed *connectListing[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectContactFlowModules(ctx context.Context, client connectFlowsAPI, listed *connectListing[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return connectDescribe[cttypes.ContactFlowModuleSummary]{
 		rtype: TypeConnectContactFlowModule, op: "connect:DescribeContactFlowModule", label: "connect contact flow modules",
 		describe: func(ctx context.Context, it connectListed[cttypes.ContactFlowModuleSummary], r *store.Resource) error {
@@ -140,7 +140,7 @@ func scanConnectContactFlowModules(ctx context.Context, client connectFlowsAPI, 
 
 // scanConnectContactFlowVersions enumerates per-flow versions. SDK has no
 // DescribeContactFlowVersion — store list summary as attrs.
-func scanConnectContactFlowVersions(ctx context.Context, client connectFlowsAPI, flows []connectListed[cttypes.ContactFlowSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectContactFlowVersions(ctx context.Context, client connectFlowsAPI, flows []connectListed[cttypes.ContactFlowSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListUnder(ctx, st, acct, region, "connect:ListContactFlowVersions", flows,
 		func(f connectListed[cttypes.ContactFlowSummary]) connectPager[*connect.ListContactFlowVersionsOutput] {
 			return connect.NewListContactFlowVersionsPaginator(client, &connect.ListContactFlowVersionsInput{InstanceId: &f.instanceID, ContactFlowId: &f.id},
@@ -161,7 +161,7 @@ func scanConnectContactFlowVersions(ctx context.Context, client connectFlowsAPI,
 
 // scanConnectContactFlowModuleVersions enumerates per-module versions, list
 // summary as attrs.
-func scanConnectContactFlowModuleVersions(ctx context.Context, client connectFlowsAPI, modules []connectListed[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectContactFlowModuleVersions(ctx context.Context, client connectFlowsAPI, modules []connectListed[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListUnder(ctx, st, acct, region, "connect:ListContactFlowModuleVersions", modules,
 		func(m connectListed[cttypes.ContactFlowModuleSummary]) connectPager[*connect.ListContactFlowModuleVersionsOutput] {
 			return connect.NewListContactFlowModuleVersionsPaginator(client, &connect.ListContactFlowModuleVersionsInput{InstanceId: &m.instanceID, ContactFlowModuleId: &m.id},
@@ -182,7 +182,7 @@ func scanConnectContactFlowModuleVersions(ctx context.Context, client connectFlo
 
 // scanConnectContactFlowModuleAliases lists each module's aliases and stores
 // each as its DescribeContactFlowModuleAlias body.
-func scanConnectContactFlowModuleAliases(ctx context.Context, client connectFlowsAPI, modules []connectListed[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectContactFlowModuleAliases(ctx context.Context, client connectFlowsAPI, modules []connectListed[cttypes.ContactFlowModuleSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListUnder(ctx, st, acct, region, "connect:ListContactFlowModuleAliases", modules,
 		func(m connectListed[cttypes.ContactFlowModuleSummary]) connectPager[*connect.ListContactFlowModuleAliasesOutput] {
 			return connect.NewListContactFlowModuleAliasesPaginator(client, &connect.ListContactFlowModuleAliasesInput{InstanceId: &m.instanceID, ContactFlowModuleId: &m.id},

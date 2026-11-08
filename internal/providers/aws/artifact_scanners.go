@@ -26,25 +26,25 @@ type artifactAPI interface {
 
 // scanArtifact discovers AWS Artifact customer agreements and reports.
 // Account-global; called once, in its home region (homeRegion).
-func scanArtifact(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanArtifact(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("artifact")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := artifact.NewFromConfig(acct.cfg, func(o *artifact.Options) { o.Region = region })
 
-	caTotal, caInserted, ferr := scanArtifactCustomerAgreements(ctx, client, acct, region, st, scanID)
+	caTotal, ferr := scanArtifactCustomerAgreements(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return caTotal, caInserted, ferr
+		return caTotal, ferr
 	}
-	rTotal, rInserted, ferr := scanArtifactReports(ctx, client, acct, region, st, scanID)
+	rTotal, ferr := scanArtifactReports(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return caTotal + rTotal, caInserted + rInserted, ferr
+		return caTotal + rTotal, ferr
 	}
-	return caTotal + rTotal, caInserted + rInserted, nil
+	return caTotal + rTotal, nil
 }
 
-func scanArtifactCustomerAgreements(ctx context.Context, client artifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanArtifactCustomerAgreements(ctx context.Context, client artifactAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := artifact.NewListCustomerAgreementsPaginator(client, &artifact.ListCustomerAgreementsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -52,9 +52,9 @@ func scanArtifactCustomerAgreements(ctx context.Context, client artifactAPI, acc
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "artifact:ListCustomerAgreements", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("artifact:ListCustomerAgreements: %w", perr)
+			return 0, fmt.Errorf("artifact:ListCustomerAgreements: %w", perr)
 		}
 		for _, c := range out.CustomerAgreements {
 			arn := sv(c.Arn)
@@ -79,7 +79,7 @@ func scanArtifactCustomerAgreements(ctx context.Context, client artifactAPI, acc
 // scanArtifactReports lists the AWS-published compliance report catalog —
 // AWS-owned documents identical across accounts, so each row is flagged
 // ManagedByProvider (hidden from default queries).
-func scanArtifactReports(ctx context.Context, client artifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanArtifactReports(ctx context.Context, client artifactAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := artifact.NewListReportsPaginator(client, &artifact.ListReportsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -87,9 +87,9 @@ func scanArtifactReports(ctx context.Context, client artifactAPI, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "artifact:ListReports", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("artifact:ListReports: %w", perr)
+			return 0, fmt.Errorf("artifact:ListReports: %w", perr)
 		}
 		for _, r := range out.Reports {
 			arn := sv(r.Arn)

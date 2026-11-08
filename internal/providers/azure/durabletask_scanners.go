@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDurableTask discovers durabletask resources.
-func scanDurableTask(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDurableTask(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdurabletask.NewSchedulersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdurabletask:NewSchedulersClient: %w", err)
+		return 0, fmt.Errorf("armdurabletask:NewSchedulersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdurabletask:Schedulers.ListBySubscription", TypeDurableTaskScheduler, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

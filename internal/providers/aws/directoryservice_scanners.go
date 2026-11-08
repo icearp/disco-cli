@@ -52,7 +52,7 @@ type directoryServiceAPI interface {
 	DescribeTrusts(context.Context, *directoryservice.DescribeTrustsInput, ...func(*directoryservice.Options)) (*directoryservice.DescribeTrustsOutput, error)
 }
 
-func scanDirectoryService(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDirectoryService(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := directoryservice.NewFromConfig(acct.cfg, func(o *directoryservice.Options) { o.Region = region })
 	return scanDirectoryServiceIn(ctx, client, acct, region, st, scanID)
 }
@@ -65,45 +65,44 @@ func scanDirectoryService(ctx context.Context, acct *account, region string, st 
 // (isEndpointUnreachable) is returned alone. The later phases' errors are
 // joined by phaseErrs, so a lone or all-transient failure still marks the
 // scan partial; a later NXDOMAIN is a plain error (lateNXDOMAIN).
-func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var (
 		dirs []dsDirectory
 		errs phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
-		run  func() (int, int, error)
+		run  func() (int, error)
 	}{
-		{"ds:DescribeDirectories", func() (int, int, error) {
+		{"ds:DescribeDirectories", func() (int, error) {
 			var (
-				t, i int
-				err  error
+				t   int
+				err error
 			)
-			dirs, t, i, err = scanDSDirectories(ctx, client, acct, region, st, scanID)
-			return t, i, err
+			dirs, t, err = scanDSDirectories(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{"ds:ListCertificates", func() (int, int, error) { return scanDSCertificates(ctx, client, acct, region, st, scanID, dirs) }},
-		{"ds:DescribeEventTopics", func() (int, int, error) { return scanDSEventTopics(ctx, client, acct, region, st, scanID, dirs) }},
-		{"ds:ListIpRoutes", func() (int, int, error) { return scanDSIPRoutes(ctx, client, acct, region, st, scanID, dirs) }},
-		{"ds:ListLogSubscriptions", func() (int, int, error) {
+		{"ds:ListCertificates", func() (int, error) { return scanDSCertificates(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:DescribeEventTopics", func() (int, error) { return scanDSEventTopics(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:ListIpRoutes", func() (int, error) { return scanDSIPRoutes(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:ListLogSubscriptions", func() (int, error) {
 			return scanDSLogSubscriptions(ctx, client, acct, region, st, scanID, dirs)
 		}},
-		{"ds:DescribeRegions", func() (int, int, error) { return scanDSRegions(ctx, client, acct, region, st, scanID, dirs) }},
-		{"ds:DescribeSharedDirectories", func() (int, int, error) {
+		{"ds:DescribeRegions", func() (int, error) { return scanDSRegions(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:DescribeSharedDirectories", func() (int, error) {
 			return scanDSSharedDirectories(ctx, client, acct, region, st, scanID, dirs)
 		}},
-		{"ds:DescribeSnapshots", func() (int, int, error) { return scanDSSnapshots(ctx, client, acct, region, st, scanID, dirs) }},
-		{"ds:DescribeTrusts", func() (int, int, error) { return scanDSTrusts(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:DescribeSnapshots", func() (int, error) { return scanDSSnapshots(ctx, client, acct, region, st, scanID, dirs) }},
+		{"ds:DescribeTrusts", func() (int, error) { return scanDSTrusts(ctx, client, acct, region, st, scanID, dirs) }},
 	} {
-		t, i, perr := phase.run()
+		t, perr := phase.run()
 		if n == 0 && isEndpointUnreachable(perr) {
-			return t, i, perr
+			return t, perr
 		}
 		total += t
-		inserted += i
 		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // dsDirectory is a directory stored this scan; arn is its row's NativeID.
@@ -116,7 +115,7 @@ type dsDirectory struct {
 // returns them as child-phase parents. DescribeDirectories returns all types;
 // AD Connector is skipped (not a CFN-creatable directory), and so are its
 // children.
-func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) ([]dsDirectory, int, int, error) {
+func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) ([]dsDirectory, int, error) {
 	var (
 		batch []*store.Resource
 		dirs  []dsDirectory
@@ -126,9 +125,9 @@ func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *ac
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "ds:DescribeDirectories", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "ds:DescribeDirectories", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("ds:DescribeDirectories: %w", err)
+			return nil, 0, fmt.Errorf("ds:DescribeDirectories: %w", err)
 		}
 		for _, d := range out.DirectoryDescriptions {
 			id := sv(d.DirectoryId)
@@ -154,11 +153,11 @@ func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *ac
 			dirs = append(dirs, dsDirectory{arn: arn, desc: d})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "directory-service directories")
+	total, err := upsertBatch(st, batch, "directory-service directories")
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	return dirs, total, inserted, nil
+	return dirs, total, nil
 }
 
 // dsDirectoryARN is a directory's NativeID, shared with the Directory Service
@@ -217,7 +216,7 @@ func dsChild(acct *account, dirARN string, r *store.Resource) containedChild {
 	return containedChild{row: r, parentID: store.ResourceID("aws", acct.ID, dirARN)}
 }
 
-func scanDSCertificates(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSCertificates(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	return childFanOut(ctx, st, acct, region, "ds:ListCertificates", dsFanOutParents(dirs, dsManagedAD),
 		func(err error) bool { return isAPIErrorCode(err, "DirectoryDoesNotExistException") },
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
@@ -248,10 +247,10 @@ func scanDSCertificates(ctx context.Context, client directoryServiceAPI, acct *a
 
 // scanDSEventTopics lists every topic registration in the region in one
 // unpaginated call (no DirectoryId) and keeps those of stored directories.
-func scanDSEventTopics(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSEventTopics(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	parents := dsParentARNs(dirs)
 	if len(parents) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	out, err := client.DescribeEventTopics(ctx, &directoryservice.DescribeEventTopicsInput{})
 	if err != nil {
@@ -287,7 +286,7 @@ func dsIPRouteKey(r types.IpRouteInfo) string {
 	return strings.Join(cidrs, ",")
 }
 
-func scanDSIPRoutes(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSIPRoutes(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	return childFanOut(ctx, st, acct, region, "ds:ListIpRoutes", dsFanOutParents(dirs, dsManagedAD),
 		func(err error) bool { return isAPIErrorCode(err, "EntityDoesNotExistException") },
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
@@ -317,10 +316,10 @@ func scanDSIPRoutes(ctx context.Context, client directoryServiceAPI, acct *accou
 
 // scanDSLogSubscriptions lists every log subscription in the region (no
 // DirectoryId) and keeps those of stored directories.
-func scanDSLogSubscriptions(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSLogSubscriptions(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	parents := dsParentARNs(dirs)
 	if len(parents) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		children []containedChild
@@ -362,7 +361,7 @@ func dsReplicatedFrom(region string) func(types.DirectoryDescription) bool {
 
 // scanDSRegions stores each additional region a directory is replicated to.
 // The primary region's entry describes the directory itself, already stored.
-func scanDSRegions(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSRegions(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	return childFanOut(ctx, st, acct, region, "ds:DescribeRegions", dsFanOutParents(dirs, dsReplicatedFrom(region)),
 		func(err error) bool { return isAPIErrorCode(err, "DirectoryDoesNotExistException") },
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
@@ -393,7 +392,7 @@ func scanDSRegions(ctx context.Context, client directoryServiceAPI, acct *accoun
 // scanDSSharedDirectories stores the owner side of each share. The consumer
 // side is a SharedMicrosoftAD directory in the consumer account, stored there
 // when that account is scanned.
-func scanDSSharedDirectories(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSSharedDirectories(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	return childFanOut(ctx, st, acct, region, "ds:DescribeSharedDirectories", dsFanOutParents(dirs, dsManagedAD),
 		func(err error) bool { return isAPIErrorCode(err, "EntityDoesNotExistException") },
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {
@@ -424,10 +423,10 @@ func scanDSSharedDirectories(ctx context.Context, client directoryServiceAPI, ac
 // scanDSSnapshots lists every snapshot in the region (no DirectoryId) and
 // keeps those of stored directories. Automatic snapshots are kept with the
 // manual ones: both are restorable, and Type tells them apart.
-func scanDSSnapshots(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSSnapshots(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	parents := dsParentARNs(dirs)
 	if len(parents) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		children []containedChild
@@ -458,10 +457,10 @@ func scanDSSnapshots(ctx context.Context, client directoryServiceAPI, acct *acco
 // scanDSTrusts lists every trust in the region (no DirectoryId) and keeps
 // those of stored directories. The trust password is write-only: no
 // response carries it.
-func scanDSTrusts(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, int, error) {
+func scanDSTrusts(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string, dirs []dsDirectory) (int, error) {
 	parents := dsParentARNs(dirs)
 	if len(parents) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		children []containedChild

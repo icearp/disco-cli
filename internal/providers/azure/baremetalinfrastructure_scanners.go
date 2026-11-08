@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanBareMetalInfrastructure discovers Azure BareMetal Instances.
-func scanBareMetalInfrastructure(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBareMetalInfrastructure(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armbaremetalinfrastructure.NewAzureBareMetalInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armbaremetalinfrastructure:NewAzureBareMetalInstancesClient: %w", err)
+		return 0, fmt.Errorf("armbaremetalinfrastructure:NewAzureBareMetalInstancesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armbaremetalinfrastructure:AzureBareMetalInstances.ListBySubscription", TypeBareMetalInstance, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

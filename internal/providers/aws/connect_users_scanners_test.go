@@ -92,7 +92,9 @@ func TestScanConnectUsers(t *testing.T) {
 		attrOut:    map[string]*connect.DescribePredefinedAttributeOutput{aName: {PredefinedAttribute: &cttypes.PredefinedAttribute{Name: &aName}}},
 	}
 
-	total, inserted, err := scanConnectUsers(context.Background(), stub, instances, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectUsers(context.Background(), stub, instances, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -117,7 +119,9 @@ func TestScanConnectUsersEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectUsers{}
-	total, inserted, err := scanConnectUsers(context.Background(), stub, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectUsers(context.Background(), stub, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

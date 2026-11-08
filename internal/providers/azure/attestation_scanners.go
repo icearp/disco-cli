@@ -20,17 +20,17 @@ func init() {
 
 // scanAttestation discovers Azure Attestation providers. The List op is a
 // single non-paginated call returning all providers in the subscription.
-func scanAttestation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAttestation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armattestation.NewProvidersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armattestation:NewProvidersClient: %w", err)
+		return 0, fmt.Errorf("armattestation:NewProvidersClient: %w", err)
 	}
 	resp, err := client.List(ctx, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armattestation:Providers.List", sub.ID, err)
+			return 0, skipIfAccessDenied(st, "armattestation:Providers.List", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armattestation:Providers.List: %w", err)
+		return 0, fmt.Errorf("armattestation:Providers.List: %w", err)
 	}
 	// Non-paginated List → feed the one response through azSimpleScan via a
 	// one-shot pager so the build+upsert+closure tail matches paged scanners.

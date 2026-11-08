@@ -24,12 +24,12 @@ type swfAPI interface {
 	ListDomains(context.Context, *swf.ListDomainsInput, ...func(*swf.Options)) (*swf.ListDomainsOutput, error)
 }
 
-func scanSWF(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSWF(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := swf.NewFromConfig(acct.cfg, func(o *swf.Options) { o.Region = region })
 	return scanSWFDomains(ctx, client, acct, region, st, scanID)
 }
 
-func scanSWFDomains(ctx context.Context, client swfAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSWFDomains(ctx context.Context, client swfAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := swf.NewListDomainsPaginator(client, &swf.ListDomainsInput{
 		RegistrationStatus: swftypes.RegistrationStatusRegistered,
 	}, func(o *swf.ListDomainsPaginatorOptions) { o.Limit = 100 })
@@ -38,9 +38,9 @@ func scanSWFDomains(ctx context.Context, client swfAPI, acct *account, region st
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "swf:ListDomains", acct.ID, region, perr)
+				return total, skipIfAccessDenied(st, "swf:ListDomains", acct.ID, region, perr)
 			}
-			return total, inserted, fmt.Errorf("swf:ListDomains: %w", perr)
+			return total, fmt.Errorf("swf:ListDomains: %w", perr)
 		}
 		for _, d := range out.DomainInfos {
 			arn := sv(d.Arn)

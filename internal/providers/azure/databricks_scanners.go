@@ -22,12 +22,12 @@ func init() {
 // scanDatabricks discovers Azure Databricks workspaces and access connectors.
 // Per-workspace VNet peerings and private endpoint connections deferred —
 // covered by the dedicated PE scanner.
-func scanDatabricks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDatabricks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armdatabricks.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armdatabricks:NewWorkspacesClient: %w", err)
+				return 0, fmt.Errorf("armdatabricks:NewWorkspacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armdatabricks:Workspaces.ListBySubscription", TypeDatabricksWorkspace, sub, st, scanID,
 				client.NewListBySubscriptionPager(nil),
@@ -38,10 +38,10 @@ func scanDatabricks(ctx context.Context, sub *subscription, cred azcore.TokenCre
 					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			acClient, err := armdatabricks.NewAccessConnectorsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armdatabricks:NewAccessConnectorsClient: %w", err)
+				return 0, fmt.Errorf("armdatabricks:NewAccessConnectorsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armdatabricks:AccessConnectors.ListBySubscription", TypeDatabricksAccessConnector, sub, st, scanID,
 				acClient.NewListBySubscriptionPager(nil),

@@ -134,7 +134,7 @@ func TestScanQAppsCategories_Fields(t *testing.T) {
 	})
 	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
-	total, _, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
+	total, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestScanQAppsCategories_Empty(t *testing.T) {
 	client := newQAppsTestClient(map[string]func(any) (any, error){
 		"ListCategories": qappsCategoriesHandler(&calls, nil, nil),
 	})
-	total, _, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+	total, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
@@ -190,7 +190,7 @@ func TestScanQAppsLibraryItems_PagesAndFields(t *testing.T) {
 	})
 	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
-	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
+	total, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestScanQAppsQApps_PagesAndFields(t *testing.T) {
 	})
 	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
-	total, _, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
+	total, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil || total != 3 {
 		t.Fatalf("total, err = %d, %v; want 3 (the ARN-less app skipped), nil", total, err)
 	}
@@ -281,7 +281,7 @@ func TestScanQAppsQApps_HardErrorKeepsEarlierPages(t *testing.T) {
 			"inst-1": {{qappsQApp("inst-1", "app-1", "Mailer")}, {qappsQApp("inst-1", "app-2", "Notes")}},
 		}, map[string]error{"inst-1/p2": apiErr("ConflictException", "bad")}),
 	})
-	total, _, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+	total, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Errorf("err = %v; want the ConflictException", err)
@@ -301,7 +301,7 @@ func TestScanQAppsLibraryItems_Empty(t *testing.T) {
 	client := newQAppsTestClient(map[string]func(any) (any, error){
 		"ListLibraryItems": qappsLibraryHandler(&calls, nil, nil),
 	})
-	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+	total, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
@@ -317,7 +317,7 @@ type qappsChildPhase struct {
 	name, op string
 	typ      string
 	handlers func(calls *parentCalls, errs map[string]error) map[string]func(any) (any, error)
-	scan     func(context.Context, qappsAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+	scan     func(context.Context, qappsAPI, *account, string, *store.Store, string, []childParent) (int, error)
 }
 
 var qappsChildPhases = []qappsChildPhase{
@@ -378,7 +378,7 @@ func TestScanQAppsChildPhases_PerInstanceErrors(t *testing.T) {
 				client := newQAppsTestClient(ph.handlers(&calls, map[string]error{"inst-2": tc.err, "inst-3": tc.err}))
 				instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2", "inst-3"})
 
-				_, _, err := ph.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
+				_, err := ph.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 				if tc.wantErr {
 					if !isAPIErrorCode(err, "ConflictException") {
 						t.Errorf("err = %v; want the ConflictException", err)
@@ -409,7 +409,7 @@ func TestScanQAppsLibraryItems_SkipKeepsEarlierPages(t *testing.T) {
 			"inst-1": {{qappsLibraryItem("li-1")}, {qappsLibraryItem("li-2")}},
 		}, map[string]error{"inst-1/p2": apiErr("ResourceNotFoundException", "gone")}),
 	})
-	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+	total, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
@@ -425,7 +425,7 @@ func TestScanQAppsPaginatedPhases_RepeatedTokenStops(t *testing.T) {
 	cases := []struct {
 		op   string
 		page func() any
-		scan func(context.Context, qappsAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+		scan func(context.Context, qappsAPI, *account, string, *store.Store, string, []childParent) (int, error)
 	}{
 		{"ListQApps", func() any {
 			return &qapps.ListQAppsOutput{Apps: []qappstypes.UserAppItem{qappsQApp("inst-1", "app-1", "A")}, NextToken: sdkaws.String("same")}
@@ -446,7 +446,7 @@ func TestScanQAppsPaginatedPhases_RepeatedTokenStops(t *testing.T) {
 					return tc.page(), nil
 				},
 			})
-			_, _, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+			_, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 				qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
@@ -485,7 +485,7 @@ func TestScanQApps_ChildrenOfListedApplications(t *testing.T) {
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(qappsTopLevelHandlers(&calls), qappsDenied)}
 
-	total, _, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -516,7 +516,7 @@ func TestScanQApps_PhaseErrorsAreIndependent(t *testing.T) {
 			h[op] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qappsDenied)}
 
-			total, _, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ConflictException") {
 				t.Errorf("err = %v; want the %s ConflictException", err, op)
 			}
@@ -550,7 +550,7 @@ func TestScanQApps_TransientDoesNotMaskLaterError(t *testing.T) {
 	h["ListLibraryItems"] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qappsDenied)}
 
-	_, _, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanQApps(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Errorf("err = %v; want the ListLibraryItems ConflictException", err)
 	}

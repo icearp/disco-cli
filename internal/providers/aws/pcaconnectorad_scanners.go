@@ -53,11 +53,11 @@ var pcaADGone = []string{"ResourceNotFoundException"}
 // phase reads the parents stored this scan, those parents concurrently.
 // Connectors, directory registrations and templates have their tags read per
 // row (pcaADTags), whose denials are one warning for the whole scan.
-func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := pcaconnectorad.NewFromConfig(acct.cfg, func(o *pcaconnectorad.Options) { o.Region = region })
 	tags := pcaADTags(client).sharingDenials()
 	var connectors, dirRegs, templates []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "pcaconnectorad", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "pcaconnectorad", 0, []hostPhase{
 		{op: "pcaconnectorad:ListConnectors", run: func(p *phaseTotals) (failed bool) {
 			connectors, failed = scanPCAConnectors(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -78,7 +78,7 @@ func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *s
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // pcaADTags reads a row's tags with ListTagsForResource, sent the row's

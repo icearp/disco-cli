@@ -42,7 +42,7 @@ func nfListedRow(acct *account, region, scanID, rtype, what string, arn, name *s
 
 // scanNFProxyConfigurations stores the proxy configurations as listed; a
 // first-page preview region gap stores none, silently.
-func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nfProxyConfigListOp,
 		func(ctx context.Context, token *string) ([]nfwtypes.ProxyConfigurationMetadata, *string, error) {
 			out, err := client.ListProxyConfigurations(ctx, &networkfirewall.ListProxyConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
@@ -61,7 +61,7 @@ func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, a
 
 // scanNFProxyRuleGroups stores the proxy rule groups as listed; a first-page
 // preview region gap stores none, silently.
-func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nfProxyRuleGroupListOp,
 		func(ctx context.Context, token *string) ([]nfwtypes.ProxyRuleGroupMetadata, *string, error) {
 			out, err := client.ListProxyRuleGroups(ctx, &networkfirewall.ListProxyRuleGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
@@ -84,7 +84,7 @@ func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct 
 // finds (ResourceNotFoundException, in the op's model) was deleted since it
 // was listed; denied firewalls are warned about once; any other Describe
 // error is returned after the rest are stored.
-func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string, firewallARNs []string) (int, int, error) {
+func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string, firewallARNs []string) (int, error) {
 	var (
 		batch  []*store.Resource
 		errs   []error
@@ -121,7 +121,7 @@ func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI,
 	}, errs...)
 }
 
-func scanNFVpcEndpointAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNFVpcEndpointAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nfVEAListOp,
 		func(ctx context.Context, token *string) ([]nfwtypes.VpcEndpointAssociationMetadata, *string, error) {
 			out, err := client.ListVpcEndpointAssociations(ctx, &networkfirewall.ListVpcEndpointAssociationsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})

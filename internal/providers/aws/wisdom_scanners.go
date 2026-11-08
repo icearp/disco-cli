@@ -84,7 +84,7 @@ type wisdomChild struct {
 	parent, id, arn string
 }
 
-func scanWisdom(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWisdom(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := qconnect.NewFromConfig(acct.cfg, func(o *qconnect.Options) { o.Region = region })
 	return scanWisdomAll(ctx, client, acct, region, st, scanID)
 }
@@ -92,64 +92,64 @@ func scanWisdom(ctx context.Context, acct *account, region string, st *store.Sto
 // scanWisdomAll runs every phase and joins their errors; only a store write
 // failure stops it. A failed parent listing leaves its child phases fewer
 // parents to list.
-func scanWisdomAll(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWisdomAll(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
-	assistantIDs, t, i, ferr := scanWisdomAssistants(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(wisdomListAssistantsOp, t, i, ferr) {
+	assistantIDs, t, ferr := scanWisdomAssistants(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(wisdomListAssistantsOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	kbIDs, t, i, ferr := scanWisdomKnowledgeBases(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(wisdomListKnowledgeBasesOp, t, i, ferr) {
+	kbIDs, t, ferr := scanWisdomKnowledgeBases(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(wisdomListKnowledgeBasesOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	agents, t, i, ferr := scanWisdomAIAgents(ctx, client, acct, region, st, scanID, assistantIDs)
-	if phases.addPhase(wisdomListAIAgentsOp, t, i, ferr) {
+	agents, t, ferr := scanWisdomAIAgents(ctx, client, acct, region, st, scanID, assistantIDs)
+	if phases.addPhase(wisdomListAIAgentsOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	guardrails, t, i, ferr := scanWisdomAIGuardrails(ctx, client, acct, region, st, scanID, assistantIDs)
-	if phases.addPhase(wisdomListAIGuardrailsOp, t, i, ferr) {
+	guardrails, t, ferr := scanWisdomAIGuardrails(ctx, client, acct, region, st, scanID, assistantIDs)
+	if phases.addPhase(wisdomListAIGuardrailsOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	prompts, t, i, ferr := scanWisdomAIPrompts(ctx, client, acct, region, st, scanID, assistantIDs)
-	if phases.addPhase(wisdomListAIPromptsOp, t, i, ferr) {
+	prompts, t, ferr := scanWisdomAIPrompts(ctx, client, acct, region, st, scanID, assistantIDs)
+	if phases.addPhase(wisdomListAIPromptsOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	templates, t, i, ferr := scanWisdomMessageTemplates(ctx, client, acct, region, st, scanID, kbIDs)
-	if phases.addPhase(wisdomListMessageTemplatesOp, t, i, ferr) {
+	templates, t, ferr := scanWisdomMessageTemplates(ctx, client, acct, region, st, scanID, kbIDs)
+	if phases.addPhase(wisdomListMessageTemplatesOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	contents, t, i, ferr := scanWisdomContents(ctx, client, acct, region, st, scanID, kbIDs)
-	if phases.addPhase(wisdomListContentsOp, t, i, ferr) {
+	contents, t, ferr := scanWisdomContents(ctx, client, acct, region, st, scanID, kbIDs)
+	if phases.addPhase(wisdomListContentsOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{wisdomListContentAssociationsOp, func() (int, int, error) {
+		{wisdomListContentAssociationsOp, func() (int, error) {
 			return scanWisdomContentAssociations(ctx, client, acct, region, st, scanID, contents)
 		}},
-		{wisdomListAssistantAssociationsOp, func() (int, int, error) {
+		{wisdomListAssistantAssociationsOp, func() (int, error) {
 			return scanWisdomAssistantAssocs(ctx, client, acct, region, st, scanID, assistantIDs)
 		}},
-		{wisdomListAIAgentVersionsOp, func() (int, int, error) {
+		{wisdomListAIAgentVersionsOp, func() (int, error) {
 			return scanWisdomAIAgentVersions(ctx, client, acct, region, st, scanID, agents)
 		}},
-		{wisdomListAIGuardrailVersionsOp, func() (int, int, error) {
+		{wisdomListAIGuardrailVersionsOp, func() (int, error) {
 			return scanWisdomAIGuardrailVersions(ctx, client, acct, region, st, scanID, guardrails)
 		}},
-		{wisdomListAIPromptVersionsOp, func() (int, int, error) {
+		{wisdomListAIPromptVersionsOp, func() (int, error) {
 			return scanWisdomAIPromptVersions(ctx, client, acct, region, st, scanID, prompts)
 		}},
-		{wisdomListMessageTemplateVersionsOp, func() (int, int, error) {
+		{wisdomListMessageTemplateVersionsOp, func() (int, error) {
 			return scanWisdomMessageTemplateVersions(ctx, client, acct, region, st, scanID, templates)
 		}},
-		{wisdomListQuickResponsesOp, func() (int, int, error) {
+		{wisdomListQuickResponsesOp, func() (int, error) {
 			return scanWisdomQuickResponses(ctx, client, acct, region, st, scanID, kbIDs)
 		}},
 	} {
-		t, i, ferr := phase.fn()
-		if phases.addPhase(phase.op, t, i, ferr) {
+		t, ferr := phase.fn()
+		if phases.addPhase(phase.op, t, ferr) {
 			break
 		}
 	}
@@ -191,12 +191,12 @@ func wisdomVersionNativeID(kind, arn string, version *int64) (nativeID, why stri
 
 // scanWisdomAssistants stores the assistants and returns the ids of those
 // stored, for the per-assistant phases.
-func scanWisdomAssistants(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanWisdomAssistants(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, wisdomListAssistantsOp,
+	t, err := storeTokenList(ctx, st, acct, region, wisdomListAssistantsOp,
 		func(ctx context.Context, token *string) ([]qconnecttypes.AssistantSummary, *string, error) {
 			out, err := client.ListAssistants(ctx, &qconnect.ListAssistantsInput{NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -219,17 +219,17 @@ func scanWisdomAssistants(ctx context.Context, client wisdomAPI, acct *account, 
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListAssistantsOp, acct, region, &noChildID, "assistant(s)", "AssistantId")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
 // scanWisdomKnowledgeBases stores the knowledge bases and returns the ids of
 // those stored, for the per-knowledge-base phases.
-func scanWisdomKnowledgeBases(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanWisdomKnowledgeBases(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, wisdomListKnowledgeBasesOp,
+	t, err := storeTokenList(ctx, st, acct, region, wisdomListKnowledgeBasesOp,
 		func(ctx context.Context, token *string) ([]qconnecttypes.KnowledgeBaseSummary, *string, error) {
 			out, err := client.ListKnowledgeBases(ctx, &qconnect.ListKnowledgeBasesInput{NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -252,10 +252,10 @@ func scanWisdomKnowledgeBases(ctx context.Context, client wisdomAPI, acct *accou
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListKnowledgeBasesOp, acct, region, &noChildID, "knowledge base(s)", "KnowledgeBaseId")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
-func scanWisdomAssistantAssocs(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) (int, int, error) {
+func scanWisdomAssistantAssocs(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListAssistantAssociationsOp, wisdomNotFound, assistantIDs,
 		func(ctx context.Context, aid string, token *string) ([]qconnecttypes.AssistantAssociationSummary, *string, error) {
 			out, err := client.ListAssistantAssociations(ctx, &qconnect.ListAssistantAssociationsInput{AssistantId: &aid, NextToken: token, MaxResults: wisdomMaxResults})
@@ -275,12 +275,12 @@ func scanWisdomAssistantAssocs(ctx context.Context, client wisdomAPI, acct *acco
 
 // scanWisdomAIAgents stores the AI agents of each assistant and returns those
 // stored with an id, for the version phase.
-func scanWisdomAIAgents(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, int, error) {
+func scanWisdomAIAgents(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, error) {
 	var (
 		agents    []wisdomChild
 		noChildID skipTally
 	)
-	t, i, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIAgentsOp, wisdomNotFound, assistantIDs,
+	t, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIAgentsOp, wisdomNotFound, assistantIDs,
 		func(ctx context.Context, aid string, token *string) ([]qconnecttypes.AIAgentSummary, *string, error) {
 			out, err := client.ListAIAgents(ctx, &qconnect.ListAIAgentsInput{AssistantId: &aid, NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -303,14 +303,14 @@ func scanWisdomAIAgents(ctx context.Context, client wisdomAPI, acct *account, re
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListAIAgentsOp, acct, region, &noChildID, "AI agent(s)", "AiAgentId")
 	}
-	return agents, t, i, err
+	return agents, t, err
 }
 
 // scanWisdomAIAgentVersions lists the versions of each AI agent. A version's
 // AiAgentSummary carries Tags, but a version has no ARN of its own and no API
 // tags one (CreateAIAgentVersion takes no tags; TagResource names no version
 // resource), so the row stores none.
-func scanWisdomAIAgentVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, agents []wisdomChild) (int, int, error) {
+func scanWisdomAIAgentVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, agents []wisdomChild) (int, error) {
 	arns, byARN := wisdomChildrenByARN(agents)
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListAIAgentVersionsOp, wisdomNotFound, arns,
 		func(ctx context.Context, arn string, token *string) ([]qconnecttypes.AIAgentVersionSummary, *string, error) {
@@ -336,12 +336,12 @@ func scanWisdomAIAgentVersions(ctx context.Context, client wisdomAPI, acct *acco
 
 // scanWisdomAIGuardrails stores the AI guardrails of each assistant and
 // returns those stored with an id, for the version phase.
-func scanWisdomAIGuardrails(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, int, error) {
+func scanWisdomAIGuardrails(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, error) {
 	var (
 		guardrails []wisdomChild
 		noChildID  skipTally
 	)
-	t, i, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIGuardrailsOp, wisdomNotFound, assistantIDs,
+	t, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIGuardrailsOp, wisdomNotFound, assistantIDs,
 		func(ctx context.Context, aid string, token *string) ([]qconnecttypes.AIGuardrailSummary, *string, error) {
 			out, err := client.ListAIGuardrails(ctx, &qconnect.ListAIGuardrailsInput{AssistantId: &aid, NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -364,12 +364,12 @@ func scanWisdomAIGuardrails(ctx context.Context, client wisdomAPI, acct *account
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListAIGuardrailsOp, acct, region, &noChildID, "AI guardrail(s)", "AiGuardrailId")
 	}
-	return guardrails, t, i, err
+	return guardrails, t, err
 }
 
 // scanWisdomAIGuardrailVersions lists the versions of each AI guardrail; the
 // row stores no tags, for the reason scanWisdomAIAgentVersions gives.
-func scanWisdomAIGuardrailVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, guardrails []wisdomChild) (int, int, error) {
+func scanWisdomAIGuardrailVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, guardrails []wisdomChild) (int, error) {
 	arns, byARN := wisdomChildrenByARN(guardrails)
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListAIGuardrailVersionsOp, wisdomNotFound, arns,
 		func(ctx context.Context, arn string, token *string) ([]qconnecttypes.AIGuardrailVersionSummary, *string, error) {
@@ -395,12 +395,12 @@ func scanWisdomAIGuardrailVersions(ctx context.Context, client wisdomAPI, acct *
 
 // scanWisdomAIPrompts stores the AI prompts of each assistant and returns
 // those stored with an id, for the version phase.
-func scanWisdomAIPrompts(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, int, error) {
+func scanWisdomAIPrompts(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, assistantIDs []string) ([]wisdomChild, int, error) {
 	var (
 		prompts   []wisdomChild
 		noChildID skipTally
 	)
-	t, i, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIPromptsOp, wisdomNotFound, assistantIDs,
+	t, err := storeTokenPerParent(ctx, st, acct, region, wisdomListAIPromptsOp, wisdomNotFound, assistantIDs,
 		func(ctx context.Context, aid string, token *string) ([]qconnecttypes.AIPromptSummary, *string, error) {
 			out, err := client.ListAIPrompts(ctx, &qconnect.ListAIPromptsInput{AssistantId: &aid, NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -423,12 +423,12 @@ func scanWisdomAIPrompts(ctx context.Context, client wisdomAPI, acct *account, r
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListAIPromptsOp, acct, region, &noChildID, "AI prompt(s)", "AiPromptId")
 	}
-	return prompts, t, i, err
+	return prompts, t, err
 }
 
 // scanWisdomAIPromptVersions lists the versions of each AI prompt; the row
 // stores no tags, for the reason scanWisdomAIAgentVersions gives.
-func scanWisdomAIPromptVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, prompts []wisdomChild) (int, int, error) {
+func scanWisdomAIPromptVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, prompts []wisdomChild) (int, error) {
 	arns, byARN := wisdomChildrenByARN(prompts)
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListAIPromptVersionsOp, wisdomNotFound, arns,
 		func(ctx context.Context, arn string, token *string) ([]qconnecttypes.AIPromptVersionSummary, *string, error) {
@@ -454,12 +454,12 @@ func scanWisdomAIPromptVersions(ctx context.Context, client wisdomAPI, acct *acc
 
 // scanWisdomMessageTemplates stores the message templates of each knowledge
 // base and returns those stored with an id, for the version phase.
-func scanWisdomMessageTemplates(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) ([]wisdomChild, int, int, error) {
+func scanWisdomMessageTemplates(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) ([]wisdomChild, int, error) {
 	var (
 		templates []wisdomChild
 		noChildID skipTally
 	)
-	t, i, err := storeTokenPerParent(ctx, st, acct, region, wisdomListMessageTemplatesOp, wisdomNotFound, kbIDs,
+	t, err := storeTokenPerParent(ctx, st, acct, region, wisdomListMessageTemplatesOp, wisdomNotFound, kbIDs,
 		func(ctx context.Context, kbID string, token *string) ([]qconnecttypes.MessageTemplateSummary, *string, error) {
 			out, err := client.ListMessageTemplates(ctx, &qconnect.ListMessageTemplatesInput{KnowledgeBaseId: &kbID, NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -482,12 +482,12 @@ func scanWisdomMessageTemplates(ctx context.Context, client wisdomAPI, acct *acc
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListMessageTemplatesOp, acct, region, &noChildID, "message template(s)", "MessageTemplateId")
 	}
-	return templates, t, i, err
+	return templates, t, err
 }
 
 // scanWisdomMessageTemplateVersions lists the versions of each message
 // template. MessageTemplateVersionSummary carries no tags.
-func scanWisdomMessageTemplateVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, templates []wisdomChild) (int, int, error) {
+func scanWisdomMessageTemplateVersions(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, templates []wisdomChild) (int, error) {
 	arns, byARN := wisdomChildrenByARN(templates)
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListMessageTemplateVersionsOp, wisdomNotFound, arns,
 		func(ctx context.Context, arn string, token *string) ([]qconnecttypes.MessageTemplateVersionSummary, *string, error) {
@@ -507,7 +507,7 @@ func scanWisdomMessageTemplateVersions(ctx context.Context, client wisdomAPI, ac
 		})
 }
 
-func scanWisdomQuickResponses(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) (int, int, error) {
+func scanWisdomQuickResponses(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListQuickResponsesOp, wisdomNotFound, kbIDs,
 		func(ctx context.Context, kbID string, token *string) ([]qconnecttypes.QuickResponseSummary, *string, error) {
 			out, err := client.ListQuickResponses(ctx, &qconnect.ListQuickResponsesInput{KnowledgeBaseId: &kbID, NextToken: token, MaxResults: wisdomMaxResults})
@@ -527,12 +527,12 @@ func scanWisdomQuickResponses(ctx context.Context, client wisdomAPI, acct *accou
 
 // scanWisdomContents stores the contents of each knowledge base and returns
 // those stored with an id, for the content-association phase.
-func scanWisdomContents(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) ([]wisdomChild, int, int, error) {
+func scanWisdomContents(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) ([]wisdomChild, int, error) {
 	var (
 		contents  []wisdomChild
 		noChildID skipTally
 	)
-	t, i, err := storeTokenPerParent(ctx, st, acct, region, wisdomListContentsOp, wisdomNotFound, kbIDs,
+	t, err := storeTokenPerParent(ctx, st, acct, region, wisdomListContentsOp, wisdomNotFound, kbIDs,
 		func(ctx context.Context, kbID string, token *string) ([]qconnecttypes.ContentSummary, *string, error) {
 			out, err := client.ListContents(ctx, &qconnect.ListContentsInput{KnowledgeBaseId: &kbID, NextToken: token, MaxResults: wisdomMaxResults})
 			if err != nil {
@@ -555,10 +555,10 @@ func scanWisdomContents(ctx context.Context, client wisdomAPI, acct *account, re
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, wisdomListContentsOp, acct, region, &noChildID, "content(s)", "ContentId")
 	}
-	return contents, t, i, err
+	return contents, t, err
 }
 
-func scanWisdomContentAssociations(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, contents []wisdomChild) (int, int, error) {
+func scanWisdomContentAssociations(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, contents []wisdomChild) (int, error) {
 	arns, byARN := wisdomChildrenByARN(contents)
 	return storeTokenPerParent(ctx, st, acct, region, wisdomListContentAssociationsOp, wisdomNotFound, arns,
 		func(ctx context.Context, arn string, token *string) ([]qconnecttypes.ContentAssociationSummary, *string, error) {

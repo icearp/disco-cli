@@ -24,35 +24,33 @@ type schedulerAPI interface {
 }
 
 // scanScheduler discovers EventBridge Scheduler schedules and schedule groups.
-func scanScheduler(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanScheduler(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := scheduler.NewFromConfig(acct.cfg, func(o *scheduler.Options) { o.Region = region })
 
-	t, i, ferr := scanSchedulerSchedules(ctx, client, acct, region, st, scanID)
+	t, ferr := scanSchedulerSchedules(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSchedulerGroups(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSchedulerGroups(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSchedulerSchedules(ctx context.Context, client schedulerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSchedulerSchedules(ctx context.Context, client schedulerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListSchedules(ctx, &scheduler.ListSchedulesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "scheduler:ListSchedules", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "scheduler:ListSchedules", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("scheduler:ListSchedules: %w", err)
+			return 0, fmt.Errorf("scheduler:ListSchedules: %w", err)
 		}
 		for _, s := range out.Schedules {
 			arn := sv(s.Arn)
@@ -75,16 +73,16 @@ func scanSchedulerSchedules(ctx context.Context, client schedulerAPI, acct *acco
 	return upsertBatch(st, batch, "scheduler schedules")
 }
 
-func scanSchedulerGroups(ctx context.Context, client schedulerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSchedulerGroups(ctx context.Context, client schedulerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListScheduleGroups(ctx, &scheduler.ListScheduleGroupsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "scheduler:ListScheduleGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "scheduler:ListScheduleGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("scheduler:ListScheduleGroups: %w", err)
+			return 0, fmt.Errorf("scheduler:ListScheduleGroups: %w", err)
 		}
 		for _, g := range out.ScheduleGroups {
 			arn := sv(g.Arn)

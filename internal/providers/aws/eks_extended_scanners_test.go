@@ -244,7 +244,7 @@ func (c *eksxCalls) handlers() map[string]func(any) (any, error) {
 
 // eksxScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func eksxScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func eksxScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, eksDenied)
 	return scanEKS(ctx, acct, testRegion, st, testScanID)
@@ -306,7 +306,9 @@ func TestScanEKS_StoresTagsOfEveryPerClusterType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newEKSXCalls()
 
-	total, inserted, err := eksxScan(context.Background(), st, calls.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := eksxScan(context.Background(), counted, calls.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -338,7 +340,7 @@ func TestScanEKS_StoresTagsOfEveryPerClusterType(t *testing.T) {
 func TestScanEKS_NamedChildNativeIDs(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
+	if _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for typ, id := range map[string]string{
@@ -365,7 +367,7 @@ func TestScanEKS_GovCloudRowsReachTagReads(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(calls.handlers(), eksDenied)
 
-	total, _, err := scanEKS(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanEKS(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 30 {
 		t.Fatalf("scan = %d, %v; want 30, nil", total, err)
 	}
@@ -398,7 +400,7 @@ func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
 		h[op] = calls.answer(op, func(any) any { return out() })
 	}
 
-	total, _, err := eksxScan(context.Background(), st, h)
+	total, err := eksxScan(context.Background(), st, h)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2 (the clusters), nil", total, err)
 	}
@@ -408,16 +410,16 @@ func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanEKS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
+	if _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers())
+	total, err := eksxScan(context.Background(), st, newEKSXCalls().handlers())
 	if err != nil || total != 30 {
 		t.Errorf("rescan = %d, %v; want 30, nil", total, err)
 	}
@@ -469,7 +471,7 @@ func TestScanEKS_TagReadFailures(t *testing.T) {
 					calls := newEKSXCalls()
 					calls.errs[target.nativeID] = c.err
 
-					total, _, err := eksxScan(context.Background(), st, calls.handlers())
+					total, err := eksxScan(context.Background(), st, calls.handlers())
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -517,7 +519,7 @@ func TestScanEKS_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[calls.childID("nodegroup", "c1", "ng-c1-t")] = eksxThrottled
 	calls.errs[calls.childID("nodegroup", "c2", "ng-c2-b")] = eksBadInput
 
-	_, _, err := eksxScan(context.Background(), st, calls.handlers())
+	_, err := eksxScan(context.Background(), st, calls.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -556,7 +558,7 @@ func TestScanEKS_DescribeWithoutBodyIsAnError(t *testing.T) {
 			}
 			h[c.op] = func(any) (any, error) { return outputs[c.op](), nil }
 
-			total, _, err := eksxScan(context.Background(), st, h)
+			total, err := eksxScan(context.Background(), st, h)
 			if !errors.Is(err, errEKSNoBody) {
 				t.Fatalf("err = %v; want errEKSNoBody", err)
 			}
@@ -584,7 +586,7 @@ func TestScanEKS_DeniedPerClusterListingWarnsUnderItsOp(t *testing.T) {
 			h := calls.handlers()
 			h[op] = func(any) (any, error) { return nil, eksDenied }
 
-			total, _, err := eksxScan(context.Background(), st, h)
+			total, err := eksxScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -618,7 +620,7 @@ func TestScanEKS_ClusterGoneFromPerClusterListing(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := eksxScan(context.Background(), st, h)
+			total, err := eksxScan(context.Background(), st, h)
 			if op == "ListCapabilities" {
 				assertAPICode(t, err, "ResourceNotFoundException")
 			} else if err != nil {
@@ -646,7 +648,7 @@ func TestScanEKS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return list(in)
 	}
 
-	total, _, err := eksxScan(context.Background(), st, h)
+	total, err := eksxScan(context.Background(), st, h)
 	assertAPICode(t, err, "InvalidParameterException")
 	if total != 29 {
 		t.Errorf("total = %d; want 29", total)
@@ -670,7 +672,7 @@ func TestScanEKS_RepeatedTokenKeepsPages(t *testing.T) {
 		return &eks.ListAddonsOutput{Addons: []string{"addon-" + cl + "-t"}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := eksxScan(context.Background(), st, h)
+	_, err := eksxScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -700,7 +702,7 @@ func TestScanEKS_UnnamedListedRowsNamedByARN(t *testing.T) {
 		return &eks.ListPodIdentityAssociationsOutput{Associations: []ekstypes.PodIdentityAssociationSummary{{AssociationArn: &arn}}}
 	})
 
-	total, _, err := eksxScan(context.Background(), st, h)
+	total, err := eksxScan(context.Background(), st, h)
 	if err != nil || total != 26 {
 		t.Fatalf("scan = %d, %v; want 26, nil", total, err)
 	}
@@ -750,7 +752,7 @@ func TestScanEKS_UnstorableItemsWarn(t *testing.T) {
 			h := calls.handlers()
 			h[c.op] = func(any) (any, error) { return c.out(), nil }
 
-			total, _, err := eksxScan(context.Background(), st, h)
+			total, err := eksxScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -774,7 +776,7 @@ func TestScanEKS_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newEKSXCalls()
 	calls.errs[calls.childID("addon", "c1", "addon-c1-t")] = eksDenied
 
-	_, _, err := eksxScan(context.Background(), st, calls.handlers())
+	_, err := eksxScan(context.Background(), st, calls.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -804,7 +806,7 @@ func TestScanEKS_AccessPoliciesReadStoredEntriesOnly(t *testing.T) {
 		return &eks.ListAssociatedAccessPoliciesOutput{}, nil
 	}
 
-	if _, _, err := eksxScan(context.Background(), st, h); err != nil {
+	if _, err := eksxScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := sortedStrings("c1|"+calls.principal("c1", "b"), "c2|"+calls.principal("c2", "t"), "c2|"+calls.principal("c2", "b"))
@@ -831,7 +833,7 @@ func TestScanEKS_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := eksxScan(ctx, st, h)
+	_, err := eksxScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -864,7 +866,7 @@ func TestScanEKS_Unreachable(t *testing.T) {
 		calls := newEKSXCalls()
 		h := calls.handlers()
 		h["ListClusters"] = func(any) (any, error) { return nil, nx }
-		total, _, err := eksxScan(context.Background(), st, h)
+		total, err := eksxScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListEksAnywhereSubscriptions") != 0 || calls.count("ListAddons") != 0 {
 			t.Errorf("total = %d, ListEksAnywhereSubscriptions, ListAddons calls = %d, %d; want 0, 0, 0",
@@ -875,7 +877,7 @@ func TestScanEKS_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newEKSXCalls()
 		calls.errs[calls.childID("addon", "c1", "addon-c1-t")] = nx
-		total, _, err := eksxScan(context.Background(), st, calls.handlers())
+		total, err := eksxScan(context.Background(), st, calls.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 30 {
 			t.Errorf("total = %d; want 30", total)

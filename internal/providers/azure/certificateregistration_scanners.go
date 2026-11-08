@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanCertificateRegistration discovers certificateregistration resources.
-func scanCertificateRegistration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCertificateRegistration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcertificateregistration.NewAppServiceCertificateOrdersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcertificateregistration:NewAppServiceCertificateOrdersClient: %w", err)
+		return 0, fmt.Errorf("armcertificateregistration:NewAppServiceCertificateOrdersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcertificateregistration:AppServiceCertificateOrders.List", TypeCertificateOrder, sub, st, scanID,
 		client.NewListPager(nil),

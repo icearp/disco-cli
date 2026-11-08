@@ -22,12 +22,12 @@ func init() {
 // scanHealthcareAPIs discovers Azure Health Data Services: classic
 // account-level service instances (DICOM/FHIR/IoT connectors) and newer
 // workspaces.
-func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			svcClient, err := armhealthcareapis.NewServicesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armhealthcareapis:NewServicesClient: %w", err)
+				return 0, fmt.Errorf("armhealthcareapis:NewServicesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armhealthcareapis:Services.List", TypeHealthcareAPIsService, sub, st, scanID,
 				svcClient.NewListPager(nil),
@@ -38,10 +38,10 @@ func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred azcore.Toke
 					return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			wsClient, err := armhealthcareapis.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armhealthcareapis:NewWorkspacesClient: %w", err)
+				return 0, fmt.Errorf("armhealthcareapis:NewWorkspacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armhealthcareapis:Workspaces.ListBySubscription", TypeHealthcareAPIsWorkspace, sub, st, scanID,
 				wsClient.NewListBySubscriptionPager(nil),

@@ -26,7 +26,9 @@ func TestScanComputeAddresses_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeAddresses(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeAddresses(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeAddresses: %v", err)
 	}
@@ -52,7 +54,9 @@ func TestScanComputeAddresses_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeAddresses(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeAddresses(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeAddresses (denied): expected nil error, got %v", err)
 	}
@@ -69,7 +73,7 @@ func TestScanComputeAddresses_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeAddresses(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeAddresses(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeAddresses: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -86,7 +90,9 @@ func TestScanComputeGlobalAddresses_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeGlobalAddresses(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeGlobalAddresses(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeGlobalAddresses: %v", err)
 	}
@@ -106,7 +112,9 @@ func TestScanComputePublicAdvertisedPrefixes_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputePublicAdvertisedPrefixes(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputePublicAdvertisedPrefixes(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputePublicAdvertisedPrefixes: %v", err)
 	}
@@ -136,7 +144,9 @@ func TestScanComputePublicDelegatedPrefixes_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputePublicDelegatedPrefixes(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputePublicDelegatedPrefixes(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputePublicDelegatedPrefixes: %v", err)
 	}

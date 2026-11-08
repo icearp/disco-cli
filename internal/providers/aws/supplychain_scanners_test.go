@@ -244,7 +244,7 @@ func (f *scnTestFixture) handlers() map[string]func(in any) (any, error) {
 
 // scnScan runs the scan's real entry point against handlers in the test
 // account and region; an op without a handler is denied.
-func scnScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func scnScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, scnTestDenied)
 	return scanSupplyChain(ctx, acct, testRegion, st, testScanID)
@@ -274,7 +274,9 @@ func TestScanSupplyChain_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newSCNFixture("aws", testRegion)
 
-	total, inserted, err := scnScan(context.Background(), st, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := scnScan(context.Background(), counted, f.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -372,16 +374,16 @@ func TestScanSupplyChain_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSupplyChain_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers()); err != nil {
+	if _, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers())
+	total, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -404,7 +406,9 @@ func TestScanSupplyChain_NoInstances(t *testing.T) {
 		return &supplychain.ListInstancesOutput{}, nil
 	}
 
-	total, inserted, err := scnScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := scnScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -460,7 +464,7 @@ func TestScanSupplyChain_TagReadFailures(t *testing.T) {
 			f := newSCNFixture("aws", testRegion)
 			f.errs[c.arn] = c.err
 
-			total, _, err := scnScan(context.Background(), st, f.handlers())
+			total, err := scnScan(context.Background(), st, f.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -509,7 +513,7 @@ func TestScanSupplyChain_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := scnScan(context.Background(), st, f.handlers())
+	total, err := scnScan(context.Background(), st, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -531,7 +535,7 @@ func TestScanSupplyChain_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs[f.flowARN(scnTestInstA, "flow-bare")] = scnTestThrottle
 	f.errs[f.dsARN(scnTestInstB, "asc", "ds_tagged")] = scnTestBad
 
-	_, _, err := scnScan(context.Background(), st, f.handlers())
+	_, err := scnScan(context.Background(), st, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -551,7 +555,7 @@ func TestScanSupplyChain_FailedWriteStopsScan(t *testing.T) {
 		f := newSCNFixture("aws", testRegion)
 		f.errs[f.nsARN(scnTestInstA, "ns_bare")] = scnTestDenied
 
-		total, _, err := scnScan(context.Background(), st, f.handlers())
+		total, err := scnScan(context.Background(), st, f.handlers())
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -571,7 +575,7 @@ func TestScanSupplyChain_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeSupplyChainInstance)
 		f := newSCNFixture("aws", testRegion)
 
-		_, _, err := scnScan(context.Background(), st, f.handlers())
+		_, err := scnScan(context.Background(), st, f.handlers())
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -619,7 +623,7 @@ func TestScanSupplyChain_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := scnScan(context.Background(), st, h)
+			total, err := scnScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -655,7 +659,7 @@ func TestScanSupplyChain_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, nil
 	}
 
-	total, _, err := scnScan(context.Background(), st, h)
+	total, err := scnScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -711,7 +715,7 @@ func TestScanSupplyChain_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := scnScan(context.Background(), st, h)
+				total, err := scnScan(context.Background(), st, h)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -824,7 +828,7 @@ func TestScanSupplyChain_ElementWithoutIdentifier(t *testing.T) {
 			h := f.handlers()
 			h[c.op] = func(in any) (any, error) { return c.answer(in), nil }
 
-			total, _, err := scnScan(context.Background(), st, h)
+			total, err := scnScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -870,7 +874,7 @@ func TestScanSupplyChain_NamespaceWithoutInstanceIDKeepsDatasets(t *testing.T) {
 		return out, nil
 	}
 
-	total, _, err := scnScan(context.Background(), st, h)
+	total, err := scnScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -897,7 +901,7 @@ func TestScanSupplyChain_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(f.handlers(), scnTestDenied)
 
-			if _, _, err := scanSupplyChain(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanSupplyChain(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			inst := map[string]string{
@@ -937,7 +941,7 @@ func TestScanSupplyChain_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := scnScan(ctx, st, h)
+	_, err := scnScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -964,7 +968,7 @@ func TestScanSupplyChain_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := newSCNFixture("aws", testRegion).handlers()
 		h["ListDataLakeDatasets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := scnScan(context.Background(), st, h)
+		total, err := scnScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := scnTestTotal - 16; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -974,7 +978,7 @@ func TestScanSupplyChain_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := newSCNFixture("aws", testRegion)
 		f.errs[f.nsARN(scnTestInstB, "ns_bare")] = nx
-		_, _, err := scnScan(context.Background(), st, f.handlers())
+		_, err := scnScan(context.Background(), st, f.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -982,7 +986,7 @@ func TestScanSupplyChain_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanSupplyChain(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSupplyChain(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

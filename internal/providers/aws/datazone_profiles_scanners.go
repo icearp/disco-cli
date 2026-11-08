@@ -26,7 +26,7 @@ var dzUserTypes = []dztypes.UserSearchType{
 	dztypes.UserSearchTypeDatazoneIamUser,
 }
 
-func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchGroupProfiles", what: "group profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -65,7 +65,7 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 	return f.finish(batch)
 }
 
-func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchUserProfiles", what: "user profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {

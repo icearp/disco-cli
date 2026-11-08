@@ -13,7 +13,7 @@ import (
 // scanS3ObjectLambdaAccessPoints stores the region's S3 Object Lambda access
 // points, listed under s3control and scoped by AccountId, and returns those
 // stored, whose policies scanS3ObjectLambdaAccessPointPolicies reads.
-func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.ObjectLambdaAccessPoint, total, inserted int, err error) {
+func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.ObjectLambdaAccessPoint, total int, err error) {
 	var apBatch []*store.Resource
 	var nextToken *string
 	for {
@@ -23,9 +23,9 @@ func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region s
 		})
 		if lerr != nil {
 			if isAccessDenied(lerr) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForObjectLambda", acct.ID, region, lerr)
+				return nil, 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForObjectLambda", acct.ID, region, lerr)
 			}
-			return nil, 0, 0, fmt.Errorf("s3control:ListAccessPointsForObjectLambda: %w", lerr)
+			return nil, 0, fmt.Errorf("s3control:ListAccessPointsForObjectLambda: %w", lerr)
 		}
 		for _, ap := range out.ObjectLambdaAccessPointList {
 			arn := sv(ap.ObjectLambdaAccessPointArn)
@@ -46,17 +46,17 @@ func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region s
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, err = upsertBatch(st, apBatch, "s3-object-lambda access-points")
+	total, err = upsertBatch(st, apBatch, "s3-object-lambda access-points")
 	if err != nil {
-		return nil, total, inserted, err
+		return nil, total, err
 	}
-	return stored, total, inserted, nil
+	return stored, total, nil
 }
 
 // scanS3ObjectLambdaAccessPointPolicies stores the resource policy of each
 // stored Object Lambda access point that has one. A failed read does not
 // stop the others: its error is returned once the policies read are stored.
-func scanS3ObjectLambdaAccessPointPolicies(ctx context.Context, acct *account, region string, client s3controlAPI, aps []s3ctypes.ObjectLambdaAccessPoint, st *store.Store, scanID string) (int, int, error) {
+func scanS3ObjectLambdaAccessPointPolicies(ctx context.Context, acct *account, region string, client s3controlAPI, aps []s3ctypes.ObjectLambdaAccessPoint, st *store.Store, scanID string) (int, error) {
 	var (
 		policyBatch []*store.Resource
 		errs        []error
@@ -84,6 +84,6 @@ func scanS3ObjectLambdaAccessPointPolicies(ctx context.Context, acct *account, r
 			AttributesJSON: mustJSON(polOut), DiscoveredBy: scanID,
 		})
 	}
-	total, inserted, err := upsertBatch(st, policyBatch, "s3-object-lambda access-point-policies")
-	return total, inserted, errors.Join(append([]error{err}, errs...)...)
+	total, err := upsertBatch(st, policyBatch, "s3-object-lambda access-point-policies")
+	return total, errors.Join(append([]error{err}, errs...)...)
 }

@@ -45,10 +45,10 @@ type sqlManagedDatabase struct {
 // scanSQLManaged discovers managed instances, their databases, admins, and
 // vulnerability assessments (instance- and database-level). Runs concurrently
 // from scanSQL alongside the server-based scanners.
-func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	miClient, err := armsql.NewManagedInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstancesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstancesClient: %w", err)
 	}
 
 	// Phase 1: list all managed instances.
@@ -58,9 +58,9 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armsql:ManagedInstances.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armsql:ManagedInstances.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstances.List: %w", err)
+			return 0, fmt.Errorf("armsql:ManagedInstances.List: %w", err)
 		}
 		var batch []*store.Resource
 		for _, mi := range page.Value {
@@ -89,24 +89,23 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert managed instances: %w", err)
+				return 0, fmt.Errorf("upsert managed instances: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 			var pairs [][2]string
 			for _, b := range batch {
 				pairs = append(pairs, rgHierarchyPair(sub, TypeSQLManagedInstance, b.NativeID))
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return 0, 0, fmt.Errorf("closure managed instances: %w", err)
+				return 0, fmt.Errorf("closure managed instances: %w", err)
 			}
 		}
 	}
 
 	if len(instances) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase 2: per-MI fan-out — databases + administrators + vulnerability assessments.
@@ -125,10 +124,9 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				return err
 			}
 			defer sem.Release(1)
-			t, i, dbs, err := scanManagedDatabases(gctx, sub, cred, st, scanID, mi)
+			t, dbs, err := scanManagedDatabases(gctx, sub, cred, st, scanID, mi)
 			mu.Lock()
 			total += t
-			inserted += i
 			allMIDBs = append(allMIDBs, dbs...)
 			mu.Unlock()
 			return err
@@ -140,10 +138,9 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				return err
 			}
 			defer sem.Release(1)
-			t, i, err := scanManagedInstanceAdmins(gctx, sub, cred, st, scanID, mi)
+			t, err := scanManagedInstanceAdmins(gctx, sub, cred, st, scanID, mi)
 			mu.Lock()
 			total += t
-			inserted += i
 			mu.Unlock()
 			return err
 		})
@@ -154,10 +151,9 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				return err
 			}
 			defer sem.Release(1)
-			t, i, err := scanManagedInstanceVulnAssessments(gctx, sub, cred, st, scanID, mi)
+			t, err := scanManagedInstanceVulnAssessments(gctx, sub, cred, st, scanID, mi)
 			mu.Lock()
 			total += t
-			inserted += i
 			mu.Unlock()
 			return err
 		})
@@ -170,21 +166,20 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 					return err
 				}
 				defer sem.Release(1)
-				t, i, err := fn()
+				t, err := fn()
 				mu.Lock()
 				total += t
-				inserted += i
 				mu.Unlock()
 				return err
 			})
 		}
 	}
 	if err := g.Wait(); err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	if len(allMIDBs) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase 3: per-MI-database fan-out — managed database vulnerability assessments.
@@ -198,34 +193,33 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 					return err
 				}
 				defer sem2.Release(1)
-				t, i, err := fn()
+				t, err := fn()
 				mu.Lock()
 				total += t
-				inserted += i
 				mu.Unlock()
 				return err
 			})
 		}
 	}
 	// Wait BEFORE reading counters — Go evaluates return-list expressions
-	// left-to-right; inlining g2.Wait() at position 3 would read total/inserted
+	// left-to-right; inlining g2.Wait() at position 3 would read total
 	// while phase-3 goroutines are still running.
 	err = g2.Wait()
-	return total, inserted, err
+	return total, err
 }
 
 // managedInstanceChildScanners returns closures for MI-level sub-resource scanners
 // run in the phase-2 fan-out (alongside databases, admins, VAs).
-func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
-	return []func() (int, int, error){
-		func() (int, int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },
-		func() (int, int, error) {
+func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, error) {
+	return []func() (int, error){
+		func() (int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },
+		func() (int, error) {
 			return scanManagedInstanceEncryptionProtectors(ctx, sub, cred, st, scanID, mi)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanManagedInstancePrivateEndpointConnections(ctx, sub, cred, st, scanID, mi)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanManagedServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, mi)
 		},
 	}
@@ -233,20 +227,20 @@ func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred a
 
 // managedDatabaseChildScanners returns closures for MDB-level sub-resource scanners
 // that run in the phase-3 fan-out (alongside MDB VAs).
-func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) []func() (int, int, error) {
-	return []func() (int, int, error){
-		func() (int, int, error) { return scanManagedDatabaseVulnAssessments(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanManagedDatabaseTDE(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) {
+func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) []func() (int, error) {
+	return []func() (int, error){
+		func() (int, error) { return scanManagedDatabaseVulnAssessments(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanManagedDatabaseTDE(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) {
 			return scanManagedDatabaseSecurityAlertPolicies(ctx, sub, cred, st, scanID, db)
 		},
 	}
 }
 
-func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedInstanceKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceKeysClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstanceKeysClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -257,7 +251,7 @@ func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstanceKeys.ListByInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedInstanceKeys.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -282,10 +276,10 @@ func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore
 	return sqlUpsert(st, batch, pairs, "managed instance keys")
 }
 
-func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedInstanceEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceEncryptionProtectorsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstanceEncryptionProtectorsClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -296,7 +290,7 @@ func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscript
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstanceEncryptionProtectors.ListByInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedInstanceEncryptionProtectors.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -321,10 +315,10 @@ func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscript
 	return sqlUpsert(st, batch, pairs, "managed instance encryption protectors")
 }
 
-func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedInstancePrivateEndpointConnectionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstancePrivateEndpointConnectionsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstancePrivateEndpointConnectionsClient: %w", err)
 	}
 	pager := client.NewListByManagedInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -335,7 +329,7 @@ func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *sub
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstancePrivateEndpointConnections.ListByManagedInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedInstancePrivateEndpointConnections.ListByManagedInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -360,10 +354,10 @@ func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *sub
 	return sqlUpsert(st, batch, pairs, "managed instance private endpoint connections")
 }
 
-func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedServerSecurityAlertPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedServerSecurityAlertPoliciesClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -374,7 +368,7 @@ func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscripti
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedServerSecurityAlertPolicies.ListByInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedServerSecurityAlertPolicies.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -399,10 +393,10 @@ func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscripti
 	return sqlUpsert(st, batch, pairs, "managed server security alert policies")
 }
 
-func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total int, err error) {
 	client, err := armsql.NewManagedDatabaseTransparentDataEncryptionClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseTransparentDataEncryptionClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedDatabaseTransparentDataEncryptionClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.miName, db.name, nil)
 	var batch []*store.Resource
@@ -413,7 +407,7 @@ func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseTransparentDataEncryption.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
+			return 0, fmt.Errorf("armsql:ManagedDatabaseTransparentDataEncryption.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -438,10 +432,10 @@ func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.
 	return sqlUpsert(st, batch, pairs, "managed database transparent data encryptions")
 }
 
-func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total int, err error) {
 	client, err := armsql.NewManagedDatabaseSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseSecurityAlertPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedDatabaseSecurityAlertPoliciesClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.miName, db.name, nil)
 	var batch []*store.Resource
@@ -452,7 +446,7 @@ func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscrip
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
+			return 0, fmt.Errorf("armsql:ManagedDatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -479,10 +473,10 @@ func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscrip
 
 // scanManagedDatabases lists databases for a managed instance, upserts them, and
 // returns sqlManagedDatabase entries for phase 3 sub-resource fan-out.
-func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, dbs []sqlManagedDatabase, err error) {
+func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, dbs []sqlManagedDatabase, err error) {
 	client, err := armsql.NewManagedDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("armsql:NewManagedDatabasesClient: %w", err)
+		return 0, nil, fmt.Errorf("armsql:NewManagedDatabasesClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -493,7 +487,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.To
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, nil, fmt.Errorf("armsql:ManagedDatabases.ListByInstance(%s): %w", mi.name, err)
+			return 0, nil, fmt.Errorf("armsql:ManagedDatabases.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, db := range page.Value {
 			if db.ID == nil {
@@ -524,23 +518,22 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.To
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert managed databases: %w", err)
+			return 0, nil, fmt.Errorf("upsert managed databases: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, nil, fmt.Errorf("closure managed databases: %w", err)
+			return 0, nil, fmt.Errorf("closure managed databases: %w", err)
 		}
 	}
-	return total, inserted, dbs, nil
+	return total, dbs, nil
 }
 
-func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedInstanceAdministratorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceAdministratorsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstanceAdministratorsClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -551,7 +544,7 @@ func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azco
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstanceAdministrators.ListByInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedInstanceAdministrators.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -576,10 +569,10 @@ func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azco
 	return sqlUpsert(st, batch, pairs, "managed instance administrators")
 }
 
-func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total int, err error) {
 	client, err := armsql.NewManagedInstanceVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceVulnerabilityAssessmentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedInstanceVulnerabilityAssessmentsClient: %w", err)
 	}
 	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
 	var batch []*store.Resource
@@ -590,7 +583,7 @@ func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, 
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedInstanceVulnerabilityAssessments.ListByInstance(%s): %w", mi.name, err)
+			return 0, fmt.Errorf("armsql:ManagedInstanceVulnerabilityAssessments.ListByInstance(%s): %w", mi.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -615,10 +608,10 @@ func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, 
 	return sqlUpsert(st, batch, pairs, "managed instance vulnerability assessments")
 }
 
-func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total int, err error) {
 	client, err := armsql.NewManagedDatabaseVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseVulnerabilityAssessmentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewManagedDatabaseVulnerabilityAssessmentsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.miName, db.name, nil)
 	var batch []*store.Resource
@@ -629,7 +622,7 @@ func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, 
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
+			return 0, fmt.Errorf("armsql:ManagedDatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {

@@ -172,7 +172,7 @@ func TestSageMakerStoreTagged_ReadsEveryPage(t *testing.T) {
 	st := newTestStore(t)
 	arn := smTestARN("model", "m")
 	tags := &smTagPages{}
-	if _, _, err := sagemakerStoreTagged(context.Background(), tags, newTestAccount(testAccountID), testRegion, st, "sagemaker:ListModels")(smTagRows(arn), nil, nil); err != nil {
+	if _, err := sagemakerStoreTagged(context.Background(), tags, newTestAccount(testAccountID), testRegion, st, "sagemaker:ListModels")(smTagRows(arn), nil, nil); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if want := []string{"", "p2"}; !slices.Equal(tags.tokens, want) {
@@ -204,7 +204,7 @@ func TestSageMakerStoreTagged_ReadFailures(t *testing.T) {
 			bad, ok := smTestARN("model", "bad"), smTestARN("model", "ok")
 			tags := newSMTags(smTagged, bad, ok)
 			tags.errs = map[string]error{bad: c.err}
-			total, _, err := sagemakerStoreTagged(context.Background(), tags, newTestAccount(testAccountID), testRegion, st, "sagemaker:ListModels")(smTagRows(bad, ok), nil, nil)
+			total, err := sagemakerStoreTagged(context.Background(), tags, newTestAccount(testAccountID), testRegion, st, "sagemaker:ListModels")(smTagRows(bad, ok), nil, nil)
 			if c.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -261,13 +261,13 @@ func TestSageMakerTagErrors_KeepListTagsOpThroughRunners(t *testing.T) {
 	slow := smTestARN("model", "slow")
 	tags := newSMTags(smUntagged)
 	tags.errs = map[string]error{slow: apiErr("ThrottlingException", "Rate exceeded")}
-	_, _, err := runSageMakerFamilies(context.Background(), st, acct, testRegion,
-		func(ctx context.Context) (int, int, error) {
-			return runSageMakerPhases(sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) {
+	_, err := runSageMakerFamilies(context.Background(), st, acct, testRegion,
+		func(ctx context.Context) (int, error) {
+			return runSageMakerPhases(sagemakerPhase{"sagemaker:ListModels", func() (int, error) {
 				return sagemakerStoreTagged(ctx, tags, acct, testRegion, st, "sagemaker:ListModels")(smTagRows(slow), nil, nil)
 			}})
 		},
-		func(context.Context) (int, int, error) { return 0, 0, apiErr("ValidationException", "bad") },
+		func(context.Context) (int, error) { return 0, apiErr("ValidationException", "bad") },
 	)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
@@ -283,11 +283,11 @@ func TestRunSageMakerPhases_ThrottleBesideHardPhaseDemotedUnderItsOp(t *testing.
 	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
-	_, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
-		func(context.Context) (int, int, error) {
+	_, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
+		func(context.Context) (int, error) {
 			return runSageMakerPhases(
-				sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return 0, 0, apiErr("ThrottlingException", "Rate exceeded") }},
-				sagemakerPhase{"sagemaker:ListEndpoints", func() (int, int, error) { return 0, 0, apiErr("ValidationException", "bad") }},
+				sagemakerPhase{"sagemaker:ListModels", func() (int, error) { return 0, apiErr("ThrottlingException", "Rate exceeded") }},
+				sagemakerPhase{"sagemaker:ListEndpoints", func() (int, error) { return 0, apiErr("ValidationException", "bad") }},
 			)
 		},
 	)
@@ -341,16 +341,16 @@ func TestSageMakerTagReads_ShareOneBoundAcrossFamilies(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tags := &smGatedTags{slots: make(chan struct{}, fanoutMed), full: make(chan struct{})}
-	family := func(kind string) func(context.Context) (int, int, error) {
+	family := func(kind string) func(context.Context) (int, error) {
 		arns := make([]string, fanoutMed)
 		for i := range arns {
 			arns[i] = smTestARN(kind, fmt.Sprint(i))
 		}
-		return func(ctx context.Context) (int, int, error) {
+		return func(ctx context.Context) (int, error) {
 			return sagemakerStoreTagged(ctx, tags, acct, testRegion, st, "sagemaker:ListModels")(smTagRows(arns...), nil, nil)
 		}
 	}
-	if _, _, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, family("model"), family("endpoint")); err != nil {
+	if _, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, family("model"), family("endpoint")); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if got := tags.calls.Load(); got != 2*fanoutMed {
@@ -364,11 +364,11 @@ func TestSageMakerTagReads_ShareOneBoundAcrossFamilies(t *testing.T) {
 func TestRunSageMakerPhases_FailedPhaseRunsLaterPhases(t *testing.T) {
 	t.Parallel()
 	ran := false
-	total, _, err := runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return 1, 1, apiErr("ValidationException", "bad") }},
-		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, int, error) {
+	total, err := runSageMakerPhases(
+		sagemakerPhase{"sagemaker:ListModels", func() (int, error) { return 1, apiErr("ValidationException", "bad") }},
+		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, error) {
 			ran = true
-			return 2, 2, nil
+			return 2, nil
 		}},
 	)
 	assertAPICode(t, err, "ValidationException")
@@ -380,11 +380,11 @@ func TestRunSageMakerPhases_FailedPhaseRunsLaterPhases(t *testing.T) {
 func TestRunSageMakerPhases_FailedWriteStops(t *testing.T) {
 	t.Parallel()
 	ran := false
-	_, _, err := runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return 0, 0, fmt.Errorf("upsert: %w", store.ErrStoreWrite) }},
-		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, int, error) {
+	_, err := runSageMakerPhases(
+		sagemakerPhase{"sagemaker:ListModels", func() (int, error) { return 0, fmt.Errorf("upsert: %w", store.ErrStoreWrite) }},
+		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, error) {
 			ran = true
-			return 0, 0, nil
+			return 0, nil
 		}},
 	)
 	if !errors.Is(err, store.ErrStoreWrite) {
@@ -402,11 +402,11 @@ func TestRunSageMakerFamilies_ErrorDoesNotCancelSiblings(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var sibling context.Context
-	total, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
-		func(context.Context) (int, int, error) { return 1, 1, apiErr("ValidationException", "bad") },
-		func(ctx context.Context) (int, int, error) {
+	total, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
+		func(context.Context) (int, error) { return 1, apiErr("ValidationException", "bad") },
+		func(ctx context.Context) (int, error) {
 			sibling = ctx
-			return 2, 2, nil
+			return 2, nil
 		},
 	)
 	assertAPICode(t, err, "ValidationException")
@@ -424,9 +424,9 @@ func TestRunSageMakerFamilies_TransientDemotedBesideHardError(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sagemakerService)
-	_, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
-		func(context.Context) (int, int, error) { return 0, 0, apiErr("ThrottlingException", "Rate exceeded") },
-		func(context.Context) (int, int, error) { return 0, 0, apiErr("ValidationException", "bad") },
+	_, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
+		func(context.Context) (int, error) { return 0, apiErr("ThrottlingException", "Rate exceeded") },
+		func(context.Context) (int, error) { return 0, apiErr("ValidationException", "bad") },
 	)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
@@ -466,7 +466,7 @@ func TestScanSageMaker_FamilyErrorDoesNotCancelOthers(t *testing.T) {
 		},
 	}, apiErr("AccessDeniedException", "op not stubbed"))
 
-	_, _, err := scanSageMaker(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanSageMaker(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if len(tagCtxs) != 1 {
 		t.Fatalf("ListTags calls = %d; want 1", len(tagCtxs))
@@ -528,7 +528,7 @@ func TestSageMakerDescribe_ClassifiesEachKey(t *testing.T) {
 		"slow":   apiErr("ThrottlingException", "Rate exceeded"),
 		"bad":    apiErr("ValidationException", "bad"),
 	})
-	total, _, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, func(ctx context.Context) (int, int, error) {
+	total, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, func(ctx context.Context) (int, error) {
 		return d.scan(ctx, st, acct, testRegion, sagemakerStoreTagged(ctx, newSMTags(smUntagged), acct, testRegion, st, d.listOp))
 	})
 	assertAPICode(t, err, "ValidationException")
@@ -565,7 +565,7 @@ func TestSageMakerDescribe_FailedPageKeepsEarlierPages(t *testing.T) {
 			warns := countOpWarnings(st, "sagemaker:ListModels")
 			acct := newTestAccount(testAccountID)
 			d := smModelDescribe([][]string{{"a"}, {"b"}}, c.err, nil)
-			total, _, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreTagged(context.Background(), newSMTags(smUntagged), acct, testRegion, st, d.listOp))
+			total, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreTagged(context.Background(), newSMTags(smUntagged), acct, testRegion, st, d.listOp))
 			if c.wantCode != "" {
 				assertAPICode(t, err, c.wantCode)
 			} else if err != nil {
@@ -657,7 +657,7 @@ func TestScanSageMaker_ListsAtModelPageCap(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", "op not stubbed"))
-	if _, _, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID); err != nil {
+	if _, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range ops {
@@ -721,7 +721,7 @@ func TestSageMakerDescribe_DeniedOrTransientKeptFromListing(t *testing.T) {
 				}
 			}
 			tags := newSMTags(smUntagged)
-			_, _, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreTagged(context.Background(), tags, acct, testRegion, st, d.listOp))
+			_, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreTagged(context.Background(), tags, acct, testRegion, st, d.listOp))
 			if err == nil || !everyMember(err, func(m error) bool { return isAPIErrorCode(m, "ThrottlingException") }) {
 				t.Errorf("err = %v; want only the throttled describe", err)
 			}
@@ -779,7 +779,7 @@ func TestSageMakerDescribe_LateNXDOMAINIsAnError(t *testing.T) {
 			if c.tagged {
 				put = sagemakerStoreTagged(context.Background(), newSMTags(smUntagged), acct, testRegion, st, d.listOp)
 			}
-			_, _, err := d.scan(context.Background(), st, acct, testRegion, put)
+			_, err := d.scan(context.Background(), st, acct, testRegion, put)
 			if err == nil || isDNSNotFound(err) {
 				t.Errorf("err = %v; want a plain error, not an NXDOMAIN", err)
 			}
@@ -799,7 +799,7 @@ func TestScanSageMaker_ProbeNXDOMAINIsReturned(t *testing.T) {
 	acct.cfg = opStubConfig(map[string]func(any) (any, error){
 		"ListDomains": func(any) (any, error) { return nil, nxdomain },
 	}, apiErr("AccessDeniedException", "op not stubbed"))
-	if _, _, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID); !isDNSNotFound(err) {
+	if _, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID); !isDNSNotFound(err) {
 		t.Errorf("err = %v; want the probe's NXDOMAIN", err)
 	}
 }
@@ -834,7 +834,7 @@ func TestSageMakerDescribe_StopIsOneMember(t *testing.T) {
 			d.listed = func(key string) *store.Resource {
 				return sagemakerListedRow(acct, testRegion, testScanID, TypeSageMakerModel, sdkaws.String(smTestARN("model", key)), &key, nil, "", smtypes.ModelSummary{})
 			}
-			_, _, err := d.describeEach(ctx, st, acct, testRegion, keys, nil, sagemakerStoreUntagged(st, acct, testRegion, d.listOp))
+			_, err := d.describeEach(ctx, st, acct, testRegion, keys, nil, sagemakerStoreUntagged(st, acct, testRegion, d.listOp))
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v; want context.Canceled", err)
 			}
@@ -876,7 +876,7 @@ func TestSageMakerDescribe_HardErrorKeptFromListing(t *testing.T) {
 					return sagemakerListedRow(acct, testRegion, testScanID, TypeSageMakerModel, sdkaws.String(smTestARN("model", key)), &key, nil, "", smtypes.ModelSummary{})
 				}
 			}
-			_, _, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreUntagged(st, acct, testRegion, d.listOp))
+			_, err := d.scan(context.Background(), st, acct, testRegion, sagemakerStoreUntagged(st, acct, testRegion, d.listOp))
 			assertAPICode(t, err, "ValidationException")
 			want := []string{smTestARN("model", "ok")}
 			if withListed {
@@ -977,7 +977,7 @@ func TestScanSageMaker_DeniedDescribesKeepListedRows(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", "op not stubbed"))
 	st := newTestStore(t)
-	if _, _, err := scanSageMaker(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMaker(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for typ, want := range listedTypes {
@@ -1021,7 +1021,7 @@ func TestScanSageMaker_ProbeRunsFamiliesOnlyOnceAnswered(t *testing.T) {
 					return &sagemaker.ListModelsOutput{}, nil
 				},
 			}, apiErr("AccessDeniedException", "op not stubbed"))
-			_, _, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID)
+			_, err := scanSageMaker(context.Background(), acct, testRegion, newTestStore(t), testScanID)
 			if ran := models.Load() > 0; ran != c.families {
 				t.Errorf("families ran = %v; want %v", ran, c.families)
 			}

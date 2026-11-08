@@ -20,17 +20,17 @@ func init() {
 }
 
 // scanWorkloads discovers SAP virtual instances and SAP/Az Monitor monitors.
-func scanWorkloads(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWorkloads(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	svi, err := armworkloads.NewSAPVirtualInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armworkloads:NewSAPVirtualInstancesClient: %w", err)
+		return 0, fmt.Errorf("armworkloads:NewSAPVirtualInstancesClient: %w", err)
 	}
 	monitors, err := armworkloads.NewMonitorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armworkloads:NewMonitorsClient: %w", err)
+		return 0, fmt.Errorf("armworkloads:NewMonitorsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armworkloads:SAPVirtualInstances.ListBySubscription", TypeWorkloadsSAPVirtualInstance, sub, st, scanID,
 				svi.NewListBySubscriptionPager(nil),
 				func(p armworkloads.SAPVirtualInstancesClientListBySubscriptionResponse) []*armworkloads.SAPVirtualInstance {
@@ -40,7 +40,7 @@ func scanWorkloads(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(i.ID), name: sv(i.Name), location: sv(i.Location), tags: i.Tags, full: i}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armworkloads:Monitors.List", TypeWorkloadsMonitor, sub, st, scanID,
 				monitors.NewListPager(nil),
 				func(p armworkloads.MonitorsClientListResponse) []*armworkloads.Monitor { return p.Value },

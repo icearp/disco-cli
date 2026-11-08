@@ -22,21 +22,21 @@ func init() {
 
 // scanAutomanage discovers Automanage configuration profiles, the platform
 // profile assignments, and the service principal.
-func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	profiles, err := armautomanage.NewConfigurationProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armautomanage:NewConfigurationProfilesClient: %w", err)
+		return 0, fmt.Errorf("armautomanage:NewConfigurationProfilesClient: %w", err)
 	}
 	assigns, err := armautomanage.NewConfigurationProfileAssignmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armautomanage:NewConfigurationProfileAssignmentsClient: %w", err)
+		return 0, fmt.Errorf("armautomanage:NewConfigurationProfileAssignmentsClient: %w", err)
 	}
 	sps, err := armautomanage.NewServicePrincipalsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armautomanage:NewServicePrincipalsClient: %w", err)
+		return 0, fmt.Errorf("armautomanage:NewServicePrincipalsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armautomanage:ConfigurationProfiles.ListBySubscription", TypeAutomanageConfigProfile, sub, st, scanID,
 				profiles.NewListBySubscriptionPager(nil),
 				func(p armautomanage.ConfigurationProfilesClientListBySubscriptionResponse) []*armautomanage.ConfigurationProfile {
@@ -46,7 +46,7 @@ func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCre
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armautomanage:ConfigurationProfileAssignments.ListBySubscription", TypeAutomanageConfigProfileAssignment, sub, st, scanID,
 				assigns.NewListBySubscriptionPager(nil),
 				func(p armautomanage.ConfigurationProfileAssignmentsClientListBySubscriptionResponse) []*armautomanage.ConfigurationProfileAssignment {
@@ -56,7 +56,7 @@ func scanAutomanage(ctx context.Context, sub *subscription, cred azcore.TokenCre
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armautomanage:ServicePrincipals.ListBySubscription", TypeAutomanageServicePrincipal, sub, st, scanID,
 				sps.NewListBySubscriptionPager(nil),
 				func(p armautomanage.ServicePrincipalsClientListBySubscriptionResponse) []*armautomanage.ServicePrincipal {

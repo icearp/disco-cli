@@ -40,16 +40,16 @@ const maxConcurrentCloudRunFanout = 10
 // both; `environment` distinguishes them). Wildcard location parent
 // `projects/{p}/locations/-` returns functions across every location in one
 // paginated call — no per-location fan-out needed.
-func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudfunctions.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudfunctions client: %w", err)
+		return 0, fmt.Errorf("cloudfunctions client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
 	return runPaginated(ctx, st, p, "cloudfunctions:functions.list",
 		svc.Projects.Locations.Functions.List(parent),
-		func(page *cloudfunctions.ListFunctionsResponse) (int, int, error) {
+		func(page *cloudfunctions.ListFunctionsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Functions))
 			for _, f := range page.Functions {
 				name := lastSegment(f.Name)
@@ -85,22 +85,22 @@ func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID
 // Service, no independent data). `Task` (per-Execution runtime attempt, same
 // unbounded-cardinality/runtime-artifact profile as Batch's Task objects —
 // see jobs_scanners.go). `Location`/`Operation` are catalog/action-verb types.
-func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := run.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("run client: %w", err)
+		return 0, fmt.Errorf("run client: %w", err)
 	}
 	svc1, err := runv1.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("run v1 client: %w", err)
+		return 0, fmt.Errorf("run v1 client: %w", err)
 	}
 	// run/v2 exposes no Locations catalog of its own (unlike cloudbuild/v2);
 	// reuse the Compute regions list for the WorkerPool/Instance per-region
 	// fan-out below.
 	regions, err := gcpRegions(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return scanCloudRunWithClient(ctx, svc, svc1, regions, p, st, scanID)
 }
@@ -115,8 +115,8 @@ type cloudRunServiceRef struct {
 
 // cloudRunScan holds the shared state threaded through a single Cloud Run
 // scan: the v2 and v1 SDK clients, project, store, scan ID, and the
-// mutex-guarded running (total, inserted) upsert counters. The mutex guards
-// the counters across the bounded per-service / per-region fan-out (phases 2
+// mutex-guarded running total. The mutex guards
+// the total across the bounded per-service / per-region fan-out (phases 2
 // and 3); the project-scoped legacy phases 4 and 5 run sequentially after.
 // Scoped to one scanCloudRunWithClient call; not safe for concurrent use
 // across scans.
@@ -127,9 +127,8 @@ type cloudRunScan struct {
 	st     *store.Store
 	scanID string
 
-	mu       sync.Mutex
-	total    int
-	inserted int
+	mu    sync.Mutex
+	total int
 }
 
 // scanServices runs phase 1: wildcard-location Services.List, capturing
@@ -139,9 +138,9 @@ type cloudRunScan struct {
 func (s *cloudRunScan) scanServices(ctx context.Context) ([]cloudRunServiceRef, error) {
 	var svcRefs []cloudRunServiceRef
 	parent := fmt.Sprintf("projects/%s/locations/-", s.p.ID)
-	t, n, err := runPaginated(ctx, s.st, s.p, "run:services.list",
+	t, err := runPaginated(ctx, s.st, s.p, "run:services.list",
 		s.svc.Projects.Locations.Services.List(parent),
-		func(page *run.GoogleCloudRunV2ListServicesResponse) (int, int, error) {
+		func(page *run.GoogleCloudRunV2ListServicesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Services))
 			for _, srv := range page.Services {
 				if srv == nil || srv.Name == "" {
@@ -169,7 +168,6 @@ func (s *cloudRunScan) scanServices(ctx context.Context) ([]cloudRunServiceRef, 
 			return upsertWithProjClosure(s.p, s.st, batch)
 		})
 	s.total += t
-	s.inserted += n
 	return svcRefs, err
 }
 
@@ -201,9 +199,8 @@ func (s *cloudRunScan) scanRevisions(ctx context.Context, svcRefs []cloudRunServ
 			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			rt, rn, rerr := upsertWithParent(s.st, batch, ref.id)
+			rt, rerr := upsertWithParent(s.st, batch, ref.id)
 			s.total += rt
-			s.inserted += rn
 			return rerr
 		})
 		if rerr != nil {
@@ -243,9 +240,8 @@ func (s *cloudRunScan) scanWorkerPools(ctx context.Context, locParent, region st
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		wt, wn, werr := upsertWithProjClosure(s.p, s.st, batch)
+		wt, werr := upsertWithProjClosure(s.p, s.st, batch)
 		s.total += wt
-		s.inserted += wn
 		return werr
 	})
 	if werr != nil {
@@ -283,9 +279,8 @@ func (s *cloudRunScan) scanInstances(ctx context.Context, locParent, region stri
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		it, in, ierr := upsertWithProjClosure(s.p, s.st, batch)
+		it, ierr := upsertWithProjClosure(s.p, s.st, batch)
 		s.total += it
-		s.inserted += in
 		return ierr
 	})
 	if ierr != nil {
@@ -344,12 +339,11 @@ func (s *cloudRunScan) scanDomainMappings(ctx context.Context) error {
 			DiscoveredBy:   s.scanID,
 		})
 	}
-	dt, dn, uerr := upsertWithProjClosure(s.p, s.st, batch)
+	dt, uerr := upsertWithProjClosure(s.p, s.st, batch)
 	if uerr != nil {
 		return uerr
 	}
 	s.total += dt
-	s.inserted += dn
 	return nil
 }
 
@@ -384,9 +378,8 @@ func (s *cloudRunScan) scanAuthorizedDomains(ctx context.Context) error {
 				DiscoveredBy:   s.scanID,
 			})
 		}
-		at, an, uerr := upsertWithProjClosure(s.p, s.st, batch)
+		at, uerr := upsertWithProjClosure(s.p, s.st, batch)
 		s.total += at
-		s.inserted += an
 		return uerr
 	})
 	if aerr != nil {
@@ -403,35 +396,35 @@ func (s *cloudRunScan) scanAuthorizedDomains(ctx context.Context) error {
 // pre-built v2 and v1 clients plus a pre-resolved region list directly, so
 // tests can point the clients at a fake server and inject regions without a
 // real compute.Regions.List dependency.
-func scanCloudRunWithClient(ctx context.Context, svc *run.Service, svc1 *runv1.APIService, regions []string, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudRunWithClient(ctx context.Context, svc *run.Service, svc1 *runv1.APIService, regions []string, p *project, st *store.Store, scanID string) (total int, err error) {
 	s := &cloudRunScan{svc: svc, svc1: svc1, p: p, st: st, scanID: scanID}
 
 	// Phase 1: Services.
 	svcRefs, err := s.scanServices(ctx)
 	if err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 2: per-Service Revisions fan-out.
 	if err := s.scanRevisions(ctx, svcRefs); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 3: per-region WorkerPool + Instance fan-out.
 	if err := s.scanWorkerPoolsAndInstances(ctx, regions); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 4: DomainMapping (run/v1 legacy).
 	if err := s.scanDomainMappings(ctx); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 5: AuthorizedDomain (run/v1 legacy).
 	if err := s.scanAuthorizedDomains(ctx); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
-	return s.total, s.inserted, nil
+	return s.total, nil
 }
 
 // locationFromResourceName extracts the location segment from a

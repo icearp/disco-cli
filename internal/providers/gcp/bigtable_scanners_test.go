@@ -51,7 +51,9 @@ func TestScanBigtableAppProfiles_MultiParentDerivedFromName(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeBigtableService(t, srv)
 
-	total, inserted, err := scanBigtableAppProfiles(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableAppProfiles(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableAppProfiles: %v", err)
 	}
@@ -126,7 +128,9 @@ func TestScanBigtableBackups_PartialDenyContinues(t *testing.T) {
 	upsertTestResource(t, st, "gcp", p.ID, TypeBigtableCluster, cluster2Native, "", "{}")
 
 	instances := []*bigtableadmin.Instance{{Name: inst1Native}, {Name: inst2Native}}
-	total, inserted, err := scanBigtableBackups(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableBackups(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableBackups: %v", err)
 	}
@@ -184,7 +188,9 @@ func TestScanBigtableMemoryLayers_MultiParentDerivedFromName(t *testing.T) {
 	svc := fakeBigtableService(t, srv)
 
 	instances := []*bigtableadmin.Instance{{Name: instNative}}
-	total, inserted, err := scanBigtableMemoryLayers(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableMemoryLayers(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableMemoryLayers: %v", err)
 	}
@@ -248,7 +254,9 @@ func TestScanBigtableTables_FanoutAndAuthorizedViewSchemaBundleChain(t *testing.
 	svc := fakeBigtableService(t, srv)
 
 	instances := []*bigtableadmin.Instance{{Name: instNative}}
-	tableNames, total, inserted, err := scanBigtableTables(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	tableNames, total, err := scanBigtableTables(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableTables: %v", err)
 	}
@@ -259,7 +267,9 @@ func TestScanBigtableTables_FanoutAndAuthorizedViewSchemaBundleChain(t *testing.
 		t.Fatalf("tableNames: got %v, want [%s]", tableNames, tableNative)
 	}
 
-	total, inserted, err = scanBigtableAuthorizedViews(t.Context(), svc, p, tableNames, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanBigtableAuthorizedViews(t.Context(), svc, p, tableNames, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableAuthorizedViews: %v", err)
 	}
@@ -267,7 +277,9 @@ func TestScanBigtableTables_FanoutAndAuthorizedViewSchemaBundleChain(t *testing.
 		t.Fatalf("authorizedViews counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanBigtableSchemaBundles(t.Context(), svc, p, tableNames, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanBigtableSchemaBundles(t.Context(), svc, p, tableNames, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableSchemaBundles: %v", err)
 	}
@@ -316,7 +328,9 @@ func TestScanBigtableHotTablets_FanoutPerCluster(t *testing.T) {
 	svc := fakeBigtableService(t, srv)
 
 	clusters := []*bigtableadmin.Cluster{{Name: cluster1Native}}
-	total, inserted, err := scanBigtableHotTablets(t.Context(), svc, p, clusters, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableHotTablets(t.Context(), svc, p, clusters, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableHotTablets: %v", err)
 	}
@@ -355,7 +369,9 @@ func TestScanBigtableLogicalAndMaterializedViews_Basic(t *testing.T) {
 	svc := fakeBigtableService(t, srv)
 
 	instances := []*bigtableadmin.Instance{{Name: instNative}}
-	total, inserted, err := scanBigtableLogicalViews(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableLogicalViews(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableLogicalViews: %v", err)
 	}
@@ -363,7 +379,9 @@ func TestScanBigtableLogicalAndMaterializedViews_Basic(t *testing.T) {
 		t.Fatalf("logicalViews counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanBigtableMaterializedViews(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanBigtableMaterializedViews(t.Context(), svc, p, instances, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableMaterializedViews: %v", err)
 	}
@@ -403,7 +421,9 @@ func TestScanBigtableAppProfiles_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeBigtableService(t, srv)
 
-	total, inserted, err := scanBigtableAppProfiles(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigtableAppProfiles(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigtableAppProfiles (denied): expected nil error, got %v", err)
 	}

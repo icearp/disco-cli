@@ -47,7 +47,7 @@ func codeCommitTemplateNativeID(partition, region, acctID, templateID string) st
 
 // scanCodeCommit discovers CodeCommit repositories, approval rule templates
 // and repository triggers.
-func scanCodeCommit(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCodeCommit(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := codecommit.NewFromConfig(acct.cfg, func(o *codecommit.Options) { o.Region = region })
 	return scanCodeCommitIn(ctx, client, acct, region, st, scanID)
 }
@@ -55,44 +55,43 @@ func scanCodeCommit(ctx context.Context, acct *account, region string, st *store
 // scanCodeCommitIn runs every phase even when an earlier one fails, so one
 // phase's error costs no other phase its rows. Triggers fan out over the
 // repositories listed first (none when that listing failed).
-func scanCodeCommitIn(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCodeCommitIn(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var (
 		repos []childParent
 		errs  phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
-		run  func() (int, int, error)
+		run  func() (int, error)
 	}{
-		{"codecommit:ListRepositories", func() (int, int, error) {
+		{"codecommit:ListRepositories", func() (int, error) {
 			var (
-				t, i int
-				err  error
+				t   int
+				err error
 			)
-			repos, t, i, err = scanCCRepositories(ctx, client, acct, region, st, scanID)
-			return t, i, err
+			repos, t, err = scanCCRepositories(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{"codecommit:ListApprovalRuleTemplates", func() (int, int, error) {
+		{"codecommit:ListApprovalRuleTemplates", func() (int, error) {
 			return scanCCApprovalRuleTemplates(ctx, client, acct, region, st, scanID)
 		}},
-		{"codecommit:GetRepositoryTriggers", func() (int, int, error) {
+		{"codecommit:GetRepositoryTriggers", func() (int, error) {
 			return scanCCRepositoryTriggers(ctx, client, acct, region, st, scanID, repos)
 		}},
 	} {
-		t, i, perr := phase.run()
+		t, perr := phase.run()
 		if n == 0 && isEndpointUnreachable(perr) {
-			return t, i, perr
+			return t, perr
 		}
 		total += t
-		inserted += i
 		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // scanCCRepositories returns the stored repositories as trigger parents (id is
 // the repository name GetRepositoryTriggers keys on).
-func scanCCRepositories(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanCCRepositories(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	var (
 		batch     []*store.Resource
 		repos     []childParent
@@ -102,9 +101,9 @@ func scanCCRepositories(ctx context.Context, client codeCommitAPI, acct *account
 		out, err := client.ListRepositories(ctx, &codecommit.ListRepositoriesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "codecommit:ListRepositories", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "codecommit:ListRepositories", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("codecommit:ListRepositories: %w", err)
+			return nil, 0, fmt.Errorf("codecommit:ListRepositories: %w", err)
 		}
 		for _, r := range out.Repositories {
 			name := sv(r.RepositoryName)
@@ -129,11 +128,11 @@ func scanCCRepositories(ctx context.Context, client codeCommitAPI, acct *account
 		}
 		nextToken = out.NextToken
 	}
-	t, i, err := upsertBatch(st, batch, "codecommit repositories")
+	t, err := upsertBatch(st, batch, "codecommit repositories")
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	return repos, t, i, nil
+	return repos, t, nil
 }
 
 // codeCommitTemplateAttrs is the template body plus the names of the
@@ -181,16 +180,16 @@ func isCCTemplateGone(err error) bool {
 // list returns names only, so each template is fetched for its id and content,
 // and its associated repositories are listed per template: an account has far
 // fewer templates than repositories, so this is the cheaper direction.
-func scanCCApprovalRuleTemplates(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCCApprovalRuleTemplates(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var names []string
 	pager := codecommit.NewListApprovalRuleTemplatesPaginator(client, &codecommit.ListApprovalRuleTemplatesInput{})
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "codecommit:ListApprovalRuleTemplates", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "codecommit:ListApprovalRuleTemplates", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("codecommit:ListApprovalRuleTemplates: %w", err)
+			return 0, fmt.Errorf("codecommit:ListApprovalRuleTemplates: %w", err)
 		}
 		names = append(names, out.ApprovalRuleTemplateNames...)
 	}
@@ -227,7 +226,7 @@ func scanCCApprovalRuleTemplates(ctx context.Context, client codeCommitAPI, acct
 			}, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, rows, "codecommit approval rule templates")
 }
@@ -258,7 +257,7 @@ func isCCRepositoryGone(err error) bool {
 
 // scanCCRepositoryTriggers stores each repository's triggers under it, keyed
 // by trigger name: the API returns no other identifier.
-func scanCCRepositoryTriggers(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string, repos []childParent) (int, int, error) {
+func scanCCRepositoryTriggers(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string, repos []childParent) (int, error) {
 	const op = "codecommit:GetRepositoryTriggers"
 	keyErrs := &ccKeyWarner{st: st, acct: acct, region: region, op: op}
 	isSkip := func(err error) bool { return isCCRepositoryGone(err) || keyErrs.skip(err) }

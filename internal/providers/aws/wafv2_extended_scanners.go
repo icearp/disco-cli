@@ -21,7 +21,7 @@ import (
 // LoggingConfig and RegexPatternSet expose native ARNs.
 func wafv2ExtendedPhases(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string, tags rowTagReader, webACLARNs *[]string) []hostPhase {
 	phases := []hostPhase{
-		countedPhase(0, "wafv2:ListLoggingConfigurations", func() (int, int, error) {
+		countedPhase(0, "wafv2:ListLoggingConfigurations", func() (int, error) {
 			return scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListLoggingConfigurations", "logging configurations", TypeWAFv2LoggingConfiguration,
 				func(marker *string) ([]wafv2Listed, *string, error) {
 					out, err := client.ListLoggingConfigurations(ctx, &wafv2.ListLoggingConfigurationsInput{Scope: scope, NextMarker: marker})
@@ -57,7 +57,7 @@ func wafv2ExtendedPhases(ctx context.Context, client wafv2API, acct *account, re
 		}},
 		// Managed rule sets are owned only by AWS Marketplace managed-rule-group
 		// sellers; most accounts list none.
-		countedPhase(0, "wafv2:ListManagedRuleSets", func() (int, int, error) {
+		countedPhase(0, "wafv2:ListManagedRuleSets", func() (int, error) {
 			return scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListManagedRuleSets", "managed rule sets", TypeWAFv2ManagedRuleSet,
 				func(marker *string) ([]wafv2Listed, *string, error) {
 					out, err := client.ListManagedRuleSets(ctx, &wafv2.ListManagedRuleSetsInput{Scope: scope, NextMarker: marker})
@@ -75,7 +75,7 @@ func wafv2ExtendedPhases(ctx context.Context, client wafv2API, acct *account, re
 	// Web-ACL associations only meaningful for REGIONAL scope (CloudFront
 	// distributions associate via dedicated APIs, not ListResourcesForWebACL).
 	if scope == types.ScopeRegional {
-		phases = append(phases, countedPhase(0, "wafv2:ListResourcesForWebACL", func() (int, int, error) {
+		phases = append(phases, countedPhase(0, "wafv2:ListResourcesForWebACL", func() (int, error) {
 			return scanWAFv2WebACLAssociations(ctx, client, acct, region, st, scanID, *webACLARNs)
 		}))
 	}
@@ -129,7 +129,7 @@ func wafv2ResourceTypesIn(acct *account, region string) []types.ResourceType {
 // listings. A resource type WAF rejects (isWAFv2ResourceTypeRejected) warns
 // once per type. Any other error is returned, naming its ACL and resource type,
 // after every other listing's associations are stored.
-func scanWAFv2WebACLAssociations(ctx context.Context, client wafv2API, acct *account, region string, st *store.Store, scanID string, webACLArns []string) (int, int, error) {
+func scanWAFv2WebACLAssociations(ctx context.Context, client wafv2API, acct *account, region string, st *store.Store, scanID string, webACLArns []string) (int, error) {
 	const op = "wafv2:ListResourcesForWebACL"
 	var (
 		batch           []*store.Resource

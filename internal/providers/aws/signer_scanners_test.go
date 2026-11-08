@@ -31,7 +31,7 @@ func TestScanSigner_ProfileReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanSigner(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSigner(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSigner: %v", err)
 	}

@@ -322,7 +322,7 @@ func r53grHandlers(c *r53grCalls) map[string]func(in any) (any, error) {
 
 // r53grScan runs the scan's real entry point for an aws account against
 // handlers; every op they do not answer is denied.
-func r53grScan(st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func r53grScan(st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, r53grTestDenied)
 	return scanRoute53GlobalResolver(context.Background(), acct, "", st, testScanID)
@@ -377,7 +377,9 @@ func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newR53GRCalls("aws")
-	total, inserted, err := r53grScan(st, r53grHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := r53grScan(counted, r53grHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanRoute53GlobalResolver: %v", err)
 	}
@@ -493,16 +495,16 @@ func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRoute53GlobalResolver_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws"))); err != nil {
+	if _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws"))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws")))
+	total, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws")))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -553,7 +555,7 @@ func TestScanRoute53GlobalResolver_TagReadFailures(t *testing.T) {
 				calls := newR53GRCalls("aws")
 				arn := r53grID(k.resource)
 				calls.errs[arn] = c.err
-				total, _, err := r53grScan(st, r53grHandlers(calls))
+				total, err := r53grScan(st, r53grHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -606,7 +608,7 @@ func TestScanRoute53GlobalResolver_TagDenialsWarnOncePerScan(t *testing.T) {
 	for _, d := range denied {
 		calls.errs[r53grID(d.resource)] = r53grTestDenied
 	}
-	total, _, err := r53grScan(st, r53grHandlers(calls))
+	total, err := r53grScan(st, r53grHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -633,7 +635,7 @@ func TestScanRoute53GlobalResolver_TagThrottleDemotedBesideHardError(t *testing.
 	calls := newR53GRCalls("aws")
 	calls.errs[r53grID("dns-view/v1")] = r53grTestThrottle
 	calls.errs[r53grID("access-source/as-2")] = r53grTestInvalid
-	_, _, err := r53grScan(st, r53grHandlers(calls))
+	_, err := r53grScan(st, r53grHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -694,7 +696,7 @@ func TestScanRoute53GlobalResolver_FailedWriteStopsScan(t *testing.T) {
 			if c.firstRow != "" {
 				calls.errs[r53grID(c.firstRow)] = r53grTestDenied
 			}
-			total, _, err := r53grScan(st, r53grHandlers(calls))
+			total, err := r53grScan(st, r53grHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -737,7 +739,7 @@ func TestScanRoute53GlobalResolver_NoARNNamedByID(t *testing.T) {
 			warns := bacWarnings(st, r53grTestPrefix+c.op)
 			h := r53grHandlers(newR53GRCalls("aws"))
 			h[c.op] = func(any) (any, error) { return c.out, nil }
-			if _, _, err := r53grScan(st, h); err != nil {
+			if _, err := r53grScan(st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warns) != 1 || !strings.Contains((*warns)[0].Message, c.key) {
@@ -777,7 +779,7 @@ func TestScanRoute53GlobalResolver_LaterPageFailureKeepsPages(t *testing.T) {
 			calls := newR53GRCalls("aws")
 			h := r53grHandlers(calls)
 			h[c.op] = r53grFailTokenPages(r53grTestInvalid, h[c.op])
-			total, _, err := r53grScan(st, h)
+			total, err := r53grScan(st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -798,7 +800,7 @@ func TestScanRoute53GlobalResolver_RepeatedTokenKeepsPages(t *testing.T) {
 			st := newTestStore(t)
 			calls := newR53GRCalls("aws")
 			calls.repeat = op
-			total, _, err := r53grScan(st, r53grHandlers(calls))
+			total, err := r53grScan(st, r53grHandlers(calls))
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -848,7 +850,7 @@ func TestScanRoute53GlobalResolver_ChildListingFailures(t *testing.T) {
 				warns := countOpWarnings(st, r53grTestPrefix+p.op)
 				h := r53grHandlers(newR53GRCalls("aws"))
 				h[p.op] = r53grFailParent(p.parent, c.err, h[p.op])
-				total, _, err := r53grScan(st, h)
+				total, err := r53grScan(st, h)
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -893,7 +895,7 @@ func TestScanRoute53GlobalResolver_LaterPageDeniedKeepsPages(t *testing.T) {
 			warns := countOpWarnings(st, r53grTestPrefix+c.op)
 			h := r53grHandlers(newR53GRCalls("aws"))
 			h[c.op] = r53grFailTokenPages(r53grTestDenied, h[c.op])
-			total, _, err := r53grScan(st, h)
+			total, err := r53grScan(st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -915,7 +917,7 @@ func TestScanRoute53GlobalResolver_FailedListingRunsLaterPhases(t *testing.T) {
 	calls := newR53GRCalls("aws")
 	h := r53grHandlers(calls)
 	h["ListGlobalResolvers"] = func(any) (any, error) { return nil, r53grTestInvalid }
-	total, _, err := r53grScan(st, h)
+	total, err := r53grScan(st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	// Only the 2 access sources and 2 firewall domain lists remain.
@@ -946,7 +948,7 @@ func TestScanRoute53GlobalResolver_TransientPhaseDemotedBesideHardError(t *testi
 		h := r53grHandlers(newR53GRCalls("aws"))
 		h[op] = func(any) (any, error) { return nil, opErr }
 		h[hardOp] = func(any) (any, error) { return nil, r53grTestInvalid }
-		_, _, err := r53grScan(st, h)
+		_, err := r53grScan(st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "ValidationException")
 		got := map[string]int{}
@@ -987,7 +989,9 @@ func TestScanRoute53GlobalResolver_EmptyAccount(t *testing.T) {
 	h["ListGlobalResolvers"] = func(any) (any, error) { return &route53globalresolver.ListGlobalResolversOutput{}, nil }
 	h["ListAccessSources"] = func(any) (any, error) { return &route53globalresolver.ListAccessSourcesOutput{}, nil }
 	h["ListFirewallDomainLists"] = func(any) (any, error) { return &route53globalresolver.ListFirewallDomainListsOutput{}, nil }
-	total, inserted, err := r53grScan(st, h)
+	counted, upserts := countUpserts(st)
+	total, err := r53grScan(counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -1018,7 +1022,7 @@ func TestScanRoute53GlobalResolver_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanRoute53GlobalResolver(context.Background(), acct, "", st, testScanID)
+		_, err := scanRoute53GlobalResolver(context.Background(), acct, "", st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1028,7 +1032,7 @@ func TestScanRoute53GlobalResolver_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := r53grHandlers(newR53GRCalls("aws"))
 		h["ListHostedZoneAssociations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := r53grScan(st, h)
+		total, err := r53grScan(st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != r53grTestTotal-2 {
 			t.Errorf("total = %d; want %d", total, r53grTestTotal-2)
@@ -1038,7 +1042,7 @@ func TestScanRoute53GlobalResolver_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newR53GRCalls("aws")
 		calls.errs[r53grID("global-resolver/gr-1")] = nx
-		total, _, err := r53grScan(st, r53grHandlers(calls))
+		total, err := r53grScan(st, r53grHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != r53grTestTotal {
 			t.Errorf("total = %d; want %d", total, r53grTestTotal)
@@ -1056,7 +1060,7 @@ func TestScanRoute53GlobalResolver_GovPartition(t *testing.T) {
 	calls := newR53GRCalls(partition)
 	acct := partitionAccount(partition)
 	client := route53globalresolver.NewFromConfig(opStubConfig(r53grHandlers(calls), r53grTestDenied))
-	total, _, err := scanR53GRWithClient(context.Background(), client, acct, region, st, testScanID)
+	total, err := scanR53GRWithClient(context.Background(), client, acct, region, st, testScanID)
 	if err != nil || total != r53grTestTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, r53grTestTotal)
 	}

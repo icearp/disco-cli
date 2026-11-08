@@ -80,7 +80,7 @@ func TestScanGLComputes_StoresAnywhereFleetComputes(t *testing.T) {
 			return &gamelift.ListComputeOutput{ComputeList: []gltypes.Compute{{ComputeArn: arn("c3"), ComputeName: ptrStr("c3")}}}, nil
 		},
 	}
-	total, _, err := scanGLComputes(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
+	total, err := scanGLComputes(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 	if err != nil {
 		t.Fatalf("scanGLComputes: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestScanGLScalingPolicies_StoresHomeRegionPolicies(t *testing.T) {
 			return &gamelift.DescribeScalingPoliciesOutput{ScalingPolicies: []gltypes.ScalingPolicy{{Name: ptrStr("keep")}}}, nil
 		},
 	}
-	total, _, err := scanGLScalingPolicies(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
+	total, err := scanGLScalingPolicies(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 	if err != nil {
 		t.Fatalf("scanGLScalingPolicies: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestScanGLVpcPeeringConnections_StoresAndLinksListedFleets(t *testing.T) {
 	// Linking pcx-2 under its unlisted fleet would be gated out with a warning.
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
-	total, _, err := scanGLVpcPeeringConnections(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
+	total, err := scanGLVpcPeeringConnections(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 	if err != nil {
 		t.Fatalf("scanGLVpcPeeringConnections: %v", err)
 	}
@@ -236,25 +236,25 @@ func TestScanGLVpcPeeringConnections_StoresAndLinksListedFleets(t *testing.T) {
 type glPhaseCase struct {
 	op  string
 	typ string
-	run func(context.Context, gameLiftAPI, *store.Store) (int, int, error)
+	run func(context.Context, gameLiftAPI, *store.Store) (int, error)
 }
 
 var glNewPhases = []glPhaseCase{
-	{"ListCompute", TypeGameLiftCompute, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, int, error) {
+	{"ListCompute", TypeGameLiftCompute, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, error) {
 		fleets := []gltypes.FleetAttributes{
 			glFleet("fleet-a1", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
 			glFleet("fleet-a2", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
 		}
 		return scanGLComputes(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 	}},
-	{"DescribeScalingPolicies", TypeGameLiftScalingPolicy, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, int, error) {
+	{"DescribeScalingPolicies", TypeGameLiftScalingPolicy, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, error) {
 		fleets := []gltypes.FleetAttributes{
 			glFleet("fleet-e1", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
 			glFleet("fleet-e2", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
 		}
 		return scanGLScalingPolicies(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 	}},
-	{"DescribeVpcPeeringConnections", TypeGameLiftVpcPeeringConnection, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, int, error) {
+	{"DescribeVpcPeeringConnections", TypeGameLiftVpcPeeringConnection, func(ctx context.Context, c gameLiftAPI, st *store.Store) (int, error) {
 		return scanGLVpcPeeringConnections(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	}},
 }
@@ -278,7 +278,7 @@ func TestGameLiftFleetChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return glEmptyOutput(p.op), nil }}
-			total, _, err := p.run(context.Background(), glClient(handlers), st)
+			total, err := p.run(context.Background(), glClient(handlers), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -286,7 +286,7 @@ func TestGameLiftFleetChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/access denied warns once", func(t *testing.T) {
 			st := newTestStore(t)
 			warned := countOpWarnings(st, "gamelift:"+p.op)
-			total, _, err := p.run(context.Background(), glClient(nil), st)
+			total, err := p.run(context.Background(), glClient(nil), st)
 			if err != nil || total != 0 {
 				t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -297,7 +297,7 @@ func TestGameLiftFleetChildPhases_Errors(t *testing.T) {
 		t.Run(p.op+"/other error propagates", func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := map[string]func(any) (any, error){p.op: func(any) (any, error) { return nil, badInput }}
-			_, _, err := p.run(context.Background(), glClient(handlers), st)
+			_, err := p.run(context.Background(), glClient(handlers), st)
 			if !errors.Is(err, badInput) {
 				t.Errorf("err = %v, want the InvalidRequestException", err)
 			}
@@ -347,7 +347,7 @@ func TestScanGameLiftIn_RunsFleetChildPhasesOverListedFleets(t *testing.T) {
 	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAliases": func(any) (any, error) { return nil, aliasErr },
 	})
-	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, aliasErr) {
 		t.Errorf("err = %v, want the ListAliases error", err)
 	}
@@ -373,7 +373,7 @@ func TestScanGameLiftIn_FleetChildPhaseErrorsKeepEarlierRows(t *testing.T) {
 		phaseErrs = append(phaseErrs, perr)
 		override[p.op] = func(any) (any, error) { return nil, perr }
 	}
-	total, _, err := scanGameLiftIn(context.Background(), glClient(glTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGameLiftIn(context.Background(), glClient(glTopLevelHandlers(override)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	for i, perr := range phaseErrs {
 		if !errors.Is(err, perr) {
 			t.Errorf("err = %v, want it to carry the %s error", err, glNewPhases[i].op)
@@ -404,7 +404,7 @@ func TestScanGameLiftIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 				"ListCompute":                   func(any) (any, error) { return nil, transient },
 				"DescribeVpcPeeringConnections": func(any) (any, error) { return nil, vpcErr },
 			})
-			total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 			}
@@ -443,7 +443,7 @@ func TestScanGameLiftIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "gamelift.us-east-1.amazonaws.com", IsNotFound: true}
 		}
 	}
-	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeUnavailable {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeUnavailable", err, got)
 	}
@@ -463,7 +463,7 @@ func TestScanGameLiftIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
 		"ListCompute": func(any) (any, error) { return nil, glThrottled },
 	})
-	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
 	}
@@ -483,7 +483,7 @@ func TestScanGameLiftIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "gamelift.us-east-1.amazonaws.com", IsNotFound: true}
 		},
 	})
-	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 	}
@@ -504,7 +504,7 @@ func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
 		op, typ string
 		fleets  []gltypes.FleetAttributes
 		out     func(fleet string) any
-		run     func(context.Context, gameLiftAPI, *store.Store, []gltypes.FleetAttributes) (int, int, error)
+		run     func(context.Context, gameLiftAPI, *store.Store, []gltypes.FleetAttributes) (int, error)
 	}{
 		{"ListCompute", TypeGameLiftCompute, []gltypes.FleetAttributes{
 			glFleet("fleet-a1", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
@@ -512,7 +512,7 @@ func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
 			glFleet("fleet-a3", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
 		}, func(fleet string) any {
 			return &gamelift.ListComputeOutput{ComputeList: []gltypes.Compute{{ComputeArn: ptrStr("arn:aws:gamelift:us-east-1:123456789012:compute/" + fleet + "/c1")}}}
-		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, int, error) {
+		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, error) {
 			return scanGLComputes(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 		}},
 		{"DescribeScalingPolicies", TypeGameLiftScalingPolicy, []gltypes.FleetAttributes{
@@ -521,7 +521,7 @@ func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
 			glFleet("fleet-e3", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
 		}, func(string) any {
 			return &gamelift.DescribeScalingPoliciesOutput{ScalingPolicies: []gltypes.ScalingPolicy{{Name: ptrStr("up")}}}
-		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, int, error) {
+		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, error) {
 			return scanGLScalingPolicies(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
 		}},
 	}
@@ -554,7 +554,7 @@ func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
 					}
 				}}
 
-				total, _, err := p.run(context.Background(), glClient(handlers), st, p.fleets)
+				total, err := p.run(context.Background(), glClient(handlers), st, p.fleets)
 				if c.refuseWrite {
 					if !errors.Is(err, store.ErrStoreWrite) {
 						t.Errorf("err = %v; want store.ErrStoreWrite", err)
@@ -577,7 +577,7 @@ func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
 		st := newTestStore(t)
 		warned := countOpWarnings(st, "gamelift:DescribeVpcPeeringConnections")
 		handlers := map[string]func(any) (any, error){"DescribeVpcPeeringConnections": func(any) (any, error) { return nil, unauthorized }}
-		total, _, err := scanGLVpcPeeringConnections(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+		total, err := scanGLVpcPeeringConnections(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 		if err != nil || total != 0 {
 			t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 		}

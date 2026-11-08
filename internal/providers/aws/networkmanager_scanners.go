@@ -80,10 +80,10 @@ var nmNotFound = []string{"ResourceNotFoundException"}
 // scanNetworkManager runs only in its home region (homeRegion; us-west-2 for
 // aws) — NetworkManager is a global, single-home-region service; other regions
 // return the same data redundantly.
-func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("networkmanager")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := networkmanager.NewFromConfig(acct.cfg, func(o *networkmanager.Options) { o.Region = region })
 	return scanNMAll(ctx, client, acct, region, st, scanID)
@@ -92,44 +92,44 @@ func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.
 // scanNMAll runs every phase and joins their errors; only a store write
 // failure stops it. A failed parent phase leaves its child phases fewer
 // parents to list.
-func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
-	globalIDs, t, i, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(nmDescribeGlobalNetworksOp, t, i, ferr) {
+	globalIDs, t, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(nmDescribeGlobalNetworksOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	coreIDs, t, i, ferr := scanNMCoreNetworks(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(nmListCoreNetworksOp, t, i, ferr) {
+	coreIDs, t, ferr := scanNMCoreNetworks(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(nmListCoreNetworksOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{nmGetSitesOp, func() (int, int, error) { return scanNMSites(ctx, client, acct, region, st, scanID, globalIDs) }},
-		{nmGetDevicesOp, func() (int, int, error) { return scanNMDevices(ctx, client, acct, region, st, scanID, globalIDs) }},
-		{nmGetLinksOp, func() (int, int, error) { return scanNMLinks(ctx, client, acct, region, st, scanID, globalIDs) }},
-		{nmGetLinkAssociationsOp, func() (int, int, error) {
+		{nmGetSitesOp, func() (int, error) { return scanNMSites(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetDevicesOp, func() (int, error) { return scanNMDevices(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetLinksOp, func() (int, error) { return scanNMLinks(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetLinkAssociationsOp, func() (int, error) {
 			return scanNMLinkAssociations(ctx, client, acct, region, st, scanID, globalIDs)
 		}},
-		{nmGetCustomerGatewayAssociationsOp, func() (int, int, error) {
+		{nmGetCustomerGatewayAssociationsOp, func() (int, error) {
 			return scanNMCGWAssociations(ctx, client, acct, region, st, scanID, globalIDs)
 		}},
-		{nmGetTGWRegistrationsOp, func() (int, int, error) {
+		{nmGetTGWRegistrationsOp, func() (int, error) {
 			return scanNMTGWRegistrations(ctx, client, acct, region, st, scanID, globalIDs)
 		}},
-		{nmGetConnectionsOp, func() (int, int, error) {
+		{nmGetConnectionsOp, func() (int, error) {
 			return scanNMConnections(ctx, client, acct, region, st, scanID, globalIDs)
 		}},
-		{nmListAttachmentsOp, func() (int, int, error) { return scanNMAttachments(ctx, client, acct, region, st, scanID) }},
-		{nmListPeeringsOp, func() (int, int, error) { return scanNMPeerings(ctx, client, acct, region, st, scanID) }},
-		{nmListConnectPeersOp, func() (int, int, error) { return scanNMConnectPeers(ctx, client, acct, region, st, scanID) }},
-		{nmListPrefixListAssocsOp, func() (int, int, error) {
+		{nmListAttachmentsOp, func() (int, error) { return scanNMAttachments(ctx, client, acct, region, st, scanID) }},
+		{nmListPeeringsOp, func() (int, error) { return scanNMPeerings(ctx, client, acct, region, st, scanID) }},
+		{nmListConnectPeersOp, func() (int, error) { return scanNMConnectPeers(ctx, client, acct, region, st, scanID) }},
+		{nmListPrefixListAssocsOp, func() (int, error) {
 			return scanNMPrefixListAssocs(ctx, client, acct, region, st, scanID, coreIDs)
 		}},
 	} {
-		t, i, ferr := phase.fn()
-		if phases.addPhase(phase.op, t, i, ferr) {
+		t, ferr := phase.fn()
+		if phases.addPhase(phase.op, t, ferr) {
 			break
 		}
 	}
@@ -151,12 +151,12 @@ func nmRow(acct *account, scanID, rtype, nativeID, name string, element any, tag
 
 // scanNMGlobalNetworks stores the global networks and returns the ids of
 // those stored, for the per-global-network phases.
-func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, nmDescribeGlobalNetworksOp,
+	t, err := storeTokenList(ctx, st, acct, region, nmDescribeGlobalNetworksOp,
 		func(ctx context.Context, token *string) ([]nmtypes.GlobalNetwork, *string, error) {
 			out, err := client.DescribeGlobalNetworks(ctx, &networkmanager.DescribeGlobalNetworksInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -179,17 +179,17 @@ func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *a
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, nmDescribeGlobalNetworksOp, acct, region, &noChildID, "global network(s)", "GlobalNetworkId")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
 // scanNMCoreNetworks stores the core networks and returns the ids of those
 // stored, for the prefix-list association phase.
-func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, nmListCoreNetworksOp,
+	t, err := storeTokenList(ctx, st, acct, region, nmListCoreNetworksOp,
 		func(ctx context.Context, token *string) ([]nmtypes.CoreNetworkSummary, *string, error) {
 			out, err := client.ListCoreNetworks(ctx, &networkmanager.ListCoreNetworksInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -212,10 +212,10 @@ func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *acc
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, nmListCoreNetworksOp, acct, region, &noChildID, "core network(s)", "CoreNetworkId")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
-func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetSitesOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Site, *string, error) {
 			out, err := client.GetSites(ctx, &networkmanager.GetSitesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -233,7 +233,7 @@ func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, r
 		})
 }
 
-func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetDevicesOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Device, *string, error) {
 			out, err := client.GetDevices(ctx, &networkmanager.GetDevicesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -251,7 +251,7 @@ func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account,
 		})
 }
 
-func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetLinksOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Link, *string, error) {
 			out, err := client.GetLinks(ctx, &networkmanager.GetLinksInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -271,7 +271,7 @@ func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, r
 
 // scanNMLinkAssociations — LinkAssociation has no native ARN. Synth from
 // (deviceId, linkId).
-func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetLinkAssociationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.LinkAssociation, *string, error) {
 			out, err := client.GetLinkAssociations(ctx, &networkmanager.GetLinkAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -292,7 +292,7 @@ func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct 
 
 // scanNMCGWAssociations — CustomerGatewayAssociation synth from (gid,
 // cgwArn).
-func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetCustomerGatewayAssociationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.CustomerGatewayAssociation, *string, error) {
 			out, err := client.GetCustomerGatewayAssociations(ctx, &networkmanager.GetCustomerGatewayAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -313,7 +313,7 @@ func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *
 
 // scanNMTGWRegistrations — TransitGatewayRegistration synth from (gid,
 // tgwArn).
-func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetTGWRegistrationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.TransitGatewayRegistration, *string, error) {
 			out, err := client.GetTransitGatewayRegistrations(ctx, &networkmanager.GetTransitGatewayRegistrationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -335,7 +335,7 @@ func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct 
 // scanNMConnections enumerates device-to-device connections per global
 // network (GetConnections requires GlobalNetworkId). Connections carry a
 // native ConnectionArn.
-func scanNMConnections(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+func scanNMConnections(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmGetConnectionsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Connection, *string, error) {
 			out, err := client.GetConnections(ctx, &networkmanager.GetConnectionsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
@@ -366,7 +366,7 @@ var nmAttachmentTypes = map[nmtypes.AttachmentType]string{
 // op covering Connect/VPC/SiteToSiteVpn/DirectConnectGateway/TGWRouteTable)
 // and routes each to its disco type via AttachmentType. An AttachmentType
 // newer than this map is warned about, not stored.
-func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nmListAttachmentsOp,
 		func(ctx context.Context, token *string) ([]nmtypes.Attachment, *string, error) {
 			out, err := client.ListAttachments(ctx, &networkmanager.ListAttachmentsInput{NextToken: token, MaxResults: nmMaxResults})
@@ -391,7 +391,7 @@ func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *acco
 
 // scanNMPeerings stores the transit gateway peerings, the only PeeringType
 // disco maps; a newer type is warned about, not stored.
-func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nmListPeeringsOp,
 		func(ctx context.Context, token *string) ([]nmtypes.Peering, *string, error) {
 			out, err := client.ListPeerings(ctx, &networkmanager.ListPeeringsInput{NextToken: token, MaxResults: nmMaxResults})
@@ -413,7 +413,7 @@ func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account
 		})
 }
 
-func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, nmListConnectPeersOp,
 		func(ctx context.Context, token *string) ([]nmtypes.ConnectPeerSummary, *string, error) {
 			out, err := client.ListConnectPeers(ctx, &networkmanager.ListConnectPeersInput{NextToken: token, MaxResults: nmMaxResults})
@@ -432,7 +432,7 @@ func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *acc
 		})
 }
 
-func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, coreIDs []string) (int, int, error) {
+func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, coreIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, nmListPrefixListAssocsOp, nmNotFound, coreIDs,
 		func(ctx context.Context, cid string, token *string) ([]nmtypes.PrefixListAssociation, *string, error) {
 			out, err := client.ListCoreNetworkPrefixListAssociations(ctx, &networkmanager.ListCoreNetworkPrefixListAssociationsInput{CoreNetworkId: &cid, NextToken: token, MaxResults: nmMaxResults})

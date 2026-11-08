@@ -66,7 +66,9 @@ func TestScanApplicationAutoScalingScalableTargets(t *testing.T) {
 			}}},
 		},
 	}
-	total, inserted, _, err := scanApplicationAutoScalingScalableTargets(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, _, err := scanApplicationAutoScalingScalableTargets(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationAutoScalingScalableTargets: %v", err)
 	}
@@ -99,7 +101,9 @@ func TestScanApplicationAutoScalingScalingPolicies(t *testing.T) {
 			}}},
 		},
 	}
-	total, inserted, err := scanApplicationAutoScalingScalingPolicies(context.Background(), stub, acct, region, st, testScanID, nil)
+	counted, upserts := countUpserts(st)
+	total, err := scanApplicationAutoScalingScalingPolicies(context.Background(), stub, acct, region, counted, testScanID, nil)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationAutoScalingScalingPolicies: %v", err)
 	}
@@ -223,7 +227,7 @@ func scanApplicationAutoScalingWith(t *testing.T, st *store.Store, handlers map[
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, aasTestDenied)
-	total, _, err := scanApplicationAutoScaling(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanApplicationAutoScaling(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

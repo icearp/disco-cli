@@ -89,7 +89,7 @@ func scanLakeFormationTopLevel(t *testing.T, st *store.Store, handlers map[strin
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lfDenied)
-	total, _, err := scanLakeFormation(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLakeFormation(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

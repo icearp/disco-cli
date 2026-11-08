@@ -32,36 +32,33 @@ type s3ExpressControlAPI interface {
 // scanS3Express discovers S3 Express directory buckets, per-bucket policies,
 // and per-bucket access points. DirectoryBucket/BucketPolicy come from the s3
 // SDK; access points come from s3control's ListAccessPointsForDirectoryBuckets.
-func scanS3Express(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3Express(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	s3c := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
 	ctlc := newS3ControlClient(acct.cfg, region)
 
-	bucketNames, t, i, ferr := scanS3EDirectoryBuckets(ctx, s3c, acct, region, st, scanID)
+	bucketNames, t, ferr := scanS3EDirectoryBuckets(ctx, s3c, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, name := range bucketNames {
-		t, i, ferr = scanS3EBucketPolicy(ctx, s3c, acct, region, st, scanID, name)
+		t, ferr = scanS3EBucketPolicy(ctx, s3c, acct, region, st, scanID, name)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 
-		t, i, ferr = scanS3EAccessPoints(ctx, ctlc, acct, region, st, scanID, name)
+		t, ferr = scanS3EAccessPoints(ctx, ctlc, acct, region, st, scanID, name)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanS3EDirectoryBuckets(ctx context.Context, client s3ExpressS3API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanS3EDirectoryBuckets(ctx context.Context, client s3ExpressS3API, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var batch []*store.Resource
 	var names []string
 	var continuation *string
@@ -69,9 +66,9 @@ func scanS3EDirectoryBuckets(ctx context.Context, client s3ExpressS3API, acct *a
 		out, err := client.ListDirectoryBuckets(ctx, &s3.ListDirectoryBucketsInput{ContinuationToken: continuation})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3:ListDirectoryBuckets", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "s3:ListDirectoryBuckets", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("s3:ListDirectoryBuckets: %w", err)
+			return nil, 0, fmt.Errorf("s3:ListDirectoryBuckets: %w", err)
 		}
 		for _, b := range out.Buckets {
 			arn := sv(b.BucketArn)
@@ -95,21 +92,21 @@ func scanS3EDirectoryBuckets(ctx context.Context, client s3ExpressS3API, acct *a
 		}
 		continuation = out.ContinuationToken
 	}
-	t, i, err := upsertBatch(st, batch, "s3express directory-buckets")
-	return names, t, i, err
+	t, err := upsertBatch(st, batch, "s3express directory-buckets")
+	return names, t, err
 }
 
-func scanS3EBucketPolicy(ctx context.Context, client s3ExpressS3API, acct *account, region string, st *store.Store, scanID string, bucketName string) (int, int, error) {
+func scanS3EBucketPolicy(ctx context.Context, client s3ExpressS3API, acct *account, region string, st *store.Store, scanID string, bucketName string) (int, error) {
 	bn := bucketName
 	out, err := client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{Bucket: &bn})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "NoSuchBucketPolicy") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("s3:GetBucketPolicy(directory): %w", err)
+		return 0, fmt.Errorf("s3:GetBucketPolicy(directory): %w", err)
 	}
 	if sv(out.Policy) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "s3express", region, acct.ID, "bucket/"+bn+"/policy")
 	label := "policy"
@@ -122,7 +119,7 @@ func scanS3EBucketPolicy(ctx context.Context, client s3ExpressS3API, acct *accou
 	return upsertBatch(st, []*store.Resource{r}, "s3express bucket-policies")
 }
 
-func scanS3EAccessPoints(ctx context.Context, client s3ExpressControlAPI, acct *account, region string, st *store.Store, scanID string, bucketName string) (int, int, error) {
+func scanS3EAccessPoints(ctx context.Context, client s3ExpressControlAPI, acct *account, region string, st *store.Store, scanID string, bucketName string) (int, error) {
 	bn := bucketName
 	aid := acct.ID
 	var batch []*store.Resource
@@ -135,9 +132,9 @@ func scanS3EAccessPoints(ctx context.Context, client s3ExpressControlAPI, acct *
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForDirectoryBuckets", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForDirectoryBuckets", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessPointsForDirectoryBuckets: %w", err)
+			return 0, fmt.Errorf("s3control:ListAccessPointsForDirectoryBuckets: %w", err)
 		}
 		for _, ap := range out.AccessPointList {
 			arn := sv(ap.AccessPointArn)

@@ -312,7 +312,7 @@ func newGDFixtureCalls() *gdCalls {
 
 // gdScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func gdScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func gdScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", "unstubbed op"))
 	return scanGuardDuty(ctx, acct, testRegion, st, testScanID)
@@ -338,7 +338,9 @@ func TestScanGuardDuty_StoresEveryRowWithItsTags(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newGDFixtureCalls()
 
-	total, inserted, err := gdScan(context.Background(), st, gdHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := gdScan(context.Background(), counted, gdHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -431,7 +433,7 @@ func TestScanGuardDuty_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
 
-	if _, _, err := scanGuardDuty(context.Background(), acct, govRegion, st, testScanID); err != nil {
+	if _, err := scanGuardDuty(context.Background(), acct, govRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := []string{d + "/publishingdestination/pd-g"}
@@ -463,7 +465,9 @@ func TestScanGuardDuty_EmptyListings(t *testing.T) {
 	h["ListDetectors"] = calls.answer("ListDetectors", func(any) any { return &guardduty.ListDetectorsOutput{} })
 	h["ListMalwareProtectionPlans"] = calls.answer("ListMalwareProtectionPlans", func(any) any { return &guardduty.ListMalwareProtectionPlansOutput{} })
 
-	total, inserted, err := gdScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := gdScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -491,7 +495,7 @@ func TestScanGuardDuty_EmptyDetectorListings(t *testing.T) {
 		h[op] = calls.answer(op, func(any) any { return out })
 	}
 
-	total, _, err := gdScan(context.Background(), st, h)
+	total, err := gdScan(context.Background(), st, h)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2 (detector, organization configuration), nil", total, err)
 	}
@@ -500,17 +504,17 @@ func TestScanGuardDuty_EmptyDetectorListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGuardDuty_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newGDFixtureCalls()
-	if _, _, err := gdScan(context.Background(), st, gdHandlers(calls)); err != nil {
+	if _, err := gdScan(context.Background(), st, gdHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+	total, err := gdScan(context.Background(), st, gdHandlers(calls))
 	if err != nil || total != 23 {
 		t.Errorf("rescan = %d, %v; want 23, nil", total, err)
 	}
@@ -555,7 +559,7 @@ func TestScanGuardDuty_TagReadFailures(t *testing.T) {
 					calls := newGDFixtureCalls()
 					calls.errs[target.op+" "+target.key] = c.err
 
-					total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+					total, err := gdScan(context.Background(), st, gdHandlers(calls))
 					switch {
 					case dropped || c.outcome == 0:
 						if err != nil {
@@ -605,7 +609,7 @@ func TestScanGuardDuty_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs["ListTagsForResource "+gdDetARN("d-t")+"/publishingdestination/pd-t"] = crThrottled
 	calls.errs["GetMalwareProtectionPlan mpp-b"] = gdBadRequest
 
-	_, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+	_, err := gdScan(context.Background(), st, gdHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -629,7 +633,7 @@ func TestScanGuardDuty_GetThrottleDemotedBesideHardError(t *testing.T) {
 			calls.errs[c.op+" "+c.throttled] = crThrottled
 			calls.errs[c.op+" "+c.failed] = gdBadRequest
 
-			_, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+			_, err := gdScan(context.Background(), st, gdHandlers(calls))
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "BadRequestException")
 			if *warns != 1 {
@@ -663,7 +667,7 @@ func TestStoreGDDetectorSets_EndedCtxIsThePhaseError(t *testing.T) {
 	if failed {
 		t.Fatal("storeWriteFailed = true; want false")
 	}
-	if _, _, err := p.result(st, acct, testRegion); !errors.Is(err, context.Canceled) {
+	if _, err := p.result(st, acct, testRegion); !errors.Is(err, context.Canceled) {
 		t.Errorf("phase err = %v; want context.Canceled", err)
 	}
 }
@@ -720,7 +724,7 @@ func TestScanGuardDuty_GetFailuresKeepTheListedRow(t *testing.T) {
 					calls := newGDFixtureCalls()
 					calls.errs[target.op+" "+target.key] = c.err
 
-					total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+					total, err := gdScan(context.Background(), st, gdHandlers(calls))
 					if c.outcome == 0 {
 						if err != nil {
 							t.Fatalf("err = %v; want nil", err)
@@ -783,7 +787,7 @@ func TestScanGuardDuty_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := gdHandlers(newGDFixtureCalls())
 			h[op] = func(any) (any, error) { return nil, apiErr("AccessDeniedException", "denied") }
 
-			total, _, err := gdScan(context.Background(), st, h)
+			total, err := gdScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -810,7 +814,7 @@ func TestScanGuardDuty_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		st := newTestStore(t)
 		h := gdHandlers(newGDFixtureCalls())
 		h["ListDetectors"] = failOnCall(2, gdBadRequest, h["ListDetectors"])
-		total, _, err := gdScan(context.Background(), st, h)
+		total, err := gdScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		// d-t's 9 rows, the plans, the associations and the rule
@@ -826,7 +830,7 @@ func TestScanGuardDuty_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		st := newTestStore(t)
 		h := gdHandlers(newGDFixtureCalls())
 		h["ListMalwareProtectionPlans"] = failOnCall(2, gdBadRequest, h["ListMalwareProtectionPlans"])
-		total, _, err := gdScan(context.Background(), st, h)
+		total, err := gdScan(context.Background(), st, h)
 		assertAPICode(t, err, "BadRequestException")
 		if total != 22 {
 			t.Errorf("total = %d; want 22", total)
@@ -847,7 +851,7 @@ func TestScanGuardDuty_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 				}
 				return next(in)
 			}
-			total, _, err := gdScan(context.Background(), st, h)
+			total, err := gdScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "BadRequestException")
 			if total != 22 {
@@ -884,7 +888,7 @@ func TestScanGuardDuty_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			_, _, err := gdScan(context.Background(), st, h)
+			_, err := gdScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -911,7 +915,7 @@ func TestScanGuardDuty_FailedWriteStopsWithoutWarning(t *testing.T) {
 			calls := newGDFixtureCalls()
 			calls.errs[c.deny] = apiErr("AccessDeniedException", "denied")
 
-			_, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+			_, err := gdScan(context.Background(), st, gdHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -952,7 +956,7 @@ func TestScanGuardDuty_UnstorableItemsWarn(t *testing.T) {
 			h := gdHandlers(calls)
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			if _, _, err := gdScan(context.Background(), st, h); err != nil {
+			if _, err := gdScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -978,7 +982,7 @@ func TestScanGuardDuty_MemberRestrictedEntitySets(t *testing.T) {
 	for _, op := range []string{"ListThreatEntitySets", "ListTrustedEntitySets"} {
 		h[op] = func(any) (any, error) { return nil, gdMemberError }
 	}
-	total, _, err := gdScan(context.Background(), st, h)
+	total, err := gdScan(context.Background(), st, h)
 	if err != nil || total != 19 || *warns != 0 {
 		t.Errorf("scan = %d, %v, warnings %d; want 19, nil, 0", total, err, *warns)
 	}
@@ -987,7 +991,7 @@ func TestScanGuardDuty_MemberRestrictedEntitySets(t *testing.T) {
 		t.Run(op, func(t *testing.T) {
 			h := gdHandlers(newGDFixtureCalls())
 			h[op] = func(any) (any, error) { return nil, gdMemberError }
-			_, _, err := gdScan(context.Background(), newTestStore(t), h)
+			_, err := gdScan(context.Background(), newTestStore(t), h)
 			assertAPICode(t, err, "BadRequestException")
 		})
 	}
@@ -1010,7 +1014,7 @@ func TestScanGuardDuty_MemberRestrictedSetGetsKeepTheRow(t *testing.T) {
 		calls.errs[set.key] = gdMemberError
 	}
 
-	total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+	total, err := gdScan(context.Background(), st, gdHandlers(calls))
 	if err != nil || total != 23 || *warns != 0 {
 		t.Fatalf("scan = %d, %v, warnings %d; want 23, nil, 0", total, err, *warns)
 	}
@@ -1041,7 +1045,7 @@ func TestScanGuardDuty_MemberRestrictedGetIPSetKeepsTheRow(t *testing.T) {
 			calls := newGDFixtureCalls()
 			calls.errs[c.op+" "+c.key] = gdMemberError
 
-			total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+			total, err := gdScan(context.Background(), st, gdHandlers(calls))
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "BadRequestException")
@@ -1077,7 +1081,7 @@ func TestScanGuardDuty_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := gdScan(ctx, st, h)
+	_, err := gdScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1113,7 +1117,7 @@ func TestScanGuardDuty_Unreachable(t *testing.T) {
 		calls := newGDFixtureCalls()
 		h := gdHandlers(calls)
 		h["ListDetectors"] = func(any) (any, error) { return nil, nx }
-		total, _, err := gdScan(context.Background(), st, h)
+		total, err := gdScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListMalwareProtectionPlans") != 0 {
 			t.Errorf("total, ListMalwareProtectionPlans calls = %d, %d; want 0, 0", total, calls.count("ListMalwareProtectionPlans"))
@@ -1134,7 +1138,7 @@ func TestScanGuardDuty_Unreachable(t *testing.T) {
 			h[op] = calls.answer(op, func(any) any { return out })
 		}
 		h["DescribeOrganizationConfiguration"] = func(any) (any, error) { return nil, gdBadRequest }
-		total, _, err := gdScan(context.Background(), st, h)
+		total, err := gdScan(context.Background(), st, h)
 		if total != 4 {
 			t.Errorf("total = %d; want 4: the detector kept as its listed element, its filter, IP set and member", total)
 		}

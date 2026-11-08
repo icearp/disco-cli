@@ -34,11 +34,11 @@ type vmssVMEntry struct {
 //  1. VMSS (subscription-wide list)
 //  2. VMSS extensions and VMSS VMs (per VMSS, fanned out concurrently)
 //  3. VMSS VM extensions (per VMSS VM instance, fanned out concurrently)
-func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	// Phase A: list all VMSS in the subscription.
 	vmssClient, err := armcompute.NewVirtualMachineScaleSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetsClient: %w", err)
 	}
 
 	var (
@@ -52,9 +52,9 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSets.ListAll", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSets.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSets.ListAll: %w", err)
+			return 0, fmt.Errorf("armcompute:VirtualMachineScaleSets.ListAll: %w", err)
 		}
 		for _, v := range page.Value {
 			if v.ID == nil {
@@ -88,25 +88,24 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 	}
 
 	if len(vmssBatch) > 0 {
-		n, err := st.UpsertResources(vmssBatch)
+		_, err := st.UpsertResources(vmssBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure VMSS: %w", err)
+			return 0, fmt.Errorf("upsert Azure VMSS: %w", err)
 		}
 		total += len(vmssBatch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(vmssPairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure VMSS: %w", err)
+			return 0, fmt.Errorf("closure Azure VMSS: %w", err)
 		}
 	}
 	if len(vmssEntries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase B: for each VMSS, fan out extension and VM scans concurrently.
 	var (
-		bMu               sync.Mutex
-		bTotal, bInserted int
-		vmEntries         []vmssVMEntry
+		bMu       sync.Mutex
+		bTotal    int
+		vmEntries []vmssVMEntry
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	gB, gBCtx := errgroup.WithContext(ctx)
@@ -118,36 +117,34 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 			}
 			defer sem.Release(1)
 
-			extT, extN, extErr := scanVMSSExtensions(gBCtx, sub, cred, st, scanID, e)
+			extT, extErr := scanVMSSExtensions(gBCtx, sub, cred, st, scanID, e)
 			if extErr != nil {
 				return extErr
 			}
-			vmT, vmN, vms, vmErr := scanVMSSVMs(gBCtx, sub, cred, st, scanID, e)
+			vmT, vms, vmErr := scanVMSSVMs(gBCtx, sub, cred, st, scanID, e)
 			if vmErr != nil {
 				return vmErr
 			}
 
 			bMu.Lock()
 			bTotal += extT + vmT
-			bInserted += extN + vmN
 			vmEntries = append(vmEntries, vms...)
 			bMu.Unlock()
 			return nil
 		})
 	}
 	if err := gB.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	total += bTotal
-	inserted += bInserted
 
 	// Phase C: fan out VM extension scans per VMSS VM instance.
 	if len(vmEntries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 	var (
-		cMu               sync.Mutex
-		cTotal, cInserted int
+		cMu    sync.Mutex
+		cTotal int
 	)
 	sem2 := semaphore.NewWeighted(maxConcurrentFanout)
 	gC, gCCtx := errgroup.WithContext(ctx)
@@ -158,30 +155,28 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 				return err
 			}
 			defer sem2.Release(1)
-			t, n, e := scanVMSSVMExtensions(gCCtx, sub, cred, st, scanID, v)
+			t, e := scanVMSSVMExtensions(gCCtx, sub, cred, st, scanID, v)
 			if e != nil {
 				return e
 			}
 			cMu.Lock()
 			cTotal += t
-			cInserted += n
 			cMu.Unlock()
 			return nil
 		})
 	}
 	if err := gC.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	total += cTotal
-	inserted += cInserted
 
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, err error) {
+func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total int, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetExtensionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetExtensionsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -191,9 +186,9 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.Toke
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetExtensions.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetExtensions.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSetExtensions.List %s/%s: %w", v.rg, v.name, err)
+			return 0, fmt.Errorf("armcompute:VirtualMachineScaleSetExtensions.List %s/%s: %w", v.rg, v.name, err)
 		}
 		for _, ext := range page.Value {
 			if ext.ID == nil {
@@ -217,23 +212,22 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.Toke
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure VMSS extensions %s: %w", v.name, err)
+			return 0, fmt.Errorf("upsert Azure VMSS extensions %s: %w", v.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure VMSS extensions %s: %w", v.name, err)
+			return 0, fmt.Errorf("closure Azure VMSS extensions %s: %w", v.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, vms []vmssVMEntry, err error) {
+func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total int, vms []vmssVMEntry, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetVMsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMsClient: %w", err)
+		return 0, nil, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -243,9 +237,9 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMs.List", sub.ID, err)
+				return 0, nil, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMs.List", sub.ID, err)
 			}
-			return 0, 0, nil, fmt.Errorf("armcompute:VirtualMachineScaleSetVMs.List %s/%s: %w", v.rg, v.name, err)
+			return 0, nil, fmt.Errorf("armcompute:VirtualMachineScaleSetVMs.List %s/%s: %w", v.rg, v.name, err)
 		}
 		for _, vm := range page.Value {
 			if vm.ID == nil || vm.InstanceID == nil {
@@ -279,31 +273,30 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert Azure VMSS VMs %s: %w", v.name, err)
+			return 0, nil, fmt.Errorf("upsert Azure VMSS VMs %s: %w", v.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, nil, fmt.Errorf("closure Azure VMSS VMs %s: %w", v.name, err)
+			return 0, nil, fmt.Errorf("closure Azure VMSS VMs %s: %w", v.name, err)
 		}
 	}
-	return total, inserted, vms, nil
+	return total, vms, nil
 }
 
-func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, vm vmssVMEntry) (total, inserted int, err error) {
+func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, vm vmssVMEntry) (total int, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetVMExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMExtensionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMExtensionsClient: %w", err)
 	}
 
 	resp, err := client.List(ctx, vm.rg, vm.vmssName, vm.instanceID, nil)
 	if err != nil {
 		if isSkippableScanError(err) {
-			return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMExtensions.List", sub.ID, err)
+			return 0, skipIfAccessDenied(st, "armcompute:VirtualMachineScaleSetVMExtensions.List", sub.ID, err)
 		}
-		return 0, 0, fmt.Errorf("armcompute:VirtualMachineScaleSetVMExtensions.List %s/%s/%s: %w", vm.rg, vm.vmssName, vm.instanceID, err)
+		return 0, fmt.Errorf("armcompute:VirtualMachineScaleSetVMExtensions.List %s/%s/%s: %w", vm.rg, vm.vmssName, vm.instanceID, err)
 	}
 
 	var batch []*store.Resource
@@ -329,15 +322,14 @@ func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.To
 		pairs = append(pairs, [2]string{extID, vm.discoID})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure VMSS VM extensions: %w", err)
+			return 0, fmt.Errorf("upsert Azure VMSS VM extensions: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure VMSS VM extensions: %w", err)
+			return 0, fmt.Errorf("closure Azure VMSS VM extensions: %w", err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

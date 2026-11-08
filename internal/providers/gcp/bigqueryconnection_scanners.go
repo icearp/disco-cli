@@ -37,21 +37,21 @@ func init() {
 // connection types; Cloud SQL/Spanner-backed connections are always regional
 // and fully covered), versus the wildcard's unknown-but-plausibly-total
 // failure mode. Revisit if bigqueryconnection later exposes Locations.List.
-func scanBQConnections(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBQConnections(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigqueryconnection.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("bigqueryconnection client: %w", err)
+		return 0, fmt.Errorf("bigqueryconnection client: %w", err)
 	}
 	return scanBQConnectionsWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanBQConnectionsWithClient is the test seam for scanBQConnections — takes
 // the pre-built client directly so tests can point it at a fake server.
-func scanBQConnectionsWithClient(ctx context.Context, svc *bigqueryconnection.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBQConnectionsWithClient(ctx context.Context, svc *bigqueryconnection.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	regions, err := gcpRegions(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return scanBQConnectionsIn(ctx, svc, p, st, scanID, regions)
 }
@@ -59,7 +59,7 @@ func scanBQConnectionsWithClient(ctx context.Context, svc *bigqueryconnection.Se
 // scanBQConnectionsIn is the testable core of scanBQConnectionsWithClient:
 // takes a pre-resolved region slice instead of calling gcpRegions, so tests
 // can inject an arbitrary region list without faking the Compute regions API.
-func scanBQConnectionsIn(ctx context.Context, svc *bigqueryconnection.Service, p *project, st *store.Store, scanID string, regions []string) (total, inserted int, err error) {
+func scanBQConnectionsIn(ctx context.Context, svc *bigqueryconnection.Service, p *project, st *store.Store, scanID string, regions []string) (total int, err error) {
 	return gcpRegionFanoutScanIn(
 		ctx, p, st, fanoutMed, regions, "bigqueryconnection:connections.list",
 		func(region string) pager[bigqueryconnection.ListConnectionsResponse] {

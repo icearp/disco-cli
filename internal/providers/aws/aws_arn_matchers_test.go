@@ -432,7 +432,7 @@ func TestScanIAMAuthDetails_ManagedFlagEveryPartition(t *testing.T) {
 				"ListPolicies": func(any) (any, error) { return &iam.ListPoliciesOutput{}, nil },
 			}
 			client := iam.NewFromConfig(opStubConfig(handlers, iamDenied))
-			if _, _, err := scanIAMAuthDetails(context.Background(), client, acct, st, testScanID); err != nil {
+			if _, err := scanIAMAuthDetails(context.Background(), client, acct, st, testScanID); err != nil {
 				t.Fatalf("scanIAMAuthDetails: %v", err)
 			}
 			rows := rowsByNativeID(t, st, TypeIAMPolicy)

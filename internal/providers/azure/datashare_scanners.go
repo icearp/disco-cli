@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDataShare discovers Azure Data Share accounts.
-func scanDataShare(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataShare(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdatashare.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdatashare:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armdatashare:NewAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdatashare:Accounts.ListBySubscription", TypeDataShareAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

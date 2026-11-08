@@ -62,17 +62,17 @@ const (
 // is what makes the version chain bump only on a real quota change. Any future
 // field that looks like a limit and moves like a gauge belongs in the
 // attributes remainder, which the store's change comparison does not read.
-func scanCloudQuotas(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudQuotas(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	su, err := serviceusage.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("serviceusage:NewService: %w", err)
+		return 0, fmt.Errorf("serviceusage:NewService: %w", err)
 	}
 	// REST rather than gRPC: it shares the HTTP transport and the fake-server
 	// test idiom every other GCP scanner uses.
 	qc, err := cloudquotas.NewRESTClient(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudquotas:NewRESTClient: %w", err)
+		return 0, fmt.Errorf("cloudquotas:NewRESTClient: %w", err)
 	}
 	defer func() { _ = qc.Close() }()
 	return scanCloudQuotasWithClients(ctx, p, st, scanID, su, qc)
@@ -80,16 +80,16 @@ func scanCloudQuotas(ctx context.Context, p *project, st *store.Store, scanID st
 
 // scanCloudQuotasWithClients is the scanner body, taking both clients so tests
 // can point concrete ones at a fake server.
-func scanCloudQuotasWithClients(ctx context.Context, p *project, st *store.Store, scanID string, su *serviceusage.Service, qc *cloudquotas.Client) (total, inserted int, err error) {
+func scanCloudQuotasWithClients(ctx context.Context, p *project, st *store.Store, scanID string, su *serviceusage.Service, qc *cloudquotas.Client) (total int, err error) {
 	services, err := enabledServiceNames(ctx, su, p)
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, quotaServiceName, p.ID, err)
+			return 0, skipIfDenied(st, quotaServiceName, p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	if len(services) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	var (
@@ -114,19 +114,19 @@ func scanCloudQuotasWithClients(ctx context.Context, p *project, st *store.Store
 		mu.Unlock()
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := outcome.resolve(st, p.ID, len(services)); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(rows) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertQuotas(rows)
+	_, err = st.UpsertQuotas(rows)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert quotas: %w", err)
+		return 0, fmt.Errorf("upsert quotas: %w", err)
 	}
-	return len(rows), n, nil
+	return len(rows), nil
 }
 
 // enabledServiceNames returns the bare service names enabled in the project,

@@ -30,35 +30,34 @@ type resourceExplorer2API interface {
 
 // scanResourceExplorer2 discovers ResourceExplorer2 indexes, views, and the
 // default-view association (per-region singleton).
-func scanResourceExplorer2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanResourceExplorer2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := resourceexplorer2.NewFromConfig(acct.cfg, func(o *resourceexplorer2.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanRE2Indexes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRE2Views(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRE2DefaultView(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRE2ManagedViews(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanRE2Indexes(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanRE2Views(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanRE2DefaultView(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanRE2ManagedViews(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanRE2Indexes(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRE2Indexes(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := resourceexplorer2.NewListIndexesPaginator(client, &resourceexplorer2.ListIndexesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resourceexplorer2:ListIndexes", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "resourceexplorer2:ListIndexes", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("resourceexplorer2:ListIndexes: %w", err)
+			return 0, fmt.Errorf("resourceexplorer2:ListIndexes: %w", err)
 		}
 		for _, idx := range out.Indexes {
 			arn := sv(idx.Arn)
@@ -78,16 +77,16 @@ func scanRE2Indexes(ctx context.Context, client resourceExplorer2API, acct *acco
 	return upsertBatch(st, batch, "resource-explorer-2 indexes")
 }
 
-func scanRE2Views(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRE2Views(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := resourceexplorer2.NewListViewsPaginator(client, &resourceexplorer2.ListViewsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resourceexplorer2:ListViews", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "resourceexplorer2:ListViews", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("resourceexplorer2:ListViews: %w", err)
+			return 0, fmt.Errorf("resourceexplorer2:ListViews: %w", err)
 		}
 		for _, viewArn := range out.Views {
 			if viewArn == "" {
@@ -121,16 +120,16 @@ func re2ViewName(arn string) string {
 
 // scanRE2DefaultView captures the per-(account, region) default-view
 // singleton. Synth ARN: arn:{p}:resource-explorer-2:{r}:{a}:default-view-association.
-func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetDefaultView(ctx, &resourceexplorer2.GetDefaultViewInput{})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("resourceexplorer2:GetDefaultView: %w", err)
+		return 0, fmt.Errorf("resourceexplorer2:GetDefaultView: %w", err)
 	}
 	if sv(out.ViewArn) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "resource-explorer-2", region, acct.ID, "default-view-association")
 	label := "default-view-association"
@@ -145,16 +144,16 @@ func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *
 
 // scanRE2ManagedViews lists AWS-managed views (ListManagedViews returns ARNs);
 // sets ManagedByProvider since AWS manages these.
-func scanRE2ManagedViews(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRE2ManagedViews(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := resourceexplorer2.NewListManagedViewsPaginator(client, &resourceexplorer2.ListManagedViewsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resourceexplorer2:ListManagedViews", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "resourceexplorer2:ListManagedViews", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("resourceexplorer2:ListManagedViews: %w", err)
+			return 0, fmt.Errorf("resourceexplorer2:ListManagedViews: %w", err)
 		}
 		for _, viewArn := range out.ManagedViews {
 			if viewArn == "" {

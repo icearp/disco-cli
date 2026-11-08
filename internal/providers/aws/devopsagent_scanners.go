@@ -28,35 +28,32 @@ type devOpsAgentAPI interface {
 // scanDevOpsAgent discovers DevOpsAgent agent spaces, services, and per-space
 // associations. PrivateConnection skipped: SDK has no List op (Create/Delete/
 // Describe only). List APIs return raw IDs — synthesize ARNs.
-func scanDevOpsAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevOpsAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := devopsagent.NewFromConfig(acct.cfg, func(o *devopsagent.Options) { o.Region = region })
 
-	spaceIDs, t, i, ferr := scanDOAAgentSpaces(ctx, client, acct, region, st, scanID)
+	spaceIDs, t, ferr := scanDOAAgentSpaces(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanDOAServices(ctx, client, acct, region, st, scanID)
+	t, ferr = scanDOAServices(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, sid := range spaceIDs {
-		t, i, ferr = scanDOAAssociations(ctx, client, acct, region, st, scanID, sid)
+		t, ferr = scanDOAAssociations(ctx, client, acct, region, st, scanID, sid)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanDOAAgentSpaces(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanDOAAgentSpaces(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := devopsagent.NewListAgentSpacesPaginator(client, &devopsagent.ListAgentSpacesInput{})
 	var batch []*store.Resource
 	var ids []string
@@ -64,9 +61,9 @@ func scanDOAAgentSpaces(ctx context.Context, client devOpsAgentAPI, acct *accoun
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "devopsagent:ListAgentSpaces", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "devopsagent:ListAgentSpaces", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("devopsagent:ListAgentSpaces: %w", err)
+			return nil, 0, fmt.Errorf("devopsagent:ListAgentSpaces: %w", err)
 		}
 		for _, a := range out.AgentSpaces {
 			id := sv(a.AgentSpaceId)
@@ -83,20 +80,20 @@ func scanDOAAgentSpaces(ctx context.Context, client devOpsAgentAPI, acct *accoun
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "devopsagent agent-spaces")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "devopsagent agent-spaces")
+	return ids, t, err
 }
 
-func scanDOAServices(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDOAServices(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := devopsagent.NewListServicesPaginator(client, &devopsagent.ListServicesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "devopsagent:ListServices", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "devopsagent:ListServices", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("devopsagent:ListServices: %w", err)
+			return 0, fmt.Errorf("devopsagent:ListServices: %w", err)
 		}
 		for _, s := range out.Services {
 			id := sv(s.ServiceId)
@@ -115,7 +112,7 @@ func scanDOAServices(ctx context.Context, client devOpsAgentAPI, acct *account, 
 	return upsertBatch(st, batch, "devopsagent services")
 }
 
-func scanDOAAssociations(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string, agentSpaceID string) (int, int, error) {
+func scanDOAAssociations(ctx context.Context, client devOpsAgentAPI, acct *account, region string, st *store.Store, scanID string, agentSpaceID string) (int, error) {
 	asid := agentSpaceID
 	pager := devopsagent.NewListAssociationsPaginator(client, &devopsagent.ListAssociationsInput{AgentSpaceId: &asid})
 	var batch []*store.Resource
@@ -123,9 +120,9 @@ func scanDOAAssociations(ctx context.Context, client devOpsAgentAPI, acct *accou
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "devopsagent:ListAssociations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "devopsagent:ListAssociations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("devopsagent:ListAssociations: %w", err)
+			return 0, fmt.Errorf("devopsagent:ListAssociations: %w", err)
 		}
 		for _, a := range out.Associations {
 			aid := sv(a.AssociationId)

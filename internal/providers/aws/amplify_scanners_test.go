@@ -208,7 +208,9 @@ func ampScan(ctx context.Context, st *store.Store, fail map[string]map[string]er
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, ampDenied)
-	run.total, run.inserted, run.err = scanAmplify(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	run.total, run.err = scanAmplify(ctx, acct, testRegion, counted, testScanID)
+	run.inserted = upserts()
 	return run
 }
 

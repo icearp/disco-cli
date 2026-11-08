@@ -25,26 +25,24 @@ type pcaConnectorSCEPAPI interface {
 
 // scanPCAConnectorSCEP discovers Private CA Connector for SCEP connectors
 // and per-connector challenges.
-func scanPCAConnectorSCEP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPCAConnectorSCEP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := pcaconnectorscep.NewFromConfig(acct.cfg, func(o *pcaconnectorscep.Options) { o.Region = region })
 
-	connARNs, t, i, ferr := scanPCASCEPConnectors(ctx, client, acct, region, st, scanID)
+	connARNs, t, ferr := scanPCASCEPConnectors(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanPCASCEPChallenges(ctx, client, connARNs, acct, region, st, scanID)
+	t, ferr = scanPCASCEPChallenges(ctx, client, connARNs, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanPCASCEPConnectors(ctx context.Context, client pcaConnectorSCEPAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanPCASCEPConnectors(ctx context.Context, client pcaConnectorSCEPAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var batch []*store.Resource
 	var arns []string
 	var nextToken *string
@@ -52,9 +50,9 @@ func scanPCASCEPConnectors(ctx context.Context, client pcaConnectorSCEPAPI, acct
 		out, err := client.ListConnectors(ctx, &pcaconnectorscep.ListConnectorsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "pca-connector-scep:ListConnectors", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "pca-connector-scep:ListConnectors", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("pca-connector-scep:ListConnectors: %w", err)
+			return nil, 0, fmt.Errorf("pca-connector-scep:ListConnectors: %w", err)
 		}
 		for _, c := range out.Connectors {
 			arn := sv(c.Arn)
@@ -76,11 +74,11 @@ func scanPCASCEPConnectors(ctx context.Context, client pcaConnectorSCEPAPI, acct
 		}
 		nextToken = out.NextToken
 	}
-	t, i, err := upsertBatch(st, batch, "pca-connector-scep connectors")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "pca-connector-scep connectors")
+	return arns, t, err
 }
 
-func scanPCASCEPChallenges(ctx context.Context, client pcaConnectorSCEPAPI, connARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPCASCEPChallenges(ctx context.Context, client pcaConnectorSCEPAPI, connARNs []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, c := range connARNs {
 		connArn := c
@@ -98,7 +96,7 @@ func scanPCASCEPChallenges(ctx context.Context, client pcaConnectorSCEPAPI, conn
 				if isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("pca-connector-scep:ListChallengeMetadata c=%s: %w", connArn, err)
+				return 0, fmt.Errorf("pca-connector-scep:ListChallengeMetadata c=%s: %w", connArn, err)
 			}
 			for _, ch := range out.Challenges {
 				arn := sv(ch.Arn)

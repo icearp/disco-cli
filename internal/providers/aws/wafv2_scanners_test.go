@@ -94,7 +94,9 @@ func scanWAFv2With(t *testing.T, h map[string]func(in any) (any, error)) wafv2Sc
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
 	var r wafv2ScanResult
-	r.total, r.inserted, r.err = scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	r.total, r.err = scanWAFv2(context.Background(), acct, testRegion, counted, testScanID)
+	r.inserted = upserts()
 	r.rows = storedWAFKeys(t, rowsByNativeID(t, st, TypeWAFv2APIKey))
 	r.keyWarns = *warns
 	return r
@@ -181,7 +183,7 @@ func TestScanWAFv2_APIKeysRegionalOnlyOutsideUSEast1(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(wafv2Handlers(&calls), apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	for _, in := range calls.ins {
@@ -200,7 +202,9 @@ func TestScanWAFv2APIKeys_Empty(t *testing.T) {
 	client := wafv2.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"ListAPIKeys": func(any) (any, error) { return &wafv2.ListAPIKeysOutput{}, nil },
 	}, apiErr("AccessDeniedException", "unstubbed op")))
-	total, inserted, err := scanWAFv2APIKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, types.ScopeRegional, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWAFv2APIKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, types.ScopeRegional, counted, testScanID)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("scanWAFv2APIKeys = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -258,7 +262,7 @@ func TestScanWAFv2APIKeys_ErrorAfterFirstPage(t *testing.T) {
 					return tc.page2()
 				},
 			}, apiErr("AccessDeniedException", "unstubbed op")))
-			total, _, err := scanWAFv2APIKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, types.ScopeRegional, st, testScanID)
+			total, err := scanWAFv2APIKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, types.ScopeRegional, st, testScanID)
 			if !tc.wantErr(err) {
 				t.Errorf("err = %v; not the wanted error", err)
 			}
@@ -284,7 +288,7 @@ func TestScanWAFv2_APIKeysDeniedWarnsPerScope(t *testing.T) {
 	warns := countOpWarnings(st, wafv2ListAPIKeysOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListAPIKeys"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if *warns != 2 {
@@ -316,7 +320,7 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		st := newTestStore(t)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-		total, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+		total, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 		if !isAPIErrorCode(err, "WAFInvalidParameterException") {
 			t.Errorf("err = %v; want the ListAPIKeys WAFInvalidParameterException", err)
 		}
@@ -350,7 +354,7 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		warns := countOpWarnings(st, "wafv2")
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-		_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeTransient {
 			t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
 		}
@@ -371,7 +375,7 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
 		// eu-west-1 lists one scope, so one phase fails.
-		_, _, err := scanWAFv2(context.Background(), acct, "eu-west-1", st, testScanID)
+		_, err := scanWAFv2(context.Background(), acct, "eu-west-1", st, testScanID)
 		if got := classifyServiceError(err); got != outcomeTransient {
 			t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
 		}
@@ -389,7 +393,7 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		warns := countOpWarnings(st, "wafv2:ListManagedRuleSets")
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-		_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 		}
@@ -408,7 +412,7 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		warns := countOpWarnings(st, wafv2ListAPIKeysOp)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-		_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 		}
@@ -498,7 +502,7 @@ func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
 			warns := countOpWarnings(st, "wafv2:GetWebACL")
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 			if tc.wantErr == nil && err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
@@ -567,7 +571,7 @@ func TestScanWAFv2_ListWebACLsDeniedContinues(t *testing.T) {
 	warns := countOpWarnings(st, "wafv2:ListWebACLs")
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if *warns != 1 {
@@ -600,7 +604,7 @@ func TestScanWAFv2_ARNlessRegexPatternSetWarns(t *testing.T) {
 	warns := countOpWarnings(st, "wafv2:ListRegexPatternSets")
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if *warns != 1 {
@@ -668,7 +672,7 @@ func TestScanWAFv2_ListDeniedWarnsAndContinues(t *testing.T) {
 			warns := countOpWarnings(st, "wafv2:"+c.op)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
 			if *warns != 1 {
@@ -705,7 +709,7 @@ func TestScanWAFv2_KeptWebACLWarnsOnlyOnceStored(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want the store write failure", err)
 	}
@@ -749,7 +753,7 @@ func TestScanWAFv2_AssociationsOnlyForStoredACLs(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
 			var wantListed, wantAssoc []string
@@ -799,7 +803,7 @@ func TestScanWAFv2_AssociationsListedPerResourceType(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	want := []string{
@@ -879,7 +883,7 @@ func TestScanWAFv2_AssociationTypesOnlyWhereOwnerOffered(t *testing.T) {
 	for _, code := range []string{"elasticloadbalancingv2", "apigateway", "appsync", "cognito", "ec2", "bedrock-agentcore"} {
 		acct.availByCode[code] = map[string]bool{region: true}
 	}
-	if _, _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	got := slices.Sorted(maps.Keys(requested))
@@ -934,7 +938,7 @@ func TestScanWAFv2_AssociationTypeFailureKeepsOtherTypes(t *testing.T) {
 			warns := countOpWarnings(st, "wafv2:ListResourcesForWebACL")
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Fatalf("scanWAFv2: %v", err)
@@ -1014,7 +1018,7 @@ func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
 			if stored := nativeIDs(rowsByNativeID(t, st, TypeWAFv2WebACL)); !slices.Equal(stored, tc.wantStored) {
@@ -1048,7 +1052,7 @@ func TestScanWAFv2_ListRuleGroupsFailureKeepsCounts(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	total, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "WAFInvalidParameterException")
 	all, lerr := st.ListResources(store.ResourceFilter{IncludeManaged: true, Limit: util.AllResources})
 	if lerr != nil {
@@ -1103,7 +1107,7 @@ func TestScanWAFv2_ARNlessSummariesWarn(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if got := nativeIDs(rowsByNativeID(t, st, TypeWAFv2RuleGroup)); !slices.Equal(got, []string{rgARN}) {
@@ -1135,7 +1139,7 @@ func TestScanWAFv2_GetWebACLWithoutBodyKeepsSummary(t *testing.T) {
 	warns := countOpWarnings(st, "wafv2:GetWebACL")
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errWAFv2NoWebACLBody) {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errWAFv2NoWebACLBody) {
 		t.Fatalf("scanWAFv2 err = %v; want errWAFv2NoWebACLBody", err)
 	}
 	rows := rowsByNativeID(t, st, TypeWAFv2WebACL)
@@ -1244,7 +1248,7 @@ func TestScanWAFv2_ExtendedPhasesIndependent(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 			assertAPICode(t, err, "WAFInvalidParameterException")
 			if got := wafExtendedRows(t, st); !maps.Equal(got, tc.want) {
 				t.Errorf("rows per type = %v, want %v", got, tc.want)
@@ -1368,7 +1372,7 @@ func TestScanWAFv2_LaterPageFailureKeepsEarlierPages(t *testing.T) {
 					st := newTestStore(t)
 					acct := newTestAccount(testAccountID)
 					acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-					_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+					_, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 					if !fail.wantErr(err) {
 						t.Errorf("err = %v, want the second page's failure", err)
 					}
@@ -1425,7 +1429,7 @@ func TestScanWAFv2_ARNlessExtendedItemsWarn(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if warns["wafv2:ListLoggingConfigurations"] != 1 || warns["wafv2:ListManagedRuleSets"] != 1 {
@@ -1471,7 +1475,7 @@ func TestScanWAFv2_AssociationSkipsWarnOncePerCause(t *testing.T) {
 			warns := countOpWarnings(st, "wafv2:ListResourcesForWebACL")
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-			if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
 			if *warns != 1 {
@@ -1524,7 +1528,7 @@ func TestScanWAFv2_CloudFrontScopeOnlyInCloudFrontHome(t *testing.T) {
 					return &wafv2.ListAPIKeysOutput{}, nil
 				},
 			}, apiErr("AccessDeniedException", "denied"))
-			if _, _, err := scanWAFv2(context.Background(), acct, c.region, newTestStore(t), testScanID); err != nil {
+			if _, err := scanWAFv2(context.Background(), acct, c.region, newTestStore(t), testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
 			if !scopes[types.ScopeRegional] {
@@ -1697,7 +1701,7 @@ func wafTagsOut(in *wafv2.ListTagsForResourceInput, tags map[string]string) *waf
 
 // wafTagScan runs scanWAFv2 in testRegion over h and returns its result and
 // the warnings it sent.
-func wafTagScan(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (warns func() []store.ScanWarning, total, inserted int, err error) {
+func wafTagScan(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (warns func() []store.ScanWarning, total int, err error) {
 	t.Helper()
 	var (
 		mu   sync.Mutex
@@ -1710,12 +1714,12 @@ func wafTagScan(t *testing.T, st *store.Store, h map[string]func(in any) (any, e
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	total, inserted, err = scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+	total, err = scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 	return func() []store.ScanWarning {
 		mu.Lock()
 		defer mu.Unlock()
 		return slices.Clone(sent)
-	}, total, inserted, err
+	}, total, err
 }
 
 // wafWarnings is the warnings sent under op.
@@ -1733,7 +1737,9 @@ func TestScanWAFv2_TagsStoredPerType(t *testing.T) {
 	var rec wafTagCalls
 	h := wafTagHandlers(wafTaggedItems, &rec, nil)
 	st := newTestStore(t)
-	warns, total, inserted, err := wafTagScan(t, st, h)
+	counted, upserts := countUpserts(st)
+	warns, total, err := wafTagScan(t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
@@ -1809,7 +1815,9 @@ func TestScanWAFv2_TagsStoredPerType(t *testing.T) {
 		t.Errorf("GetWebACL inputs = %q; want %q", gets, wantGets)
 	}
 
-	_, total, inserted, err = wafTagScan(t, st, h)
+	counted, upserts = countUpserts(st)
+	_, total, err = wafTagScan(t, counted, h)
+	inserted = upserts()
 	if err != nil || total != wafTaggedTotal || inserted != 0 {
 		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, wafTaggedTotal)
 	}
@@ -1848,7 +1856,7 @@ func TestScanWAFv2_WebACLsAcrossPages(t *testing.T) {
 		return wafALBAssociation(in)
 	}
 	st := newTestStore(t)
-	if _, _, _, err := wafTagScan(t, st, h); err != nil {
+	if _, _, err := wafTagScan(t, st, h); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if got, want := gets.distinct(), []string{"REGIONAL a id-a", "REGIONAL b id-b"}; !slices.Equal(got, want) {
@@ -1901,7 +1909,7 @@ func TestScanWAFv2_ContextEndStopsOnce(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	total, _, err := scanWAFv2(ctx, acct, testRegion, st, testScanID)
+	total, err := scanWAFv2(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1978,7 +1986,7 @@ func TestScanWAFv2_TagPages(t *testing.T) {
 				return tc.page2(in)
 			})
 			st := newTestStore(t)
-			_, _, _, err := wafTagScan(t, st, h)
+			_, _, err := wafTagScan(t, st, h)
 			if tc.wantErr == nil && err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
@@ -2063,7 +2071,7 @@ func TestScanWAFv2_TagReadErrors(t *testing.T) {
 				return wafALBAssociation(in)
 			}
 			st := newTestStore(t)
-			warns, total, _, err := wafTagScan(t, st, h)
+			warns, total, err := wafTagScan(t, st, h)
 			if tc.wantErr == nil && err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
@@ -2116,7 +2124,7 @@ func TestScanWAFv2_TagDenialAfterFailedWriteNotWarned(t *testing.T) {
 		closeStore()
 		return nil, apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListTagsForResource")
 	})
-	warns, _, _, err := wafTagScan(t, st, h)
+	warns, _, err := wafTagScan(t, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want the store write failure", err)
 	}
@@ -2135,7 +2143,7 @@ func TestScanWAFv2_GetWebACLDenialsOneWarning(t *testing.T) {
 		return nil, apiErr("AccessDeniedException", "not authorized to perform: wafv2:GetWebACL")
 	}
 	st := newTestStore(t)
-	warns, _, _, err := wafTagScan(t, st, h)
+	warns, _, err := wafTagScan(t, st, h)
 	if err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
@@ -2179,7 +2187,7 @@ func TestScanWAFv2_GovCloudARNSentUnchanged(t *testing.T) {
 		"ListManagedRuleSets":       func(any) (any, error) { return &wafv2.ListManagedRuleSetsOutput{}, nil },
 		"ListAPIKeys":               func(any) (any, error) { return &wafv2.ListAPIKeysOutput{}, nil },
 	}, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanWAFv2: %v", err)
 	}
 	if got := sent.distinct(); !slices.Equal(got, []string{govARN}) {

@@ -37,7 +37,7 @@ type directoryServiceDataAPI interface {
 	ListGroups(context.Context, *directoryservicedata.ListGroupsInput, ...func(*directoryservicedata.Options)) (*directoryservicedata.ListGroupsOutput, error)
 }
 
-func scanDirectoryServiceData(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDirectoryServiceData(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	dirs := directoryservice.NewFromConfig(acct.cfg, func(o *directoryservice.Options) { o.Region = region })
 	data := directoryservicedata.NewFromConfig(acct.cfg, func(o *directoryservicedata.Options) { o.Region = region })
 	return scanDirectoryServiceDataIn(ctx, dirs, data, acct, region, st, scanID)
@@ -62,28 +62,27 @@ func scanDirectoryServiceData(ctx context.Context, acct *account, region string,
 // unavailable and discard the stored rows' counts. The phases' errors are
 // joined by phaseErrs, so a lone or all-transient failure marks the scan
 // partial.
-func scanDirectoryServiceDataIn(ctx context.Context, dirs dsDataDirectoriesAPI, data directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDirectoryServiceDataIn(ctx context.Context, dirs dsDataDirectoriesAPI, data directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	parents, err := dsDataParents(ctx, dirs, acct, region, st)
 	if err != nil || len(parents) == 0 {
-		return 0, 0, err
+		return 0, err
 	}
 	var errs phaseErrs
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{"ds-data:ListGroups", func() (int, int, error) { return scanDSDataGroups(ctx, data, acct, region, st, scanID, parents) }},
-		{"ds-data:ListUsers", func() (int, int, error) { return scanDSDataUsers(ctx, data, acct, region, st, scanID, parents) }},
+		{"ds-data:ListGroups", func() (int, error) { return scanDSDataGroups(ctx, data, acct, region, st, scanID, parents) }},
+		{"ds-data:ListUsers", func() (int, error) { return scanDSDataUsers(ctx, data, acct, region, st, scanID, parents) }},
 	} {
-		t, i, perr := phase.run()
+		t, perr := phase.run()
 		total += t
-		inserted += i
 		if isDNSNotFound(perr) && total == 0 {
-			return 0, 0, perr
+			return 0, perr
 		}
 		errs.add(phase.op, lateNXDOMAIN(phase.op, perr))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // dsDataParents lists the region's directories and returns those Directory
@@ -154,30 +153,30 @@ var dsDataUnavailable = []skipCode{{
 // out of the fan-out, whose transient skip would warn it away, and returned
 // after it as the DNS error it is, so the dispatcher sees it.
 func dsDataFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
-	storeDir func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeDir func(context.Context, childParent) (int, error),
+) (int, error) {
 	var (
 		mu       sync.Mutex
 		hostGone error
 	)
-	total, inserted, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isDSDataDisabled,
+	total, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isDSDataDisabled,
 		byParentID, "directory(ies)", dsDataUnavailable,
-		func(ctx context.Context, dir childParent) (int, int, error) {
-			t, i, err := storeDir(ctx, dir)
+		func(ctx context.Context, dir childParent) (int, error) {
+			t, err := storeDir(ctx, dir)
 			if !isDNSNotFound(err) {
-				return t, i, err
+				return t, err
 			}
 			mu.Lock()
 			defer mu.Unlock()
 			if hostGone == nil {
 				hostGone = err
 			}
-			return t, i, nil
+			return t, nil
 		})
 	if hostGone != nil {
-		return total, inserted, errors.Join(err, hostGone)
+		return total, errors.Join(err, hostGone)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // dsDataWellKnown reports whether a SID's relative identifier, its last
@@ -207,21 +206,20 @@ func dsDataNativeID(dirARN, kind, sid string) string {
 // dsDataStorePages stores one directory's listing a page at a time, so a
 // directory with tens of thousands of users is never held in memory. The
 // pages stored before an error stay and are counted.
-func dsDataStorePages(st *store.Store, op string, hasMore func() bool, next func() ([]*store.Resource, error)) (int, int, error) {
-	var total, inserted int
+func dsDataStorePages(st *store.Store, op string, hasMore func() bool, next func() ([]*store.Resource, error)) (int, error) {
+	var total int
 	for hasMore() {
 		rows, err := next()
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
-		t, n, err := upsertBatch(st, rows, op)
+		t, err := upsertBatch(st, rows, op)
 		total += t
-		inserted += n
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // dsDataRow is the row of one user or group summary, or nil for a summary
@@ -242,9 +240,9 @@ func dsDataRow(acct *account, region, scanID string, dir childParent, typ, kind 
 // scanDSDataUsers stores each directory's users. Without a Realm ListUsers
 // returns only the directory's own domain; a trusted realm's users belong to
 // that realm, not to this directory.
-func scanDSDataUsers(ctx context.Context, client directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, int, error) {
+func scanDSDataUsers(ctx context.Context, client directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, error) {
 	const op = "ds-data:ListUsers"
-	return dsDataFanOut(ctx, st, acct, region, op, parents, func(ctx context.Context, dir childParent) (int, int, error) {
+	return dsDataFanOut(ctx, st, acct, region, op, parents, func(ctx context.Context, dir childParent) (int, error) {
 		pager := directoryservicedata.NewListUsersPaginator(client, &directoryservicedata.ListUsersInput{DirectoryId: &dir.id},
 			func(o *directoryservicedata.ListUsersPaginatorOptions) { o.Limit = dsDataPageSize })
 		return dsDataStorePages(st, op, pager.HasMorePages, func() ([]*store.Resource, error) {
@@ -265,9 +263,9 @@ func scanDSDataUsers(ctx context.Context, client directoryServiceDataAPI, acct *
 
 // scanDSDataGroups stores each directory's groups, of its own domain only as
 // scanDSDataUsers describes.
-func scanDSDataGroups(ctx context.Context, client directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, int, error) {
+func scanDSDataGroups(ctx context.Context, client directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, error) {
 	const op = "ds-data:ListGroups"
-	return dsDataFanOut(ctx, st, acct, region, op, parents, func(ctx context.Context, dir childParent) (int, int, error) {
+	return dsDataFanOut(ctx, st, acct, region, op, parents, func(ctx context.Context, dir childParent) (int, error) {
 		pager := directoryservicedata.NewListGroupsPaginator(client, &directoryservicedata.ListGroupsInput{DirectoryId: &dir.id},
 			func(o *directoryservicedata.ListGroupsPaginatorOptions) { o.Limit = dsDataPageSize })
 		return dsDataStorePages(st, op, pager.HasMorePages, func() ([]*store.Resource, error) {

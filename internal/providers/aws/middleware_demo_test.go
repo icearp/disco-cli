@@ -53,7 +53,9 @@ func TestScanSQSQueues_ViaSDKMiddleware(t *testing.T) {
 	})
 	client := newSQSClientWithStub(stub, region)
 
-	total, inserted, err := scanSQSQueues(context.Background(), client, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), client, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues: %v", err)
 	}
@@ -79,7 +81,9 @@ func TestScanSQSQueues_AccessDeniedListShortCircuits_ViaSDK(t *testing.T) {
 	})
 	client := newSQSClientWithStub(stub, "us-east-1")
 
-	total, inserted, err := scanSQSQueues(context.Background(), client, acct, "us-east-1", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), client, acct, "us-east-1", counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues: %v", err)
 	}

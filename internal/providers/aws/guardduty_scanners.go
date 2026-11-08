@@ -63,13 +63,13 @@ const gdPageCap = 50
 // intel sets (gdSetTags), malware protection plans (gdPlanTags) and custom
 // detection rule associations (gdAssocTags) with their own get. Members are
 // other accounts' detectors and have no tags read.
-func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := guardduty.NewFromConfig(acct.cfg, func(o *guardduty.Options) { o.Region = region })
 	var (
 		detectors  []childParent
 		orgRefused bool
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "guardduty", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "guardduty", 0, []hostPhase{
 		{op: "guardduty:ListDetectors", run: func(p *phaseTotals) (failed bool) {
 			detectors, failed = scanGDDetectors(ctx, client, acct, region, st, scanID, p)
 			return failed
@@ -99,9 +99,9 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 			return scanGDTrustedEntitySets(ctx, client, acct, region, st, scanID, detectors, p)
 		}},
 		{op: gdOrgConfigOp, run: func(p *phaseTotals) bool {
-			t, i, refused, err := scanGDOrganizationConfigurations(ctx, client, acct, region, st, scanID, childParentIDs(detectors))
+			t, refused, err := scanGDOrganizationConfigurations(ctx, client, acct, region, st, scanID, childParentIDs(detectors))
 			orgRefused = refused
-			return p.addPhase(gdOrgConfigOp, t, i, err)
+			return p.addPhase(gdOrgConfigOp, t, err)
 		}},
 		// The custom-detection-rule ops take no detector, but a region without
 		// one has GuardDuty off. Rule associations and organization
@@ -120,11 +120,11 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 			if len(detectors) == 0 || orgRefused {
 				return false
 			}
-			t, i, err := scanGDCustomRuleOrgConfigurations(ctx, client, acct, region, st, scanID)
-			return p.addPhase(gdListCustomRuleOrgOp, t, i, err)
+			t, err := scanGDCustomRuleOrgConfigurations(ctx, client, acct, region, st, scanID)
+			return p.addPhase(gdListCustomRuleOrgOp, t, err)
 		}},
 	})
-	return total, inserted, err
+	return total, err
 }
 
 func guardDutyDetectorARN(partition, region, accountID, detectorID string) string {
@@ -194,11 +194,11 @@ func scanGDDetectors(ctx context.Context, client guarddutyAPI, acct *account, re
 		r.Status, r.TagsJSON = &status, mapTagsJSON(desc.Tags)
 		return desc, nil
 	})
-	total, inserted, err := storeReadRows(st, acct, region, listOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, listOp, rows, listErr, func() {
 		skips.warn(st, listOp, acct, region)
 		getWarn()
 	})
-	if (rowTagErrs{hard, transient}).addPhase(p, getOp, listOp, total, inserted, err) {
+	if (rowTagErrs{hard, transient}).addPhase(p, getOp, listOp, total, err) {
 		return nil, true
 	}
 	return detectors, false
@@ -262,11 +262,11 @@ func storeGDDetectorSets(ctx context.Context, st *store.Store, acct *account, re
 	for _, r := range out.rows {
 		out.parentOf[r] = store.ResourceID("aws", acct.ID, keys[r].detector.arn)
 	}
-	total, inserted, err := out.store(st, acct, region)
+	total, err := out.store(st, acct, region)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		getWarn()
 	}
-	return rowTagErrs{hard, transient}.addPhase(p, s.getOp, s.listOp, total, inserted, err)
+	return rowTagErrs{hard, transient}.addPhase(p, s.getOp, s.listOp, total, err)
 }
 
 // scanGDFilters stores each detector's filters, completed by GetFilter: its
@@ -333,7 +333,7 @@ func scanGDIPSets(ctx context.Context, client guarddutyAPI, acct *account, regio
 // resolver links each member to its organization account.
 func scanGDMembers(ctx context.Context, client guarddutyAPI, acct *account, region string, st *store.Store, scanID string, detectors []childParent, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "guardduty:ListMembers"
-	total, inserted, err := storeChildrenEachParent(ctx, st, acct, region, op, nil, detectors, nil, nil,
+	total, err := storeChildrenEachParent(ctx, st, acct, region, op, nil, detectors, nil, nil,
 		func(ctx context.Context, d childParent, token *string) ([]gdtypes.Member, *string, error) {
 			out, err := client.ListMembers(ctx, &guardduty.ListMembersInput{DetectorId: &d.id, NextToken: token, MaxResults: sdkaws.Int32(gdPageCap)})
 			if err != nil {
@@ -351,5 +351,5 @@ func scanGDMembers(ctx context.Context, client guarddutyAPI, acct *account, regi
 				Name: m.AccountId, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			}, "", ""
 		})
-	return p.addPhase(op, total, inserted, err)
+	return p.addPhase(op, total, err)
 }

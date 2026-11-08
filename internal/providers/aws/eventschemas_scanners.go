@@ -41,38 +41,38 @@ const (
 // per-registry schemas, and per-registry resource policies. Every phase runs;
 // the schema and policy phases read only the registries the registry phase
 // stored, and only a store write failure stops the scan.
-func scanEventSchemas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEventSchemas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := schemas.NewFromConfig(acct.cfg, func(o *schemas.Options) { o.Region = region })
 	var registries []childParent
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{esDiscoverersOp, func() (int, int, error) {
+		{esDiscoverersOp, func() (int, error) {
 			return scanESDiscoverers(ctx, client, acct, region, st, scanID)
 		}},
-		{esRegistriesOp, func() (t, i int, err error) {
-			t, i, registries, err = scanESRegistries(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{esRegistriesOp, func() (t int, err error) {
+			t, registries, err = scanESRegistries(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{esSchemasOp, func() (int, int, error) {
+		{esSchemasOp, func() (int, error) {
 			return scanESSchemas(ctx, client, acct, region, st, scanID, registries)
 		}},
-		{esRegistryPolicyOp, func() (int, int, error) {
+		{esRegistryPolicyOp, func() (int, error) {
 			return scanESRegistryPolicies(ctx, client, acct, region, st, scanID, registries)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
 	return p.result(st, acct, region)
 }
 
-func scanESDiscoverers(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanESDiscoverers(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, esDiscoverersOp,
 		func(ctx context.Context, token *string) ([]schemastypes.DiscovererSummary, *string, error) {
 			out, err := client.ListDiscoverers(ctx, &schemas.ListDiscoverersInput{NextToken: token})
@@ -98,7 +98,7 @@ func scanESDiscoverers(ctx context.Context, client eventSchemasAPI, acct *accoun
 // scanESRegistries lists every registry the account sees, AWS-provided ones
 // included (no Scope filter), and also returns the stored ones that carry a
 // RegistryName, for the schema and policy phases.
-func scanESRegistries(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanESRegistries(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, esRegistriesOp, "registries", "RegistryName",
 		func(ctx context.Context, token *string) ([]schemastypes.RegistrySummary, *string, error) {
 			out, err := client.ListRegistries(ctx, &schemas.ListRegistriesInput{NextToken: token})
@@ -124,7 +124,7 @@ func scanESRegistries(ctx context.Context, client eventSchemasAPI, acct *account
 // scanESSchemas lists each registry's schemas concurrently. ListSchemas
 // models no not-found code, so a registry deleted since it was listed fails
 // the phase rather than being skipped.
-func scanESSchemas(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, int, error) {
+func scanESSchemas(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, error) {
 	names := make([]string, len(registries))
 	for i, r := range registries {
 		names[i] = r.id
@@ -163,7 +163,7 @@ type esPolicyRead struct {
 // nothing. A denied registry is warned about once for the op; any other
 // error, a transient one included, is returned after the other policies are
 // stored, since there is no listed row to keep in its place.
-func scanESRegistryPolicies(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, int, error) {
+func scanESRegistryPolicies(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, error) {
 	reads, stopped := readEachKey(ctx, registries, func(ctx context.Context, r childParent) esPolicyRead {
 		return readESRegistryPolicy(ctx, client, acct, region, scanID, r.id)
 	})

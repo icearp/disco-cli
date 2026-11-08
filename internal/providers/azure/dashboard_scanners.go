@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanDashboard discovers Azure Managed Grafana workspaces.
-func scanDashboard(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDashboard(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdashboard.NewGrafanaClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdashboard:NewGrafanaClient: %w", err)
+		return 0, fmt.Errorf("armdashboard:NewGrafanaClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdashboard:Grafana.List", TypeDashboardGrafana, sub, st, scanID,
 		client.NewListPager(nil),

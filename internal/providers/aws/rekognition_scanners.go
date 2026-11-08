@@ -73,11 +73,11 @@ var rekGone = []string{"ResourceNotFoundException"}
 // Every type but project policies (no ARN; the Service Reference lists no
 // policy resource) has its tags read per row (rekTags), whose denials are one
 // warning for the scan.
-func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := rekognition.NewFromConfig(acct.cfg, func(o *rekognition.Options) { o.Region = region })
 	tags := rekTags(client).sharingDenials()
 	var projects []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "rekognition", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "rekognition", 0, []hostPhase{
 		{op: rekListCollectionsOp, run: func(p *phaseTotals) bool {
 			return scanRekCollections(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -91,12 +91,12 @@ func scanRekognition(ctx context.Context, acct *account, region string, st *stor
 		{op: rekListStreamProcessorsOp, run: func(p *phaseTotals) bool {
 			return scanRekStreamProcessors(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, rekProjectPoliciesOp, func() (int, int, error) {
+		countedPhase(0, rekProjectPoliciesOp, func() (int, error) {
 			return scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projects)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // rekTags reads a row's tags with ListTagsForResource, sent the row's
@@ -308,7 +308,7 @@ func rekProjectPolicyNativeID(projectARN, policyName string) string {
 // listing) is skipped silently, a denial warns once for the op, a transient
 // error after the SDK's retries is skipped with one warning for all such
 // projects, and anything else fails the phase, storing none of its rows.
-func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projects []childParent) (int, int, error) {
+func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projects []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	return childFanOutSkipTransient(ctx, st, acct, region, rekProjectPoliciesOp, projects, isGone, byParentARN, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		return listRekProjectPolicies(ctx, client, acct, region, scanID, p.arn)

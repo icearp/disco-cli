@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDatabaseWatcher discovers Azure Database Watcher resources.
-func scanDatabaseWatcher(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDatabaseWatcher(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdatabasewatcher.NewWatchersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdatabasewatcher:NewWatchersClient: %w", err)
+		return 0, fmt.Errorf("armdatabasewatcher:NewWatchersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdatabasewatcher:Watchers.ListBySubscription", TypeDatabaseWatcher, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

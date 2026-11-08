@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanCloudHealth discovers Azure Cloud Health health models.
-func scanCloudHealth(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudHealth(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcloudhealth.NewHealthModelsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcloudhealth:NewHealthModelsClient: %w", err)
+		return 0, fmt.Errorf("armcloudhealth:NewHealthModelsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcloudhealth:HealthModels.ListBySubscription", TypeCloudHealthHealthModel, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

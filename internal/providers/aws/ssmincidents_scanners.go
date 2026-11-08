@@ -53,29 +53,26 @@ type ssmIncidentsAPI interface {
 // RamResourceShareRegion from any region. That is unverified: if a region
 // returns only its own share region's policies, the other regions' policies
 // are not listed.
-func scanSSMIncidents(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSMIncidents(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	clientIn := func(r string) ssmIncidentsAPI {
 		return ssmincidents.NewFromConfig(acct.cfg, func(o *ssmincidents.Options) { o.Region = r })
 	}
 	client := clientIn(region)
 
-	stores, listDenied, t, i, ferr := scanSSMIReplicationSets(ctx, client, clientIn, acct, region, st, scanID)
+	stores, listDenied, t, ferr := scanSSMIReplicationSets(ctx, client, clientIn, acct, region, st, scanID)
 	if ferr != nil || !stores {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, plans, ferr := scanSSMIResponsePlans(ctx, client, acct, region, st, scanID)
+	t, plans, ferr := scanSSMIResponsePlans(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSSMIResourcePolicies(ctx, client, acct, region, st, scanID, plans)
+	t, ferr = scanSSMIResourcePolicies(ctx, client, acct, region, st, scanID, plans)
 	total += t
-	inserted += i
 	// A region denied ListReplicationSets elects without any RegionMap. It
 	// warns only if it stored rows: a region whose every call was denied also
 	// elects itself this way, but has stored nothing to warn about.
@@ -88,7 +85,7 @@ func scanSSMIncidents(ctx context.Context, acct *account, region string, st *sto
 				"Grant ssm-incidents:ListReplicationSets and ssm-incidents:GetReplicationSet to elect the storing region from the replication set.",
 		})
 	}
-	return total, inserted, ferr
+	return total, ferr
 }
 
 // ssmIReplicationSet pairs a listed replication-set ARN with its
@@ -109,25 +106,25 @@ type ssmIReplicationSet struct {
 // A region that lists replication sets but is denied GetReplicationSet on
 // every one of them is blind: it knows Incident Manager is in use but not
 // where. It elects by ssmIncidentsBlindElection instead, and warns.
-func scanSSMIReplicationSets(ctx context.Context, client ssmIncidentsAPI, clientIn func(region string) ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string) (stores, listDenied bool, total, inserted int, err error) {
+func scanSSMIReplicationSets(ctx context.Context, client ssmIncidentsAPI, clientIn func(region string) ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string) (stores, listDenied bool, total int, err error) {
 	sets, listDenied, err := listSSMIReplicationSets(ctx, client, acct, region, st)
 	if err != nil {
-		return false, false, 0, 0, err
+		return false, false, 0, err
 	}
 	scanned := acct.dispatchedRegions(ssmIncidentsService)
 	if len(sets) > 0 && !slices.ContainsFunc(sets, func(s ssmIReplicationSet) bool { return s.set != nil }) {
 		outcome, other, err := ssmIncidentsBlindElection(ctx, clientIn, sets, scanned, region)
 		if err != nil {
-			return false, false, 0, 0, err
+			return false, false, 0, err
 		}
 		reportSSMIBlind(st, acct, region, len(sets), outcome, other)
 		if outcome != ssmIBlindSelf {
-			return false, false, 0, 0, nil
+			return false, false, 0, nil
 		}
 	} else {
 		elected, err := ssmIncidentsStoreRegion(ctx, clientIn, sets, scanned, region)
 		if err != nil || elected != region {
-			return false, false, 0, 0, err
+			return false, false, 0, err
 		}
 	}
 	batch := make([]*store.Resource, 0, len(sets))
@@ -147,8 +144,8 @@ func scanSSMIReplicationSets(ctx context.Context, client ssmIncidentsAPI, client
 		}
 		batch = append(batch, row)
 	}
-	total, inserted, err = upsertBatch(st, batch, "ssm-incidents replication-sets")
-	return true, listDenied, total, inserted, err
+	total, err = upsertBatch(st, batch, "ssm-incidents replication-sets")
+	return true, listDenied, total, err
 }
 
 // reportSSMIBlind warns once for a blind region (see scanSSMIReplicationSets),
@@ -442,7 +439,7 @@ func ssmIncidentsCandidates(sets []ssmIReplicationSet, scanned []string) []strin
 
 // scanSSMIResponsePlans stores the response plans and returns them as the
 // parents of the resource-policy phase.
-func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var (
 		batch []*store.Resource
 		plans []childParent
@@ -452,9 +449,9 @@ func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *ac
 		out, err := client.ListResponsePlans(ctx, &ssmincidents.ListResponsePlansInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "ssm-incidents:ListResponsePlans", acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, "ssm-incidents:ListResponsePlans", acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("ssm-incidents:ListResponsePlans: %w", err)
+			return 0, nil, fmt.Errorf("ssm-incidents:ListResponsePlans: %w", err)
 		}
 		for _, p := range out.ResponsePlanSummaries {
 			arn := sv(p.Arn)
@@ -476,7 +473,7 @@ func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *ac
 			case isSSMINotFound(gerr):
 				continue
 			default:
-				return 0, 0, nil, fmt.Errorf("ssm-incidents:GetResponsePlan %s: %w", arn, gerr)
+				return 0, nil, fmt.Errorf("ssm-incidents:GetResponsePlan %s: %w", arn, gerr)
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -491,11 +488,11 @@ func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *ac
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, err := upsertBatch(st, batch, "ssm-incidents response-plans")
+	total, err := upsertBatch(st, batch, "ssm-incidents response-plans")
 	if err != nil {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, plans, nil
+	return total, plans, nil
 }
 
 // ssmIResourcePolicyNativeID keys a policy under its response plan: the API
@@ -511,7 +508,7 @@ func isSSMINotFound(err error) bool { return isAPIErrorCode(err, "ResourceNotFou
 
 // scanSSMIResourcePolicies lists the resource policies that share each response
 // plan stored this scan through RAM, and stores each under its plan.
-func scanSSMIResourcePolicies(ctx context.Context, client ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, int, error) {
+func scanSSMIResourcePolicies(ctx context.Context, client ssmIncidentsAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "ssm-incidents:GetResourcePolicies", plans, isSSMINotFound,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource

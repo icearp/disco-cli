@@ -96,7 +96,7 @@ func scanRepostspaceTopLevel(t *testing.T, st *store.Store, handlers map[string]
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, rpsDenied)
-	total, _, err := scanRepostspace(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRepostspace(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

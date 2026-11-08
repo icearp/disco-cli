@@ -25,34 +25,33 @@ type thinClientAPI interface {
 	ListSoftwareSets(context.Context, *workspacesthinclient.ListSoftwareSetsInput, ...func(*workspacesthinclient.Options)) (*workspacesthinclient.ListSoftwareSetsOutput, error)
 }
 
-func scanThinClient(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanThinClient(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := workspacesthinclient.NewFromConfig(acct.cfg, func(o *workspacesthinclient.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanThinClientDevices(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanThinClientEnvironments(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanThinClientSoftwareSets(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanThinClientDevices(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanThinClientEnvironments(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanThinClientSoftwareSets(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanThinClientDevices(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanThinClientDevices(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := workspacesthinclient.NewListDevicesPaginator(client, &workspacesthinclient.ListDevicesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "thinclient:ListDevices", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "thinclient:ListDevices", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("thinclient:ListDevices: %w", perr)
+			return 0, fmt.Errorf("thinclient:ListDevices: %w", perr)
 		}
 		for _, d := range out.Devices {
 			arn := sv(d.Arn)
@@ -71,16 +70,16 @@ func scanThinClientDevices(ctx context.Context, client thinClientAPI, acct *acco
 	return upsertBatch(st, batch, "thinclient devices")
 }
 
-func scanThinClientEnvironments(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanThinClientEnvironments(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := workspacesthinclient.NewListEnvironmentsPaginator(client, &workspacesthinclient.ListEnvironmentsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "thinclient:ListEnvironments", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "thinclient:ListEnvironments", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("thinclient:ListEnvironments: %w", perr)
+			return 0, fmt.Errorf("thinclient:ListEnvironments: %w", perr)
 		}
 		for _, e := range out.Environments {
 			arn := sv(e.Arn)
@@ -98,16 +97,16 @@ func scanThinClientEnvironments(ctx context.Context, client thinClientAPI, acct 
 	return upsertBatch(st, batch, "thinclient environments")
 }
 
-func scanThinClientSoftwareSets(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanThinClientSoftwareSets(ctx context.Context, client thinClientAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := workspacesthinclient.NewListSoftwareSetsPaginator(client, &workspacesthinclient.ListSoftwareSetsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "thinclient:ListSoftwareSets", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "thinclient:ListSoftwareSets", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("thinclient:ListSoftwareSets: %w", perr)
+			return 0, fmt.Errorf("thinclient:ListSoftwareSets: %w", perr)
 		}
 		for _, s := range out.SoftwareSets {
 			arn := sv(s.Arn)

@@ -57,7 +57,7 @@ type workMailAPI interface {
 // overrides, personal access tokens (metadata only: the list API never
 // returns a token's secret) and the mailbox permissions of its users and
 // resources.
-func scanWorkMail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWorkMail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := workmail.NewFromConfig(acct.cfg, func(o *workmail.Options) { o.Region = region })
 	return scanWorkMailIn(ctx, client, acct, region, st, scanID)
 }
@@ -69,16 +69,16 @@ func scanWorkMail(ctx context.Context, acct *account, region string, st *store.S
 // joined by phaseErrs: a transient one alone, or beside transient ones only,
 // is returned, so the scan is marked partial; beside a hard one it is reported
 // as a warning under its phase instead of inside the hard error.
-func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	orgs, total, inserted, err := scanWorkMailOrganizations(ctx, client, acct, region, st, scanID)
+func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	orgs, total, err := scanWorkMailOrganizations(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	s := &workMailScan{client: client, acct: acct, region: region, st: st, scanID: scanID, orgs: orgs, rejected: map[string]bool{}}
 	var errs phaseErrs
 	for _, phase := range []struct {
 		name string
-		run  func(context.Context) (int, int, error)
+		run  func(context.Context) (int, error)
 	}{
 		{"workmail users", s.users},
 		{"workmail groups", s.groups},
@@ -92,14 +92,13 @@ func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, regi
 		{"workmail personal access tokens", s.personalAccessTokens},
 		{"workmail mailbox permissions", s.mailboxPermissions},
 	} {
-		t, i, perr := phase.run(ctx)
+		t, perr := phase.run(ctx)
 		total += t
-		inserted += i
 		// The organizations listing returned on its own NXDOMAIN, so the
 		// endpoint resolved: a later one is a failure of this scan.
 		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // scanWorkMailOrganizations stores every organization, keyed by the
@@ -107,7 +106,7 @@ func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, regi
 // returns them as child fan-out parents. The organization State is an
 // undocumented free-form string, so no organization is filtered out by it;
 // the child phases handle the state rejection the API models instead.
-func scanWorkMailOrganizations(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanWorkMailOrganizations(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	var (
 		batch   []*store.Resource
 		parents []childParent
@@ -117,9 +116,9 @@ func scanWorkMailOrganizations(ctx context.Context, client workMailAPI, acct *ac
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "workmail:ListOrganizations", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "workmail:ListOrganizations", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("workmail:ListOrganizations: %w", err)
+			return nil, 0, fmt.Errorf("workmail:ListOrganizations: %w", err)
 		}
 		for _, o := range out.OrganizationSummaries {
 			id := sv(o.OrganizationId)
@@ -140,11 +139,11 @@ func scanWorkMailOrganizations(ctx context.Context, client workMailAPI, acct *ac
 			parents = append(parents, childParent{id: id, arn: arn})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "workmail organizations")
+	total, err := upsertBatch(st, batch, "workmail organizations")
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	return parents, total, inserted, nil
+	return parents, total, nil
 }
 
 // workMailScan is the per-region state the organization child phases share.
@@ -202,15 +201,15 @@ func (s *workMailScan) rejectOrg(op string, org childParent, err error) {
 // organization deleted since it was listed is skipped silently; one whose
 // state refuses the call is warned about and rejected. Any other error is
 // returned for scanWorkMailIn to join.
-func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error)) (int, int, error) {
+func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error)) (int, error) {
 	return s.fanOutThen(ctx, op, list, nil)
 }
 
 // fanOutThen is fanOut that also runs stored, when not nil, once every row
 // list returned has been stored. It does not run when childFanOut fails,
 // because childFanOut then stores nothing.
-func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error), stored func()) (int, int, error) {
-	total, inserted, err := childFanOut(ctx, s.st, s.acct, s.region, op, s.listableOrgs(), isWorkMailOrgGone,
+func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error), stored func()) (int, error) {
+	total, err := childFanOut(ctx, s.st, s.acct, s.region, op, s.listableOrgs(), isWorkMailOrgGone,
 		func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, org)
 			if isAPIErrorCode(err, "OrganizationStateException") {
@@ -224,13 +223,13 @@ func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(cont
 	if err == nil && stored != nil {
 		stored()
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // fanOutMailboxes is fanOut for the users and resources phases: list also
 // returns the entities among its rows that are not DELETED, which are added to
 // s.mailboxes once the phase has stored its rows.
-func (s *workMailScan) fanOutMailboxes(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, []childParent, error)) (int, int, error) {
+func (s *workMailScan) fanOutMailboxes(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, []childParent, error)) (int, error) {
 	var (
 		mu      sync.Mutex
 		pending []workMailMailbox
@@ -306,7 +305,7 @@ func (s *workMailScan) row(typ string, parent childParent, kind, id string, name
 // its Status. The call sets no Filters: ListUsersFilters.State matches one
 // state only, so an unfiltered call is the one that lists every state. A
 // DELETED user is not handed on as a mailbox: it has none to list grants of.
-func (s *workMailScan) users(ctx context.Context) (int, int, error) {
+func (s *workMailScan) users(ctx context.Context) (int, error) {
 	return s.fanOutMailboxes(ctx, "workmail:ListUsers", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
 		var (
 			rows      []*store.Resource
@@ -335,7 +334,7 @@ func (s *workMailScan) users(ctx context.Context) (int, int, error) {
 }
 
 // groups stores every group in every state, as users does.
-func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
+func (s *workMailScan) groups(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListGroups", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListGroupsPaginator(s.client, &workmail.ListGroupsInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -358,7 +357,7 @@ func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 
 // resources stores every resource (room or equipment) in every state, and
 // hands on all but the DELETED ones as mailboxes, as users does.
-func (s *workMailScan) resources(ctx context.Context) (int, int, error) {
+func (s *workMailScan) resources(ctx context.Context) (int, error) {
 	return s.fanOutMailboxes(ctx, "workmail:ListResources", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
 		var (
 			rows      []*store.Resource
@@ -386,7 +385,7 @@ func (s *workMailScan) resources(ctx context.Context) (int, int, error) {
 	})
 }
 
-func (s *workMailScan) mailDomains(ctx context.Context) (int, int, error) {
+func (s *workMailScan) mailDomains(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListMailDomains", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListMailDomainsPaginator(s.client, &workmail.ListMailDomainsInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -409,7 +408,7 @@ func (s *workMailScan) mailDomains(ctx context.Context) (int, int, error) {
 
 // accessControlRules keys each rule by its Name, the only identifier the API
 // gives it (unique within the organization). The op is not paginated.
-func (s *workMailScan) accessControlRules(ctx context.Context) (int, int, error) {
+func (s *workMailScan) accessControlRules(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListAccessControlRules", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		out, err := s.client.ListAccessControlRules(ctx, &workmail.ListAccessControlRulesInput{OrganizationId: &org.id})
 		if err != nil {
@@ -430,7 +429,7 @@ func (s *workMailScan) accessControlRules(ctx context.Context) (int, int, error)
 // availabilityConfigurations keys each configuration by its DomainName (one
 // per domain). The list element carries the EWS provider's endpoint and user
 // name but never its password (RedactedEwsAvailabilityProvider).
-func (s *workMailScan) availabilityConfigurations(ctx context.Context) (int, int, error) {
+func (s *workMailScan) availabilityConfigurations(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListAvailabilityConfigurations", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListAvailabilityConfigurationsPaginator(s.client, &workmail.ListAvailabilityConfigurationsInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -451,7 +450,7 @@ func (s *workMailScan) availabilityConfigurations(ctx context.Context) (int, int
 	})
 }
 
-func (s *workMailScan) impersonationRoles(ctx context.Context) (int, int, error) {
+func (s *workMailScan) impersonationRoles(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListImpersonationRoles", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListImpersonationRolesPaginator(s.client, &workmail.ListImpersonationRolesInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -474,7 +473,7 @@ func (s *workMailScan) impersonationRoles(ctx context.Context) (int, int, error)
 
 // mobileDeviceAccessRules lists each organization's rules; the op is not
 // paginated.
-func (s *workMailScan) mobileDeviceAccessRules(ctx context.Context) (int, int, error) {
+func (s *workMailScan) mobileDeviceAccessRules(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListMobileDeviceAccessRules", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		out, err := s.client.ListMobileDeviceAccessRules(ctx, &workmail.ListMobileDeviceAccessRulesInput{OrganizationId: &org.id})
 		if err != nil {
@@ -495,7 +494,7 @@ func (s *workMailScan) mobileDeviceAccessRules(ctx context.Context) (int, int, e
 // mobileDeviceAccessOverrides lists every override in the organization (the
 // user and device filters are optional) and keys each by its user and device,
 // the pair the API identifies an override by.
-func (s *workMailScan) mobileDeviceAccessOverrides(ctx context.Context) (int, int, error) {
+func (s *workMailScan) mobileDeviceAccessOverrides(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListMobileDeviceAccessOverrides", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListMobileDeviceAccessOverridesPaginator(s.client, &workmail.ListMobileDeviceAccessOverridesInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -518,7 +517,7 @@ func (s *workMailScan) mobileDeviceAccessOverrides(ctx context.Context) (int, in
 
 // personalAccessTokens lists every token in the organization (the user filter
 // is optional). The summary carries no token secret.
-func (s *workMailScan) personalAccessTokens(ctx context.Context) (int, int, error) {
+func (s *workMailScan) personalAccessTokens(ctx context.Context) (int, error) {
 	return s.fanOut(ctx, "workmail:ListPersonalAccessTokens", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := workmail.NewListPersonalAccessTokensPaginator(s.client, &workmail.ListPersonalAccessTokensInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
@@ -565,14 +564,14 @@ func (s *workMailScan) personalAccessTokens(ctx context.Context) (int, int, erro
 // mailbox in the region. Every other error fails the phase; since childFanOut
 // stores nothing after a hard error, one such error drops the grants of every
 // organization in the region this scan.
-func (s *workMailScan) mailboxPermissions(ctx context.Context) (int, int, error) {
+func (s *workMailScan) mailboxPermissions(ctx context.Context) (int, error) {
 	const op = "workmail:ListMailboxPermissions"
 	mailboxes, orgOf := s.listableMailboxes()
 	isGone := func(err error) bool {
 		return isAPIErrorCode(err, "EntityNotFoundException") || isWorkMailOrgGone(err)
 	}
 	var orgState, entityState skipTally
-	total, inserted, err := childFanOutSkipTransient(ctx, s.st, s.acct, s.region, op, mailboxes, isGone, byParentARN,
+	total, err := childFanOutSkipTransient(ctx, s.st, s.acct, s.region, op, mailboxes, isGone, byParentARN,
 		func(ctx context.Context, mailbox childParent) ([]*store.Resource, error) {
 			rows, err := s.listMailboxPermissions(ctx, orgOf[mailbox.arn], mailbox)
 			if orgState.dropCode("OrganizationStateException", mailbox.arn, err) ||
@@ -585,7 +584,7 @@ func (s *workMailScan) mailboxPermissions(ctx context.Context) (int, int, error)
 		"the organization's state (for example, being created or deleted) can refuse the call")
 	entityState.warnCode(s.st, op, s.acct, s.region, "EntityStateException", "mailbox(es)",
 		"a user or resource in a state such as DISABLED can refuse the call")
-	return total, inserted, err
+	return total, err
 }
 
 // listableMailboxes returns s.mailboxes outside the rejected organizations,

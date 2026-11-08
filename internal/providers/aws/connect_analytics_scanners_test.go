@@ -47,7 +47,7 @@ func (r *connectAnalyticsRec) list(inst string, maxResults *int32) {
 type connectAnalyticsCase struct {
 	name, typ, kind, listOp, describeOp string
 	handlers                            func(rec *connectAnalyticsRec) map[string]func(any) (any, error)
-	run                                 func(context.Context, connectAnalyticsAPI, []cttypes.InstanceSummary, *account, *store.Store) (int, int, error)
+	run                                 func(context.Context, connectAnalyticsAPI, []cttypes.InstanceSummary, *account, *store.Store) (int, error)
 	// attr is an attribute only the describe body carries.
 	attr  func(attrs map[string]any) any
 	want  string
@@ -119,7 +119,7 @@ func connectAnalyticsCases() []connectAnalyticsCase {
 		{
 			name: "extraction definitions", typ: TypeConnectExtractionDefinition, kind: "extraction-definition",
 			listOp: "ListExtractionDefinitions", describeOp: "DescribeExtractionDefinition", handlers: extractionDefinitionHandlers,
-			run: func(ctx context.Context, c connectAnalyticsAPI, inst []cttypes.InstanceSummary, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectAnalyticsAPI, inst []cttypes.InstanceSummary, a *account, st *store.Store) (int, error) {
 				return scanConnectExtractionDefinitions(ctx, c, inst, a, testRegion, st, testScanID)
 			},
 			attr: func(attrs map[string]any) any {
@@ -136,7 +136,7 @@ func connectAnalyticsCases() []connectAnalyticsCase {
 		{
 			name: "metrics", typ: TypeConnectMetric, kind: "metric",
 			listOp: "ListMetrics", describeOp: "DescribeMetric", handlers: metricHandlers,
-			run: func(ctx context.Context, c connectAnalyticsAPI, inst []cttypes.InstanceSummary, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectAnalyticsAPI, inst []cttypes.InstanceSummary, a *account, st *store.Store) (int, error) {
 				return scanConnectMetrics(ctx, c, inst, a, testRegion, st, testScanID)
 			},
 			attr: func(attrs map[string]any) any {
@@ -165,7 +165,9 @@ func TestConnectAnalyticsPhases_DescribesEveryListedItemOfEveryInstance(t *testi
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			var rec connectAnalyticsRec
-			total, inserted, err := c.run(context.Background(), connectStubClient(c.handlers(&rec)), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), st)
+			counted, upserts := countUpserts(st)
+			total, err := c.run(context.Background(), connectStubClient(c.handlers(&rec)), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), counted)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -207,7 +209,7 @@ func TestConnectAnalyticsPhases_DescribesEveryListedItemOfEveryInstance(t *testi
 func TestScanConnectMetrics_ListsOnlyCustomerManaged(t *testing.T) {
 	t.Parallel()
 	var rec connectAnalyticsRec
-	if _, _, err := scanConnectMetrics(context.Background(), connectStubClient(metricHandlers(&rec)), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID); err != nil {
+	if _, err := scanConnectMetrics(context.Background(), connectStubClient(metricHandlers(&rec)), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(rec.metricTypes) != 2 {
@@ -225,7 +227,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range connectAnalyticsCases() {
 		listLabel, describeLabel := "connect:"+c.listOp, "connect:"+c.describeOp
-		scan := func(t *testing.T, st *store.Store, h map[string]func(any) (any, error), instances ...string) (int, int, error) {
+		scan := func(t *testing.T, st *store.Store, h map[string]func(any) (any, error), instances ...string) (int, error) {
 			t.Helper()
 			return c.run(ctx, connectStubClient(h), connectInstances(instances...), newTestAccount(testAccountID), st)
 		}
@@ -256,7 +258,9 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return &connect.ListExtractionDefinitionsOutput{}, nil
 			}
-			total, inserted, err := scan(t, st, h, "i-1")
+			counted, upserts := countUpserts(st)
+			total, err := scan(t, counted, h, "i-1")
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Errorf("got (%d, %d, %v), want (0, 0, nil)", total, inserted, err)
 			}
@@ -266,7 +270,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 			warns := countOpWarnings(st, listLabel)
 			h := c.handlers(&connectAnalyticsRec{})
 			delete(h, c.listOp)
-			total, _, err := scan(t, st, h, "i-1", "i-2")
+			total, err := scan(t, st, h, "i-1", "i-2")
 			if err != nil || total != 0 || *warns != 1 {
 				t.Errorf("got (%d, %v, %d warnings), want (0, nil, 1)", total, err, *warns)
 			}
@@ -289,7 +293,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return ok(in)
 			}
-			total, _, err := scan(t, st, h, "i-1", "i-2")
+			total, err := scan(t, st, h, "i-1", "i-2")
 			if err != nil || total != 2 || *warns != 0 {
 				t.Errorf("got (%d, %v, %d warnings), want i-2's 2 rows, nil, 0 warnings", total, err, *warns)
 			}
@@ -298,7 +302,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			h := c.handlers(&connectAnalyticsRec{})
 			h[c.listOp] = func(any) (any, error) { return nil, connectBadParam }
-			total, _, err := scan(t, st, h, "i-1")
+			total, err := scan(t, st, h, "i-1")
 			assertAPICode(t, err, "InvalidParameterException")
 			if total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
 				t.Errorf("total = %d, want 0 and no rows", total)
@@ -313,7 +317,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return nil
 			})
-			total, _, err := scan(t, st, h, "i-1", "i-2")
+			total, err := scan(t, st, h, "i-1", "i-2")
 			if err != nil || total != 2 || *warns != 1 {
 				t.Errorf("got (%d, %v, %d warnings), want (2, nil, 1)", total, err, *warns)
 			}
@@ -326,7 +330,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return nil
 			})
-			total, _, err := scan(t, st, h, "i-1", "i-2")
+			total, err := scan(t, st, h, "i-1", "i-2")
 			assertAPICode(t, err, "InvalidParameterException")
 			if total != 0 {
 				t.Errorf("total = %d, want 0", total)
@@ -349,7 +353,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return &connect.ListExtractionDefinitionsOutput{NextToken: ptrStr("same")}, nil
 			}
-			if _, _, err := scan(t, st, h, "i-1"); err != nil {
+			if _, err := scan(t, st, h, "i-1"); err != nil {
 				t.Fatalf("err = %v, want the paginator to stop on the repeated token", err)
 			}
 			if calls != 2 {
@@ -374,7 +378,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				}
 				return ok(in)
 			}
-			total, _, err := scan(t, st, h, "i-1")
+			total, err := scan(t, st, h, "i-1")
 			if err != nil || total != 1 || *warns != 1 {
 				t.Errorf("got (%d, %v, %d warnings), want (1, nil, 1)", total, err, *warns)
 			}
@@ -407,7 +411,9 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 				mu.Unlock()
 				return describe(in)
 			}
-			total, inserted, err := scan(t, st, h, "i-1")
+			counted, upserts := countUpserts(st)
+			total, err := scan(t, counted, h, "i-1")
+			inserted := upserts()
 			if err != nil || total != 1 || inserted != 1 {
 				t.Errorf("got (%d, %d, %v), want (1, 1, nil)", total, inserted, err)
 			}
@@ -444,7 +450,7 @@ func TestConnectAnalyticsPhases_DescribeNotFound(t *testing.T) {
 				}
 				return ok(in)
 			}
-			total, _, err := c.run(context.Background(), connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), st)
 			if err != nil || total != 2 || *warns != 0 {
 				t.Errorf("got (%d, %v, %d warnings), want (2, nil, 0)", total, err, *warns)
 			}
@@ -486,13 +492,13 @@ func savedMetricHandlers(describedIDs *parentCalls, fail func(metricID string) e
 func TestScanConnectMetrics_SavedMetricDescribedWithQualifier(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	scan := func(st *store.Store, h map[string]func(any) (any, error)) (int, int, error) {
+	scan := func(st *store.Store, h map[string]func(any) (any, error)) (int, error) {
 		return scanConnectMetrics(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	}
 	t.Run("SAVED uses the qualifier, PUBLISHED does not", func(t *testing.T) {
 		st := newTestStore(t)
 		var ids parentCalls
-		total, _, err := scan(st, savedMetricHandlers(&ids, func(string) error { return nil }))
+		total, err := scan(st, savedMetricHandlers(&ids, func(string) error { return nil }))
 		if err != nil || total != 2 {
 			t.Fatalf("got (%d, %v), want (2, nil)", total, err)
 		}
@@ -512,7 +518,7 @@ func TestScanConnectMetrics_SavedMetricDescribedWithQualifier(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, connectDescribeMetricOp)
 		var ids parentCalls
-		total, _, err := scan(st, savedMetricHandlers(&ids, func(id string) error {
+		total, err := scan(st, savedMetricHandlers(&ids, func(id string) error {
 			if strings.HasSuffix(id, ":$SAVED") {
 				return apiErr("ValidationException", "bad metric id")
 			}
@@ -528,7 +534,7 @@ func TestScanConnectMetrics_SavedMetricDescribedWithQualifier(t *testing.T) {
 	t.Run("unqualified describe ValidationException propagates", func(t *testing.T) {
 		st := newTestStore(t)
 		var ids parentCalls
-		_, _, err := scan(st, savedMetricHandlers(&ids, func(id string) error {
+		_, err := scan(st, savedMetricHandlers(&ids, func(id string) error {
 			if id == "p" {
 				return apiErr("ValidationException", "bad metric id")
 			}
@@ -606,7 +612,9 @@ func TestScanConnectTestCases_SummaryListedTwiceIsStoredOnce(t *testing.T) {
 			return describedTestCase(sv(in.(*connect.DescribeTestCaseInput).TestCaseId))
 		},
 	}
-	total, inserted, err := scanConnectTestCases(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectTestCases(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil || total != 1 || inserted != 1 {
 		t.Errorf("got (%d, %d, %v), want (1, 1, nil)", total, inserted, err)
 	}
@@ -626,7 +634,9 @@ func TestScanConnectAnalytics_PhasesIndependent(t *testing.T) {
 			st := newTestStore(t)
 			h := connectAnalyticsHandlers()
 			h[failing.listOp] = func(any) (any, error) { return nil, connectBadParam }
-			total, inserted, err := scanConnectAnalytics(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := scanConnectAnalytics(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, counted, testScanID)
+			inserted := upserts()
 			assertAPICode(t, err, "InvalidParameterException")
 			if total != 2 || inserted != 2 {
 				t.Errorf("total, inserted = %d, %d; want the other phase's 2, 2", total, inserted)
@@ -656,7 +666,7 @@ func TestScanConnectAnalytics_TransientDoesNotMaskHardError(t *testing.T) {
 				h[c.listOp] = func(any) (any, error) { return nil, connectBadParam }
 			}
 			h[throttled.listOp] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
-			_, _, err := scanConnectAnalytics(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanConnectAnalytics(context.Background(), connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 			}
@@ -679,7 +689,7 @@ func connectTopLevelHandlers() map[string]func(any) (any, error) {
 	return h
 }
 
-func scanConnectTopLevel(t *testing.T, st *store.Store, h map[string]func(any) (any, error)) (int, int, error) {
+func scanConnectTopLevel(t *testing.T, st *store.Store, h map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = connectStubConfig(h)
@@ -689,7 +699,7 @@ func scanConnectTopLevel(t *testing.T, st *store.Store, h map[string]func(any) (
 func TestScanConnect_StoresAnalyticsRows(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := scanConnectTopLevel(t, st, connectTopLevelHandlers()); err != nil {
+	if _, err := scanConnectTopLevel(t, st, connectTopLevelHandlers()); err != nil {
 		t.Fatalf("scanConnect: %v", err)
 	}
 	for typ, id := range connectAnalyticsRowIDs {
@@ -707,7 +717,7 @@ func TestScanConnect_AnalyticsIndependentOfOlderFamilies(t *testing.T) {
 		st := newTestStore(t)
 		h := connectTopLevelHandlers()
 		h["ListTestCases"] = func(any) (any, error) { return nil, connectBadParam }
-		_, _, err := scanConnectTopLevel(t, st, h)
+		_, err := scanConnectTopLevel(t, st, h)
 		assertAPICode(t, err, "InvalidParameterException")
 		for typ, id := range connectAnalyticsRowIDs {
 			if _, ok := rowsByNativeID(t, st, typ)[id]; !ok {
@@ -719,7 +729,7 @@ func TestScanConnect_AnalyticsIndependentOfOlderFamilies(t *testing.T) {
 		st := newTestStore(t)
 		h := connectTopLevelHandlers()
 		h["ListHoursOfOperations"] = func(any) (any, error) { return nil, connectBadParam }
-		_, _, err := scanConnectTopLevel(t, st, h)
+		_, err := scanConnectTopLevel(t, st, h)
 		assertAPICode(t, err, "InvalidParameterException")
 		for typ, id := range connectAnalyticsRowIDs {
 			if _, ok := rowsByNativeID(t, st, typ)[id]; !ok {
@@ -732,7 +742,7 @@ func TestScanConnect_AnalyticsIndependentOfOlderFamilies(t *testing.T) {
 			st := newTestStore(t)
 			h := connectTopLevelHandlers()
 			h[c.listOp] = func(any) (any, error) { return nil, connectBadParam }
-			_, _, err := scanConnectTopLevel(t, st, h)
+			_, err := scanConnectTopLevel(t, st, h)
 			assertAPICode(t, err, "InvalidParameterException")
 			for typ, id := range connectChildRowIDs {
 				if _, ok := rowsByNativeID(t, st, typ)[id]; !ok {
@@ -752,7 +762,7 @@ func TestScanConnect_OlderTransientDoesNotMaskAnalyticsError(t *testing.T) {
 	h := connectTopLevelHandlers()
 	h["ListTestCases"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	h["ListMetrics"] = func(any) (any, error) { return nil, connectBadParam }
-	_, _, err := scanConnectTopLevel(t, st, h)
+	_, err := scanConnectTopLevel(t, st, h)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}

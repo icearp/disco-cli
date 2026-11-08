@@ -73,7 +73,7 @@ func iotSuppressionPages(inputs *[]iot.ListAuditSuppressionsInput, mu *sync.Mute
 func scanIoTSuppressionsWith(t *testing.T, st *store.Store, handler func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := iot.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListAuditSuppressions": handler}, iotDenied))
-	total, _, err := scanIoTAuditSuppressions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanIoTAuditSuppressions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -291,7 +291,7 @@ func TestScanIoT_AuditSuppressionsRunLast(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iotDenied)
 
-	total, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, iotFamily) || !errors.Is(err, iotInvalidRequest) {
 		t.Fatalf("err = %v, want both the family and the suppression error", err)
 	}

@@ -20,16 +20,16 @@ type eksAnywhereAPI interface {
 // scanEKSAnywhereSubscriptions discovers EKS Anywhere support subscriptions
 // (account-wide). The clusters they cover run on-prem, not in AWS, so the
 // subscription is edge-less.
-func scanEKSAnywhereSubscriptions(ctx context.Context, client eksAnywhereAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEKSAnywhereSubscriptions(ctx context.Context, client eksAnywhereAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := eks.NewListEksAnywhereSubscriptionsPaginator(client, &eks.ListEksAnywhereSubscriptionsInput{})
 	var batch []*store.Resource
 	for p.HasMorePages() {
 		out, perr := p.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "eks:ListEksAnywhereSubscriptions", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "eks:ListEksAnywhereSubscriptions", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("eks:ListEksAnywhereSubscriptions: %w", perr)
+			return 0, fmt.Errorf("eks:ListEksAnywhereSubscriptions: %w", perr)
 		}
 		for _, s := range out.Subscriptions {
 			arn := sv(s.Arn)

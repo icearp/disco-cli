@@ -278,7 +278,7 @@ func slRowAttrs(t *testing.T, r store.Resource) slDataLakeSourceAttrs {
 	return a
 }
 
-func scanSecurityLakeTopLevel(st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func scanSecurityLakeTopLevel(st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, slTestDenied)
 	return scanSecurityLake(context.Background(), acct, testRegion, st, testScanID)
@@ -301,7 +301,9 @@ func TestScanSecurityLake_StoresEveryDataLakeSource(t *testing.T) {
 	calls := &slCalls{}
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
-	total, inserted, err := scanSecurityLakeTopLevel(st, slHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := scanSecurityLakeTopLevel(counted, slHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
@@ -374,7 +376,7 @@ func TestScanSecurityLake_DataLakeSourceUnlinkedWithoutStoredLake(t *testing.T) 
 			h["ListDataLakes"] = c.dataLakes
 			warnings := map[string]int{}
 			st.OnWarn = func(w store.ScanWarning) { warnings[w.Service]++ }
-			if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+			if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 				t.Fatalf("scanSecurityLake: %v", err)
 			}
 			if !reflect.DeepEqual(warnings, c.wantWarns) {
@@ -438,7 +440,7 @@ func TestScanSecurityLake_UnidentifiableDataLakeSourcesWarn(t *testing.T) {
 		return &securitylake.GetDataLakeSourcesOutput{DataLakeSources: []sltypes.DataLakeSource{slTestSources[slTestRoute53ID]}}, nil
 	}
 	warnings := countOpWarnings(st, slDataLakeSourcesOp)
-	total, _, err := scanSecurityLakeTopLevel(st, h)
+	total, err := scanSecurityLakeTopLevel(st, h)
 	if err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
@@ -459,7 +461,7 @@ func TestScanSecurityLake_DataLakeSourcesEmpty(t *testing.T) {
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["GetDataLakeSources"] = func(any) (any, error) { return &securitylake.GetDataLakeSourcesOutput{}, nil }
-	total, _, err := scanSecurityLakeTopLevel(st, h)
+	total, err := scanSecurityLakeTopLevel(st, h)
 	if err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
@@ -481,7 +483,7 @@ func TestScanSecurityLake_NotEnabledMakesNoSourcesCall(t *testing.T) {
 	h["ListDataLakes"] = func(any) (any, error) {
 		return nil, apiErr("AccessDeniedException", "Your account is not authorized to perform this operation")
 	}
-	if _, _, err := scanSecurityLakeTopLevel(st, h); !errors.Is(err, errServiceDisabled) {
+	if _, err := scanSecurityLakeTopLevel(st, h); !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("err = %v, want errServiceDisabled", err)
 	}
 	if got := calls.sourcesCalls(); len(got) != 0 {
@@ -531,7 +533,7 @@ func TestScanSecurityLake_DataLakeSourcesErrors(t *testing.T) {
 					logWarnings++
 				}
 			}
-			_, _, err := scanSecurityLakeTopLevel(st, h)
+			_, err := scanSecurityLakeTopLevel(st, h)
 			switch {
 			case c.wantErr == nil && err != nil:
 				t.Fatalf("err = %v, want nil", err)
@@ -568,7 +570,7 @@ func TestScanSecurityLake_DataLakeSourcesStopOnRepeatedToken(t *testing.T) {
 		}
 		return &securitylake.GetDataLakeSourcesOutput{NextToken: ptrStr("same")}, nil
 	}
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	if got := len(calls.sourcesCalls()); got != 2 {
@@ -584,7 +586,7 @@ func TestScanSecurityLake_DataLakeSourcesPhaseIndependent(t *testing.T) {
 		st := newTestStore(t)
 		h := slHandlers(&slCalls{})
 		h["GetDataLakeSources"] = func(any) (any, error) { return nil, errSLTest }
-		total, _, err := scanSecurityLakeTopLevel(st, h)
+		total, err := scanSecurityLakeTopLevel(st, h)
 		if !errors.Is(err, errSLTest) {
 			t.Fatalf("err = %v, want the GetDataLakeSources error", err)
 		}
@@ -602,7 +604,7 @@ func TestScanSecurityLake_DataLakeSourcesPhaseIndependent(t *testing.T) {
 			st := newTestStore(t)
 			h := slHandlers(&slCalls{})
 			h[op] = func(any) (any, error) { return nil, errSLTest }
-			if _, _, err := scanSecurityLakeTopLevel(st, h); !errors.Is(err, errSLTest) {
+			if _, err := scanSecurityLakeTopLevel(st, h); !errors.Is(err, errSLTest) {
 				t.Fatalf("err = %v, want the %s error", err, op)
 			}
 			if rows := rowsByNativeID(t, st, TypeSecurityLakeDataLakeSource); len(rows) != len(slTestSources) {
@@ -634,7 +636,7 @@ func TestScanSecurityLake_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 			h[c.transientOp] = func(any) (any, error) { return nil, throttle }
 			h[c.hardOp] = func(any) (any, error) { return nil, errSLTest }
 			warnings := countOpWarnings(st, c.warnOp)
-			_, _, err := scanSecurityLakeTopLevel(st, h)
+			_, err := scanSecurityLakeTopLevel(st, h)
 			if !errors.Is(err, errSLTest) {
 				t.Fatalf("err = %v, want the %s error", err, c.hardOp)
 			}
@@ -657,7 +659,7 @@ func TestScanSecurityLake_ThrottledDataLakesStillListsSubscribers(t *testing.T) 
 	h := slHandlers(&slCalls{})
 	h["ListDataLakes"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 	warnings := countOpWarnings(st, slDataLakesOp)
-	_, _, err := scanSecurityLakeTopLevel(st, h)
+	_, err := scanSecurityLakeTopLevel(st, h)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Fatalf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -674,7 +676,7 @@ func TestScanSecurityLake_ThrottledDataLakesStillListsSubscribers(t *testing.T) 
 func TestScanSecurityLake_CustomSourceEnrichment(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeSecurityLakeDataLakeSource)[slTestCustomID]
@@ -717,7 +719,7 @@ func TestScanSecurityLake_CustomSourceEnrichment(t *testing.T) {
 func TestScanSecurityLake_EmbedsEveryLogSourceVersion(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeSecurityLakeDataLakeSource)[slTestVPCFlowID]
@@ -759,7 +761,7 @@ func TestScanSecurityLake_UnmatchedLogSourceWarns(t *testing.T) {
 		return out, err
 	}
 	warnings := countOpWarnings(st, slLogSourcesOp)
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	if *warnings != 1 {
@@ -801,7 +803,7 @@ func TestScanSecurityLake_LogSourcesErrorKeepsRows(t *testing.T) {
 				failSecondLogSourcesPage(h, c.err)
 			}
 			warnings := countOpWarnings(st, slLogSourcesOp)
-			total, _, err := scanSecurityLakeTopLevel(st, h)
+			total, err := scanSecurityLakeTopLevel(st, h)
 			switch {
 			case c.wantErr == nil && err != nil:
 				t.Fatalf("err = %v, want nil", err)
@@ -836,7 +838,7 @@ func TestScanSecurityLake_NoLogSourceEntriesIsEmptyList(t *testing.T) {
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["ListLogSources"] = func(any) (any, error) { return &securitylake.ListLogSourcesOutput{}, nil }
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeSecurityLakeDataLakeSource)
@@ -864,7 +866,7 @@ func TestScanSecurityLake_LogSourcesStopOnRepeatedToken(t *testing.T) {
 		}
 		return &securitylake.ListLogSourcesOutput{NextToken: ptrStr("same")}, nil
 	}
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	if got := len(calls.logSourcesCalls()); got != 2 {
@@ -882,7 +884,7 @@ func TestScanSecurityLake_TransientLogSourcesDoesNotMaskSourcesError(t *testing.
 	h["ListLogSources"] = func(any) (any, error) { return nil, &net.OpError{Op: "dial", Err: errSLTest} }
 	warnings := map[string]int{}
 	st.OnWarn = func(w store.ScanWarning) { warnings[w.Service]++ }
-	_, _, err := scanSecurityLakeTopLevel(st, h)
+	_, err := scanSecurityLakeTopLevel(st, h)
 	if !isAPIErrorCode(err, "BadRequestException") {
 		t.Fatalf("err = %v, want the GetDataLakeSources BadRequestException", err)
 	}
@@ -914,7 +916,7 @@ func slScanLogSourceWarnings(t *testing.T, h map[string]func(any) (any, error)) 
 	t.Helper()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, slLogSourcesOp)
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	return *warnings, rowsByNativeID(t, st, TypeSecurityLakeDataLakeSource)
@@ -1016,7 +1018,7 @@ func TestScanSecurityLake_CutShortListingReportsLogSources(t *testing.T) {
 	})
 	warnings := map[string]int{}
 	st.OnWarn = func(w store.ScanWarning) { warnings[w.Service]++ }
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
 	}
 	want := map[string]int{slLogSourcesOp: 1, slDataLakeSourcesOp: 1}
@@ -1060,7 +1062,7 @@ func TestScanSecurityLake_SubscribersNotEnabled(t *testing.T) {
 				h[op] = fn
 			}
 			warnings := countOpWarnings(st, slSubscribersOp)
-			_, _, err := scanSecurityLakeTopLevel(st, h)
+			_, err := scanSecurityLakeTopLevel(st, h)
 			switch {
 			case c.wantNilErr && err != nil:
 				t.Errorf("err = %v, want nil", err)
@@ -1095,7 +1097,7 @@ func TestScanSecurityLake_DataLakesNXDOMAINSkipsSubscribers(t *testing.T) {
 		called = true
 		return &securitylake.ListSubscribersOutput{}, nil
 	}
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err == nil {
+	if _, err := scanSecurityLakeTopLevel(st, h); err == nil {
 		t.Fatal("err = nil, want the NXDOMAIN")
 	}
 	if called {

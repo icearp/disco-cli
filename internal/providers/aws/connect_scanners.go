@@ -23,15 +23,15 @@ func init() {
 // resources are mostly per-Instance scoped, so we fetch instances first
 // and pass them to each family. Families that own account-scoped
 // resources (TrafficDistributionGroup) ignore the instance list.
-func scanConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := connect.NewFromConfig(acct.cfg, func(o *connect.Options) { o.Region = region })
 
 	instances, ierr := listConnectInstances(ctx, client, acct, region, st)
-	total, inserted, err = scanConnectAll(ctx, client, instances, acct, region, st, scanID)
+	total, err = scanConnectAll(ctx, client, instances, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add("connect:ListInstances", ierr)
 	errs.add("connect", err)
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // scanConnectAll runs the older families (scanConnectOlderFamilies) and the
@@ -41,21 +41,21 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 // The two sides' errors are joined by phaseErrs, so a transient one is demoted
 // to a warning only beside a hard one: joined, it would be buried in the hard
 // error instead of reported under its op.
-func scanConnectAll(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAll(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
-		wg                    sync.WaitGroup
-		total, inserted, t, i int
-		err, aerr             error
+		wg        sync.WaitGroup
+		total, t  int
+		err, aerr error
 	)
 	wg.Go(func() {
-		total, inserted, err = scanConnectOlderFamilies(ctx, client, instances, acct, region, st, scanID)
+		total, err = scanConnectOlderFamilies(ctx, client, instances, acct, region, st, scanID)
 	})
-	wg.Go(func() { t, i, aerr = scanConnectAnalytics(ctx, client, instances, acct, region, st, scanID) })
+	wg.Go(func() { t, aerr = scanConnectAnalytics(ctx, client, instances, acct, region, st, scanID) })
 	wg.Wait()
 	var errs phaseErrs
 	errs.add("connect", err)
 	errs.add("connect analytics", aerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // scanConnectOlderFamilies runs the families that predate analytics, then the
@@ -68,21 +68,21 @@ func scanConnectAll(ctx context.Context, client *connect.Client, instances []ctt
 // on one side cancels nothing on the other. The family, children and access
 // errors are joined by phaseErrs, which demotes a transient one to a warning
 // only beside a hard one.
-func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, err := scanConnectFamilies(ctx, client, instances, acct, region, st, scanID)
+func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, err := scanConnectFamilies(ctx, client, instances, acct, region, st, scanID)
 	var (
 		wg                  sync.WaitGroup
-		ct, ci, at, ai      int
+		ct, at              int
 		childErr, accessErr error
 	)
-	wg.Go(func() { ct, ci, childErr = scanConnectChildren(ctx, client, instances, acct, region, st, scanID) })
-	wg.Go(func() { at, ai, accessErr = scanConnectAccess(ctx, client, acct, region, st, scanID) })
+	wg.Go(func() { ct, childErr = scanConnectChildren(ctx, client, instances, acct, region, st, scanID) })
+	wg.Go(func() { at, accessErr = scanConnectAccess(ctx, client, acct, region, st, scanID) })
 	wg.Wait()
 	var errs phaseErrs
 	errs.add("connect", err)
 	errs.add("connect", childErr)
 	errs.add("connect access", accessErr)
-	return total + ct + at, inserted + ci + ai, errs.join(st, acct, region)
+	return total + ct + at, errs.join(st, acct, region)
 }
 
 // scanConnectFamilies runs the families that predate analytics concurrently
@@ -91,30 +91,30 @@ func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, insta
 // and these families are independent, so one family's failure must cost the
 // others nothing. They all start together, so a failed store write has no
 // later family to stop.
-func scanConnectFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	families := []connectPhase{
-		{"connect core", func() (int, int, error) {
+		{"connect core", func() (int, error) {
 			return scanConnectCore(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect routing", func() (int, int, error) {
+		{"connect routing", func() (int, error) {
 			return scanConnectRouting(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect users", func() (int, int, error) {
+		{"connect users", func() (int, error) {
 			return scanConnectUsers(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect flows", func() (int, int, error) {
+		{"connect flows", func() (int, error) {
 			return scanConnectFlows(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect integration", func() (int, int, error) {
+		{"connect integration", func() (int, error) {
 			return scanConnectIntegration(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect workspace", func() (int, int, error) {
+		{"connect workspace", func() (int, error) {
 			return scanConnectWorkspace(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect data tables", func() (int, int, error) {
+		{"connect data tables", func() (int, error) {
 			return scanConnectDataTable(ctx, client, instances, acct, region, st, scanID)
 		}},
-		{"connect extra", func() (int, int, error) {
+		{"connect extra", func() (int, error) {
 			return scanConnectExtra(ctx, client, instances, acct, region, st, scanID)
 		}},
 	}
@@ -125,16 +125,15 @@ func scanConnectFamilies(ctx context.Context, client *connect.Client, instances 
 	)
 	for _, f := range families {
 		wg.Go(func() {
-			t, i, ferr := f.run()
+			t, ferr := f.run()
 			mu.Lock()
 			defer mu.Unlock()
 			total += t
-			inserted += i
 			errs.add(f.op, ferr)
 		})
 	}
 	wg.Wait()
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // listConnectInstances pages ListInstances once and returns the instances it
@@ -173,24 +172,23 @@ type connectInstanceLister interface {
 // demoted transient error becomes.
 type connectPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
 // connectRunPhases runs every phase, so one phase's error costs the later
 // phases nothing, and sums their counts. A failed store write returns at once;
 // other errors are joined by phaseErrs after every phase has run.
-func connectRunPhases(st *store.Store, acct *account, region string, phases ...connectPhase) (total, inserted int, err error) {
+func connectRunPhases(st *store.Store, acct *account, region string, phases ...connectPhase) (total int, err error) {
 	var errs phaseErrs
 	for _, p := range phases {
-		t, i, perr := p.run()
+		t, perr := p.run()
 		total += t
-		inserted += i
 		errs.add(p.op, perr)
 		if errors.Is(perr, store.ErrStoreWrite) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // errConnectNoBody is a Describe response that lacks the resource it describes.
@@ -332,7 +330,7 @@ func connectRow(acct *account, region, scanID, rtype, arn string) *store.Resourc
 // connectStoreListed stores each listed resource from its list summary
 // (fill), then returns the listing's errors. Resources listed without an id or
 // ARN are warned about and not stored.
-func connectStoreListed[S any](st *store.Store, acct *account, region, scanID, rtype, label string, l *connectListing[S], fill func(r *store.Resource, it connectListed[S])) (int, int, error) {
+func connectStoreListed[S any](st *store.Store, acct *account, region, scanID, rtype, label string, l *connectListing[S], fill func(r *store.Resource, it connectListed[S])) (int, error) {
 	rows := make([]*store.Resource, 0, len(l.items))
 	for _, it := range l.items {
 		r := connectRow(acct, region, scanID, rtype, it.arn)
@@ -340,12 +338,12 @@ func connectStoreListed[S any](st *store.Store, acct *account, region, scanID, r
 		rows = append(rows, r)
 	}
 	listErr := errors.Join(l.errs...)
-	total, inserted, err := upsertBatch(st, rows, label)
+	total, err := upsertBatch(st, rows, label)
 	if err != nil {
-		return total, inserted, errors.Join(listErr, err)
+		return total, errors.Join(listErr, err)
 	}
 	warnNotStored(st, l.op, acct, region, &l.noID, label+" have no id or ARN")
-	return total, inserted, listErr
+	return total, listErr
 }
 
 // connectListPerInstance runs the listing for every instance; one instance's
@@ -392,7 +390,7 @@ type connectDescribe[S any] struct {
 // Resources listed without an id or ARN are warned about and not stored.
 // Once ctx is done no further Describe starts and ctx's error is returned in
 // place of the per-resource failures the cancel caused.
-func (d connectDescribe[S]) store(ctx context.Context, st *store.Store, acct *account, region, scanID string, l *connectListing[S]) (int, int, error) {
+func (d connectDescribe[S]) store(ctx context.Context, st *store.Store, acct *account, region, scanID string, l *connectListing[S]) (int, error) {
 	var (
 		denied    skipTally
 		notReady  skipTally
@@ -443,20 +441,20 @@ items:
 	}
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
-		return 0, 0, fmt.Errorf("%s: %w", d.op, err)
+		return 0, fmt.Errorf("%s: %w", d.op, err)
 	}
 	readErr := errors.Join(l.errs...)
 	if failed.count > 0 {
 		readErr = errors.Join(readErr, fmt.Errorf("%s: %d %s stored as their list summary, first %s: %w",
 			d.op, failed.count, d.label, failed.first, failed.err))
 	}
-	total, inserted, err := upsertBatch(st, rows, d.label)
+	total, err := upsertBatch(st, rows, d.label)
 	if err != nil {
-		return total, inserted, errors.Join(readErr, err)
+		return total, errors.Join(readErr, err)
 	}
 	d.warnKept(st, acct, region, &denied, &notReady, &transient)
 	warnNotStored(st, l.op, acct, region, &l.noID, d.label+" have no id or ARN")
-	return total, inserted, readErr
+	return total, readErr
 }
 
 // warnKept warns once per cause for the resources stored as their list

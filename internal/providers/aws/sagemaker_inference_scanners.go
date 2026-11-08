@@ -38,21 +38,21 @@ type sagemakerInferenceAPI interface {
 
 // scanSageMakerInference runs all Inference-family phases for one region:
 // endpoints, endpoint configs, models, inference components, experiments.
-func scanSageMakerInference(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerInference(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, int, error) { return scanSageMakerEndpoints(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListEndpointConfigs", func() (int, int, error) { return scanSageMakerEndpointConfigs(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return scanSageMakerModels(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListInferenceComponents", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListEndpoints", func() (int, error) { return scanSageMakerEndpoints(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListEndpointConfigs", func() (int, error) { return scanSageMakerEndpointConfigs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListModels", func() (int, error) { return scanSageMakerModels(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListInferenceComponents", func() (int, error) {
 			return scanSageMakerInferenceComponents(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListInferenceExperiments", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListInferenceExperiments", func() (int, error) {
 			return scanSageMakerInferenceExperiments(ctx, client, acct, region, st, scanID)
 		}},
 	)
 }
 
-func scanSageMakerEndpoints(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerEndpoints(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.EndpointSummary]{
 		listOp: "sagemaker:ListEndpoints", describeOp: "sagemaker:DescribeEndpoint",
 		list: func(ctx context.Context, token *string) ([]smtypes.EndpointSummary, *string, error) {
@@ -95,7 +95,7 @@ func scanSageMakerEndpoints(ctx context.Context, client sagemakerInferenceAPI, a
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListEndpoints"))
 }
 
-func scanSageMakerEndpointConfigs(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerEndpointConfigs(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.EndpointConfigSummary]{
 		listOp: "sagemaker:ListEndpointConfigs", describeOp: "sagemaker:DescribeEndpointConfig",
 		list: func(ctx context.Context, token *string) ([]smtypes.EndpointConfigSummary, *string, error) {
@@ -136,7 +136,7 @@ func scanSageMakerEndpointConfigs(ctx context.Context, client sagemakerInference
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListEndpointConfigs"))
 }
 
-func scanSageMakerModels(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModels(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ModelSummary]{
 		listOp: "sagemaker:ListModels", describeOp: "sagemaker:DescribeModel",
 		list: func(ctx context.Context, token *string) ([]smtypes.ModelSummary, *string, error) {
@@ -177,7 +177,7 @@ func scanSageMakerModels(ctx context.Context, client sagemakerInferenceAPI, acct
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModels"))
 }
 
-func scanSageMakerInferenceComponents(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerInferenceComponents(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.InferenceComponentSummary]{
 		listOp: "sagemaker:ListInferenceComponents", describeOp: "sagemaker:DescribeInferenceComponent",
 		list: func(ctx context.Context, token *string) ([]smtypes.InferenceComponentSummary, *string, error) {
@@ -220,7 +220,7 @@ func scanSageMakerInferenceComponents(ctx context.Context, client sagemakerInfer
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListInferenceComponents"))
 }
 
-func scanSageMakerInferenceExperiments(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerInferenceExperiments(ctx context.Context, client sagemakerInferenceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[string]{
 		listOp: "sagemaker:ListInferenceExperiments", describeOp: "sagemaker:DescribeInferenceExperiment", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]string, *string, error) {

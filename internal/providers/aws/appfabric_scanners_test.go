@@ -299,7 +299,7 @@ func (c *afCalls) handlers() map[string]func(in any) (any, error) {
 
 // afScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func afScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func afScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, afTestDenied)
 	return scanAppFabric(ctx, acct, testRegion, st, testScanID)
@@ -346,7 +346,9 @@ func TestScanAppFabric_StoresEveryTypeWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newAFCalls()
 
-	total, inserted, err := afScan(context.Background(), st, calls.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := afScan(context.Background(), counted, calls.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -440,16 +442,16 @@ func TestScanAppFabric_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAppFabric_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := afScan(context.Background(), st, newAFCalls().handlers()); err != nil {
+	if _, err := afScan(context.Background(), st, newAFCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := afScan(context.Background(), st, newAFCalls().handlers())
+	total, err := afScan(context.Background(), st, newAFCalls().handlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -470,7 +472,9 @@ func TestScanAppFabric_NoBundles(t *testing.T) {
 		return &appfabric.ListAppBundlesOutput{}, nil
 	}
 
-	total, inserted, err := afScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := afScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -526,7 +530,7 @@ func TestScanAppFabric_TagReadFailures(t *testing.T) {
 			calls := newAFCalls()
 			calls.tagErrs[c.arn] = c.err
 
-			total, _, err := afScan(context.Background(), st, calls.handlers())
+			total, err := afScan(context.Background(), st, calls.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -575,7 +579,7 @@ func TestScanAppFabric_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := afScan(context.Background(), st, calls.handlers())
+	total, err := afScan(context.Background(), st, calls.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -597,7 +601,7 @@ func TestScanAppFabric_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[calls.arns(afKindOf("ListIngestions"))[0]] = afTestThrottle
 	calls.tagErrs[calls.arns(afKindOf("ListIngestionDestinations"))[3]] = afTestBad
 
-	_, _, err := afScan(context.Background(), st, calls.handlers())
+	_, err := afScan(context.Background(), st, calls.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -656,7 +660,7 @@ func TestScanAppFabric_GetFailures(t *testing.T) {
 					}
 				}
 
-				total, _, err := afScan(context.Background(), st, handlers)
+				total, err := afScan(context.Background(), st, handlers)
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -753,7 +757,7 @@ func TestScanAppFabric_FailedWriteStopsScan(t *testing.T) {
 			calls.tagErrs[lost] = afTestDenied
 			calls.getErrs[lost] = afTestDenied
 
-			total, _, err := afScan(context.Background(), st, handlers)
+			total, err := afScan(context.Background(), st, handlers)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -814,7 +818,7 @@ func TestScanAppFabric_EveryElementOfAPageIsAParent(t *testing.T) {
 		return afPage("ListIngestions", nil, elements...), nil
 	}
 
-	if _, _, err := afScan(context.Background(), st, handlers); err != nil {
+	if _, err := afScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(bundles)
@@ -861,7 +865,7 @@ func TestScanAppFabric_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := afScan(context.Background(), st, handlers)
+			total, err := afScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -901,7 +905,7 @@ func TestScanAppFabric_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := afScan(context.Background(), st, handlers)
+			total, err := afScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -958,7 +962,7 @@ func TestScanAppFabric_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := afScan(context.Background(), st, handlers)
+				total, err := afScan(context.Background(), st, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1010,7 +1014,7 @@ func TestScanAppFabric_ElementWithoutARN(t *testing.T) {
 			calls := newAFCalls()
 			calls.withoutARN = k.op
 
-			total, _, err := afScan(context.Background(), st, calls.handlers())
+			total, err := afScan(context.Background(), st, calls.handlers())
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1046,7 +1050,7 @@ func TestScanAppFabric_GovCloudARNsUnchanged(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(calls.handlers(), afTestDenied)
 
-	total, _, err := scanAppFabric(context.Background(), acct, region, st, testScanID)
+	total, err := scanAppFabric(context.Background(), acct, region, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1090,7 +1094,7 @@ func TestScanAppFabric_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := afScan(ctx, st, handlers)
+	_, err := afScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1135,7 +1139,7 @@ func TestScanAppFabric_ContextEndDuringDestinations(t *testing.T) {
 		return &appfabric.ListIngestionDestinationsOutput{}, nil
 	}
 
-	_, _, err := afScan(ctx, st, handlers)
+	_, err := afScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1153,7 +1157,7 @@ func TestScanAppFabric_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newAFCalls().handlers()
 		handlers["ListIngestionDestinations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := afScan(context.Background(), st, handlers)
+		total, err := afScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := afTestTotal - 8; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1163,7 +1167,7 @@ func TestScanAppFabric_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newAFCalls()
 		calls.getErrs[calls.arns(afKindOf("ListIngestionDestinations"))[1]] = nx
-		total, _, err := afScan(context.Background(), st, calls.handlers())
+		total, err := afScan(context.Background(), st, calls.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if total != afTestTotal {
 			t.Errorf("total = %d; want %d", total, afTestTotal)
@@ -1174,7 +1178,7 @@ func TestScanAppFabric_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanAppFabric(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanAppFabric(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

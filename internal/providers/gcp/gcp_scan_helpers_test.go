@@ -71,8 +71,9 @@ func TestRegionFanout_HappyPath(t *testing.T) {
 	})
 	svc := fakeDataprocService(t, srv.URL, srv.Client())
 
-	total, inserted, err := gcpRegionFanoutScanIn(
-		t.Context(), p, st, 2,
+	counted, upserts := countUpserts(st)
+	total, err := gcpRegionFanoutScanIn(
+		t.Context(), p, counted, 2,
 		[]string{"us-central1", "europe-west1"},
 		"dataproc:clusters.list",
 		func(region string) pager[dataproc.ListClustersResponse] {
@@ -96,6 +97,7 @@ func TestRegionFanout_HappyPath(t *testing.T) {
 			}
 		},
 	)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("fanout: %v", err)
 	}
@@ -110,8 +112,9 @@ func TestRegionFanout_EmptyRegions(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
 
-	total, inserted, err := gcpRegionFanoutScanIn(
-		t.Context(), p, st, 2, nil, "dataproc:clusters.list",
+	counted, upserts := countUpserts(st)
+	total, err := gcpRegionFanoutScanIn(
+		t.Context(), p, counted, 2, nil, "dataproc:clusters.list",
 		func(string) pager[dataproc.ListClustersResponse] {
 			t.Fatal("pagerFn called on empty regions")
 			return nil
@@ -119,6 +122,7 @@ func TestRegionFanout_EmptyRegions(t *testing.T) {
 		func(*dataproc.ListClustersResponse) []*dataproc.Cluster { return nil },
 		func(*dataproc.Cluster, string) *store.Resource { return nil },
 	)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("expected 0/0/nil, got %d/%d/%v", total, inserted, err)
 	}
@@ -139,8 +143,9 @@ func TestRegionFanout_PerRegion403(t *testing.T) {
 	})
 	svc := fakeDataprocService(t, srv.URL, srv.Client())
 
-	total, inserted, err := gcpRegionFanoutScanIn(
-		t.Context(), p, st, 2,
+	counted, upserts := countUpserts(st)
+	total, err := gcpRegionFanoutScanIn(
+		t.Context(), p, counted, 2,
 		[]string{"us-central1", "europe-west1"},
 		"dataproc:clusters.list",
 		func(region string) pager[dataproc.ListClustersResponse] {
@@ -164,6 +169,7 @@ func TestRegionFanout_PerRegion403(t *testing.T) {
 			}
 		},
 	)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("fanout (mixed): %v", err)
 	}

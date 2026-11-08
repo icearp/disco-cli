@@ -32,7 +32,7 @@ type stubIAMAccountAPI struct {
 func runIAMAccount(st *store.Store, client iamAPI, scanID string) (int, error) {
 	acct := newTestAccount(testAccountID)
 	var errs phaseErrs
-	total, _ := scanIAMAccount(context.Background(), client, acct, st, scanID, errs.add)
+	total := scanIAMAccount(context.Background(), client, acct, st, scanID, errs.add)
 	return total, errs.join(st, acct, "global")
 }
 

@@ -489,7 +489,9 @@ func TestScanCloudTrail_StoresTags(t *testing.T) {
 	ctPolicyEveryTarget(h, &policyCalls)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, ctDenied)
-	total, inserted, err := scanCloudTrail(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudTrail(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudTrail: %v", err)
 	}
@@ -578,7 +580,9 @@ func TestScanCloudTrail_StoresTags(t *testing.T) {
 		}
 	}
 
-	total, inserted, err = scanCloudTrail(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudTrail(context.Background(), acct, testRegion, counted, testScanID)
+	inserted = upserts()
 	if err != nil || total != 26 || inserted != 0 {
 		t.Errorf("rescan = %d, %d, %v; want 26, 0, nil", total, inserted, err)
 	}
@@ -904,7 +908,7 @@ func TestScanCloudTrail_TagReadsInOtherPartitions(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, ctDenied)
-			if _, _, err := scanCloudTrail(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCloudTrail(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanCloudTrail: %v", err)
 			}
 			if got, want := calls.get(), [][]string{{trail}, {eds}, {channel}, {dashboard}}; !slices.EqualFunc(got, want, slices.Equal) {
@@ -995,7 +999,7 @@ func TestScanCloudTrail_ContextEndKeepsListedStores(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(h, ctDenied)
-	_, _, err := scanCloudTrail(ctx, acct, testRegion, st, testScanID)
+	_, err := scanCloudTrail(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}

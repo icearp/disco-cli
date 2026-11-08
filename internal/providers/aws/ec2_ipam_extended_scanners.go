@@ -46,13 +46,13 @@ const (
 // homeIPAM reports whether scanIPAMs stored this scan an IPAM whose home
 // Region is region; policies are the stored policies whose allocation rules
 // can still be read.
-func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, homeIPAM bool, policies []childParent, errs *phaseErrs) (total, inserted int) {
+func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, homeIPAM bool, policies []childParent, errs *phaseErrs) (total int) {
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{ec2ByoipCidrsOp, func() (int, int, error) { return scanEC2ByoipCidrs(ctx, client, acct, region, st, scanID) }},
-		{ec2IpamByoasnOp, func() (int, int, error) {
+		{ec2ByoipCidrsOp, func() (int, error) { return scanEC2ByoipCidrs(ctx, client, acct, region, st, scanID) }},
+		{ec2IpamByoasnOp, func() (int, error) {
 			// AWS's BYOASN tutorial (vpc/latest/ipam/tutorials-byoasn.html)
 			// has the steps run from the IPAM admin account in the IPAM's home
 			// Region (paraphrased, not re-checked), and DescribeIpamByoasn
@@ -60,40 +60,39 @@ func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, regi
 			// or reject the call is unverified, so the call is made only in a
 			// Region that is home to an IPAM stored this scan.
 			if !homeIPAM {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return scanEC2IpamByoasns(ctx, client, acct, region, st, scanID)
 		}},
-		{ec2IpamPolicyAllocationRulesOp, func() (int, int, error) {
+		{ec2IpamPolicyAllocationRulesOp, func() (int, error) {
 			return scanEC2IpamPolicyAllocationRules(ctx, client, acct, region, st, scanID, policies)
 		}},
-		{ec2IPAMPrefixListResolversOp, func() (int, int, error) {
+		{ec2IPAMPrefixListResolversOp, func() (int, error) {
 			return scanIPAMPrefixListResolvers(ctx, client, acct, region, st, scanID)
 		}},
-		{ec2IpamInternetRegistryAssocsOp, func() (int, int, error) {
+		{ec2IpamInternetRegistryAssocsOp, func() (int, error) {
 			// An association belongs to an IPAM (IpamId) and its ARN carries
 			// no Region. Whether Regions other than the IPAM's home Region
 			// list it too, or reject the call, is unverified; listing only in
 			// a home Region keeps one row per association.
 			if !homeIPAM {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return scanEC2IpamInternetRegistryAssociations(ctx, client, acct, region, st, scanID)
 		}},
 	} {
-		t, i, perr := phase.run()
+		t, perr := phase.run()
 		total += t
-		inserted += i
 		errs.add(phase.op, perr)
 	}
-	return total, inserted
+	return total
 }
 
 // scanEC2ByoipCidrs stores the address ranges provisioned to EC2 through
 // BYOIP. AWS documents no ARN for a range; the NativeID is synthesized in
 // ec2ARNIn shape from the CIDR, which is unique within an account and region.
 // Deprovisioned ranges are no longer provisioned and are dropped.
-func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := ec2.NewDescribeByoipCidrsPaginator(client, &ec2.DescribeByoipCidrsInput{},
 		func(o *ec2.DescribeByoipCidrsPaginatorOptions) { o.Limit = ec2ByoipCidrsPageLimit })
 	return ec2PageScan(ctx, ec2ByoipCidrsOp, acct, region, st, pager,
@@ -125,7 +124,7 @@ func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region
 // for one; the NativeID is synthesized in ec2ARNIn shape from the IPAM id and
 // the ASN, as the IPAM pool CIDR NativeID is. Deprovisioned ASNs are dropped.
 // DescribeIpamByoasn has no SDK paginator.
-func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var children []containedChild
 	var token *string
 	for {
@@ -135,7 +134,7 @@ func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, regio
 		})
 		if perr != nil {
 			if token == nil && isEC2RegionFeatureGap(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return upsertRegionChildren(st, acct, region, ec2IpamByoasnOp, children, perr)
 		}
@@ -173,9 +172,9 @@ func ipamPolicyAllocationRuleNativeID(policyARN, resourceType, locale string) st
 
 // scanEC2IpamPolicyAllocationRules stores, under each policy, one row per
 // (resource type, locale) document of allocation rules the policy returns.
-func scanEC2IpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, policies []childParent) (int, int, error) {
+func scanEC2IpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, policies []childParent) (int, error) {
 	var gone skipTally
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, ec2IpamPolicyAllocationRulesOp, policies,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, ec2IpamPolicyAllocationRulesOp, policies,
 		func(error) bool { return false }, byParentID,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := listIpamPolicyAllocationRules(ctx, client, acct, region, scanID, p)
@@ -186,7 +185,7 @@ func scanEC2IpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *
 		})
 	gone.warnCode(st, ec2IpamPolicyAllocationRulesOp, acct, region, ec2IpamPolicyNotFound,
 		"IPAM policies", "a policy deleted since it was listed")
-	return total, inserted, err
+	return total, err
 }
 
 // listIpamPolicyAllocationRules returns the allocation-rule rows of one
@@ -237,7 +236,7 @@ func listIpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *acc
 // stored. DescribeIpamInternetRegistryAssociations has no SDK paginator.
 // scanEC2IPAMExtended calls it only in a Region that is home to an IPAM
 // stored this scan.
-func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		batch   []*store.Resource
 		noARN   skipTally
@@ -251,7 +250,7 @@ func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API,
 		})
 		if err != nil {
 			if token == nil && isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			listErr = err
 			break
@@ -291,9 +290,9 @@ func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API,
 		_ = skipIfAccessDenied(st, ec2IpamInternetRegistryAssocsOp, acct.ID, region, listErr)
 		listErr = nil
 	}
-	total, inserted, uerr := upsertBatch(st, batch, ec2IpamInternetRegistryAssocsOp)
+	total, uerr := upsertBatch(st, batch, ec2IpamInternetRegistryAssocsOp)
 	if listErr != nil {
-		return total, inserted, errors.Join(fmt.Errorf("%s: %w", ec2IpamInternetRegistryAssocsOp, listErr), uerr)
+		return total, errors.Join(fmt.Errorf("%s: %w", ec2IpamInternetRegistryAssocsOp, listErr), uerr)
 	}
-	return total, inserted, uerr
+	return total, uerr
 }

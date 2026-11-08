@@ -23,8 +23,8 @@ func redshiftARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "redshift", region, acct, kind+":"+id)
 }
 
-func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterParameterGroups", redshiftListCodes{},
+func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterParameterGroups", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeClusterParameterGroupsOutput, error) {
 			return client.DescribeClusterParameterGroups(ctx, &redshift.DescribeClusterParameterGroupsInput{Marker: marker})
 		},
@@ -40,11 +40,11 @@ func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtA
 				DiscoveredBy: scanID,
 			}
 		}, "cluster parameter groups", "ParameterGroupName")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAccess", redshiftListCodes{},
+func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAccess", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeEndpointAccessOutput, error) {
 			return client.DescribeEndpointAccess(ctx, &redshift.DescribeEndpointAccessInput{Marker: marker})
 		},
@@ -59,13 +59,13 @@ func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct
 				Name: &name, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			}
 		}, "endpoint accesses", "EndpointName")
-	return total, inserted, err
+	return total, err
 }
 
 // scanRedshiftEndpointAuthorization keys an authorization by its cluster,
 // grantor and grantee; one missing any of the three is warned about.
-func scanRedshiftEndpointAuthorization(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAuthorization", redshiftListCodes{},
+func scanRedshiftEndpointAuthorization(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAuthorization", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeEndpointAuthorizationOutput, error) {
 			return client.DescribeEndpointAuthorization(ctx, &redshift.DescribeEndpointAuthorizationInput{Marker: marker})
 		},
@@ -85,11 +85,11 @@ func scanRedshiftEndpointAuthorization(ctx context.Context, client redshiftExtAP
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			}
 		}, "endpoint authorizations", "ClusterIdentifier, Grantor or Grantee")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftEventSubscriptions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEventSubscriptions", redshiftListCodes{},
+func scanRedshiftEventSubscriptions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEventSubscriptions", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeEventSubscriptionsOutput, error) {
 			return client.DescribeEventSubscriptions(ctx, &redshift.DescribeEventSubscriptionsInput{Marker: marker})
 		},
@@ -105,11 +105,11 @@ func scanRedshiftEventSubscriptions(ctx context.Context, client redshiftExtAPI, 
 				DiscoveredBy: scanID,
 			}
 		}, "event subscriptions", "CustSubscriptionId")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftIntegrations(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeIntegrations", redshiftListCodes{},
+func scanRedshiftIntegrations(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeIntegrations", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeIntegrationsOutput, error) {
 			return client.DescribeIntegrations(ctx, &redshift.DescribeIntegrationsInput{Marker: marker})
 		},
@@ -129,11 +129,11 @@ func scanRedshiftIntegrations(ctx context.Context, client redshiftExtAPI, acct *
 				TagsJSON: kvTagsJSON(integration.Tags, redshiftTagKV), DiscoveredBy: scanID,
 			}
 		}, "integrations", "IntegrationArn")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftScheduledActions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeScheduledActions", redshiftListCodes{},
+func scanRedshiftScheduledActions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeScheduledActions", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeScheduledActionsOutput, error) {
 			return client.DescribeScheduledActions(ctx, &redshift.DescribeScheduledActionsInput{Marker: marker})
 		},
@@ -148,5 +148,5 @@ func scanRedshiftScheduledActions(ctx context.Context, client redshiftExtAPI, ac
 				Name: &name, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			}
 		}, "scheduled actions", "ScheduledActionName")
-	return total, inserted, err
+	return total, err
 }

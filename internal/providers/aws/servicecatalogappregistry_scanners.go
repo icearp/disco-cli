@@ -31,44 +31,40 @@ type scarAPI interface {
 // attribute groups, plus per-application attribute-group and resource
 // associations. Applications and attribute groups carry native ARNs;
 // associations synthesize an ARN as parent application ARN + path.
-func scanServiceCatalogAppRegistry(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceCatalogAppRegistry(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := servicecatalogappregistry.NewFromConfig(acct.cfg, func(o *servicecatalogappregistry.Options) { o.Region = region })
 
-	apps, t, i, ferr := scanSCARApplications(ctx, client, acct, region, st, scanID)
+	apps, t, ferr := scanSCARApplications(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSCARAttributeGroups(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSCARAttributeGroups(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, app := range apps {
-		t, i, ferr = scanSCARAGAssociations(ctx, client, acct, region, st, scanID, app)
+		t, ferr = scanSCARAGAssociations(ctx, client, acct, region, st, scanID, app)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 
-		t, i, ferr = scanSCARResourceAssociations(ctx, client, acct, region, st, scanID, app)
+		t, ferr = scanSCARResourceAssociations(ctx, client, acct, region, st, scanID, app)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 type scarApp struct{ id, arn string }
 
-func scanSCARApplications(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string) ([]scarApp, int, int, error) {
+func scanSCARApplications(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string) ([]scarApp, int, error) {
 	pager := servicecatalogappregistry.NewListApplicationsPaginator(client, &servicecatalogappregistry.ListApplicationsInput{})
 	var batch []*store.Resource
 	var apps []scarApp
@@ -76,9 +72,9 @@ func scanSCARApplications(ctx context.Context, client scarAPI, acct *account, re
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListApplications", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListApplications", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("servicecatalogappregistry:ListApplications: %w", err)
+			return nil, 0, fmt.Errorf("servicecatalogappregistry:ListApplications: %w", err)
 		}
 		for _, a := range out.Applications {
 			arn := sv(a.Arn)
@@ -95,20 +91,20 @@ func scanSCARApplications(ctx context.Context, client scarAPI, acct *account, re
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "appregistry applications")
-	return apps, t, i, err
+	t, err := upsertBatch(st, batch, "appregistry applications")
+	return apps, t, err
 }
 
-func scanSCARAttributeGroups(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSCARAttributeGroups(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := servicecatalogappregistry.NewListAttributeGroupsPaginator(client, &servicecatalogappregistry.ListAttributeGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAttributeGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAttributeGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("servicecatalogappregistry:ListAttributeGroups: %w", err)
+			return 0, fmt.Errorf("servicecatalogappregistry:ListAttributeGroups: %w", err)
 		}
 		for _, ag := range out.AttributeGroups {
 			arn := sv(ag.Arn)
@@ -126,7 +122,7 @@ func scanSCARAttributeGroups(ctx context.Context, client scarAPI, acct *account,
 	return upsertBatch(st, batch, "appregistry attribute-groups")
 }
 
-func scanSCARAGAssociations(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string, app scarApp) (int, int, error) {
+func scanSCARAGAssociations(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string, app scarApp) (int, error) {
 	id := app.id
 	pager := servicecatalogappregistry.NewListAttributeGroupsForApplicationPaginator(client, &servicecatalogappregistry.ListAttributeGroupsForApplicationInput{Application: &id})
 	var batch []*store.Resource
@@ -134,9 +130,9 @@ func scanSCARAGAssociations(ctx context.Context, client scarAPI, acct *account, 
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAttributeGroupsForApplication", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAttributeGroupsForApplication", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("servicecatalogappregistry:ListAttributeGroupsForApplication: %w", err)
+			return 0, fmt.Errorf("servicecatalogappregistry:ListAttributeGroupsForApplication: %w", err)
 		}
 		for _, ag := range out.AttributeGroupsDetails {
 			agID := sv(ag.Id)
@@ -156,7 +152,7 @@ func scanSCARAGAssociations(ctx context.Context, client scarAPI, acct *account, 
 	return upsertBatch(st, batch, "appregistry attribute-group-associations")
 }
 
-func scanSCARResourceAssociations(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string, app scarApp) (int, int, error) {
+func scanSCARResourceAssociations(ctx context.Context, client scarAPI, acct *account, region string, st *store.Store, scanID string, app scarApp) (int, error) {
 	id := app.id
 	pager := servicecatalogappregistry.NewListAssociatedResourcesPaginator(client, &servicecatalogappregistry.ListAssociatedResourcesInput{Application: &id})
 	var batch []*store.Resource
@@ -164,9 +160,9 @@ func scanSCARResourceAssociations(ctx context.Context, client scarAPI, acct *acc
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAssociatedResources", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "servicecatalogappregistry:ListAssociatedResources", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("servicecatalogappregistry:ListAssociatedResources: %w", err)
+			return 0, fmt.Errorf("servicecatalogappregistry:ListAssociatedResources: %w", err)
 		}
 		for _, r := range out.Resources {
 			rArn := sv(r.Arn)

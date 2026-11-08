@@ -72,101 +72,90 @@ const maxConcurrentFirestoreFanout = 10
 // AuthorizedViews/SchemaBundles (fan-out per Table), Backups/MemoryLayers
 // (fan-out per Instance using the cluster wildcard, per-row Cluster derived
 // from name), and HotTablets (fan-out per Cluster — no wildcard support).
-func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigtableadmin.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("bigtableadmin client: %w", err)
+		return 0, fmt.Errorf("bigtableadmin client: %w", err)
 	}
 
-	instances, t, n, err := scanBigtableInstances(ctx, svc, p, st, scanID)
+	instances, t, err := scanBigtableInstances(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	clusters, t, n, err := scanBigtableClusters(ctx, svc, p, instances, st, scanID)
+	clusters, t, err := scanBigtableClusters(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableAppProfiles(ctx, svc, p, st, scanID)
+	t, err = scanBigtableAppProfiles(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	tableNames, t, n, err := scanBigtableTables(ctx, svc, p, instances, st, scanID)
+	tableNames, t, err := scanBigtableTables(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableLogicalViews(ctx, svc, p, instances, st, scanID)
+	t, err = scanBigtableLogicalViews(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableMaterializedViews(ctx, svc, p, instances, st, scanID)
+	t, err = scanBigtableMaterializedViews(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableAuthorizedViews(ctx, svc, p, tableNames, st, scanID)
+	t, err = scanBigtableAuthorizedViews(ctx, svc, p, tableNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableSchemaBundles(ctx, svc, p, tableNames, st, scanID)
+	t, err = scanBigtableSchemaBundles(ctx, svc, p, tableNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableBackups(ctx, svc, p, instances, st, scanID)
+	t, err = scanBigtableBackups(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableHotTablets(ctx, svc, p, clusters, st, scanID)
+	t, err = scanBigtableHotTablets(ctx, svc, p, clusters, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanBigtableMemoryLayers(ctx, svc, p, instances, st, scanID)
+	t, err = scanBigtableMemoryLayers(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanBigtableInstances discovers Bigtable instances. NextPageToken on
 // ListInstancesResponse is SDK-doc-marked "DEPRECATED: unused and ignored",
 // so a single .Do() call (not .Pages()) is correct here — unlike Spanner's
 // Databases.List, this endpoint genuinely never paginates.
-func scanBigtableInstances(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (instances []*bigtableadmin.Instance, total, inserted int, err error) {
+func scanBigtableInstances(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (instances []*bigtableadmin.Instance, total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	resp, err := svc.Projects.Instances.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return nil, 0, 0, skipIfDenied(st, "bigtableadmin:instances.list", p.ID, err)
+			return nil, 0, skipIfDenied(st, "bigtableadmin:instances.list", p.ID, err)
 		}
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	var batch []*store.Resource
 	for _, inst := range resp.Instances {
@@ -184,15 +173,15 @@ func scanBigtableInstances(ctx context.Context, svc *bigtableadmin.Service, p *p
 			DiscoveredBy:   scanID,
 		})
 	}
-	total, inserted, err = upsertWithProjClosure(p, st, batch)
-	return instances, total, inserted, err
+	total, err = upsertWithProjClosure(p, st, batch)
+	return instances, total, err
 }
 
 // scanBigtableClusters discovers clusters per already-scanned Instance
 // (same NextPageToken-deprecated reasoning as scanBigtableInstances — single
 // .Do() call is correct). Returns the flat cluster list for the
 // HotTablet per-Cluster fan-out.
-func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (clusters []*bigtableadmin.Cluster, total, inserted int, err error) {
+func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (clusters []*bigtableadmin.Cluster, total int, err error) {
 	for _, inst := range instances {
 		cresp, cerr := svc.Projects.Instances.Clusters.List(inst.Name).Context(ctx).Do()
 		if cerr != nil {
@@ -200,7 +189,7 @@ func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *pr
 				_ = skipIfDenied(st, "bigtableadmin:clusters.list", p.ID, cerr)
 				continue
 			}
-			return clusters, total, inserted, cerr
+			return clusters, total, cerr
 		}
 		var cbatch []*store.Resource
 		for _, c := range cresp.Clusters {
@@ -220,14 +209,13 @@ func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *pr
 			})
 		}
 		instResID := store.ResourceID("gcp", p.ID, inst.Name)
-		ct, cn, uerr := upsertWithParent(st, cbatch, instResID)
+		ct, uerr := upsertWithParent(st, cbatch, instResID)
 		total += ct
-		inserted += cn
 		if uerr != nil {
-			return clusters, total, inserted, uerr
+			return clusters, total, uerr
 		}
 	}
-	return clusters, total, inserted, nil
+	return clusters, total, nil
 }
 
 // scanBigtableAppProfiles discovers app profiles across every instance via
@@ -235,11 +223,11 @@ func scanBigtableClusters(ctx context.Context, svc *bigtableadmin.Service, p *pr
 // support). Each page may mix profiles from multiple instances, so the
 // owning Instance is derived per-row by splitting the profile's own resource
 // name (KMS-style / Spanner-InstancePartitions-style).
-func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/instances/-", p.ID)
 	return runPaginated(ctx, st, p, "bigtableadmin:appProfiles.list",
 		svc.Projects.Instances.AppProfiles.List(parent),
-		func(page *bigtableadmin.ListAppProfilesResponse) (int, int, error) {
+		func(page *bigtableadmin.ListAppProfilesResponse) (int, error) {
 			var batch []*store.Resource
 			var pairs [][2]string
 			for _, ap := range page.AppProfiles {
@@ -265,21 +253,21 @@ func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p 
 				apID := store.ResourceID("gcp", p.ID, ap.Name)
 				pairs = append(pairs, [2]string{apID, instID})
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
-				return 0, 0, fmt.Errorf("upsert bigtable app profiles: %w", upErr)
+				return 0, fmt.Errorf("upsert bigtable app profiles: %w", upErr)
 			}
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
-				return 0, 0, fmt.Errorf("closure bigtable app profiles: %w", cErr)
+				return 0, fmt.Errorf("closure bigtable app profiles: %w", cErr)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 
 // scanBigtableTables fans out Tables.List per already-scanned Instance (no
 // wildcard parent support). Returns every table's NativeID (across all
 // instances) for the AuthorizedView/SchemaBundle per-Table fan-out.
-func scanBigtableTables(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (tableNames []string, total, inserted int, err error) {
+func scanBigtableTables(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (tableNames []string, total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -314,22 +302,21 @@ func scanBigtableTables(ctx context.Context, svc *bigtableadmin.Service, p *proj
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, instResID)
+		t, uerr := upsertWithParent(st, batch, instResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		tableNames = append(tableNames, names...)
 		return uerr
 	}); ferr != nil {
-		return tableNames, total, inserted, ferr
+		return tableNames, total, ferr
 	}
-	return tableNames, total, inserted, nil
+	return tableNames, total, nil
 }
 
 // scanBigtableLogicalViews fans out LogicalViews.List per already-scanned
 // Instance (no wildcard parent support).
-func scanBigtableLogicalViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableLogicalViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -362,21 +349,20 @@ func scanBigtableLogicalViews(ctx context.Context, svc *bigtableadmin.Service, p
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, instResID)
+		t, uerr := upsertWithParent(st, batch, instResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableMaterializedViews fans out MaterializedViews.List per
 // already-scanned Instance (no wildcard parent support).
-func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -409,21 +395,20 @@ func scanBigtableMaterializedViews(ctx context.Context, svc *bigtableadmin.Servi
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, instResID)
+		t, uerr := upsertWithParent(st, batch, instResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableAuthorizedViews fans out AuthorizedViews.List per
 // already-scanned Table (no wildcard parent support).
-func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
 		tableResID := store.ResourceID("gcp", p.ID, tableName)
@@ -453,21 +438,20 @@ func scanBigtableAuthorizedViews(ctx context.Context, svc *bigtableadmin.Service
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, tableResID)
+		t, uerr := upsertWithParent(st, batch, tableResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableSchemaBundles fans out SchemaBundles.List per already-scanned
 // Table (no wildcard parent support).
-func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, p *project, tableNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, tableNames, func(gctx context.Context, tableName string) error {
 		tableResID := store.ResourceID("gcp", p.ID, tableName)
@@ -497,16 +481,15 @@ func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, 
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, tableResID)
+		t, uerr := upsertWithParent(st, batch, tableResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableBackups fans out Backups.List per already-scanned Instance,
@@ -514,7 +497,7 @@ func scanBigtableSchemaBundles(ctx context.Context, svc *bigtableadmin.Service, 
 // one call covers every cluster in the instance. Each page may mix backups
 // from multiple clusters, so the owning Cluster is derived per-row by
 // splitting the backup's own resource name.
-func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -556,7 +539,7 @@ func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *pro
 			}
 			return listErr
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert bigtable backups: %w", upErr)
 		}
@@ -566,18 +549,17 @@ func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *pro
 		mu.Lock()
 		defer mu.Unlock()
 		total += len(batch)
-		inserted += n
 		return nil
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableHotTablets fans out HotTablets.List per already-scanned
 // Cluster — unlike Backups/MemoryLayers, this endpoint has no cluster
 // wildcard, so per-Cluster fan-out (not per-Instance) is the only shape.
-func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *project, clusters []*bigtableadmin.Cluster, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *project, clusters []*bigtableadmin.Cluster, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, clusters, func(gctx context.Context, c *bigtableadmin.Cluster) error {
 		if c == nil || c.Name == "" {
@@ -610,16 +592,15 @@ func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *
 			}
 			return listErr
 		}
-		t, n, uerr := upsertWithParent(st, batch, clusterResID)
+		t, uerr := upsertWithParent(st, batch, clusterResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBigtableMemoryLayers fans out MemoryLayers.List per already-scanned
@@ -628,7 +609,7 @@ func scanBigtableHotTablets(ctx context.Context, svc *bigtableadmin.Service, p *
 // owning Cluster is derived per-row by trimming the fixed `/memoryLayer`
 // suffix from the resource name (there is always exactly one memory layer
 // per cluster, unlike Backup's variable-cardinality child).
-func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p *project, instances []*bigtableadmin.Instance, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentBigtableFanout, instances, func(gctx context.Context, inst *bigtableadmin.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -670,7 +651,7 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 			}
 			return listErr
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert bigtable memory layers: %w", upErr)
 		}
@@ -680,12 +661,11 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 		mu.Lock()
 		defer mu.Unlock()
 		total += len(batch)
-		inserted += n
 		return nil
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanFirestore discovers Firestore databases (multi-DB project support),
@@ -694,50 +674,46 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 // BackupSchedules/UserCreds (fan-out per Database). Indexes / collection
 // groups / fields deferred — narrow graph value vs. per-database fan-out
 // cost.
-func scanFirestore(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirestore(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := firestore.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("firestore client: %w", err)
+		return 0, fmt.Errorf("firestore client: %w", err)
 	}
 
-	databaseNames, t, n, err := scanFirestoreDatabases(ctx, svc, p, st, scanID)
+	databaseNames, t, err := scanFirestoreDatabases(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanFirestoreBackups(ctx, svc, p, st, scanID)
+	t, err = scanFirestoreBackups(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanFirestoreBackupSchedules(ctx, svc, p, databaseNames, st, scanID)
+	t, err = scanFirestoreBackupSchedules(ctx, svc, p, databaseNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanFirestoreUserCreds(ctx, svc, p, databaseNames, st, scanID)
+	t, err = scanFirestoreUserCreds(ctx, svc, p, databaseNames, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanFirestoreDatabases discovers Firestore databases. ListDatabasesResponse
 // has no NextPageToken (no pagination on this endpoint). Returns every
 // database's NativeID for the BackupSchedule/UserCred per-Database fan-out.
-func scanFirestoreDatabases(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (databaseNames []string, total, inserted int, err error) {
+func scanFirestoreDatabases(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (databaseNames []string, total int, err error) {
 	resp, err := svc.Projects.Databases.List(fmt.Sprintf("projects/%s", p.ID)).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return nil, 0, 0, skipIfDenied(st, "firestore:databases.list", p.ID, err)
+			return nil, 0, skipIfDenied(st, "firestore:databases.list", p.ID, err)
 		}
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
 	var batch []*store.Resource
 	for _, d := range resp.Databases {
@@ -759,8 +735,8 @@ func scanFirestoreDatabases(ctx context.Context, svc *firestore.Service, p *proj
 			DiscoveredBy:   scanID,
 		})
 	}
-	total, inserted, err = upsertWithProjClosure(p, st, batch)
-	return databaseNames, total, inserted, err
+	total, err = upsertWithProjClosure(p, st, batch)
+	return databaseNames, total, err
 }
 
 // scanFirestoreBackups discovers backups across every location via the
@@ -769,14 +745,14 @@ func scanFirestoreDatabases(ctx context.Context, svc *firestore.Service, p *proj
 // the Spanner/Bigtable multi-parent cases, each Backup carries its owning
 // Database's full resource name directly in its own `Database` field — no
 // name-splitting needed.
-func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
 	resp, err := svc.Projects.Locations.Backups.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "firestore:backups.list", p.ID, err)
+			return 0, skipIfDenied(st, "firestore:backups.list", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	var batch []*store.Resource
 	var pairs [][2]string
@@ -800,20 +776,20 @@ func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *projec
 		backupID := store.ResourceID("gcp", p.ID, b.Name)
 		pairs = append(pairs, [2]string{backupID, dbID})
 	}
-	n, upErr := st.UpsertResources(batch)
+	_, upErr := st.UpsertResources(batch)
 	if upErr != nil {
-		return 0, 0, fmt.Errorf("upsert firestore backups: %w", upErr)
+		return 0, fmt.Errorf("upsert firestore backups: %w", upErr)
 	}
 	if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
-		return 0, 0, fmt.Errorf("closure firestore backups: %w", cErr)
+		return 0, fmt.Errorf("closure firestore backups: %w", cErr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanFirestoreBackupSchedules fans out BackupSchedules.List per
 // already-scanned Database (no wildcard parent support).
 // ListBackupSchedulesResponse has no NextPageToken (no pagination).
-func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
 		dbResID := store.ResourceID("gcp", p.ID, dbName)
@@ -841,16 +817,15 @@ func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p
 				DiscoveredBy:   scanID,
 			})
 		}
-		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		t, uerr := upsertWithParent(st, batch, dbResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanFirestoreUserCreds fans out UserCreds.List per already-scanned
@@ -860,7 +835,7 @@ func scanFirestoreBackupSchedules(ctx context.Context, svc *firestore.Service, p
 // Create/ResetPassword responses — but redact.Register still flags the
 // field defensively since the type is shared and this is a credential-
 // shaped field.
-func scanFirestoreUserCreds(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirestoreUserCreds(ctx context.Context, svc *firestore.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if ferr := forEachItem(ctx, maxConcurrentFirestoreFanout, databaseNames, func(gctx context.Context, dbName string) error {
 		dbResID := store.ResourceID("gcp", p.ID, dbName)
@@ -890,81 +865,73 @@ func scanFirestoreUserCreds(ctx context.Context, svc *firestore.Service, p *proj
 				DiscoveredBy:   scanID,
 			})
 		}
-		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		t, uerr := upsertWithParent(st, batch, dbResID)
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		return uerr
 	}); ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSpanner discovers Spanner instances, databases, instance configs,
 // instance partitions, backups (fan-out per Instance), and backup schedules
 // + database roles (fan-out per Database). Sessions deferred — runtime
 // objects, not durable configuration.
-func scanSpanner(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpanner(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := spanner.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("spanner client: %w", err)
+		return 0, fmt.Errorf("spanner client: %w", err)
 	}
 
-	instances, t, n, err := scanSpannerInstances(ctx, svc, p, st, scanID)
+	instances, t, err := scanSpannerInstances(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanSpannerInstanceConfigs(ctx, svc, p, st, scanID)
+	t, err = scanSpannerInstanceConfigs(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanSpannerInstancePartitions(ctx, svc, p, st, scanID)
+	t, err = scanSpannerInstancePartitions(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	databaseNames, t, n, err := scanSpannerDatabases(ctx, svc, p, instances, st, scanID)
+	databaseNames, t, err := scanSpannerDatabases(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanSpannerBackups(ctx, svc, p, instances, st, scanID)
+	t, err = scanSpannerBackups(ctx, svc, p, instances, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanSpannerBackupSchedules(ctx, svc, p, databaseNames, st, scanID)
+	t, err = scanSpannerBackupSchedules(ctx, svc, p, databaseNames, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanSpannerDatabaseRoles(ctx, svc, p, databaseNames, st, scanID)
+	t, err = scanSpannerDatabaseRoles(ctx, svc, p, databaseNames, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanSpannerInstances discovers Spanner instances. Returns the instances
 // for phase's per-Instance Database/Backup fan-out.
-func scanSpannerInstances(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (instances []*spanner.Instance, total, inserted int, err error) {
+func scanSpannerInstances(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (instances []*spanner.Instance, total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	total, inserted, err = runPaginated(ctx, st, p, "spanner:instances.list",
+	total, err = runPaginated(ctx, st, p, "spanner:instances.list",
 		svc.Projects.Instances.List(parent),
-		func(page *spanner.ListInstancesResponse) (int, int, error) {
+		func(page *spanner.ListInstancesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Instances))
 			for _, inst := range page.Instances {
 				instances = append(instances, inst)
@@ -985,17 +952,17 @@ func scanSpannerInstances(ctx context.Context, svc *spanner.Service, p *project,
 			}
 			return upsertWithProjClosure(p, st, batch)
 		})
-	return instances, total, inserted, err
+	return instances, total, err
 }
 
 // scanSpannerInstanceConfigs discovers instance configurations — a mix of
 // Google-managed catalog entries and user-defined custom configs, both
 // listed by the same call (no separate filter to split them).
-func scanSpannerInstanceConfigs(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpannerInstanceConfigs(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "spanner:instanceConfigs.list",
 		svc.Projects.InstanceConfigs.List(parent),
-		func(page *spanner.ListInstanceConfigsResponse) (int, int, error) {
+		func(page *spanner.ListInstanceConfigsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.InstanceConfigs))
 			for _, ic := range page.InstanceConfigs {
 				if ic == nil || ic.Name == "" {
@@ -1025,11 +992,11 @@ func scanSpannerInstanceConfigs(ctx context.Context, svc *spanner.Service, p *pr
 // owning Instance is derived per-row by splitting the partition's own
 // resource name (KMS-style), rather than fanning out per already-scanned
 // Instance.
-func scanSpannerInstancePartitions(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpannerInstancePartitions(ctx context.Context, svc *spanner.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/instances/-", p.ID)
 	return runPaginated(ctx, st, p, "spanner:instancePartitions.list",
 		svc.Projects.Instances.InstancePartitions.List(parent),
-		func(page *spanner.ListInstancePartitionsResponse) (int, int, error) {
+		func(page *spanner.ListInstancePartitionsResponse) (int, error) {
 			var batch []*store.Resource
 			var pairs [][2]string
 			for _, ip := range page.InstancePartitions {
@@ -1058,21 +1025,21 @@ func scanSpannerInstancePartitions(ctx context.Context, svc *spanner.Service, p 
 				partID := store.ResourceID("gcp", p.ID, ip.Name)
 				pairs = append(pairs, [2]string{partID, instID})
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
-				return 0, 0, fmt.Errorf("upsert spanner instance partitions: %w", upErr)
+				return 0, fmt.Errorf("upsert spanner instance partitions: %w", upErr)
 			}
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
-				return 0, 0, fmt.Errorf("closure spanner instance partitions: %w", cErr)
+				return 0, fmt.Errorf("closure spanner instance partitions: %w", cErr)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 
 // scanSpannerDatabases discovers databases per already-scanned Instance (no
 // wildcard parent support). Returns every database's NativeID (across all
 // instances) for phase's per-Database BackupSchedule/DatabaseRole fan-out.
-func scanSpannerDatabases(ctx context.Context, svc *spanner.Service, p *project, instances []*spanner.Instance, st *store.Store, scanID string) (databaseNames []string, total, inserted int, err error) {
+func scanSpannerDatabases(ctx context.Context, svc *spanner.Service, p *project, instances []*spanner.Instance, st *store.Store, scanID string) (databaseNames []string, total int, err error) {
 	for _, inst := range instances {
 		var dbatch []*store.Resource
 		listErr := svc.Projects.Instances.Databases.List(inst.Name).Pages(ctx, func(page *spanner.ListDatabasesResponse) error {
@@ -1102,22 +1069,21 @@ func scanSpannerDatabases(ctx context.Context, svc *spanner.Service, p *project,
 				_ = skipIfDenied(st, "spanner:databases.list", p.ID, listErr)
 				continue
 			}
-			return databaseNames, total, inserted, listErr
+			return databaseNames, total, listErr
 		}
 		instResID := store.ResourceID("gcp", p.ID, inst.Name)
-		dt, dn, derr := upsertWithParent(st, dbatch, instResID)
+		dt, derr := upsertWithParent(st, dbatch, instResID)
 		total += dt
-		inserted += dn
 		if derr != nil {
-			return databaseNames, total, inserted, derr
+			return databaseNames, total, derr
 		}
 	}
-	return databaseNames, total, inserted, nil
+	return databaseNames, total, nil
 }
 
 // scanSpannerBackups fans out Backups.List per already-scanned Instance (no
 // wildcard parent support).
-func scanSpannerBackups(ctx context.Context, svc *spanner.Service, p *project, instances []*spanner.Instance, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpannerBackups(ctx context.Context, svc *spanner.Service, p *project, instances []*spanner.Instance, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentSpannerFanout, instances, func(gctx context.Context, inst *spanner.Instance) error {
 		if inst == nil || inst.Name == "" {
@@ -1154,19 +1120,18 @@ func scanSpannerBackups(ctx context.Context, svc *spanner.Service, p *project, i
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, instResID)
+		t, uerr := upsertWithParent(st, batch, instResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSpannerBackupSchedules fans out BackupSchedules.List per already-
 // scanned Database (no wildcard parent support).
-func scanSpannerBackupSchedules(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpannerBackupSchedules(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentSpannerFanout, databaseNames, func(gctx context.Context, dbName string) error {
 		dbResID := store.ResourceID("gcp", p.ID, dbName)
@@ -1198,19 +1163,18 @@ func scanSpannerBackupSchedules(ctx context.Context, svc *spanner.Service, p *pr
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		t, uerr := upsertWithParent(st, batch, dbResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSpannerDatabaseRoles fans out DatabaseRoles.List per already-scanned
 // Database (no wildcard parent support).
-func scanSpannerDatabaseRoles(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpannerDatabaseRoles(ctx context.Context, svc *spanner.Service, p *project, databaseNames []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentSpannerFanout, databaseNames, func(gctx context.Context, dbName string) error {
 		dbResID := store.ResourceID("gcp", p.ID, dbName)
@@ -1242,12 +1206,11 @@ func scanSpannerDatabaseRoles(ctx context.Context, svc *spanner.Service, p *proj
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, dbResID)
+		t, uerr := upsertWithParent(st, batch, dbResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

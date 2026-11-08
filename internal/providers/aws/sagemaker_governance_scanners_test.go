@@ -162,7 +162,7 @@ func TestScanSageMakerUltraServers_PaginatesEachReservedCapacity(t *testing.T) {
 		},
 		errs: map[string]error{rcGone: apiErr("ResourceNotFound", "reserved capacity not found")},
 	}
-	total, _, err := scanSageMakerUltraServers(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerUltraServers(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestScanSageMakerUltraServers_NoUltraServers(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerTrainingPlan, smPlanARN("p1"), testRegion, smPlanAttrs(smUltraCapacity(smRCARN("rc"))), "p1")
-	total, _, err := scanSageMakerUltraServers(context.Background(), &stubSMUltraServers{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerUltraServers(context.Background(), &stubSMUltraServers{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -206,7 +206,7 @@ func TestScanSageMakerUltraServers_DeniedCapacityKeepsSiblings(t *testing.T) {
 			denied2: apiErr("AccessDeniedException", "denied"),
 		},
 	}
-	if _, _, err := scanSageMakerUltraServers(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMakerUltraServers(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeSageMakerUltraServer, open+"/ultraserver/us-1")
@@ -248,7 +248,7 @@ func TestScanSageMakerGovernance_TrainingPlanThenUltraServers(t *testing.T) {
 		"ListUltraServersByReservedCapacity": empty(&sagemaker.ListUltraServersByReservedCapacityOutput{UltraServers: []smtypes.UltraServer{smUltraServer("us-1")}}),
 	})
 	client := newSageMakerClient(cfgWithStub(stub, testRegion), testRegion)
-	if _, _, err := scanSageMakerGovernance(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMakerGovernance(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeSageMakerUltraServer, rc+"/ultraserver/us-1")
@@ -328,7 +328,7 @@ func testScanSageMakerGovernanceTags(t *testing.T, mode smTagMode) {
 		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
 
-	total, _, err := scanSageMakerGovernance(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerGovernance(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	checkSMScanErr(t, err, mode)
 	if want := len(taggedARNs) + len(untaggedARNs); total != want {
 		t.Errorf("total = %d; want %d", total, want)
@@ -368,7 +368,7 @@ func TestScanSageMakerChildren_FailedListingKeepsOthers(t *testing.T) {
 		"slow":   apiErr("ThrottlingException", "Rate exceeded"),
 	}
 	alias := func(image string) string { return smImageARN(image) + "/alias/a" }
-	_, _, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, func(ctx context.Context) (int, int, error) {
+	_, err := runSageMakerFamilies(context.Background(), st, acct, testRegion, func(ctx context.Context) (int, error) {
 		return scanSageMakerChildren(ctx, acct, testRegion, st, testScanID, TypeSageMakerImage, op, []string{"ResourceNotFound"}, sagemakerChildSkips{},
 			func(_ context.Context, image store.Resource) []sagemakerChildList[*store.Resource] {
 				name := sv(image.Name)
@@ -414,7 +414,7 @@ func TestScanSagemakerSummaryList_FailedPageKeepsEarlierPages(t *testing.T) {
 		},
 		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	total, _, err := scanSageMakerActions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerActions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if total != 1 {
 		t.Errorf("total = %d; want 1", total)
@@ -444,7 +444,7 @@ func TestScanSageMakerHubs_RepeatedTokenKeepsPages(t *testing.T) {
 		},
 		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	_, _, err := scanSageMakerHubs(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerHubs(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -500,7 +500,7 @@ func TestScanSageMakerHubContents_ListsThisScansHubs(t *testing.T) {
 		},
 		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	_, _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -550,7 +550,7 @@ func TestScanSageMakerChildren_WarnsOnlyAfterWrite(t *testing.T) {
 			if writeFails {
 				refuseStoreWrites(t, st, TypeSageMakerAlias)
 			}
-			_, _, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
+			_, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
 				TypeSageMakerImage, op, nil, sagemakerChildSkips{emptyWhy: "aliases are empty", namelessWhat: "stored image(s)"},
 				smAliasListing(map[string]error{"denied": apiErr("AccessDeniedException", "denied")}))
 			want := map[string]int{op: 3}
@@ -578,7 +578,7 @@ func TestScanSageMakerChildren_LateNXDOMAINIsAnError(t *testing.T) {
 		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN(name), testRegion, "{}", name)
 	}
 	nxdomain := &net.DNSError{Err: "no such host", Name: "api.sagemaker.us-east-1.amazonaws.com", IsNotFound: true}
-	_, _, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
+	_, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
 		TypeSageMakerImage, "sagemaker:ListAliases", nil, sagemakerChildSkips{}, smAliasListing(map[string]error{"lost": nxdomain}))
 	if err == nil || isDNSNotFound(err) {
 		t.Errorf("err = %v; want a plain error, not an NXDOMAIN", err)
@@ -599,7 +599,7 @@ func TestScanSageMakerChildren_StopIsOneMember(t *testing.T) {
 	defer cancel()
 	var started sync.WaitGroup
 	started.Add(len(names))
-	_, _, err := scanSageMakerChildren(ctx, newTestAccount(testAccountID), testRegion, st, testScanID,
+	_, err := scanSageMakerChildren(ctx, newTestAccount(testAccountID), testRegion, st, testScanID,
 		TypeSageMakerImage, "sagemaker:ListAliases", nil, sagemakerChildSkips{},
 		func(ctx context.Context, image store.Resource) []sagemakerChildList[*store.Resource] {
 			started.Done()
@@ -631,7 +631,7 @@ func TestScanSageMakerHubContents_ThrottledListingReturned(t *testing.T) {
 		},
 		"ListTags": func(any) (any, error) { return &sagemaker.ListTagsOutput{}, nil },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	_, _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err == nil || !everyMember(err, func(m error) bool { return isAPIErrorCode(m, "ThrottlingException") }) {
 		t.Errorf("err = %v; want only the throttled listings", err)
 	}
@@ -658,7 +658,7 @@ func TestScanSageMakerHubContents_EveryTypeAndSkipsWarned(t *testing.T) {
 		},
 		"ListTags": func(any) (any, error) { return &sagemaker.ListTagsOutput{}, nil },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	if _, _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeSageMakerHubContent,
@@ -683,7 +683,7 @@ func TestScanSageMakerHubContents_FailedWriteReturned(t *testing.T) {
 		},
 		"ListTags": func(any) (any, error) { return &sagemaker.ListTagsOutput{}, nil },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	if _, _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err == nil {
+	if _, err := scanSageMakerHubContents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err == nil {
 		t.Error("err = nil; want the refused write")
 	}
 }
@@ -693,7 +693,7 @@ func TestScanSageMakerChildren_ParentQueryErrorReturned(t *testing.T) {
 	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	closeStore()
-	_, _, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
+	_, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,
 		TypeSageMakerImage, "sagemaker:ListAliases", nil, sagemakerChildSkips{}, smAliasListing(nil))
 	if err == nil {
 		t.Error("err = nil; want the failed parent query")

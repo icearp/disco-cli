@@ -20,10 +20,10 @@ func init() {
 
 // scanCustomProviders discovers Microsoft.CustomProviders resource providers
 // (custom RP manifests).
-func scanCustomProviders(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCustomProviders(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcustomproviders.NewCustomResourceProviderClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcustomproviders:NewCustomResourceProviderClient: %w", err)
+		return 0, fmt.Errorf("armcustomproviders:NewCustomResourceProviderClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcustomproviders:CustomResourceProvider.ListBySubscription", TypeCustomProvidersResourceProvider, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

@@ -195,7 +195,7 @@ func (s *hlStub) hlHandlers() map[string]func(any) (any, error) {
 	}
 }
 
-func hlScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func hlScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, hlDenied)
 	return scanHealthLake(ctx, acct, testRegion, st, testScanID)
@@ -235,7 +235,9 @@ func TestScanHealthLake_StoresTagsOfEachType(t *testing.T) {
 	st := newTestStore(t)
 	stub := newHLStub()
 
-	total, inserted, err := hlScan(context.Background(), st, stub.hlHandlers())
+	counted, upserts := countUpserts(st)
+	total, err := hlScan(context.Background(), counted, stub.hlHandlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -309,7 +311,7 @@ func TestScanHealthLake_ListingInputs(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := newHLStub()
-	if _, _, err := hlScan(context.Background(), st, stub.hlHandlers()); err != nil {
+	if _, err := hlScan(context.Background(), st, stub.hlHandlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	ds := stub.hlCalls("ListFHIRDatastores")
@@ -345,16 +347,16 @@ func TestScanHealthLake_ListingInputs(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanHealthLake_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := hlScan(context.Background(), st, newHLStub().hlHandlers()); err != nil {
+	if _, err := hlScan(context.Background(), st, newHLStub().hlHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := hlScan(context.Background(), st, newHLStub().hlHandlers())
+	total, err := hlScan(context.Background(), st, newHLStub().hlHandlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -373,7 +375,9 @@ func TestScanHealthLake_NoResources(t *testing.T) {
 		return &healthlake.ListDataTransformationProfilesOutput{}, nil
 	}
 
-	total, inserted, err := hlScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := hlScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -414,7 +418,7 @@ func TestScanHealthLake_TagReadFailures(t *testing.T) {
 				stub := newHLStub()
 				stub.fail[arn] = c.err
 
-				total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+				total, err := hlScan(context.Background(), st, stub.hlHandlers())
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("scan: %v", err)
@@ -471,7 +475,7 @@ func TestScanHealthLake_TagDenialsWarnOncePerScan(t *testing.T) {
 	stub.fail[hlDs3ARN] = hlDenied
 	stub.fail[hlPr3ARN] = hlDenied
 
-	if _, _, err := hlScan(context.Background(), st, stub.hlHandlers()); err != nil {
+	if _, err := hlScan(context.Background(), st, stub.hlHandlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -489,7 +493,7 @@ func TestScanHealthLake_TagThrottleDemotedBesideHardError(t *testing.T) {
 	stub.fail[hlDs1ARN] = hlThrottle
 	stub.fail[hlPr2ARN] = hlBadInput
 
-	_, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+	_, err := hlScan(context.Background(), st, stub.hlHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -505,7 +509,7 @@ func TestScanHealthLake_DatastorePageTwoFailureKeepsPageOneAndProfiles(t *testin
 	stub := newHLStub()
 	stub.fail["datastores/p2"] = hlBadInput
 
-	total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+	total, err := hlScan(context.Background(), st, stub.hlHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != hlTotal-2 {
@@ -534,7 +538,7 @@ func TestScanHealthLake_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := hlScan(context.Background(), st, handlers)
+	total, err := hlScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -569,7 +573,7 @@ func TestScanHealthLake_ProfileFormatFailureKeepsOtherFormat(t *testing.T) {
 			stub := newHLStub()
 			stub.fail[c.fail] = hlBadInput
 
-			total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+			total, err := hlScan(context.Background(), st, stub.hlHandlers())
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.total {
@@ -601,7 +605,7 @@ func TestScanHealthLake_ProfilesDenied(t *testing.T) {
 	stub.fail["CCDA"] = hlDenied
 	stub.fail["CSV"] = hlDenied
 
-	total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+	total, err := hlScan(context.Background(), st, stub.hlHandlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -621,7 +625,7 @@ func TestScanHealthLake_DatastoresDeniedKeepProfiles(t *testing.T) {
 	handlers := newHLStub().hlHandlers()
 	delete(handlers, "ListFHIRDatastores")
 
-	total, _, err := hlScan(context.Background(), st, handlers)
+	total, err := hlScan(context.Background(), st, handlers)
 	if err != nil || total != hlTotal-3 || *warns != 1 {
 		t.Errorf("total = %d, err = %v, warnings = %d; want %d (3 profiles + 5 versions), nil, 1", total, err, *warns, hlTotal-3)
 	}
@@ -667,7 +671,7 @@ func TestScanHealthLake_ElementsWithoutIdentifier(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := hlScan(context.Background(), st, handlers)
+			total, err := hlScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -713,7 +717,7 @@ func TestScanHealthLake_DatastoreWithoutStatus(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := hlScan(context.Background(), st, handlers); err != nil {
+	if _, err := hlScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeHealthLakeFHIRDatastore)[hlDs1ARN]
@@ -736,7 +740,7 @@ func TestScanHealthLake_FailedWriteStopsScan(t *testing.T) {
 	stub := newHLStub()
 	stub.fail[hlDs1ARN] = hlDenied
 
-	_, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+	_, err := hlScan(context.Background(), st, stub.hlHandlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -758,7 +762,7 @@ func TestScanHealthLake_FailedProfileWriteStopsVersions(t *testing.T) {
 	refuseStoreWrites(t, st, TypeHealthLakeDataTransformationProfile)
 	stub := newHLStub()
 
-	_, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+	_, err := hlScan(context.Background(), st, stub.hlHandlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -788,7 +792,7 @@ func TestScanHealthLake_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := hlScan(ctx, st, handlers)
+	_, err := hlScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -823,7 +827,7 @@ func TestScanHealthLake_NXDOMAIN(t *testing.T) {
 		stub := newHLStub()
 		stub.fail["CCDA"] = hlNXDOMAIN
 		stub.fail["CSV"] = hlNXDOMAIN
-		total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+		total, err := hlScan(context.Background(), st, stub.hlHandlers())
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -837,7 +841,7 @@ func TestScanHealthLake_NXDOMAIN(t *testing.T) {
 		stub := newHLStub()
 		stub.fail["CCDA"] = hlNXDOMAIN
 		stub.fail["CSV"] = hlBadInput
-		total, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+		total, err := hlScan(context.Background(), st, stub.hlHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 3 {
 			t.Errorf("total = %d; want the 3 datastores", total)
@@ -849,7 +853,7 @@ func TestScanHealthLake_NXDOMAIN(t *testing.T) {
 		stub := newHLStub()
 		handlers := stub.hlHandlers()
 		handlers["ListFHIRDatastores"] = func(any) (any, error) { return nil, hlNXDOMAIN }
-		total, _, err := hlScan(context.Background(), st, handlers)
+		total, err := hlScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := hlTotal - 3; total != want {
 			t.Errorf("total = %d; want %d (3 profiles + 5 versions)", total, want)
@@ -866,7 +870,7 @@ func TestScanHealthLake_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		stub := newHLStub()
 		stub.fail[hlPr3ARN] = hlNXDOMAIN
-		_, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+		_, err := hlScan(context.Background(), st, stub.hlHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -875,7 +879,7 @@ func TestScanHealthLake_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, hlNXDOMAIN)
-		_, _, err := scanHealthLake(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanHealthLake(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -914,7 +918,7 @@ func TestScanHealthLake_PartitionARNsReachTagOp(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, hlDenied)
 
-			if _, _, err := scanHealthLake(context.Background(), acct, region, st, testScanID); err != nil {
+			if _, err := scanHealthLake(context.Background(), acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := []string{dsARN, profileARN}
@@ -952,7 +956,7 @@ func TestScanHealthLake_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanHealthLake(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanHealthLake(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanHealthLake: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -985,7 +989,7 @@ func TestScanHealthLake_VersionListingFailures(t *testing.T) {
 				stub.fail[k] = v
 			}
 
-			_, _, err := hlScan(context.Background(), st, stub.hlHandlers())
+			_, err := hlScan(context.Background(), st, stub.hlHandlers())
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("scan: %v", err)

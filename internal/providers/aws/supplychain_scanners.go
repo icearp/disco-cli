@@ -76,7 +76,7 @@ func scnNamespaceParent(instanceID, namespace string) string {
 	return instanceID + "/" + namespace
 }
 
-func scanSupplyChain(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSupplyChain(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := supplychain.NewFromConfig(acct.cfg, func(o *supplychain.Options) { o.Region = region })
 	return scanSupplyChainWith(ctx, client, acct, region, st, scanID)
 }
@@ -88,10 +88,10 @@ func scanSupplyChain(ctx context.Context, acct *account, region string, st *stor
 // stop the later ones; a failed write and ctx's end do (runHostPhases).
 // Every type has its tags read per row (scnTags), whose denials are one
 // warning for the whole scan.
-func scanSupplyChainWith(ctx context.Context, client supplyChainAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSupplyChainWith(ctx context.Context, client supplyChainAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := scnTags(client).sharingDenials()
 	var instances, namespaces []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "supplychain", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "supplychain", 0, []hostPhase{
 		{op: scnListInstancesOp, run: func(p *phaseTotals) (failed bool) {
 			instances, failed = scanSCNInstances(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -108,7 +108,7 @@ func scanSupplyChainWith(ctx context.Context, client supplyChainAPI, acct *accou
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // scnTags reads a row's tags with ListTagsForResource, sent the row's

@@ -23,10 +23,10 @@ func init() {
 
 // scanPlanetaryComputer discovers Microsoft Planetary Computer GeoCatalogs
 // (surfaced under the Microsoft.Orbital/geoCatalogs ARM namespace).
-func scanPlanetaryComputer(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPlanetaryComputer(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armplanetarycomputer.NewGeoCatalogsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armplanetarycomputer:NewGeoCatalogsClient: %w", err)
+		return 0, fmt.Errorf("armplanetarycomputer:NewGeoCatalogsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armplanetarycomputer:GeoCatalogs.ListBySubscription", TypeOrbitalGeoCatalog, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

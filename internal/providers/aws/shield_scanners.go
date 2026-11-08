@@ -17,7 +17,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:shield",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			return scanShield(ctx, acct, st, scanID)
 		},
 	})
@@ -38,57 +38,53 @@ type shieldAPI interface {
 // subscription (ResourceNotFoundException) and short-circuits via
 // markServiceDisabled. Per-phase isShieldNotSubscribed skips remain as a
 // safety net for the rare partial-IAM-grant case.
-func scanShield(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShield(ctx context.Context, acct *account, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("shield")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := shield.NewFromConfig(acct.cfg, func(o *shield.Options) { o.Region = region })
 
 	// Phase 0: subscription gate (no resource upsert — config, not a resource).
 	if ferr := gateShieldSubscription(ctx, client, acct, st); ferr != nil {
-		return 0, 0, ferr
+		return 0, ferr
 	}
 
 	// Phase 2: protections.
 	{
-		t, i, ferr := scanShieldProtections(ctx, client, acct, st, scanID)
+		t, ferr := scanShieldProtections(ctx, client, acct, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 3: protection groups.
 	{
-		t, i, ferr := scanShieldProtectionGroups(ctx, client, acct, st, scanID)
+		t, ferr := scanShieldProtectionGroups(ctx, client, acct, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 4: DRT access + proactive engagement (per-account singletons).
 	{
-		t, i, ferr := scanShieldDRTAccess(ctx, client, acct, region, st, scanID)
+		t, ferr := scanShieldDRTAccess(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 	{
-		t, i, ferr := scanShieldProactiveEngagement(ctx, client, acct, region, st, scanID)
+		t, ferr := scanShieldProactiveEngagement(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	return total, inserted, nil
+	return total, nil
 }
 
 // isShieldNotSubscribed reports whether err means the account lacks an active
@@ -119,7 +115,7 @@ func gateShieldSubscription(ctx context.Context, client shieldAPI, acct *account
 	return nil
 }
 
-func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := shield.NewListProtectionsPaginator(client, &shield.ListProtectionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -127,12 +123,12 @@ func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "shield:ListProtections", acct.ID, "", perr)
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isShieldNotSubscribed(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("shield:ListProtections: %w", perr)
+			return 0, fmt.Errorf("shield:ListProtections: %w", perr)
 		}
 		for _, p := range out.Protections {
 			arn := sv(p.ProtectionArn)
@@ -153,16 +149,16 @@ func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account,
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert shield protections: %w", uerr)
+		return 0, fmt.Errorf("upsert shield protections: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := shield.NewListProtectionGroupsPaginator(client, &shield.ListProtectionGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -170,12 +166,12 @@ func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *acc
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "shield:ListProtectionGroups", acct.ID, "", perr)
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isShieldNotSubscribed(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("shield:ListProtectionGroups: %w", perr)
+			return 0, fmt.Errorf("shield:ListProtectionGroups: %w", perr)
 		}
 		for _, g := range out.ProtectionGroups {
 			arn := sv(g.ProtectionGroupArn)
@@ -196,11 +192,11 @@ func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *acc
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert shield protection groups: %w", uerr)
+		return 0, fmt.Errorf("upsert shield protection groups: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

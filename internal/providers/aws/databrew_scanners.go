@@ -46,7 +46,7 @@ type databrewAPI interface {
 	ListSchedules(context.Context, *databrew.ListSchedulesInput, ...func(*databrew.Options)) (*databrew.ListSchedulesOutput, error)
 }
 
-func scanDataBrew(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrew(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := databrew.NewFromConfig(acct.cfg, func(o *databrew.Options) { o.Region = region })
 	return scanDataBrewAll(ctx, client, acct, region, st, scanID)
 }
@@ -55,11 +55,11 @@ func scanDataBrew(ctx context.Context, acct *account, region string, st *store.S
 // errors; only a store write failure stops it. Each listing leaves its
 // filters (DatasetName, ProjectName, RecipeVersion, TargetArn, JobName) unset
 // so it lists the whole account.
-func scanDataBrewAll(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewAll(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
 	for _, phase := range []struct {
 		op string
-		fn func(context.Context, databrewAPI, *account, string, *store.Store, string) (int, int, error)
+		fn func(context.Context, databrewAPI, *account, string, *store.Store, string) (int, error)
 	}{
 		{dataBrewListDatasetsOp, scanDataBrewDatasets},
 		{dataBrewListJobsOp, scanDataBrewJobs},
@@ -68,8 +68,8 @@ func scanDataBrewAll(ctx context.Context, client databrewAPI, acct *account, reg
 		{dataBrewListRulesetsOp, scanDataBrewRulesets},
 		{dataBrewListSchedulesOp, scanDataBrewSchedules},
 	} {
-		t, i, err := phase.fn(ctx, client, acct, region, st, scanID)
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -90,7 +90,7 @@ func dataBrewRow(acct *account, region, scanID, rtype, kind string, arn, name *s
 	}, "", ""
 }
 
-func scanDataBrewDatasets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewDatasets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListDatasetsOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.Dataset, *string, error) {
 			out, err := client.ListDatasets(ctx, &databrew.ListDatasetsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
@@ -104,7 +104,7 @@ func scanDataBrewDatasets(ctx context.Context, client databrewAPI, acct *account
 		})
 }
 
-func scanDataBrewJobs(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewJobs(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListJobsOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.Job, *string, error) {
 			out, err := client.ListJobs(ctx, &databrew.ListJobsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
@@ -118,7 +118,7 @@ func scanDataBrewJobs(ctx context.Context, client databrewAPI, acct *account, re
 		})
 }
 
-func scanDataBrewProjects(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewProjects(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListProjectsOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.Project, *string, error) {
 			out, err := client.ListProjects(ctx, &databrew.ListProjectsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
@@ -135,7 +135,7 @@ func scanDataBrewProjects(ctx context.Context, client databrewAPI, acct *account
 // scanDataBrewRecipes leaves RecipeVersion unset, which the op documents as
 // listing each recipe's LATEST_PUBLISHED version only, so a recipe never
 // published is likely not listed (not verified live).
-func scanDataBrewRecipes(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewRecipes(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListRecipesOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.Recipe, *string, error) {
 			out, err := client.ListRecipes(ctx, &databrew.ListRecipesInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
@@ -149,7 +149,7 @@ func scanDataBrewRecipes(ctx context.Context, client databrewAPI, acct *account,
 		})
 }
 
-func scanDataBrewRulesets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewRulesets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListRulesetsOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.RulesetItem, *string, error) {
 			out, err := client.ListRulesets(ctx, &databrew.ListRulesetsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
@@ -163,7 +163,7 @@ func scanDataBrewRulesets(ctx context.Context, client databrewAPI, acct *account
 		})
 }
 
-func scanDataBrewSchedules(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataBrewSchedules(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dataBrewListSchedulesOp,
 		func(ctx context.Context, token *string) ([]databrewtypes.Schedule, *string, error) {
 			out, err := client.ListSchedules(ctx, &databrew.ListSchedulesInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})

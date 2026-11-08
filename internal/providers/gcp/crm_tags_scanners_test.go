@@ -52,7 +52,9 @@ func TestScanCRMTagsUnder_OrgNestedFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCRMService(t, srv)
 
-	total, inserted, err := scanCRMTagsUnder(t.Context(), svc, orgName, orgName, orgResourceID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCRMTagsUnder(t.Context(), svc, orgName, orgName, orgResourceID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCRMTagsUnder: %v", err)
 	}
@@ -104,7 +106,9 @@ func TestScanCRMTagsUnder_ProjectParented(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCRMService(t, srv)
 
-	total, inserted, err := scanCRMTagsUnder(t.Context(), svc, p.ID, "projects/"+p.ID, projParentID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCRMTagsUnder(t.Context(), svc, p.ID, "projects/"+p.ID, projParentID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCRMTagsUnder: %v", err)
 	}
@@ -146,15 +150,21 @@ func TestScanCRMLiensAndBindings_ProjectScoped(t *testing.T) {
 	svc := fakeCRMService(t, srv)
 
 	projParentID := store.ResourceID("gcp", p.ID, p.ID)
-	t1, n1, err := scanCRMLiens(t.Context(), svc, p, projParentID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	t1, err := scanCRMLiens(t.Context(), svc, p, projParentID, counted, testScanID)
+	n1 := upserts()
 	if err != nil {
 		t.Fatalf("scanCRMLiens: %v", err)
 	}
-	t2, n2, err := scanCRMTagBindings(t.Context(), svc, p, fullResourceName, projParentID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	t2, err := scanCRMTagBindings(t.Context(), svc, p, fullResourceName, projParentID, counted, testScanID)
+	n2 := upserts()
 	if err != nil {
 		t.Fatalf("scanCRMTagBindings: %v", err)
 	}
-	t3, n3, err := scanCRMEffectiveTags(t.Context(), svc, p, fullResourceName, projParentID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	t3, err := scanCRMEffectiveTags(t.Context(), svc, p, fullResourceName, projParentID, counted, testScanID)
+	n3 := upserts()
 	if err != nil {
 		t.Fatalf("scanCRMEffectiveTags: %v", err)
 	}

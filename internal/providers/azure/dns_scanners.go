@@ -30,53 +30,48 @@ type dnsZoneRef struct {
 // scanDNS discovers Azure public DNS zones, private DNS zones, the
 // virtual-network links per private zone, and record sets per zone. SOA
 // records are skipped — auto-managed, no graph value.
-func scanDNS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	pubZones, t, i, ferr := scanDNSPublicZones(ctx, sub, cred, st, scanID)
+func scanDNS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
+	pubZones, t, ferr := scanDNSPublicZones(ctx, sub, cred, st, scanID)
 	total += t
-	inserted += i
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	privZones, t, i, ferr := scanDNSPrivateZones(ctx, sub, cred, st, scanID)
+	privZones, t, ferr := scanDNSPrivateZones(ctx, sub, cred, st, scanID)
 	total += t
-	inserted += i
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	if len(privZones) > 0 {
-		t, i, ferr = scanDNSPrivateZoneVNetLinks(ctx, sub, cred, st, scanID, privZones)
+		t, ferr = scanDNSPrivateZoneVNetLinks(ctx, sub, cred, st, scanID, privZones)
 		total += t
-		inserted += i
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 	}
 	if len(pubZones) > 0 {
-		t, i, ferr = scanDNSPublicRecordSets(ctx, sub, cred, st, scanID, pubZones)
+		t, ferr = scanDNSPublicRecordSets(ctx, sub, cred, st, scanID, pubZones)
 		total += t
-		inserted += i
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 	}
 	if len(privZones) > 0 {
-		t, i, ferr = scanDNSPrivateRecordSets(ctx, sub, cred, st, scanID, privZones)
+		t, ferr = scanDNSPrivateRecordSets(ctx, sub, cred, st, scanID, privZones)
 		total += t
-		inserted += i
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanDNSPublicZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
+func scanDNSPublicZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, error) {
 	zonesClient, err := armdns.NewZonesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("armdns:NewZonesClient: %w", err)
+		return nil, 0, fmt.Errorf("armdns:NewZonesClient: %w", err)
 	}
 	var pubZones []dnsZoneRef
-	zt, zi, err := azSimpleScan(ctx, "armdns:Zones.List", TypeDNSZone, sub, st, scanID,
+	zt, err := azSimpleScan(ctx, "armdns:Zones.List", TypeDNSZone, sub, st, scanID,
 		zonesClient.NewListPager(nil),
 		func(p armdns.ZonesClientListResponse) []*armdns.Zone { return p.Value },
 		func(z *armdns.Zone) azTrackedBase {
@@ -89,16 +84,16 @@ func scanDNSPublicZones(ctx context.Context, sub *subscription, cred azcore.Toke
 			}
 			return b
 		})
-	return pubZones, zt, zi, err
+	return pubZones, zt, err
 }
 
-func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
+func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, error) {
 	pzClient, err := armprivatedns.NewPrivateZonesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("armprivatedns:NewPrivateZonesClient: %w", err)
+		return nil, 0, fmt.Errorf("armprivatedns:NewPrivateZonesClient: %w", err)
 	}
 	var privZones []dnsZoneRef
-	pt, pi, err := azSimpleScan(ctx, "armprivatedns:PrivateZones.List", TypeDNSPrivateZone, sub, st, scanID,
+	pt, err := azSimpleScan(ctx, "armprivatedns:PrivateZones.List", TypeDNSPrivateZone, sub, st, scanID,
 		pzClient.NewListPager(nil),
 		func(p armprivatedns.PrivateZonesClientListResponse) []*armprivatedns.PrivateZone { return p.Value },
 		func(z *armprivatedns.PrivateZone) azTrackedBase {
@@ -111,16 +106,16 @@ func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred azcore.Tok
 			}
 			return b
 		})
-	return privZones, pt, pi, err
+	return privZones, pt, err
 }
 
 // scanDNSPrivateZoneVNetLinks fans out one VirtualNetworkLinks list per
 // private zone. Each zone has at most a handful of links so fanoutMed
 // semantics fit; semaphore bounds concurrent ARM calls per sub.
-func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
+func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, error) {
 	linkClient, err := armprivatedns.NewVirtualNetworkLinksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armprivatedns:NewVirtualNetworkLinksClient: %w", err)
+		return 0, fmt.Errorf("armprivatedns:NewVirtualNetworkLinksClient: %w", err)
 	}
 	type linkResult struct {
 		batch []*store.Resource
@@ -144,26 +139,25 @@ func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred az
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, fmt.Errorf("armprivatedns:VirtualNetworkLinks.List: %w", err)
+		return 0, fmt.Errorf("armprivatedns:VirtualNetworkLinks.List: %w", err)
 	}
-	var total, inserted int
+	var total int
 	for _, r := range results {
 		if len(r.batch) == 0 {
 			continue
 		}
-		n, err := st.UpsertResources(r.batch)
+		_, err := st.UpsertResources(r.batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert vnet links: %w", err)
+			return total, fmt.Errorf("upsert vnet links: %w", err)
 		}
 		total += len(r.batch)
-		inserted += n
 		if len(r.pairs) > 0 {
 			if err := st.RecordHierarchyBatch(r.pairs); err != nil {
-				return total, inserted, fmt.Errorf("closure vnet links: %w", err)
+				return total, fmt.Errorf("closure vnet links: %w", err)
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 func collectDNSPrivateZoneVNetLinks(ctx context.Context, linkClient *armprivatedns.VirtualNetworkLinksClient, sub *subscription, scanID string, pz dnsZoneRef) ([]*store.Resource, [][2]string, error) {
@@ -198,10 +192,10 @@ func collectDNSPrivateZoneVNetLinks(ctx context.Context, linkClient *armprivated
 	return batch, pairs, nil
 }
 
-func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, pubZones []dnsZoneRef) (int, int, error) {
+func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, pubZones []dnsZoneRef) (int, error) {
 	rsClient, err := armdns.NewRecordSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdns:NewRecordSetsClient: %w", err)
+		return 0, fmt.Errorf("armdns:NewRecordSetsClient: %w", err)
 	}
 	refs := make([]recordSetRef, len(pubZones))
 	for i, z := range pubZones {
@@ -214,10 +208,10 @@ func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred azcore
 		})
 }
 
-func scanDNSPrivateRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
+func scanDNSPrivateRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, error) {
 	prsClient, err := armprivatedns.NewRecordSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armprivatedns:NewRecordSetsClient: %w", err)
+		return 0, fmt.Errorf("armprivatedns:NewRecordSetsClient: %w", err)
 	}
 	refs := make([]recordSetRef, len(privZones))
 	for i, z := range privZones {
@@ -309,7 +303,7 @@ func (a *armprivatednsPager) NextPage(ctx context.Context) ([]recordSetRow, erro
 // dnsRecordSetFanout runs per-zone record-set listing concurrently bounded by
 // maxConcurrentFanout, then upserts batches + hierarchy pairs (record-set →
 // parent zone).
-func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription, scanID, action, rtype string, zones []recordSetRef, makePager func(rg, name string) recordSetPager) (total, inserted int, err error) {
+func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription, scanID, action, rtype string, zones []recordSetRef, makePager func(rg, name string) recordSetPager) (total int, err error) {
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gctx := errgroup.WithContext(ctx)
 	type zoneResult struct {
@@ -351,25 +345,24 @@ func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription,
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return total, inserted, fmt.Errorf("%s: %w", action, err)
+		return total, fmt.Errorf("%s: %w", action, err)
 	}
 	for _, r := range results {
 		if len(r.batch) == 0 {
 			continue
 		}
-		n, err := st.UpsertResources(r.batch)
+		_, err := st.UpsertResources(r.batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert %s: %w", action, err)
+			return total, fmt.Errorf("upsert %s: %w", action, err)
 		}
 		total += len(r.batch)
-		inserted += n
 		if len(r.pairs) > 0 {
 			if err := st.RecordHierarchyBatch(r.pairs); err != nil {
-				return total, inserted, fmt.Errorf("closure %s: %w", action, err)
+				return total, fmt.Errorf("closure %s: %w", action, err)
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // recordTypeFromID returns the record-set type segment of an ARM record-set

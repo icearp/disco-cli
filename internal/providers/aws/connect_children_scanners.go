@@ -56,28 +56,28 @@ func isConnectNotFound(err error) bool {
 // test-case and attached-files phases need only the instance list but run here
 // too, because runScanners cancels its siblings on the first error and a child
 // failure must not cost the families their rows.
-func scanConnectChildren(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectChildren(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectTestCases(ctx, client, instances, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectAttachedFilesConfigurations(ctx, client, instances, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectHoursOfOperationOverrides(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectUseCases(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectEvaluationFormVersions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanConnectWorkspacePages(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -85,7 +85,7 @@ func scanConnectChildren(ctx context.Context, client connectChildrenAPI, instanc
 
 // scanConnectTestCases lists test-case ids per instance, then describes each:
 // only DescribeTestCase carries the tags and the test content.
-func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return connectListDescribe(ctx, st, acct, region, "connect:ListTestCases", "connect:DescribeTestCase", "connect test cases", instances,
 		func(ctx context.Context, instID string, emit func(string, string)) error {
 			pager := connect.NewListTestCasesPaginator(client, &connect.ListTestCasesInput{InstanceId: &instID},
@@ -122,7 +122,7 @@ func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instan
 		})
 }
 
-func scanConnectAttachedFilesConfigurations(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAttachedFilesConfigurations(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var parents []childParent
 	for _, inst := range instances {
 		if inst.Id != nil && inst.Arn != nil {
@@ -156,10 +156,10 @@ func scanConnectAttachedFilesConfigurations(ctx context.Context, client connectC
 		})
 }
 
-func scanConnectHoursOfOperationOverrides(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectHoursOfOperationOverrides(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectHoursOfOperation)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, "connect:ListHoursOfOperationOverrides", parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -189,10 +189,10 @@ func scanConnectHoursOfOperationOverrides(ctx context.Context, client connectChi
 		})
 }
 
-func scanConnectUseCases(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectUseCases(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectIntegrationAssociation)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, "connect:ListUseCases", parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -222,10 +222,10 @@ func scanConnectUseCases(ctx context.Context, client connectChildrenAPI, acct *a
 		})
 }
 
-func scanConnectEvaluationFormVersions(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectEvaluationFormVersions(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectEvaluationForm)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, "connect:ListEvaluationFormVersions", parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -251,10 +251,10 @@ func scanConnectEvaluationFormVersions(ctx context.Context, client connectChildr
 		})
 }
 
-func scanConnectWorkspacePages(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectWorkspacePages(ctx context.Context, client connectChildrenAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectWorkspace)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, "connect:ListWorkspacePages", parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {

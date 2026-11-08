@@ -238,12 +238,12 @@ func kvsTestHandlers(c *kvsTestCalls) map[string]func(in any) (any, error) {
 
 // kvsTestScanAs runs the scan's real entry point for acct in region against
 // handlers; every op they do not answer is denied.
-func kvsTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func kvsTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, kvsTestKinds()[0].denied)
 	return scanKinesisVideo(ctx, acct, region, st, testScanID)
 }
 
-func kvsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func kvsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return kvsTestScanAs(ctx, newTestAccount(testAccountID), testRegion, st, handlers)
 }
 
@@ -268,7 +268,9 @@ func TestScanKinesisVideo_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newKVSTestCalls()
 
-	total, inserted, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := kvsTestScan(context.Background(), counted, kvsTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -347,7 +349,7 @@ func TestScanKinesisVideo_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := kvsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := kvsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range kvsTestKinds() {
@@ -376,7 +378,9 @@ func TestScanKinesisVideo_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := kvsTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := kvsTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -439,7 +443,7 @@ func TestScanKinesisVideo_TagReadFailures(t *testing.T) {
 				calls.tagErrs[arn] = c.err
 			}
 
-			total, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
+			total, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
 			switch {
 			case c.outcome < 0:
 				if err != nil {
@@ -506,7 +510,7 @@ func TestScanKinesisVideo_TagThrottleDemotedBesideHardError(t *testing.T) {
 			calls.tagErrs[streams.kvsTestARN("bare")] = kvsTestThrottle
 			calls.tagErrs[c.hard.kvsTestARN("tagged")] = kvsTestBad
 
-			_, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
+			_, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidArgumentException")
 			if got, want := afWarnOps(warns()), []string{"kinesis-video:ListTagsForStream"}; !slices.Equal(got, want) {
@@ -598,7 +602,7 @@ func TestScanKinesisVideo_ThrottleRetriedByScanClient(t *testing.T) {
 		},
 	})
 
-	total, _, err := scanKinesisVideo(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesisVideo(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -629,7 +633,7 @@ func TestScanKinesisVideo_CallsTheScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanKinesisVideo(context.Background(), acct, "eu-west-1", st, testScanID)
+	total, err := scanKinesisVideo(context.Background(), acct, "eu-west-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -652,7 +656,7 @@ func TestScanKinesisVideo_FailedWriteStopsScan(t *testing.T) {
 	streams := kvsTestKindOf(t, "ListStreams")
 	calls.tagErrs[streams.kvsTestARN("tagged")] = streams.denied
 
-	total, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
+	total, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -713,7 +717,7 @@ func TestScanKinesisVideo_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := kvsTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := kvsTestScan(context.Background(), st, handlers)
+			_, err := kvsTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := afWarnOps(w); !slices.Equal(got, []string{"kinesis-video:ListTagsForStream"}) {
@@ -770,7 +774,7 @@ func TestScanKinesisVideo_ListFailureKeepsPagesAndOtherPhase(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := kvsTestScan(context.Background(), st, handlers)
+			total, err := kvsTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -822,7 +826,7 @@ func TestScanKinesisVideo_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := kvsTestScan(context.Background(), st, handlers)
+	total, err := kvsTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -857,7 +861,7 @@ func TestScanKinesisVideo_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := kvsTestScan(context.Background(), st, handlers)
+			total, err := kvsTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -889,7 +893,7 @@ func TestScanKinesisVideo_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			calls := newKVSTestCallsIn(pf.partition, pf.region)
-			if _, _, err := kvsTestScanAs(context.Background(), partitionAccount(pf.partition), pf.region, st, kvsTestHandlers(calls)); err != nil {
+			if _, err := kvsTestScanAs(context.Background(), partitionAccount(pf.partition), pf.region, st, kvsTestHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, k := range kvsTestKinds() {
@@ -923,7 +927,7 @@ func TestScanKinesisVideo_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := kvsTestScan(ctx, st, handlers)
+	_, err := kvsTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -955,7 +959,7 @@ func TestScanKinesisVideo_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := kvsTestHandlers(newKVSTestCalls())
 		handlers["ListSignalingChannels"] = func(any) (any, error) { return nil, nx }
-		total, _, err := kvsTestScan(context.Background(), st, handlers)
+		total, err := kvsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := kvsTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d streams counted", total, want)
@@ -965,7 +969,7 @@ func TestScanKinesisVideo_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newKVSTestCalls()
 		calls.tagErrs[kvsTestKindOf(t, "ListStreams").kvsTestARN("tagged")] = nx
-		_, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
+		_, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -979,7 +983,7 @@ func TestScanKinesisVideo_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := kvsTestScan(context.Background(), st, handlers)
+		_, err := kvsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

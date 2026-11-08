@@ -114,12 +114,12 @@ func r53rTags(client route53ResolverAPI) rowTagReader {
 // Rule groups, query logging configs and Resolver rules can be shared with
 // this account through RAM (ShareStatus SHARED_WITH_ME), so their rows are
 // read under otherAccountGap (rowTagReader.untaggedIfOtherAccount).
-func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := route53resolver.NewFromConfig(acct.cfg, func(o *route53resolver.Options) { o.Region = region })
 	tags := r53rTags(client).sharingDenials()
 	shareable := tags.untaggedIfOtherAccount(acct.ID)
 	var ruleGroups, endpoints []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "route53resolver", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "route53resolver", 0, []hostPhase{
 		{op: "route53resolver:ListFirewallDomainLists", run: func(p *phaseTotals) bool {
 			return scanR53RFirewallDomainLists(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -133,10 +133,10 @@ func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *
 		{op: "route53resolver:ListOutpostResolvers", run: func(p *phaseTotals) bool {
 			return scanR53ROutpostResolvers(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "route53resolver:ListResolverConfigs", func() (int, int, error) {
+		countedPhase(0, "route53resolver:ListResolverConfigs", func() (int, error) {
 			return scanR53RResolverConfigs(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "route53resolver:ListResolverDnssecConfigs", func() (int, int, error) {
+		countedPhase(0, "route53resolver:ListResolverDnssecConfigs", func() (int, error) {
 			return scanR53RResolverDnssecConfigs(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "route53resolver:ListResolverEndpoints", run: func(p *phaseTotals) (failed bool) {
@@ -146,27 +146,27 @@ func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *
 		{op: "route53resolver:ListResolverQueryLogConfigs", run: func(p *phaseTotals) bool {
 			return scanR53RResolverQueryLogConfigs(ctx, client, acct, region, st, scanID, shareable, p)
 		}},
-		countedPhase(0, "route53resolver:ListResolverQueryLogConfigAssociations", func() (int, int, error) {
+		countedPhase(0, "route53resolver:ListResolverQueryLogConfigAssociations", func() (int, error) {
 			return scanR53RResolverQueryLogConfigAssocs(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "route53resolver:ListResolverRules", run: func(p *phaseTotals) bool {
 			return scanR53RResolverRules(ctx, client, acct, region, st, scanID, shareable, p)
 		}},
-		countedPhase(0, "route53resolver:ListResolverRuleAssociations", func() (int, int, error) {
+		countedPhase(0, "route53resolver:ListResolverRuleAssociations", func() (int, error) {
 			return scanR53RResolverRuleAssocs(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "route53resolver:ListFirewallConfigs", func() (int, int, error) {
+		countedPhase(0, "route53resolver:ListFirewallConfigs", func() (int, error) {
 			return scanR53RFirewallConfigs(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, r53rListFirewallRulesOp, func() (int, int, error) {
+		countedPhase(0, r53rListFirewallRulesOp, func() (int, error) {
 			return scanR53RFirewallRules(ctx, client, acct, region, st, scanID, ruleGroups)
 		}),
-		countedPhase(0, r53rListEndpointIPAddressesOp, func() (int, int, error) {
+		countedPhase(0, r53rListEndpointIPAddressesOp, func() (int, error) {
 			return scanR53RResolverEndpointIPAddresses(ctx, client, acct, region, st, scanID, endpoints)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 func r53rARN(partition, region, acct, kind, id string) string {
@@ -278,9 +278,9 @@ func r53rFirewallRuleNativeID(groupARN string, r *r53rtypes.FirewallRule) string
 // updated or deleted may refuse the call (unverified). A rule naming neither
 // a domain list nor a threat protection has no key and is not stored; one
 // warning per scan counts them and names the first.
-func scanR53RFirewallRules(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string, groups []childParent) (int, int, error) {
+func scanR53RFirewallRules(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string, groups []childParent) (int, error) {
 	var unkeyed skipTally
-	total, inserted, err := childFanOutSkipNotReady(ctx, st, acct, region, r53rListFirewallRulesOp, groups, isR53RNotFound, byParentID,
+	total, err := childFanOutSkipNotReady(ctx, st, acct, region, r53rListFirewallRulesOp, groups, isR53RNotFound, byParentID,
 		"rule group(s)", "the service may refuse a group that is being updated or deleted (unverified)",
 		func(ctx context.Context, g childParent) ([]*store.Resource, error) {
 			pager := route53resolver.NewListFirewallRulesPaginator(client, &route53resolver.ListFirewallRulesInput{FirewallRuleGroupId: &g.id},
@@ -319,7 +319,7 @@ func scanR53RFirewallRules(ctx context.Context, client route53ResolverAPI, acct 
 				unkeyed.count, unkeyed.first),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // r53rEndpointIPAddressNativeID keys an IP address under its endpoint.
@@ -330,7 +330,7 @@ func r53rEndpointIPAddressNativeID(endpointARN, ipID string) string {
 // scanR53RResolverEndpointIPAddresses lists the IP addresses of each given
 // endpoint and links each under its endpoint. An endpoint deleted after it
 // was listed is skipped.
-func scanR53RResolverEndpointIPAddresses(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string, endpoints []childParent) (int, int, error) {
+func scanR53RResolverEndpointIPAddresses(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string, endpoints []childParent) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, r53rListEndpointIPAddressesOp, endpoints, isR53RNotFound, byParentID,
 		func(ctx context.Context, e childParent) ([]*store.Resource, error) {
 			pager := route53resolver.NewListResolverEndpointIpAddressesPaginator(client,
@@ -399,7 +399,7 @@ func scanR53ROutpostResolvers(ctx context.Context, client route53ResolverAPI, ac
 
 // scanR53RResolverConfigs — ResolverConfig has no native ARN; synth from
 // (region, acct, vpcId).
-func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "route53resolver:ListResolverConfigs",
 		func(ctx context.Context, token *string) ([]r53rtypes.ResolverConfig, *string, error) {
 			out, err := client.ListResolverConfigs(ctx, &route53resolver.ListResolverConfigsInput{MaxResults: sdkaws.Int32(r53rPageLimit), NextToken: token})
@@ -417,7 +417,7 @@ func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acc
 		})
 }
 
-func scanR53RResolverDnssecConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RResolverDnssecConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "route53resolver:ListResolverDnssecConfigs",
 		func(ctx context.Context, token *string) ([]r53rtypes.ResolverDnssecConfig, *string, error) {
 			out, err := client.ListResolverDnssecConfigs(ctx, &route53resolver.ListResolverDnssecConfigsInput{MaxResults: sdkaws.Int32(r53rPageLimit), NextToken: token})
@@ -473,7 +473,7 @@ func scanR53RResolverQueryLogConfigs(ctx context.Context, client route53Resolver
 		}, tags, p)
 }
 
-func scanR53RResolverQueryLogConfigAssocs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RResolverQueryLogConfigAssocs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "route53resolver:ListResolverQueryLogConfigAssociations",
 		func(ctx context.Context, token *string) ([]r53rtypes.ResolverQueryLogConfigAssociation, *string, error) {
 			out, err := client.ListResolverQueryLogConfigAssociations(ctx, &route53resolver.ListResolverQueryLogConfigAssociationsInput{MaxResults: sdkaws.Int32(r53rPageLimit), NextToken: token})
@@ -512,7 +512,7 @@ func scanR53RResolverRules(ctx context.Context, client route53ResolverAPI, acct 
 		}, tags, p)
 }
 
-func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "route53resolver:ListResolverRuleAssociations",
 		func(ctx context.Context, token *string) ([]r53rtypes.ResolverRuleAssociation, *string, error) {
 			out, err := client.ListResolverRuleAssociations(ctx, &route53resolver.ListResolverRuleAssociationsInput{MaxResults: sdkaws.Int32(r53rPageLimit), NextToken: token})
@@ -536,7 +536,7 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 
 // scanR53RFirewallConfigs — per-VPC DNS Firewall config state. No native ARN;
 // synth from (region, acct, Id).
-func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "route53resolver:ListFirewallConfigs",
 		func(ctx context.Context, token *string) ([]r53rtypes.FirewallConfig, *string, error) {
 			out, err := client.ListFirewallConfigs(ctx, &route53resolver.ListFirewallConfigsInput{MaxResults: sdkaws.Int32(r53rFirewallConfigPageLimit), NextToken: token})

@@ -202,7 +202,7 @@ func caHandlers(c *caCalls) map[string]func(in any) (any, error) {
 
 // caScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func caScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func caScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, caDenied)
 	return scanCodeArtifact(ctx, acct, testRegion, st, testScanID)
@@ -247,7 +247,9 @@ func TestScanCodeArtifact_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newCACalls()
 
-	total, inserted, err := caScan(context.Background(), st, caHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := caScan(context.Background(), counted, caHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -305,10 +307,12 @@ func TestScanCodeArtifact_StoresTagsOfEveryType(t *testing.T) {
 func TestScanCodeArtifact_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := caScan(context.Background(), st, caHandlers(newCACalls())); err != nil {
+	if _, err := caScan(context.Background(), st, caHandlers(newCACalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := caScan(context.Background(), st, caHandlers(newCACalls()))
+	counted, upserts := countUpserts(st)
+	total, err := caScan(context.Background(), counted, caHandlers(newCACalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -326,7 +330,7 @@ func TestScanCodeArtifact_NoDomains(t *testing.T) {
 	h := caHandlers(calls)
 	h["ListDomains"] = func(any) (any, error) { return &codeartifact.ListDomainsOutput{}, nil }
 	h["ListRepositories"] = func(any) (any, error) { return &codeartifact.ListRepositoriesOutput{}, nil }
-	total, _, err := caScan(context.Background(), st, h)
+	total, err := caScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -344,7 +348,7 @@ func TestScanCodeArtifact_StoresPackages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
-	if _, _, err := caScan(context.Background(), st, caHandlers(calls)); err != nil {
+	if _, err := caScan(context.Background(), st, caHandlers(calls)); err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
 	if got := calls.repos.distinct(); !slices.Equal(got, []string{"d1/ra", "d1/rb"}) {
@@ -395,7 +399,7 @@ func TestScanCodeArtifact_NoPackages(t *testing.T) {
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackages"] = func(any) (any, error) { return &codeartifact.ListPackagesOutput{}, nil }
-	total, _, err := caScan(context.Background(), st, h)
+	total, err := caScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
@@ -449,7 +453,7 @@ func TestScanCodeArtifact_TagReadFailures(t *testing.T) {
 			calls := newCACalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := caScan(context.Background(), st, caHandlers(calls))
+			total, err := caScan(context.Background(), st, caHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -492,7 +496,7 @@ func TestScanCodeArtifact_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[arn] = caDenied
 	}
 
-	total, _, err := caScan(context.Background(), st, caHandlers(calls))
+	total, err := caScan(context.Background(), st, caHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -525,7 +529,7 @@ func TestScanCodeArtifact_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[caTestDomain] = caThrottle
 	calls.errs[caTestGroup2] = caBadInput
 
-	_, _, err := caScan(context.Background(), st, caHandlers(calls))
+	_, err := caScan(context.Background(), st, caHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -574,7 +578,7 @@ func TestScanCodeArtifact_OtherAccountRepository(t *testing.T) {
 			}
 			h["ListPackages"] = func(any) (any, error) { return &codeartifact.ListPackagesOutput{}, nil }
 
-			total, _, err := caScan(context.Background(), st, h)
+			total, err := caScan(context.Background(), st, h)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -605,7 +609,7 @@ func TestScanCodeArtifact_FailedWriteStopsScan(t *testing.T) {
 	calls := newCACalls()
 	calls.errs[caTestRepoA] = caDenied
 
-	total, _, err := caScan(context.Background(), st, caHandlers(calls))
+	total, err := caScan(context.Background(), st, caHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -637,7 +641,7 @@ func TestScanCodeArtifact_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 		h := caHandlers(calls)
 		h["ListDomains"] = failOnCall(2, caBadInput, caFirstPage(
 			&codeartifact.ListDomainsOutput{NextToken: sdkaws.String("t2"), Domains: []catypes.DomainSummary{{Arn: sdkaws.String(caTestDomain), Name: sdkaws.String("d1")}}}))
-		total, _, err := caScan(context.Background(), st, h)
+		total, err := caScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "ValidationException")
 		if total != caTestTotal-1 {
@@ -655,7 +659,7 @@ func TestScanCodeArtifact_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			&codeartifact.ListRepositoriesOutput{NextToken: sdkaws.String("t2"), Repositories: []catypes.RepositorySummary{
 				{Arn: sdkaws.String(caTestRepoA), Name: sdkaws.String("ra"), DomainOwner: sdkaws.String(testAccountID)},
 			}}))
-		total, _, err := caScan(context.Background(), st, h)
+		total, err := caScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "ValidationException")
 		// rb and its package are lost.
@@ -713,7 +717,7 @@ func TestScanCodeArtifact_WritesEachPageBeforeTheNext(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, c := range map[string]struct {
@@ -779,7 +783,7 @@ func TestScanCodeArtifact_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return c.second, nil
 			}
-			total, _, err := caScan(context.Background(), st, h)
+			total, err := caScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -815,7 +819,7 @@ func TestScanCodeArtifact_ElementWithoutARNWarns(t *testing.T) {
 			calls := newCACalls()
 			h := caHandlers(calls)
 			h[c.op] = func(any) (any, error) { return c.answer, nil }
-			if _, _, err := caScan(context.Background(), st, h); err != nil {
+			if _, err := caScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if w := *warnings; len(w) != 1 || !strings.Contains(w[0].Message, c.key) {
@@ -839,7 +843,7 @@ func TestScanCodeArtifact_DomainWithoutNameHasNoChildren(t *testing.T) {
 	h["ListDomains"] = func(any) (any, error) {
 		return &codeartifact.ListDomainsOutput{Domains: []catypes.DomainSummary{{Arn: sdkaws.String(caTestDomain)}}}, nil
 	}
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeCodeArtifactDomain)[caTestDomain]
@@ -893,7 +897,7 @@ func TestScanCodeArtifact_PackageGroupListingFailures(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := caScan(context.Background(), st, h)
+			total, err := caScan(context.Background(), st, h)
 			if c.wantErr {
 				assertAPICode(t, err, "ValidationException")
 			} else if err != nil {
@@ -920,7 +924,7 @@ func TestScanCodeArtifact_DomainsDenied(t *testing.T) {
 	calls := newCACalls()
 	h := caHandlers(calls)
 	delete(h, "ListDomains")
-	total, _, err := caScan(context.Background(), st, h)
+	total, err := caScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -953,7 +957,7 @@ func TestScanCodeArtifact_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(h, caDenied)
-			if _, _, err := scanCodeArtifact(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanCodeArtifact(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.caSentARNs(), domain) {
@@ -981,7 +985,7 @@ func TestScanCodeArtifact_ContextEndReportedOnce(t *testing.T) {
 		return &codeartifact.ListRepositoriesOutput{NextToken: sdkaws.String("t2"), Repositories: []catypes.RepositorySummary{{Arn: sdkaws.String(caTestRepoA), Name: sdkaws.String("ra")}}}, nil
 	}
 
-	_, _, err := caScan(ctx, st, h)
+	_, err := caScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1010,7 +1014,7 @@ func TestScanCodeArtifact_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := caHandlers(newCACalls())
 		h["ListPackageGroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := caScan(context.Background(), st, h)
+		total, err := caScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != caTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, caTestTotal-2)
@@ -1020,7 +1024,7 @@ func TestScanCodeArtifact_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCACalls()
 		calls.errs[caTestDomain2] = nx
-		_, _, err := caScan(context.Background(), st, caHandlers(calls))
+		_, err := caScan(context.Background(), st, caHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1028,7 +1032,7 @@ func TestScanCodeArtifact_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanCodeArtifact(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanCodeArtifact(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1044,7 +1048,7 @@ func TestScanCodeArtifact_PackagesAccessDenied(t *testing.T) {
 	warns := countOpWarnings(st, "codeartifact:ListPackages")
 	h := caHandlers(newCACalls())
 	delete(h, "ListPackages")
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
 	if *warns != 1 {
@@ -1070,7 +1074,7 @@ func TestScanCodeArtifact_RepositoryGone(t *testing.T) {
 		}
 		return list(in)
 	}
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
 	if got := caPackageIDs(t, st); !slices.Equal(got, []string{caTestPkgB1}) {
@@ -1095,7 +1099,7 @@ func TestScanCodeArtifact_RepositoryTransientSkipped(t *testing.T) {
 		}
 		return list(in)
 	}
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
 	if got := caPackageIDs(t, st); !slices.Equal(got, []string{caTestPkgB1}) {
@@ -1113,7 +1117,7 @@ func TestScanCodeArtifact_PackagesErrorKeepsParents(t *testing.T) {
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackages"] = func(any) (any, error) { return nil, caBadInput }
-	total, _, err := caScan(context.Background(), st, h)
+	total, err := caScan(context.Background(), st, h)
 	assertAPICode(t, err, "ValidationException")
 	caParentsStored(t, st)
 	if total != caTestTotal-3 {
@@ -1128,7 +1132,7 @@ func TestScanCodeArtifact_ParentErrorStillListsPackages(t *testing.T) {
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackageGroups"] = func(any) (any, error) { return nil, caBadInput }
-	total, _, err := caScan(context.Background(), st, h)
+	total, err := caScan(context.Background(), st, h)
 	assertAPICode(t, err, "ValidationException")
 	if got := caPackageIDs(t, st); !slices.Equal(got, caAllPkgARNs) {
 		t.Errorf("package rows = %v, want %v", got, caAllPkgARNs)
@@ -1148,7 +1152,7 @@ func TestScanCodeArtifact_ParentTransientDoesNotMaskHardError(t *testing.T) {
 	h := caHandlers(newCACalls())
 	h["ListPackageGroups"] = func(any) (any, error) { return nil, caThrottle }
 	h["ListPackages"] = func(any) (any, error) { return nil, caBadInput }
-	_, _, err := caScan(context.Background(), st, h)
+	_, err := caScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1168,7 +1172,7 @@ func TestScanCodeArtifact_PackagesRepeatedTokenStops(t *testing.T) {
 		}
 		return &codeartifact.ListPackagesOutput{NextToken: sdkaws.String("same")}, nil
 	}
-	if _, _, err := caScan(context.Background(), st, h); err != nil {
+	if _, err := caScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanCodeArtifact: %v", err)
 	}
 	// Per repository: the first call, then one repeat of "same".
@@ -1189,7 +1193,7 @@ func TestScanCodeArtifact_MalformedRepositoryARN(t *testing.T) {
 			{Arn: sdkaws.String(caTestPrefix + "repository/ra"), Name: sdkaws.String("ra")},
 		}}, nil
 	}
-	if _, _, err := caScan(context.Background(), st, h); err == nil {
+	if _, err := caScan(context.Background(), st, h); err == nil {
 		t.Fatal("scanCodeArtifact err = nil, want the malformed repository ARN")
 	}
 	if got := calls.repos.distinct(); len(got) != 0 {

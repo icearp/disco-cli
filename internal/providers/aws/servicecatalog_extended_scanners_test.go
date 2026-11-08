@@ -81,7 +81,9 @@ func scanSCCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(handlers, scTestDenied)
-	total, inserted, err := scanServiceCatalog(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceCatalog(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if inserted != total {
 		t.Errorf("inserted = %d, want total %d", inserted, total)
 	}

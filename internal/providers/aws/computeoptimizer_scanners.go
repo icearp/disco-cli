@@ -41,7 +41,7 @@ type computeOptimizerAPI interface {
 	GetRecommendationPreferences(context.Context, *computeoptimizer.GetRecommendationPreferencesInput, ...func(*computeoptimizer.Options)) (*computeoptimizer.GetRecommendationPreferencesOutput, error)
 }
 
-func scanComputeOptimizer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanComputeOptimizer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := computeoptimizer.NewFromConfig(acct.cfg, func(o *computeoptimizer.Options) { o.Region = region })
 	return scanComputeOptimizerPreferences(ctx, client, acct, region, st, scanID)
 }
@@ -71,20 +71,20 @@ func computeOptimizerPreferenceNativeID(partition, region, accountID string, res
 // the account can clear itself) reports the service disabled when no row was
 // stored; after rows were stored it is returned as an error, as is any other
 // error.
-func scanComputeOptimizerPreferences(ctx context.Context, client computeOptimizerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var total, inserted int
+func scanComputeOptimizerPreferences(ctx context.Context, client computeOptimizerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	var total int
 	for _, rt := range computeOptimizerPreferenceTypes {
 		rows, lerr := listComputeOptimizerPreferences(ctx, client, acct, region, scanID, rt)
-		t, i, uerr := upsertBatch(st, rows, "compute-optimizer recommendation-preferences")
-		total, inserted = total+t, inserted+i
+		t, uerr := upsertBatch(st, rows, "compute-optimizer recommendation-preferences")
+		total += t
 		if uerr != nil {
-			return total, inserted, uerr
+			return total, uerr
 		}
 		switch {
 		case lerr == nil:
 			continue
 		case isAPIErrorCode(lerr, "OptInRequiredException") && total == 0:
-			return 0, 0, markServiceDisabled(lerr)
+			return 0, markServiceDisabled(lerr)
 		case isAccessDenied(lerr):
 			_ = skipIfAccessDenied(st, computeOptimizerGetPreferencesOp, acct.ID, region, fmt.Errorf("ResourceType %s: %w", rt, lerr))
 		case isAPIErrorCode(lerr, "InvalidParameterValueException"):
@@ -93,10 +93,10 @@ func scanComputeOptimizerPreferences(ctx context.Context, client computeOptimize
 				Message: fmt.Sprintf("ResourceType %s rejected; this region may not support preferences for it (unverified): %s", rt, lerr),
 			})
 		default:
-			return total, inserted, fmt.Errorf("%s %s: %w", computeOptimizerGetPreferencesOp, rt, lerr)
+			return total, fmt.Errorf("%s %s: %w", computeOptimizerGetPreferencesOp, rt, lerr)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // listComputeOptimizerPreferences returns the rows of one resource type's

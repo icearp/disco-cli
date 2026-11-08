@@ -42,21 +42,21 @@ type dynamodbStreamsAPI interface {
 }
 
 // scanDynamoDB is the orchestrator for all DynamoDB resource types in one region.
-func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
 	streamsClient := dynamodbstreams.NewFromConfig(acct.cfg, func(o *dynamodbstreams.Options) { o.Region = region })
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanDynamoDBTables(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanDynamoDBGlobalTables(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanDynamoDBStreams(ctx, streamsClient, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanDynamoDBBackups(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -65,16 +65,16 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 // scanDynamoDBBackups discovers on-demand DynamoDB table backups. ListBackups
 // paginates via ExclusiveStartBackupArn / LastEvaluatedBackupArn (no SDK
 // paginator type). Returns both on-demand and system (PITR) backups.
-func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var startARN *string
 	for {
 		out, err := client.ListBackups(ctx, &dynamodb.ListBackupsInput{ExclusiveStartBackupArn: startARN})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListBackups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dynamodb:ListBackups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("dynamodb:ListBackups: %w", err)
+			return 0, fmt.Errorf("dynamodb:ListBackups: %w", err)
 		}
 		for _, b := range out.BackupSummaries {
 			arn := sv(b.BackupArn)
@@ -99,7 +99,7 @@ func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account,
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns
 // names only; tables are described in parallel to avoid N+1 sequential calls.
-func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
 	return pageScanConcurrent(ctx, "dynamodb:ListTables", acct, region, st,
 		p.HasMorePages,
@@ -135,7 +135,7 @@ func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, 
 // in the account regardless of client region. Registered per-region like other
 // services; repeated upserts are idempotent since GlobalTableArn is the stable
 // NativeID. Stored with Region=nil since global tables span multiple regions.
-func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	// ListGlobalTables has no SDK Paginator; paginate manually via LastEvaluatedGlobalTableName.
 	var startName *string
 	for {
@@ -144,9 +144,9 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListGlobalTables", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dynamodb:ListGlobalTables", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("dynamodb:ListGlobalTables: %w", err)
+			return 0, fmt.Errorf("dynamodb:ListGlobalTables: %w", err)
 		}
 
 		// Describe each global table in the page concurrently.
@@ -186,15 +186,14 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert DynamoDB global tables: %w", err)
+				return 0, fmt.Errorf("upsert DynamoDB global tables: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 
 		if page.LastEvaluatedGlobalTableName == nil {
@@ -202,7 +201,7 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 		}
 		startName = page.LastEvaluatedGlobalTableName
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanDynamoDBStreams discovers DynamoDB streams in one region. Streams are
@@ -210,7 +209,7 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 // table→stream `contains` resolver targets these rows. ListStreams has no SDK
 // paginator — manual ExclusiveStartStreamArn loop. DescribeStream enriches
 // each entry with status, view type, key schema, and current shard page.
-func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var startArn *string
 	for {
 		page, err := client.ListStreams(ctx, &dynamodbstreams.ListStreamsInput{
@@ -218,9 +217,9 @@ func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *a
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListStreams", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dynamodb:ListStreams", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("dynamodb:ListStreams: %w", err)
+			return 0, fmt.Errorf("dynamodb:ListStreams: %w", err)
 		}
 
 		var (
@@ -262,15 +261,14 @@ func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *a
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert DynamoDB streams: %w", err)
+				return 0, fmt.Errorf("upsert DynamoDB streams: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 
 		if page.LastEvaluatedStreamArn == nil {
@@ -278,5 +276,5 @@ func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *a
 		}
 		startArn = page.LastEvaluatedStreamArn
 	}
-	return total, inserted, nil
+	return total, nil
 }

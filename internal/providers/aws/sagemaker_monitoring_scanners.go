@@ -42,28 +42,28 @@ type sagemakerMonitoringAPI interface {
 
 // scanSageMakerMonitoring runs all Monitoring family phases for one region.
 // The alert phase fans out per scanned schedule, so it runs after schedules.
-func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListMonitoringSchedules", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListMonitoringSchedules", func() (int, error) {
 			return scanSageMakerMonitoringSchedules(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListDataQualityJobDefinitions", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListDataQualityJobDefinitions", func() (int, error) {
 			return scanSageMakerDataQualityJobDefinitions(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListModelBiasJobDefinitions", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListModelBiasJobDefinitions", func() (int, error) {
 			return scanSageMakerModelBiasJobDefinitions(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListModelExplainabilityJobDefinitions", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListModelExplainabilityJobDefinitions", func() (int, error) {
 			return scanSageMakerModelExplainabilityJobDefinitions(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListModelQualityJobDefinitions", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListModelQualityJobDefinitions", func() (int, error) {
 			return scanSageMakerModelQualityJobDefinitions(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListMonitoringAlerts", func() (int, int, error) { return scanSageMakerMonitoringAlerts(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListMonitoringAlerts", func() (int, error) { return scanSageMakerMonitoringAlerts(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
-func scanSageMakerMonitoringSchedules(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMonitoringSchedules(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.MonitoringScheduleSummary]{
 		listOp: "sagemaker:ListMonitoringSchedules", describeOp: "sagemaker:DescribeMonitoringSchedule", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringScheduleSummary, *string, error) {
@@ -106,7 +106,7 @@ func scanSageMakerMonitoringSchedules(ctx context.Context, client sagemakerMonit
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListMonitoringSchedules"))
 }
 
-func scanSageMakerDataQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerDataQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
 		listOp: "sagemaker:ListDataQualityJobDefinitions", describeOp: "sagemaker:DescribeDataQualityJobDefinition", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
@@ -147,7 +147,7 @@ func scanSageMakerDataQualityJobDefinitions(ctx context.Context, client sagemake
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListDataQualityJobDefinitions"))
 }
 
-func scanSageMakerModelBiasJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelBiasJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
 		listOp: "sagemaker:ListModelBiasJobDefinitions", describeOp: "sagemaker:DescribeModelBiasJobDefinition", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
@@ -188,7 +188,7 @@ func scanSageMakerModelBiasJobDefinitions(ctx context.Context, client sagemakerM
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelBiasJobDefinitions"))
 }
 
-func scanSageMakerModelExplainabilityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelExplainabilityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
 		listOp: "sagemaker:ListModelExplainabilityJobDefinitions", describeOp: "sagemaker:DescribeModelExplainabilityJobDefinition", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
@@ -229,7 +229,7 @@ func scanSageMakerModelExplainabilityJobDefinitions(ctx context.Context, client 
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelExplainabilityJobDefinitions"))
 }
 
-func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
 		listOp: "sagemaker:ListModelQualityJobDefinitions", describeOp: "sagemaker:DescribeModelQualityJobDefinition", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
@@ -270,7 +270,7 @@ func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemak
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelQualityJobDefinitions"))
 }
 
-func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerMonitoringSchedule, "sagemaker:ListMonitoringAlerts", []string{"ResourceNotFound"},
 		sagemakerChildSkips{emptyWhy: "monitoring alerts have an empty name", namelessWhat: "stored monitoring schedule(s)"},
 		func(ctx context.Context, schedule store.Resource) []sagemakerChildList[*store.Resource] {

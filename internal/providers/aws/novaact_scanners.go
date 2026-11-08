@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanNovaAct discovers Nova Act workflow definitions.
-func scanNovaAct(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNovaAct(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := novaact.NewFromConfig(acct.cfg, func(o *novaact.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanNovaAct(ctx context.Context, acct *account, region string, st *store.St
 		out, err := client.ListWorkflowDefinitions(ctx, &novaact.ListWorkflowDefinitionsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "nova-act:ListWorkflowDefinitions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "nova-act:ListWorkflowDefinitions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("nova-act:ListWorkflowDefinitions: %w", err)
+			return 0, fmt.Errorf("nova-act:ListWorkflowDefinitions: %w", err)
 		}
 		for _, w := range out.WorkflowDefinitionSummaries {
 			arn := sv(w.WorkflowDefinitionArn)

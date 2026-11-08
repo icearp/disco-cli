@@ -66,42 +66,42 @@ const (
 // identity phases link under the channel configurations their channel phase
 // stored; an identity whose configuration that phase did not store stays
 // unlinked.
-func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("chatbot")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := chatbot.NewFromConfig(acct.cfg, func(o *chatbot.Options) { o.Region = region })
 	return scanChatbotAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanChatbotAll(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChatbotAll(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var slackChannels, teamsChannels map[string]bool
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{chatbotCustomActionsOp, func() (int, int, error) { return scanChatbotCustomActions(ctx, client, acct, region, st, scanID) }},
-		{chatbotSlackChannelsOp, func() (t, i int, err error) {
-			t, i, slackChannels, err = scanChatbotSlackChannels(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{chatbotCustomActionsOp, func() (int, error) { return scanChatbotCustomActions(ctx, client, acct, region, st, scanID) }},
+		{chatbotSlackChannelsOp, func() (t int, err error) {
+			t, slackChannels, err = scanChatbotSlackChannels(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{chatbotTeamsChannelsOp, func() (t, i int, err error) {
-			t, i, teamsChannels, err = scanChatbotTeamsChannels(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{chatbotTeamsChannelsOp, func() (t int, err error) {
+			t, teamsChannels, err = scanChatbotTeamsChannels(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{chatbotChimeWebhooksOp, func() (int, int, error) { return scanChatbotChimeWebhooks(ctx, client, acct, region, st, scanID) }},
-		{chatbotSlackUserIdentitiesOp, func() (int, int, error) {
+		{chatbotChimeWebhooksOp, func() (int, error) { return scanChatbotChimeWebhooks(ctx, client, acct, region, st, scanID) }},
+		{chatbotSlackUserIdentitiesOp, func() (int, error) {
 			return scanChatbotSlackUserIdentities(ctx, client, acct, region, st, scanID, slackChannels)
 		}},
-		{chatbotTeamsUserIdentitiesOp, func() (int, int, error) {
+		{chatbotTeamsUserIdentitiesOp, func() (int, error) {
 			return scanChatbotTeamsUserIdentities(ctx, client, acct, region, st, scanID, teamsChannels)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -114,9 +114,9 @@ func scanChatbotAll(ctx context.Context, client chatbotAPI, acct *account, regio
 // here: it ends the listing, keeping the pages read before it, and is warned
 // about once the write succeeded, as storeTokenList warns about the codes
 // isAccessDenied matches.
-func scanChatbotCustomActions(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChatbotCustomActions(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var denied error
-	total, inserted, err := storeTokenList(ctx, st, acct, region, chatbotCustomActionsOp,
+	total, err := storeTokenList(ctx, st, acct, region, chatbotCustomActionsOp,
 		func(ctx context.Context, token *string) ([]string, *string, error) {
 			out, err := client.ListCustomActions(ctx, &chatbot.ListCustomActionsInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
 			if isAPIErrorCode(err, "UnauthorizedException") {
@@ -142,7 +142,7 @@ func scanChatbotCustomActions(ctx context.Context, client chatbotAPI, acct *acco
 	if denied != nil && !errors.Is(err, store.ErrStoreWrite) {
 		_ = skipIfAccessDenied(st, chatbotCustomActionsOp, acct.ID, region, denied)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // chatbotConfigRow builds the row of a chat configuration (Slack, Microsoft
@@ -171,8 +171,8 @@ func chatbotStoredARNs(parents []childParent) map[string]bool {
 
 // scanChatbotSlackChannels stores the Slack channel configurations and
 // returns the ARNs of those it stored.
-func scanChatbotSlackChannels(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, chatbotSlackChannelsOp, "Slack channel configurations", "ChatConfigurationArn",
+func scanChatbotSlackChannels(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, map[string]bool, error) {
+	total, parents, err := storeParentList(ctx, st, acct, region, chatbotSlackChannelsOp, "Slack channel configurations", "ChatConfigurationArn",
 		func(ctx context.Context, token *string) ([]chatbottypes.SlackChannelConfiguration, *string, error) {
 			out, err := client.DescribeSlackChannelConfigurations(ctx, &chatbot.DescribeSlackChannelConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
 			if err != nil {
@@ -184,13 +184,13 @@ func scanChatbotSlackChannels(ctx context.Context, client chatbotAPI, acct *acco
 			return chatbotConfigRow(acct, scanID, TypeChatbotSlackChannelConfiguration, c.ChatConfigurationArn, c.ConfigurationName, c.State, c.Tags, c)
 		},
 		func(c chatbottypes.SlackChannelConfiguration) string { return sv(c.ChatConfigurationArn) })
-	return total, inserted, chatbotStoredARNs(parents), err
+	return total, chatbotStoredARNs(parents), err
 }
 
 // scanChatbotTeamsChannels stores the Microsoft Teams channel configurations
 // and returns the ARNs of those it stored.
-func scanChatbotTeamsChannels(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, chatbotTeamsChannelsOp, "Microsoft Teams channel configurations", "ChatConfigurationArn",
+func scanChatbotTeamsChannels(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, map[string]bool, error) {
+	total, parents, err := storeParentList(ctx, st, acct, region, chatbotTeamsChannelsOp, "Microsoft Teams channel configurations", "ChatConfigurationArn",
 		func(ctx context.Context, token *string) ([]chatbottypes.TeamsChannelConfiguration, *string, error) {
 			out, err := client.ListMicrosoftTeamsChannelConfigurations(ctx, &chatbot.ListMicrosoftTeamsChannelConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
 			if err != nil {
@@ -202,10 +202,10 @@ func scanChatbotTeamsChannels(ctx context.Context, client chatbotAPI, acct *acco
 			return chatbotConfigRow(acct, scanID, TypeChatbotMicrosoftTeamsChannelConfiguration, c.ChatConfigurationArn, c.ConfigurationName, c.State, c.Tags, c)
 		},
 		func(c chatbottypes.TeamsChannelConfiguration) string { return sv(c.ChatConfigurationArn) })
-	return total, inserted, chatbotStoredARNs(parents), err
+	return total, chatbotStoredARNs(parents), err
 }
 
-func scanChatbotChimeWebhooks(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChatbotChimeWebhooks(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, chatbotChimeWebhooksOp,
 		func(ctx context.Context, token *string) ([]chatbottypes.ChimeWebhookConfiguration, *string, error) {
 			out, err := client.DescribeChimeWebhookConfigurations(ctx, &chatbot.DescribeChimeWebhookConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
@@ -235,7 +235,7 @@ func chatbotTeamsUserIdentityNativeID(configARN, userID string) string {
 // scanChatbotSlackUserIdentities lists every Slack user identity in one
 // account-wide listing (no ChatConfigurationArn) and links each under its
 // channel configuration when channels holds it.
-func scanChatbotSlackUserIdentities(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string, channels map[string]bool) (int, int, error) {
+func scanChatbotSlackUserIdentities(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string, channels map[string]bool) (int, error) {
 	users, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]chatbottypes.SlackUserIdentity, *string, error) {
 		out, err := client.DescribeSlackUserIdentities(ctx, &chatbot.DescribeSlackUserIdentitiesInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
 		if err != nil {
@@ -265,7 +265,7 @@ func scanChatbotSlackUserIdentities(ctx context.Context, client chatbotAPI, acct
 // scanChatbotTeamsUserIdentities lists every Microsoft Teams user identity in
 // one account-wide listing (no ChatConfigurationArn) and links each under its
 // channel configuration when channels holds it.
-func scanChatbotTeamsUserIdentities(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string, channels map[string]bool) (int, int, error) {
+func scanChatbotTeamsUserIdentities(ctx context.Context, client chatbotAPI, acct *account, region string, st *store.Store, scanID string, channels map[string]bool) (int, error) {
 	users, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]chatbottypes.TeamsUserIdentity, *string, error) {
 		out, err := client.ListMicrosoftTeamsUserIdentities(ctx, &chatbot.ListMicrosoftTeamsUserIdentitiesInput{NextToken: token, MaxResults: sdkaws.Int32(chatbotPageLimit)})
 		if err != nil {
@@ -297,10 +297,10 @@ func scanChatbotTeamsUserIdentities(ctx context.Context, client chatbotAPI, acct
 // the write's error to storeReadRows with no rows of its own: it returns
 // listErr unless denied, and warns about a denial and the skipped identities
 // only when the write succeeded.
-func storeChatbotIdentities(st *store.Store, acct *account, region, op string, children []containedChild, listErr error, skips *notStoredSkips) (int, int, error) {
-	total, inserted, werr := upsertContained(st, op, children)
-	_, _, err := storeReadRows(st, acct, region, op, nil, listErr, func() { skips.warn(st, op, acct, region) }, werr)
-	return total, inserted, err
+func storeChatbotIdentities(st *store.Store, acct *account, region, op string, children []containedChild, listErr error, skips *notStoredSkips) (int, error) {
+	total, werr := upsertContained(st, op, children)
+	_, err := storeReadRows(st, acct, region, op, nil, listErr, func() { skips.warn(st, op, acct, region) }, werr)
+	return total, err
 }
 
 // chatbotIdentityChild pairs an identity row with its channel configuration's

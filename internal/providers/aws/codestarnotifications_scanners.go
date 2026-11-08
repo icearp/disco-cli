@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanCodeStarNotifications discovers CodeStar Notifications notification rules.
-func scanCodeStarNotifications(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCodeStarNotifications(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := codestarnotifications.NewFromConfig(acct.cfg, func(o *codestarnotifications.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanCodeStarNotifications(ctx context.Context, acct *account, region string
 		out, err := client.ListNotificationRules(ctx, &codestarnotifications.ListNotificationRulesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "codestar-notifications:ListNotificationRules", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "codestar-notifications:ListNotificationRules", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("codestar-notifications:ListNotificationRules: %w", err)
+			return 0, fmt.Errorf("codestar-notifications:ListNotificationRules: %w", err)
 		}
 		for _, n := range out.NotificationRules {
 			arn := sv(n.Arn)

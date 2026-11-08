@@ -115,7 +115,7 @@ func ssmDocPermHandlers(t *testing.T, calls *parentCalls, fail func(name string)
 func noSSMPermErr(string) error { return nil }
 
 // scanSSMTopLevel runs scanSSM with every op handlers lacks denied.
-func scanSSMTopLevel(st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, int, error) {
+func scanSSMTopLevel(st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ssmDenied)
 	acct.cfg.APIOptions = append([]func(*smithymw.Stack) error{recordOps(log)}, acct.cfg.APIOptions...)
@@ -139,7 +139,9 @@ func TestScanSSM_StoresDocumentPermissionsLast(t *testing.T) {
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
-	total, inserted, err := scanSSMTopLevel(st, ssmDocPermHandlers(t, &calls, noSSMPermErr), &log)
+	counted, upserts := countUpserts(st)
+	total, err := scanSSMTopLevel(counted, ssmDocPermHandlers(t, &calls, noSSMPermErr), &log)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSSM: %v", err)
 	}
@@ -259,7 +261,7 @@ func TestScanSSMDocumentPermissions_RepeatedTokenKeepsRowWithoutLists(t *testing
 		}
 		return &ssm.DescribeDocumentPermissionOutput{AccountIds: []string{ssmTestAcctLow}, NextToken: ptrStr("same")}, nil
 	}
-	if _, _, err := scanSSMTopLevel(st, handlers, &log); !errors.Is(err, errRepeatedNextToken) {
+	if _, err := scanSSMTopLevel(st, handlers, &log); !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	rows := rowsByNativeID(t, st, TypeSSMDocumentPermission)
@@ -305,7 +307,7 @@ func TestScanSSMDocumentPermissions_PerDocumentSkips(t *testing.T) {
 				}
 				return nil
 			}
-			total, _, err := scanSSMTopLevel(st, ssmDocPermHandlers(t, &calls, fail), &log)
+			total, err := scanSSMTopLevel(st, ssmDocPermHandlers(t, &calls, fail), &log)
 			if err != nil {
 				t.Fatalf("scanSSM: %v", err)
 			}
@@ -331,7 +333,7 @@ func TestScanSSM_NoDocumentsNoPermissionCalls(t *testing.T) {
 	var log opLog
 	h := ssmDocPermHandlers(t, &calls, noSSMPermErr)
 	h["ListDocuments"] = func(any) (any, error) { return &ssm.ListDocumentsOutput{}, nil }
-	total, _, err := scanSSMTopLevel(st, h, &log)
+	total, err := scanSSMTopLevel(st, h, &log)
 	if err != nil {
 		t.Fatalf("scanSSM: %v", err)
 	}
@@ -374,7 +376,9 @@ func TestScanSSM_PhaseErrorStillRunsLaterPhases(t *testing.T) {
 				return &ssm.ListOpsMetadataOutput{OpsMetadataList: []ssmtypes.OpsMetadata{{OpsMetadataArn: ptrStr("arn:aws:ssm:us-east-1:123456789012:opsmetadata/app")}}}, nil
 			}
 			h[tc.failingOp] = func(any) (any, error) { return nil, apiErr("InvalidFilter", "bad") }
-			total, inserted, err := scanSSMTopLevel(st, h, &log)
+			counted, upserts := countUpserts(st)
+			total, err := scanSSMTopLevel(counted, h, &log)
+			inserted := upserts()
 			assertAPICode(t, err, "InvalidFilter")
 			if total != tc.wantTotal || inserted != tc.wantTotal {
 				t.Errorf("total, inserted = %d, %d; want %d, %d", total, inserted, tc.wantTotal, tc.wantTotal)
@@ -397,7 +401,7 @@ func TestScanSSM_DocumentPermissionErrorKeepsOtherPhases(t *testing.T) {
 	h["ListOpsMetadata"] = func(any) (any, error) {
 		return &ssm.ListOpsMetadataOutput{OpsMetadataList: []ssmtypes.OpsMetadata{{OpsMetadataArn: ptrStr("arn:aws:ssm:us-east-1:123456789012:opsmetadata/app")}}}, nil
 	}
-	total, _, err := scanSSMTopLevel(st, h, &log)
+	total, err := scanSSMTopLevel(st, h, &log)
 	assertAPICode(t, err, "InvalidPermissionType")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
@@ -418,7 +422,7 @@ func TestScanSSM_ThrottledOlderPhaseKeepsPermissionHardError(t *testing.T) {
 	var log opLog
 	h := ssmDocPermHandlers(t, &calls, func(string) error { return apiErr("InvalidPermissionType", "bad") })
 	h["ListAssociations"] = func(any) (any, error) { return nil, apiErr("Throttling", "Rate exceeded") }
-	_, _, err := scanSSMTopLevel(st, h, &log)
+	_, err := scanSSMTopLevel(st, h, &log)
 	assertAPICode(t, err, "InvalidPermissionType")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)

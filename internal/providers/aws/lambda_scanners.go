@@ -142,7 +142,7 @@ func lambdaTags(client lambdaAPI) rowTagReader {
 // the types ListTags takes are read with their listing (lambdaTags,
 // lambdaMicrovmTags); both clients' ListTags is the one IAM action
 // lambda:ListTags, so every tag denial of the scan is one warning.
-func scanLambda(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLambda(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := lambda.NewFromConfig(acct.cfg, func(o *lambda.Options) { o.Region = region })
 	core := lambdacore.NewFromConfig(acct.cfg, func(o *lambdacore.Options) { o.Region = region })
 	microvms := lambdamicrovms.NewFromConfig(acct.cfg, func(o *lambdamicrovms.Options) { o.Region = region })
@@ -154,25 +154,25 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		fns, pcCandidates []lambdaFunctionSummary
 		images            []childParent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "lambda", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "lambda", 0, []hostPhase{
 		{op: lambdaListFunctionsOp, run: func(p *phaseTotals) (failed bool) {
 			fns, failed = scanLambdaFunctions(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "lambda:ListVersionsByFunction", func() (t, n int, err error) {
-			pcCandidates, t, n, err = scanLambdaVersions(ctx, client, acct, fns, region, st, scanID)
-			return t, n, err
+		countedPhase(0, "lambda:ListVersionsByFunction", func() (t int, err error) {
+			pcCandidates, t, err = scanLambdaVersions(ctx, client, acct, fns, region, st, scanID)
+			return t, err
 		}),
-		countedPhase(0, "lambda:ListAliases", func() (int, int, error) {
+		countedPhase(0, "lambda:ListAliases", func() (int, error) {
 			return scanLambdaAliases(ctx, client, acct, fns, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:ListFunctionEventInvokeConfigs", func() (int, int, error) {
+		countedPhase(0, "lambda:ListFunctionEventInvokeConfigs", func() (int, error) {
 			return scanLambdaEventInvokeConfigs(ctx, client, acct, fns, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:ListFunctionUrlConfigs", func() (int, int, error) {
+		countedPhase(0, "lambda:ListFunctionUrlConfigs", func() (int, error) {
 			return scanLambdaFunctionURLs(ctx, client, acct, fns, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:GetPolicy", func() (int, int, error) {
+		countedPhase(0, "lambda:GetPolicy", func() (int, error) {
 			return scanLambdaPermissions(ctx, client, acct, fns, region, st, scanID)
 		}),
 		{op: lambdaListCodeSigningConfigsOp, run: func(p *phaseTotals) bool {
@@ -184,16 +184,16 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		{op: lambdaListESMsOp, run: func(p *phaseTotals) bool {
 			return scanLambdaEventSourceMappings(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "lambda:ListLayerVersions", func() (int, int, error) {
+		countedPhase(0, "lambda:ListLayerVersions", func() (int, error) {
 			return scanLambdaLayerVersions(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:GetLayerVersionPolicy", func() (int, int, error) {
+		countedPhase(0, "lambda:GetLayerVersionPolicy", func() (int, error) {
 			return scanLambdaLayerVersionPermissions(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:GetLayerVersionByArn", func() (int, int, error) {
+		countedPhase(0, "lambda:GetLayerVersionByArn", func() (int, error) {
 			return scanLambdaForeignLayers(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:ListProvisionedConcurrencyConfigs", func() (int, int, error) {
+		countedPhase(0, "lambda:ListProvisionedConcurrencyConfigs", func() (int, error) {
 			return scanLambdaProvisionedConcurrencyConfigs(ctx, client, acct, pcCandidates, region, st, scanID)
 		}),
 		{op: lambdaListNetworkConnectorsOp, run: func(p *phaseTotals) bool {
@@ -203,18 +203,18 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 			images, failed = scanLambdaMicrovmImages(ctx, microvms, acct, region, st, scanID, imageTags, p)
 			return failed
 		}},
-		countedPhase(0, "lambda:ListMicrovmImageVersions", func() (int, int, error) {
+		countedPhase(0, "lambda:ListMicrovmImageVersions", func() (int, error) {
 			return scanLambdaMicrovmImageVersions(ctx, microvms, acct, region, st, scanID, images)
 		}),
-		countedPhase(0, "lambda:ListMicrovms", func() (int, int, error) {
+		countedPhase(0, "lambda:ListMicrovms", func() (int, error) {
 			return scanLambdaMicrovms(ctx, microvms, acct, region, st, scanID)
 		}),
-		countedPhase(0, "lambda:ListManagedMicrovmImages", func() (int, int, error) {
+		countedPhase(0, "lambda:ListManagedMicrovmImages", func() (int, error) {
 			return scanLambdaManagedMicrovmImages(ctx, microvms, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // lambdaRow is the row of a listed element keyed by its ARN. An element
@@ -302,7 +302,7 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 
 // scanLambdaAliases discovers all aliases for each function and upserts them as
 // aws:lambda:alias resources. The NativeID is the AliasArn (qualified ARN).
-func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListAliasesPaginator(client, &lambda.ListAliasesInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -311,7 +311,7 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 				if isAccessDenied(err) {
 					break // skip this function's aliases
 				}
-				return total, inserted, fmt.Errorf("lambda:ListAliases (%s): %w", fn.name, err)
+				return total, fmt.Errorf("lambda:ListAliases (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, a := range page.Aliases {
@@ -329,12 +329,11 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert Lambda aliases (%s): %w", fn.name, err)
+					return total, fmt.Errorf("upsert Lambda aliases (%s): %w", fn.name, err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
@@ -349,7 +348,7 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 // whose versions could not be listed: provisioned concurrency can only sit on
 // a published version (or an alias of one), so the provisioned concurrency
 // phase skips every function this rules out instead of calling once per function.
-func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (pcCandidates []lambdaFunctionSummary, total, inserted int, err error) {
+func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (pcCandidates []lambdaFunctionSummary, total int, err error) {
 	for i, fn := range fns {
 		mayCarryPC := false
 		pager := lambda.NewListVersionsByFunctionPaginator(client, &lambda.ListVersionsByFunctionInput{FunctionName: &fn.name})
@@ -364,7 +363,7 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 				if isAPIErrorCode(err, "ResourceNotFoundException") {
 					break
 				}
-				return append(pcCandidates, fns[i:]...), total, inserted, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
+				return append(pcCandidates, fns[i:]...), total, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, v := range page.Versions {
@@ -386,26 +385,25 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return nil, total, inserted, fmt.Errorf("upsert Lambda versions (%s): %w", fn.name, err)
+					return nil, total, fmt.Errorf("upsert Lambda versions (%s): %w", fn.name, err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 		if mayCarryPC {
 			pcCandidates = append(pcCandidates, fn)
 		}
 	}
-	return pcCandidates, total, inserted, nil
+	return pcCandidates, total, nil
 }
 
 // scanLambdaEventInvokeConfigs discovers async invocation configuration for
 // each function and upserts them as aws:lambda:event-invoke-config resources.
 // The NativeID is the qualified FunctionArn from the config (may include a
 // version or alias qualifier).
-func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListFunctionEventInvokeConfigsPaginator(client, &lambda.ListFunctionEventInvokeConfigsInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -414,7 +412,7 @@ func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *a
 				if isAccessDenied(err) {
 					break
 				}
-				return total, inserted, fmt.Errorf("lambda:ListFunctionEventInvokeConfigs (%s): %w", fn.name, err)
+				return total, fmt.Errorf("lambda:ListFunctionEventInvokeConfigs (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, c := range page.FunctionEventInvokeConfigs {
@@ -432,12 +430,11 @@ func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *a
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert Lambda event invoke configs (%s): %w", fn.name, err)
+					return total, fmt.Errorf("upsert Lambda event invoke configs (%s): %w", fn.name, err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
@@ -447,7 +444,7 @@ func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *a
 // scanLambdaFunctionURLs discovers function URL configurations for each function
 // and upserts them as aws:lambda:url resources. The NativeID is the qualified
 // FunctionArn; the Name is the human-readable function URL.
-func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListFunctionUrlConfigsPaginator(client, &lambda.ListFunctionUrlConfigsInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -456,7 +453,7 @@ func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account
 				if isAccessDenied(err) {
 					break
 				}
-				return total, inserted, fmt.Errorf("lambda:ListFunctionUrlConfigs (%s): %w", fn.name, err)
+				return total, fmt.Errorf("lambda:ListFunctionUrlConfigs (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, u := range page.FunctionUrlConfigs {
@@ -474,12 +471,11 @@ func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert Lambda function URLs (%s): %w", fn.name, err)
+					return total, fmt.Errorf("upsert Lambda function URLs (%s): %w", fn.name, err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
@@ -542,7 +538,7 @@ func scanLambdaEventSourceMappings(ctx context.Context, client lambdaAPI, acct *
 // scanLambdaLayerVersions discovers all Lambda layer versions in the region and
 // upserts them as aws:lambda:layer-version resources. Lists layers first, then
 // paginates each layer's versions.
-func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	// lambdaLayerSummary holds the minimal data needed to list a layer's versions.
 	type lambdaLayerSummary struct {
 		name string
@@ -554,9 +550,9 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 		page, err := lpager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lambda:ListLayers", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "lambda:ListLayers", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("lambda:ListLayers: %w", err)
+			return total, fmt.Errorf("lambda:ListLayers: %w", err)
 		}
 		for _, l := range page.Layers {
 			if l.LayerName != nil {
@@ -574,7 +570,7 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 				if isAccessDenied(err) {
 					break
 				}
-				return total, inserted, fmt.Errorf("lambda:ListLayerVersions (%s): %w", l.name, err)
+				return total, fmt.Errorf("lambda:ListLayerVersions (%s): %w", l.name, err)
 			}
 			var batch []*store.Resource
 			for _, v := range page.LayerVersions {
@@ -592,12 +588,11 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert Lambda layer versions (%s): %w", l.name, err)
+					return total, fmt.Errorf("upsert Lambda layer versions (%s): %w", l.name, err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
@@ -611,7 +606,7 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 // resolveLambdaLayerRelationships. Each foreign layer upserts with
 // ManagedByProvider=true, hiding it from default `disco resources` /
 // `disco graph`.
-func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	// Read the function rows the function-scanner just upserted (this
 	// region only — region match guards against cross-region duplicate
 	// fan-out when scanning multiple regions).
@@ -621,7 +616,7 @@ func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *accoun
 	}
 	fns, err := st.ListResources(rfilter)
 	if err != nil {
-		return 0, 0, fmt.Errorf("list lambda functions for foreign-layer scan: %w", err)
+		return 0, fmt.Errorf("list lambda functions for foreign-layer scan: %w", err)
 	}
 	// Dedupe foreign-acct layer ARNs across all functions in this region.
 	pending := make(map[string]struct{})
@@ -643,7 +638,7 @@ func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *accoun
 		}
 	}
 	if len(pending) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	// Fan-out GetLayerVersionByArn at fanoutMed. Per-call AccessDenied /
 	// ResourceNotFoundException tolerated — those ARNs simply don't get
@@ -656,7 +651,7 @@ func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *accoun
 	g, gctx := errgroup.WithContext(ctx)
 	for arn := range pending {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		layerARN := arn
 		g.Go(func() error {
@@ -688,7 +683,7 @@ func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *accoun
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, batch, "lambda foreign layer-versions")
 }

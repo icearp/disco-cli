@@ -118,8 +118,10 @@ func TestScanCloudQuotas_RowPerDimensionsInfo(t *testing.T) {
 		quotaInfosPath("proj1", "compute.googleapis.com"): quotaInfosBody(t, cpusQuotaInfo()),
 	})
 
-	total, inserted, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudQuotasWithClients(t.Context(), p, counted, testScanID,
 		fakeServiceUsageService(t, srv), fakeCloudQuotasClient(t, srv))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudQuotasWithClients: %v", err)
 	}
@@ -303,7 +305,7 @@ func TestScanCloudQuotas_RescanDoesNotVersion(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("proj1")
 
-	run := func(mutate func(*cloudquotaspb.QuotaInfo)) (int, int) {
+	run := func(mutate func(*cloudquotaspb.QuotaInfo)) (total, inserted int) {
 		t.Helper()
 		qi := cpusQuotaInfo()
 		mutate(qi)
@@ -311,12 +313,13 @@ func TestScanCloudQuotas_RescanDoesNotVersion(t *testing.T) {
 			"/v1/projects/proj1/services":                     enabledServicesBody(t, "compute.googleapis.com"),
 			quotaInfosPath("proj1", "compute.googleapis.com"): quotaInfosBody(t, qi),
 		})
-		total, inserted, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
+		counted, upserts := countUpserts(st)
+		total, err := scanCloudQuotasWithClients(t.Context(), p, counted, testScanID,
 			fakeServiceUsageService(t, srv), fakeCloudQuotasClient(t, srv))
 		if err != nil {
 			t.Fatalf("scanCloudQuotasWithClients: %v", err)
 		}
-		return total, inserted
+		return total, upserts()
 	}
 
 	if _, inserted := run(func(*cloudquotaspb.QuotaInfo) {}); inserted != 3 {
@@ -358,8 +361,10 @@ func TestScanCloudQuotas_ChangedLimitVersions(t *testing.T) {
 			"/v1/projects/proj1/services":                     enabledServicesBody(t, "compute.googleapis.com"),
 			quotaInfosPath("proj1", "compute.googleapis.com"): quotaInfosBody(t, qi),
 		})
-		_, inserted, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
+		counted, upserts := countUpserts(st)
+		_, err := scanCloudQuotasWithClients(t.Context(), p, counted, testScanID,
 			fakeServiceUsageService(t, srv), fakeCloudQuotasClient(t, srv))
+		inserted := upserts()
 		if err != nil {
 			t.Fatalf("scanCloudQuotasWithClients: %v", err)
 		}
@@ -397,8 +402,10 @@ func TestScanCloudQuotas_PerServiceDenialAggregates(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	total, inserted, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudQuotasWithClients(t.Context(), p, counted, testScanID,
 		fakeServiceUsageService(t, srv), fakeCloudQuotasClient(t, srv))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudQuotasWithClients: %v", err)
 	}
@@ -436,7 +443,7 @@ func TestScanCloudQuotas_WholeAPIDisabledIsNotAWarning(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, _, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
+	_, err := scanCloudQuotasWithClients(t.Context(), p, st, testScanID,
 		fakeServiceUsageService(t, srv), fakeCloudQuotasClient(t, srv))
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("err = %v, want the service-disabled sentinel", err)

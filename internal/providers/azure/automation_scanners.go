@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanAutomation discovers Azure Automation accounts.
-func scanAutomation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAutomation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armautomation.NewAccountClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armautomation:NewAccountClient: %w", err)
+		return 0, fmt.Errorf("armautomation:NewAccountClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armautomation:Account.List", TypeAutomationAccount, sub, st, scanID,
 		client.NewListPager(nil),

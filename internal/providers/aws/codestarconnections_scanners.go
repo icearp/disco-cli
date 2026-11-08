@@ -46,7 +46,7 @@ type codeStarConnectionsAPI interface {
 	ListTagsForResource(context.Context, *codestarconnections.ListTagsForResourceInput, ...func(*codestarconnections.Options)) (*codestarconnections.ListTagsForResourceOutput, error)
 }
 
-func scanCodeStarConnections(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeStarConnections(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := codestarconnections.NewFromConfig(acct.cfg, func(o *codestarconnections.Options) { o.Region = region })
 	return scanCodeStarConnectionsAll(ctx, client, acct, region, st, scanID)
 }
@@ -58,10 +58,10 @@ func scanCodeStarConnections(ctx context.Context, acct *account, region string, 
 // with nothing stored (the region does not serve the service)
 // (runHostPhases). Connections, hosts and repository links have their tags
 // read per row (cscTags), whose denials are one warning for the scan.
-func scanCodeStarConnectionsAll(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeStarConnectionsAll(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := cscTags(client).sharingDenials()
 	var links []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "codestar-connections", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "codestar-connections", 0, []hostPhase{
 		{op: cscListConnectionsOp, run: func(p *phaseTotals) bool {
 			return scanCSCConnections(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -72,12 +72,12 @@ func scanCodeStarConnectionsAll(ctx context.Context, client codeStarConnectionsA
 			links, failed = scanCSCRepositoryLinks(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, cscListSyncConfigurationsOp, func() (int, int, error) {
+		countedPhase(0, cscListSyncConfigurationsOp, func() (int, error) {
 			return scanCSCSyncConfigurations(ctx, client, acct, region, st, scanID, links)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // cscTags reads a row's tags with ListTagsForResource, sent the row's
@@ -195,7 +195,7 @@ type cscSyncListing struct {
 // returned after the rows are stored. A sync configuration has no ARN; its
 // NativeID is built as
 // arn:{partition}:codestar-connections:{region}:{account}:sync-configuration/{linkId}/{syncType}/{resourceName}.
-func scanCSCSyncConfigurations(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string, links []childParent) (int, int, error) {
+func scanCSCSyncConfigurations(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string, links []childParent) (int, error) {
 	listings := map[string]cscSyncListing{}
 	var keys []string
 	for _, l := range links {

@@ -55,7 +55,7 @@ const (
 	sgwDescribeTapeArchivesOp = "storagegateway:DescribeTapeArchives"
 )
 
-func scanStorageGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := storagegateway.NewFromConfig(acct.cfg, func(o *storagegateway.Options) { o.Region = region })
 	return scanStorageGatewayWith(ctx, client, acct, region, st, scanID)
 }
@@ -71,7 +71,7 @@ func scanStorageGateway(ctx context.Context, acct *account, region string, st *s
 // report's tags come with its listed element; VTL devices and tape creation
 // policies are not taggable. No List op sends a Limit: the model sets no
 // maximum.
-func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		gateways    []sgwtypes.GatewayInfo
 		unavailable sgwGatewaysUnavailable
@@ -91,7 +91,7 @@ func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct 
 			return false
 		}}
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "storagegateway", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "storagegateway", 0, []hostPhase{
 		tagPhase("storagegateway:ListGateways", func(tags rowTagReader, p *phaseTotals) (failed bool) {
 			gateways, failed = scanSGWGateways(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -111,23 +111,23 @@ func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct 
 		tagPhase("storagegateway:ListFileSystemAssociations", func(tags rowTagReader, p *phaseTotals) bool {
 			return scanSGWFileSystemAssociations(ctx, client, acct, region, st, scanID, tags, p)
 		}),
-		countedPhase(0, "storagegateway:ListCacheReports", func() (int, int, error) {
+		countedPhase(0, "storagegateway:ListCacheReports", func() (int, error) {
 			return scanSGWCacheReports(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "storagegateway:DescribeVTLDevices", func() (int, int, error) {
+		countedPhase(0, "storagegateway:DescribeVTLDevices", func() (int, error) {
 			gatewayARNs := make([]string, len(gateways))
 			for k, g := range gateways {
 				gatewayARNs[k] = sv(g.GatewayARN)
 			}
 			return scanSGWVTLDevices(ctx, client, gatewayARNs, acct, region, st, scanID)
 		}),
-		countedPhase(0, "storagegateway:ListAutomaticTapeCreationPolicies", func() (int, int, error) {
+		countedPhase(0, "storagegateway:ListAutomaticTapeCreationPolicies", func() (int, error) {
 			return scanSGWAutomaticTapeCreationPolicies(ctx, client, gateways, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
 	unavailable.warn(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // sgwTags reads a row's tags with ListTagsForResource, sent the row's
@@ -506,10 +506,9 @@ func scanSGWTapes(ctx context.Context, client storageGatewayAPI, acct *account, 
 		// as the tag reads' are (rowTagErrs.addPhase): warned about, or
 		// demoted when transient, it would be a warning that could name
 		// tapes the write lost.
-		return p.addPhase(op, listed.total, listed.inserted, errors.Join(opErrs{listed.errs}, archives.err))
+		return p.addPhase(op, listed.total, errors.Join(opErrs{listed.errs}, archives.err))
 	}
 	p.total += listed.total
-	p.inserted += listed.inserted
 	p.errs = append(p.errs, listed.errs...)
 	archives.reportArchives(st, acct, region, p)
 	return false
@@ -621,7 +620,7 @@ func scanSGWFileSystemAssociations(ctx context.Context, client storageGatewayAPI
 
 // scanSGWCacheReports stores the cache reports with the tags their listed
 // element carries.
-func scanSGWCacheReports(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSGWCacheReports(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "storagegateway:ListCacheReports",
 		func(ctx context.Context, marker *string) ([]sgwtypes.CacheReportInfo, *string, error) {
 			out, err := client.ListCacheReports(ctx, &storagegateway.ListCacheReportsInput{Marker: marker})
@@ -646,9 +645,9 @@ func scanSGWCacheReports(ctx context.Context, client storageGatewayAPI, acct *ac
 // gateways host devices, so non-VTL gateways reject the call; tolerate the
 // per-gateway error and keep scanning siblings. VTLDeviceARN embeds the
 // gateway ARN, so the resolver recovers the parent from NativeID.
-func scanSGWVTLDevices(ctx context.Context, client storageGatewayAPI, gatewayARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSGWVTLDevices(ctx context.Context, client storageGatewayAPI, gatewayARNs []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if len(gatewayARNs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var mu sync.Mutex
 	var batch []*store.Resource
@@ -695,7 +694,7 @@ func scanSGWVTLDevices(ctx context.Context, client storageGatewayAPI, gatewayARN
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	return upsertBatch(st, batch, "storagegateway vtl-devices")
 }
@@ -714,7 +713,7 @@ func sgwAutomaticTapeCreationPolicyNativeID(gatewayARN string) string {
 // region; that it does so is unverified until a live run. A gateway-state
 // refusal (isSGWGatewayUnavailable) is not observed live, so it is warned about
 // rather than skipped silently.
-func scanSGWAutomaticTapeCreationPolicies(ctx context.Context, client storageGatewayAPI, gateways []sgwtypes.GatewayInfo, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSGWAutomaticTapeCreationPolicies(ctx context.Context, client storageGatewayAPI, gateways []sgwtypes.GatewayInfo, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "storagegateway:ListAutomaticTapeCreationPolicies"
 	listed := map[string]bool{}
 	tape := false
@@ -723,14 +722,14 @@ func scanSGWAutomaticTapeCreationPolicies(ctx context.Context, client storageGat
 		tape = tape || sv(g.GatewayType) == "VTL"
 	}
 	if !tape {
-		return 0, 0, nil
+		return 0, nil
 	}
 	out, err := client.ListAutomaticTapeCreationPolicies(ctx, &storagegateway.ListAutomaticTapeCreationPoliciesInput{})
 	if err != nil {
 		if isAccessDenied(err) || isSGWGatewayUnavailable(err) {
-			return 0, 0, skipIfAccessDenied(st, op, acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, op, acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("%s: %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 	var batch []*store.Resource
 	var pairs [][2]string
@@ -749,12 +748,12 @@ func scanSGWAutomaticTapeCreationPolicies(ctx context.Context, client storageGat
 			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, row.NativeID), store.ResourceID("aws", acct.ID, gw)})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "storagegateway automatic-tape-creation-policies")
+	t, err := upsertBatch(st, batch, "storagegateway automatic-tape-creation-policies")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
+		return 0, fmt.Errorf("closure %s: %w", op, err)
 	}
-	return t, i, nil
+	return t, nil
 }

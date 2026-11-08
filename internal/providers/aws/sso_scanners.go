@@ -124,7 +124,7 @@ var ssoGone = []string{"ResourceNotFoundException"}
 // tags of instances, permission sets, applications and trusted token
 // issuers are read per row (ssoTags), their denials warned about once for
 // the scan.
-func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	ssoClient := ssoadmin.NewFromConfig(acct.cfg, func(o *ssoadmin.Options) { o.Region = region })
 	isClient := identitystore.NewFromConfig(acct.cfg, func(o *identitystore.Options) { o.Region = region })
 
@@ -133,7 +133,7 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 		listed, instances []ssotypes.InstanceMetadata
 		permissionSets    []ssoPermissionSet
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "sso-admin", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "sso-admin", 0, []hostPhase{
 		{op: ssoListInstancesOp, run: func(p *phaseTotals) (storeWriteFailed bool) {
 			listed, instances, storeWriteFailed = scanSSOInstances(ctx, ssoClient, acct, region, st, scanID, tags, p)
 			return storeWriteFailed
@@ -142,24 +142,24 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 			permissionSets, storeWriteFailed = scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID, tags, p)
 			return storeWriteFailed
 		}},
-		countedPhase(0, "sso-admin", func() (int, int, error) {
+		countedPhase(0, "sso-admin", func() (int, error) {
 			return scanSSOAccountAssignments(ctx, ssoClient, acct, region, permissionSets, st, scanID)
 		}),
-		countedPhase(0, "identitystore", func() (int, int, error) {
-			t, i, err := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, listed, st, scanID)
-			return t, i, ssoIdentityStoreDNSFailure(err)
+		countedPhase(0, "identitystore", func() (int, error) {
+			t, err := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, listed, st, scanID)
+			return t, ssoIdentityStoreDNSFailure(err)
 		}),
 		{op: ssoListApplicationsOp, run: func(p *phaseTotals) bool {
 			return scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID, tags, p)
 		}},
 		// scanSSOPermissionSetPolicies joins its two lists through phaseErrs
 		// itself.
-		countedPhase(0, "sso-admin", func() (int, int, error) {
+		countedPhase(0, "sso-admin", func() (int, error) {
 			return scanSSOPermissionSetPolicies(ctx, ssoClient, acct, region, permissionSets, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // ssoIdentityStoreDNSFailure is err with an NXDOMAIN flattened to a plain
@@ -352,7 +352,7 @@ func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *accoun
 // listing phase 2 found deleted, denied or failed is not reported twice.
 // Result count scales with the org's assignment fan-out; sized for typical
 // orgs with dozens of permission sets and hundreds of accounts.
-func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (total int, err error) {
 	type pair struct {
 		instanceArn string
 		psArn       string
@@ -373,9 +373,9 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 			if aerr != nil {
 				if isAccessDenied(aerr) {
 					_ = skipIfAccessDenied(st, "sso-admin:ListAccountsForProvisionedPermissionSet", acct.ID, region, aerr)
-					return 0, 0, nil
+					return 0, nil
 				}
-				return 0, 0, fmt.Errorf("sso-admin:ListAccountsForProvisionedPermissionSet: %w", aerr)
+				return 0, fmt.Errorf("sso-admin:ListAccountsForProvisionedPermissionSet: %w", aerr)
 			}
 			for _, accountID := range aOut.AccountIds {
 				pairs = append(pairs, pair{instanceArn: ps.instanceARN, psArn: ps.arn, accountID: accountID})
@@ -383,7 +383,7 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 		}
 	}
 	if len(pairs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	// Step 2: fan-out ListAccountAssignments per triple. SetLimit, not a
@@ -428,20 +428,19 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) > 0 {
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			return 0, 0, fmt.Errorf("upsert sso account-assignments: %w", uerr)
+			return 0, fmt.Errorf("upsert sso account-assignments: %w", uerr)
 		}
 		total = len(batch)
-		inserted = n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total int, err error) {
 	for _, in := range instances {
 		identityStoreID := sv(in.IdentityStoreId)
 		ownerAccountID := sv(in.OwnerAccountId)
@@ -452,36 +451,33 @@ func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, 
 			ownerAccountID = acct.ID
 		}
 		{
-			t, i, ferr := scanIdentityStoreUsers(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			t, ferr := scanIdentityStoreUsers(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
 			if ferr != nil {
-				return total, inserted, ferr
+				return total, ferr
 			}
 			total += t
-			inserted += i
 		}
 		{
-			t, i, ferr := scanIdentityStoreGroups(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			t, ferr := scanIdentityStoreGroups(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
 			if ferr != nil {
-				return total, inserted, ferr
+				return total, ferr
 			}
 			total += t
-			inserted += i
 		}
 		{
-			t, i, ferr := scanIdentityStoreGroupMemberships(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			t, ferr := scanIdentityStoreGroupMemberships(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
 			if ferr != nil {
-				return total, inserted, ferr
+				return total, ferr
 			}
 			total += t
-			inserted += i
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIdentityStoreGroupMemberships discovers per-group user memberships.
 // Synth ARN: arn:{p}:identitystore::{ownerAccount}:membership/{identityStoreId}/{membershipId}.
-func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total int, err error) {
 	groupPager := identitystore.NewListGroupsPaginator(client, &identitystore.ListGroupsInput{IdentityStoreId: &identityStoreID})
 	var groupIDs []string
 	for groupPager.HasMorePages() {
@@ -489,9 +485,9 @@ func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystore
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "identitystore:ListGroups(memberships)", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("identitystore:ListGroups(memberships): %w", perr)
+			return 0, fmt.Errorf("identitystore:ListGroups(memberships): %w", perr)
 		}
 		for _, g := range out.Groups {
 			if g.GroupId != nil {
@@ -513,7 +509,7 @@ func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystore
 					_ = skipIfAccessDenied(st, "identitystore:ListGroupMemberships", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("identitystore:ListGroupMemberships g=%s: %w", groupID, perr)
+				return 0, fmt.Errorf("identitystore:ListGroupMemberships g=%s: %w", groupID, perr)
 			}
 			for _, m := range out.GroupMemberships {
 				mid := sv(m.MembershipId)
@@ -532,16 +528,16 @@ func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystore
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert identitystore group-memberships: %w", uerr)
+		return 0, fmt.Errorf("upsert identitystore group-memberships: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total int, err error) {
 	pager := identitystore.NewListUsersPaginator(client, &identitystore.ListUsersInput{IdentityStoreId: &identityStoreID})
 	var users []istypes.User
 	for pager.HasMorePages() {
@@ -549,14 +545,14 @@ func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "identitystore:ListUsers", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("identitystore:ListUsers: %w", perr)
+			return 0, fmt.Errorf("identitystore:ListUsers: %w", perr)
 		}
 		users = append(users, out.Users...)
 	}
 	if len(users) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batch := make([]*store.Resource, 0, len(users))
 	for _, u := range users {
@@ -572,14 +568,14 @@ func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *
 			DiscoveredBy:   scanID,
 		})
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert identitystore users: %w", uerr)
+		return 0, fmt.Errorf("upsert identitystore users: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total int, err error) {
 	pager := identitystore.NewListGroupsPaginator(client, &identitystore.ListGroupsInput{IdentityStoreId: &identityStoreID})
 	var groups []istypes.Group
 	for pager.HasMorePages() {
@@ -587,14 +583,14 @@ func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "identitystore:ListGroups", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("identitystore:ListGroups: %w", perr)
+			return 0, fmt.Errorf("identitystore:ListGroups: %w", perr)
 		}
 		groups = append(groups, out.Groups...)
 	}
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batch := make([]*store.Resource, 0, len(groups))
 	for _, gr := range groups {
@@ -610,9 +606,9 @@ func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct 
 			DiscoveredBy:   scanID,
 		})
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert identitystore groups: %w", uerr)
+		return 0, fmt.Errorf("upsert identitystore groups: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

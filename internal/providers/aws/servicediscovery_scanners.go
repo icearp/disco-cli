@@ -31,44 +31,41 @@ type serviceDiscoveryAPI interface {
 // scanServiceDiscovery discovers Cloud Map namespaces (split into HTTP /
 // private-DNS / public-DNS by NamespaceType), services, and per-service
 // instances.
-func scanServiceDiscovery(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceDiscovery(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := servicediscovery.NewFromConfig(acct.cfg, func(o *servicediscovery.Options) { o.Region = region })
 
-	t, i, ferr := scanSDNamespaces(ctx, client, acct, region, st, scanID)
+	t, ferr := scanSDNamespaces(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	serviceIDs, t, i, ferr := scanSDServices(ctx, client, acct, region, st, scanID)
+	serviceIDs, t, ferr := scanSDServices(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, sid := range serviceIDs {
-		t, i, ferr = scanSDInstances(ctx, client, acct, region, st, scanID, sid)
+		t, ferr = scanSDInstances(ctx, client, acct, region, st, scanID, sid)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSDNamespaces(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSDNamespaces(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := servicediscovery.NewListNamespacesPaginator(client, &servicediscovery.ListNamespacesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "servicediscovery:ListNamespaces", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "servicediscovery:ListNamespaces", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("servicediscovery:ListNamespaces: %w", err)
+			return 0, fmt.Errorf("servicediscovery:ListNamespaces: %w", err)
 		}
 		for _, n := range out.Namespaces {
 			arn := sv(n.Arn)
@@ -97,7 +94,7 @@ func scanSDNamespaces(ctx context.Context, client serviceDiscoveryAPI, acct *acc
 	return upsertBatch(st, batch, "servicediscovery namespaces")
 }
 
-func scanSDServices(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanSDServices(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := servicediscovery.NewListServicesPaginator(client, &servicediscovery.ListServicesInput{})
 	var batch []*store.Resource
 	var ids []string
@@ -105,9 +102,9 @@ func scanSDServices(ctx context.Context, client serviceDiscoveryAPI, acct *accou
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "servicediscovery:ListServices", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "servicediscovery:ListServices", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("servicediscovery:ListServices: %w", err)
+			return nil, 0, fmt.Errorf("servicediscovery:ListServices: %w", err)
 		}
 		for _, s := range out.Services {
 			arn := sv(s.Arn)
@@ -125,15 +122,15 @@ func scanSDServices(ctx context.Context, client serviceDiscoveryAPI, acct *accou
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "servicediscovery services")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "servicediscovery services")
+	return ids, t, err
 }
 
 // scanSDInstances synthesizes an ARN per instance: parent service ARN +
 // /instance/{instanceId}. Cloud Map does not issue native ARNs for
 // instances; the synthetic shape mirrors the IAM action namespace
 // (servicediscovery:GetInstance / RegisterInstance).
-func scanSDInstances(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string, serviceID string) (int, int, error) {
+func scanSDInstances(ctx context.Context, client serviceDiscoveryAPI, acct *account, region string, st *store.Store, scanID string, serviceID string) (int, error) {
 	sid := serviceID
 	pager := servicediscovery.NewListInstancesPaginator(client, &servicediscovery.ListInstancesInput{ServiceId: &sid})
 	var batch []*store.Resource
@@ -141,9 +138,9 @@ func scanSDInstances(ctx context.Context, client serviceDiscoveryAPI, acct *acco
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "servicediscovery:ListInstances", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "servicediscovery:ListInstances", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("servicediscovery:ListInstances: %w", err)
+			return 0, fmt.Errorf("servicediscovery:ListInstances: %w", err)
 		}
 		for _, in := range out.Instances {
 			id := sv(in.Id)

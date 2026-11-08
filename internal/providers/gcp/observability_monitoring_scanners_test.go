@@ -70,7 +70,9 @@ func TestScanMonitoringGroups_MembersEmbedded(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeMonitoringService(t, srv)
 
-	total, inserted, err := scanMonitoringGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanMonitoringGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanMonitoringGroups: %v", err)
 	}
@@ -126,7 +128,9 @@ func TestScanMonitoringGroups_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeMonitoringService(t, srv)
 
-	total, inserted, err := scanMonitoringGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanMonitoringGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanMonitoringGroups (denied): expected nil error, got %v", err)
 	}
@@ -196,7 +200,9 @@ func TestScanMonitoringGroups_OneGroupErrorDoesNotDropSiblings(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeMonitoringService(t, srv)
 
-	total, inserted, err := scanMonitoringGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanMonitoringGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err == nil {
 		t.Fatalf("scanMonitoringGroups: expected a real (non-permission-denied) error to propagate, got nil (total=%d inserted=%d)", total, inserted)
 	}
@@ -247,7 +253,9 @@ func TestScanMonitoringSLOs_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeMonitoringService(t, srv)
 
-	total, inserted, err := scanMonitoringSLOs(t.Context(), svc, p, []string{svc1Name, svc2Name}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanMonitoringSLOs(t.Context(), svc, p, []string{svc1Name, svc2Name}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanMonitoringSLOs: %v", err)
 	}
@@ -314,9 +322,11 @@ func TestScanMonitoringFlatPhases_Basic(t *testing.T) {
 	dashSrv := fakeGCPServer(t, dashRoutes)
 	dashSvc := fakeMonitoringV1Service(t, dashSrv)
 
-	check := func(label string, fn func() (int, int, error)) {
+	check := func(label string, fn func(st *store.Store) (int, error)) {
 		t.Helper()
-		total, inserted, err := fn()
+		counted, upserts := countUpserts(st)
+		total, err := fn(counted)
+		inserted := upserts()
 		if err != nil {
 			t.Fatalf("%s: %v", label, err)
 		}
@@ -324,15 +334,23 @@ func TestScanMonitoringFlatPhases_Basic(t *testing.T) {
 			t.Errorf("%s counts: got total=%d inserted=%d, want 1/1", label, total, inserted)
 		}
 	}
-	check("alertPolicies", func() (int, int, error) { return scanMonitoringAlertPolicies(t.Context(), svc, p, st, testScanID) })
-	check("dashboards", func() (int, int, error) { return scanMonitoringDashboards(t.Context(), dashSvc, p, st, testScanID) })
-	check("notificationChannels", func() (int, int, error) {
+	check("alertPolicies", func(st *store.Store) (int, error) {
+		return scanMonitoringAlertPolicies(t.Context(), svc, p, st, testScanID)
+	})
+	check("dashboards", func(st *store.Store) (int, error) {
+		return scanMonitoringDashboards(t.Context(), dashSvc, p, st, testScanID)
+	})
+	check("notificationChannels", func(st *store.Store) (int, error) {
 		return scanMonitoringNotificationChannels(t.Context(), svc, p, st, testScanID)
 	})
-	check("snoozes", func() (int, int, error) { return scanMonitoringSnoozes(t.Context(), svc, p, st, testScanID) })
-	check("uptimeCheckConfigs", func() (int, int, error) { return scanMonitoringUptimeCheckConfigs(t.Context(), svc, p, st, testScanID) })
+	check("snoozes", func(st *store.Store) (int, error) { return scanMonitoringSnoozes(t.Context(), svc, p, st, testScanID) })
+	check("uptimeCheckConfigs", func(st *store.Store) (int, error) {
+		return scanMonitoringUptimeCheckConfigs(t.Context(), svc, p, st, testScanID)
+	})
 
-	serviceIDs, total, inserted, err := scanMonitoringServices(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	serviceIDs, total, err := scanMonitoringServices(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanMonitoringServices: %v", err)
 	}

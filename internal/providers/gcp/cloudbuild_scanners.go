@@ -57,15 +57,15 @@ const maxConcurrentCloudBuildFanout = 10
 // newer 2nd-gen Connections API hasn't rolled out to yet, in which case this
 // scanner would under-cover that region's worker pools. Revisit if a live
 // account surfaces a region mismatch between the two.
-func scanCloudBuildTriggers(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudBuildTriggers(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudbuild.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudbuild client: %w", err)
+		return 0, fmt.Errorf("cloudbuild client: %w", err)
 	}
 	svc2, err := cloudbuildv2.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudbuild v2 client: %w", err)
+		return 0, fmt.Errorf("cloudbuild v2 client: %w", err)
 	}
 	return scanCloudBuildWithClient(ctx, svc, svc2, p, st, scanID)
 }
@@ -80,8 +80,8 @@ type cloudBuildConnRef struct {
 
 // cloudBuildScan holds the shared state threaded through a single Cloud Build
 // scan: the v1 and v2 SDK clients, store, project, scan ID, and the
-// mutex-guarded running (total, inserted) upsert counters. The mutex guards
-// the counters (and the phase-3 connRefs accumulation) across the bounded
+// mutex-guarded running total. The mutex guards
+// the total (and the phase-3 connRefs accumulation) across the bounded
 // per-location / per-connection fan-out. Scoped to one
 // scanCloudBuildWithClient call; not safe for concurrent use across scans.
 type cloudBuildScan struct {
@@ -91,17 +91,16 @@ type cloudBuildScan struct {
 	st     *store.Store
 	scanID string
 
-	mu       sync.Mutex
-	total    int
-	inserted int
+	mu    sync.Mutex
+	total int
 }
 
 // scanTriggers runs phase 1: project-scoped BuildTriggers.List. Counters are
 // updated even on error to match the original's accumulate-then-check order.
 func (s *cloudBuildScan) scanTriggers(ctx context.Context) error {
-	t, n, err := runPaginated(ctx, s.st, s.p, "cloudbuild:triggers.list",
+	t, err := runPaginated(ctx, s.st, s.p, "cloudbuild:triggers.list",
 		s.svc.Projects.Triggers.List(s.p.ID),
-		func(page *cloudbuild.ListBuildTriggersResponse) (int, int, error) {
+		func(page *cloudbuild.ListBuildTriggersResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Triggers))
 			for _, tr := range page.Triggers {
 				name := tr.Name
@@ -124,7 +123,6 @@ func (s *cloudBuildScan) scanTriggers(ctx context.Context) error {
 			return upsertWithProjClosure(s.p, s.st, batch)
 		})
 	s.total += t
-	s.inserted += n
 	return err
 }
 
@@ -184,9 +182,8 @@ func (s *cloudBuildScan) scanWorkerPools(ctx context.Context, parent, loc string
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		wt, wn, werr := upsertWithProjClosure(s.p, s.st, batch)
+		wt, werr := upsertWithProjClosure(s.p, s.st, batch)
 		s.total += wt
-		s.inserted += wn
 		return werr
 	})
 	if werr != nil {
@@ -236,9 +233,8 @@ func (s *cloudBuildScan) scanConnections(ctx context.Context, parent, loc string
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		ct, cn, cerr := upsertWithProjClosure(s.p, s.st, batch)
+		ct, cerr := upsertWithProjClosure(s.p, s.st, batch)
 		s.total += ct
-		s.inserted += cn
 		return cerr
 	})
 	if cerr != nil {
@@ -301,9 +297,8 @@ func (s *cloudBuildScan) scanRepositories(ctx context.Context, connRefs []cloudB
 			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			rt, rn, rerr := upsertWithParent(s.st, batch, conn.id)
+			rt, rerr := upsertWithParent(s.st, batch, conn.id)
 			s.total += rt
-			s.inserted += rn
 			return rerr
 		})
 		if rerr != nil {
@@ -319,10 +314,10 @@ func (s *cloudBuildScan) scanRepositories(ctx context.Context, connRefs []cloudB
 
 // upsertGHEConfigs lists legacy GitHub Enterprise configs under one parent
 // (single Do() — no pagination) and upserts them with a project-closure edge.
-func (s *cloudBuildScan) upsertGHEConfigs(ctx context.Context, parent string) (int, int, error) {
+func (s *cloudBuildScan) upsertGHEConfigs(ctx context.Context, parent string) (int, error) {
 	resp, err := s.svc.Projects.GithubEnterpriseConfigs.List(parent).Context(ctx).Do()
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	batch := make([]*store.Resource, 0, len(resp.Configs))
 	for _, cfg := range resp.Configs {
@@ -355,9 +350,8 @@ func (s *cloudBuildScan) upsertGHEConfigs(ctx context.Context, parent string) (i
 // call returns is upserted again by its location call as a no-op (same
 // NativeID, same content).
 func (s *cloudBuildScan) scanGitHubEnterpriseConfigs(ctx context.Context, locations []string) error {
-	gt, gn, gerr := s.upsertGHEConfigs(ctx, fmt.Sprintf("projects/%s", s.p.ID))
+	gt, gerr := s.upsertGHEConfigs(ctx, fmt.Sprintf("projects/%s", s.p.ID))
 	s.total += gt
-	s.inserted += gn
 	if gerr != nil {
 		if isPermissionDenied(gerr) {
 			// Same phase-1-already-proved-enabled reasoning as phase 2/3/4:
@@ -369,10 +363,9 @@ func (s *cloudBuildScan) scanGitHubEnterpriseConfigs(ctx context.Context, locati
 	}
 
 	return forEachItem(ctx, maxConcurrentCloudBuildFanout, locations, func(gctx context.Context, loc string) error {
-		lt, ln, lerr := s.upsertGHEConfigs(gctx, fmt.Sprintf("projects/%s/locations/%s", s.p.ID, loc))
+		lt, lerr := s.upsertGHEConfigs(gctx, fmt.Sprintf("projects/%s/locations/%s", s.p.ID, loc))
 		s.mu.Lock()
 		s.total += lt
-		s.inserted += ln
 		s.mu.Unlock()
 		if lerr != nil {
 			if isPermissionDenied(lerr) {
@@ -388,34 +381,34 @@ func (s *cloudBuildScan) scanGitHubEnterpriseConfigs(ctx context.Context, locati
 // scanCloudBuildWithClient is the test seam for scanCloudBuildTriggers —
 // takes the pre-built v1 and v2 clients directly so tests can point both at
 // a fake server.
-func scanCloudBuildWithClient(ctx context.Context, svc *cloudbuild.Service, svc2 *cloudbuildv2.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudBuildWithClient(ctx context.Context, svc *cloudbuild.Service, svc2 *cloudbuildv2.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	s := &cloudBuildScan{svc: svc, svc2: svc2, p: p, st: st, scanID: scanID}
 
 	// Phase 1: triggers.
 	if err := s.scanTriggers(ctx); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 2: discover Cloud Build's regional footprint.
 	locations, err := s.discoverLocations(ctx)
 	if err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 3: per-location WorkerPools (v1) + Connections (v2).
 	connRefs, err := s.scanWorkerPoolsAndConnections(ctx, locations)
 	if err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 4: per-connection Repositories (2nd-gen).
 	if err := s.scanRepositories(ctx, connRefs); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
 
 	// Phase 5: legacy GitHub Enterprise configs.
 	if err := s.scanGitHubEnterpriseConfigs(ctx, locations); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
-	return s.total, s.inserted, nil
+	return s.total, nil
 }

@@ -15,7 +15,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeSupportAuthZSupportPermit, Service: "supportauthz"})
 	registerService(serviceEntry{
 		name: "aws:supportauthz",
-		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 			client := supportauthz.NewFromConfig(acct.cfg, func(o *supportauthz.Options) { o.Region = region })
 			return scanSupportPermits(ctx, client, acct, region, st, scanID)
 		},
@@ -32,7 +32,7 @@ type supportAuthZAPI interface {
 // (the model documents no default), then reads each with GetSupportPermit:
 // only the full permit carries its Description and Tags. A denial mid-listing
 // warns and keeps the permits listed so far.
-func scanSupportPermits(ctx context.Context, client supportAuthZAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSupportPermits(ctx context.Context, client supportAuthZAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var arns []string
 	pager := supportauthz.NewListSupportPermitsPaginator(client, &supportauthz.ListSupportPermitsInput{},
 		func(o *supportauthz.ListSupportPermitsPaginatorOptions) {
@@ -46,7 +46,7 @@ func scanSupportPermits(ctx context.Context, client supportAuthZAPI, acct *accou
 				_ = skipIfAccessDenied(st, "supportauthz:ListSupportPermits", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("supportauthz:ListSupportPermits: %w", err)
+			return 0, fmt.Errorf("supportauthz:ListSupportPermits: %w", err)
 		}
 		for _, p := range out.SupportPermits {
 			if arn := sv(p.Arn); arn != "" {
@@ -70,7 +70,7 @@ func scanSupportPermits(ctx context.Context, client supportAuthZAPI, acct *accou
 			}, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, rows, "supportauthz support-permits")
 }

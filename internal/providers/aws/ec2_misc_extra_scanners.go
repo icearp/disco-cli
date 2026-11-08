@@ -32,22 +32,22 @@ func init() {
 // subscriptions, TransitGateway metering policies, VPC encryption controls,
 // VPN concentrators. None carry native ARN fields on the SDK summary —
 // synthesize via ec2ARNIn.
-func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanCapacityManagerDataExports(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanNetworkPerformanceMetricSubscriptions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTransitGatewayMeteringPolicies(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEncryptionControls(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPNConcentrators(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -58,7 +58,7 @@ func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region 
 // A region feature gap on the first page is an empty listing, as ec2PageScan
 // treats it; on a later page it fails the listing. The listing is hand-rolled,
 // not the SDK paginator, because that one repeats a repeated NextToken forever.
-func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ec2CapacityManagerDataExportsOp,
 		func(ctx context.Context, token *string) ([]ec2types.CapacityManagerDataExportResponse, *string, error) {
 			out, err := client.DescribeCapacityManagerDataExports(ctx, &ec2.DescribeCapacityManagerDataExportsInput{
@@ -95,7 +95,7 @@ func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *ac
 
 // scanNetworkPerformanceMetricSubscriptions — Subscription has no ID field
 // on the SDK type; key NativeID by composite (Source, Destination, Metric).
-func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeAwsNetworkPerformanceMetricSubscriptions", acct, region, st,
 		ec2.NewDescribeAwsNetworkPerformanceMetricSubscriptionsPaginator(client, &ec2.DescribeAwsNetworkPerformanceMetricSubscriptionsInput{}),
@@ -127,7 +127,7 @@ func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2AP
 // scanTransitGatewayMeteringPolicies stores the transit gateway metering
 // policies, those read before a failed page included (storeTokenList). The SDK
 // has no paginator for this op.
-func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ec2TGWMeteringPoliciesOp,
 		func(ctx context.Context, token *string) ([]ec2types.TransitGatewayMeteringPolicy, *string, error) {
 			out, err := client.DescribeTransitGatewayMeteringPolicies(ctx, &ec2.DescribeTransitGatewayMeteringPoliciesInput{
@@ -160,21 +160,21 @@ func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct
 }
 
 // scanVPCEncryptionControls — SDK has no paginator for this op. Manual loop.
-func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		out, perr := client.DescribeVpcEncryptionControls(ctx, &ec2.DescribeVpcEncryptionControlsInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcEncryptionControls", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "ec2:DescribeVpcEncryptionControls", acct.ID, region, perr)
 			}
 			// VPC encryption controls aren't deployed in every region
 			// (UnsupportedOperation) — silent-skip.
 			if isAPIErrorCode(perr, "UnsupportedOperation") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeVpcEncryptionControls: %w", perr)
+			return 0, fmt.Errorf("ec2:DescribeVpcEncryptionControls: %w", perr)
 		}
 		for _, c := range out.VpcEncryptionControls {
 			id := sv(c.VpcEncryptionControlId)
@@ -199,16 +199,16 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 vpc-encryption-controls: %w", uerr)
+		return 0, fmt.Errorf("upsert ec2 vpc-encryption-controls: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanVPNConcentrators(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPNConcentrators(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpnConcentrators", acct, region, st,
 		ec2.NewDescribeVpnConcentratorsPaginator(client, &ec2.DescribeVpnConcentratorsInput{}),

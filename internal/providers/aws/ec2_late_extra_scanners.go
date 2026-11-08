@@ -150,10 +150,10 @@ func sortLaunchPermissions(perms []ec2types.LaunchPermission) {
 // ec2StoredParents reads whole rows, attributes included, as the store has no
 // lighter read, so every owned snapshot in the region is in memory at once;
 // accepted because the fan-out over them costs one API call each anyway.
-func scanEC2SnapshotAttributes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2SnapshotAttributes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	snapshots, err := ec2StoredParents(st, acct, region, scanID, TypeEC2Snapshot, "snapshot", ec2SnapshotError)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	attr := ec2types.SnapshotAttributeNameCreateVolumePermission
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, ec2SnapshotAttributeOp, snapshots, neverSkip, byParentID, "snapshot(s)", ec2SnapshotSkipCodes,
@@ -185,10 +185,10 @@ func scanEC2SnapshotAttributes(ctx context.Context, client ec2API, acct *account
 // that says nothing of who may use the AMI. It costs one call per AMI; the
 // rows are written in one upsert. Every owned AMI row in the region is read
 // into memory at once, as for snapshot attributes.
-func scanEC2ImageAttributes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2ImageAttributes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	images, err := ec2StoredParents(st, acct, region, scanID, TypeEC2Image, "image", ec2ImageDeregistered)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	attr := ec2types.ImageAttributeNameLaunchPermission
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, ec2ImageAttributeOp, images, neverSkip, byParentID, "AMI(s)", ec2ImageSkipCodes,
@@ -218,7 +218,7 @@ func scanEC2ImageAttributes(ctx context.Context, client ec2API, acct *account, r
 // of another owner, and dropping it would lose the lock silently. An expired
 // lock is kept until AWS stops listing it. The stored snapshots are read only
 // when a lock came back. DescribeLockedSnapshots has no SDK paginator.
-func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		locks   []ec2types.LockedSnapshotsInfo
 		token   *string
@@ -231,7 +231,7 @@ func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, r
 		})
 		if err != nil {
 			if token == nil && isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			listErr = err
 			break
@@ -252,7 +252,7 @@ func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, r
 	if len(locks) > 0 {
 		var err error
 		if stored, err = storedParentIDs(st, acct, region, scanID, TypeEC2Snapshot, "snapshot"); err != nil {
-			return 0, 0, errors.Join(listErr, err)
+			return 0, errors.Join(listErr, err)
 		}
 	}
 	children := make([]containedChild, len(locks))
@@ -281,10 +281,10 @@ func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, r
 // of each Verified Access instance the API lists, linked under the instance
 // when this scan stored it in region. Whether the list carries a row for an
 // instance whose logging was never configured is unverified.
-func scanEC2VerifiedAccessLoggingConfigurations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2VerifiedAccessLoggingConfigurations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	stored, err := storedParentIDs(st, acct, region, scanID, TypeEC2VerifiedAccessInstance, "verified-access-instance")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	pager := ec2.NewDescribeVerifiedAccessInstanceLoggingConfigurationsPaginator(client,
 		&ec2.DescribeVerifiedAccessInstanceLoggingConfigurationsInput{},
@@ -297,7 +297,7 @@ func scanEC2VerifiedAccessLoggingConfigurations(ctx context.Context, client ec2A
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if first && isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return upsertRegionChildren(st, acct, region, ec2VALoggingConfigurationsOp, children, err)
 		}
@@ -329,7 +329,7 @@ func scanEC2VerifiedAccessLoggingConfigurations(ctx context.Context, client ec2A
 // reports those). Checks in their deletion grace period are left out by the
 // API unless IncludeAll is set. DescribeApplicationStatusChecks has no SDK
 // paginator.
-func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var children []containedChild
 	var token *string
 	for {
@@ -339,7 +339,7 @@ func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *ac
 		})
 		if err != nil {
 			if token == nil && isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return upsertRegionChildren(st, acct, region, ec2ApplicationStatusChecksOp, children, err)
 		}
@@ -374,10 +374,10 @@ func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *ac
 // scanEC2RouteServerAssociations stores, under each route server this scan
 // stored in region except deleted ones, its VPC associations. The model has
 // no disassociated state, so none is dropped.
-func scanEC2RouteServerAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2RouteServerAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	servers, err := ec2StoredParents(st, acct, region, scanID, TypeEC2RouteServer, "route-server", string(ec2types.RouteServerStateDeleted))
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, ec2RouteServerAssociationsOp, servers, neverSkip, byParentID, "route server(s)", ec2RouteServerSkipCodes,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -411,10 +411,10 @@ func scanEC2RouteServerAssociations(ctx context.Context, client ec2API, acct *ac
 // scanEC2RouteServerPropagations stores, under each route server this scan
 // stored in region except deleted ones, its route table propagations. The
 // model has no deleted state for a propagation, so none is dropped.
-func scanEC2RouteServerPropagations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2RouteServerPropagations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	servers, err := ec2StoredParents(st, acct, region, scanID, TypeEC2RouteServer, "route-server", string(ec2types.RouteServerStateDeleted))
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, ec2RouteServerPropagationsOp, servers, neverSkip, byParentID, "route server(s)", ec2RouteServerSkipCodes,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {

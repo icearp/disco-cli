@@ -42,7 +42,7 @@ type iotDefenderAPI interface {
 // whether a write failed.
 func scanIoTDefender(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
 	return runIoTPhases(p,
-		iotCounted("iot:DescribeAccountAuditConfiguration", func() (int, int, error) {
+		iotCounted("iot:DescribeAccountAuditConfiguration", func() (int, error) {
 			return scanIoTAccountAuditConfiguration(ctx, client, acct, region, st, scanID)
 		}),
 		func(p *phaseTotals) bool {
@@ -61,18 +61,18 @@ func scanIoTDefender(ctx context.Context, client iotDefenderAPI, acct *account, 
 
 // scanIoTAccountAuditConfiguration emits a single per-region row — the
 // audit config is account/region-scoped with no list API. NativeID synth.
-func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.DescribeAccountAuditConfiguration(ctx, &iot.DescribeAccountAuditConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "iot:DescribeAccountAuditConfiguration", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "iot:DescribeAccountAuditConfiguration", acct.ID, region, err)
 		}
 		// Regions without IoT Device Defender 404 with "No method found matching
 		// route" (generic UnknownError code) — per-region gap, silent-skip.
 		if isHTTP404(err) {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("iot:DescribeAccountAuditConfiguration: %w", err)
+		return 0, fmt.Errorf("iot:DescribeAccountAuditConfiguration: %w", err)
 	}
 	arn := arnFor(acct.partition(), "iot", region, acct.ID, "account-audit-configuration")
 	name := "audit-configuration"
@@ -87,11 +87,11 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot account-audit-configuration: %w", uerr)
+		return 0, fmt.Errorf("upsert iot account-audit-configuration: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 func scanIoTScheduledAudits(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {

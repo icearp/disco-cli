@@ -39,25 +39,25 @@ const maxConcurrentDNSZones = 10
 // (name, type) is the natural key — one zone can have, e.g., www.example.com.
 // as both A and AAAA record sets. DnsKey has no name field either —
 // synthesized from its per-zone-unique numeric Id.
-func scanCloudDNS(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudDNS(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := dns.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("dns client: %w", err)
+		return 0, fmt.Errorf("dns client: %w", err)
 	}
 	return scanCloudDNSWithClient(ctx, svc, p, st, scanID)
 }
 
-func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: managed zones.
 	type zoneRef struct {
 		nativeID string
 		name     string
 	}
 	var zones []zoneRef
-	t, n, err := runPaginated(ctx, st, p, "dns:managedZones.list",
+	t, err := runPaginated(ctx, st, p, "dns:managedZones.list",
 		svc.ManagedZones.List(p.ID),
-		func(page *dns.ManagedZonesListResponse) (int, int, error) {
+		func(page *dns.ManagedZonesListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.ManagedZones))
 			for _, z := range page.ManagedZones {
 				zid := fmt.Sprintf("projects/%s/managedZones/%s", p.ID, z.Name)
@@ -78,9 +78,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 2: per-zone record sets + DNSSEC keys.
@@ -106,9 +105,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			rt, rn, rerr := upsertWithParent(st, batch, zoneID)
+			rt, rerr := upsertWithParent(st, batch, zoneID)
 			total += rt
-			inserted += rn
 			return rerr
 		})
 		if err != nil {
@@ -139,9 +137,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			rt, rn, rerr := upsertWithParent(st, batch, zoneID)
+			rt, rerr := upsertWithParent(st, batch, zoneID)
 			total += rt
-			inserted += rn
 			return rerr
 		})
 		if err != nil {
@@ -152,13 +149,13 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 		}
 		return nil
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 3: network policies — project-scoped, no zone parent.
-	t, n, err = runPaginated(ctx, st, p, "dns:policies.list",
+	t, err = runPaginated(ctx, st, p, "dns:policies.list",
 		svc.Policies.List(p.ID),
-		func(page *dns.PoliciesListResponse) (int, int, error) {
+		func(page *dns.PoliciesListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Policies))
 			for _, pol := range page.Policies {
 				name := pol.Name
@@ -176,9 +173,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 4: response policies, then per-response-policy rules.
@@ -187,9 +183,9 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 		name     string
 	}
 	var responsePolicies []rpRef
-	t, n, err = runPaginated(ctx, st, p, "dns:responsePolicies.list",
+	t, err = runPaginated(ctx, st, p, "dns:responsePolicies.list",
 		svc.ResponsePolicies.List(p.ID),
-		func(page *dns.ResponsePoliciesListResponse) (int, int, error) {
+		func(page *dns.ResponsePoliciesListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.ResponsePolicies))
 			for _, rp := range page.ResponsePolicies {
 				rpid := fmt.Sprintf("projects/%s/responsePolicies/%s", p.ID, rp.ResponsePolicyName)
@@ -209,9 +205,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	if err := forEachItem(ctx, maxConcurrentDNSZones, responsePolicies, func(gctx context.Context, rp rpRef) error {
@@ -234,9 +229,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			rt, rn, rerr := upsertWithParent(st, batch, rpID)
+			rt, rerr := upsertWithParent(st, batch, rpID)
 			total += rt
-			inserted += rn
 			return rerr
 		})
 		if err != nil {
@@ -247,8 +241,8 @@ func scanCloudDNSWithClient(ctx context.Context, svc *dns.Service, p *project, s
 		}
 		return nil
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	return total, inserted, nil
+	return total, nil
 }

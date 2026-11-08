@@ -50,7 +50,9 @@ func TestScanPubSub_FullChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakePubSubService(t, srv)
 
-	total, inserted, err := scanPubSubWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanPubSubWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanPubSubWithClient: %v", err)
 	}
@@ -98,7 +100,9 @@ func TestScanPubSub_SnapshotsAPINotEnabledShapeDoesNotDisableWholeService(t *tes
 	t.Cleanup(srv.Close)
 	svc := fakePubSubService(t, srv)
 
-	total, inserted, err := scanPubSubWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanPubSubWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanPubSubWithClient: %v (Snapshots' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -120,7 +124,9 @@ func TestScanPubSub_EmptyProject(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakePubSubService(t, srv)
 
-	total, inserted, err := scanPubSubWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanPubSubWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanPubSubWithClient: %v", err)
 	}

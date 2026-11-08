@@ -45,10 +45,10 @@ func init() {
 // ForwardingRuleList SDK types — GCP has no separate GlobalForwardingRule
 // struct, just a global-scoped List service returning the same item shape as
 // the already-scanned regional forwarding rules.
-func scanComputeGlobalForwardingRules(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeGlobalForwardingRules(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:globalForwardingRules.list",
 		svc.GlobalForwardingRules.List(p.ID),
-		func(page *compute.ForwardingRuleList) (int, int, error) {
+		func(page *compute.ForwardingRuleList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, fr := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -67,10 +67,10 @@ func scanComputeGlobalForwardingRules(ctx context.Context, svc *compute.Service,
 // same dual-type split as Wave 2/3/4's InstanceTemplate/PublicDelegatedPrefix/
 // NetworkFirewallPolicy. The separate RegionHealthChecksService.List is
 // redundant with this and intentionally unused.
-func scanComputeHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:healthChecks.aggregatedList",
 		svc.HealthChecks.AggregatedList(p.ID),
-		func(page *compute.HealthChecksAggregatedList) (int, int, error) {
+		func(page *compute.HealthChecksAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeHealthCheck
@@ -94,10 +94,10 @@ func scanComputeHealthChecks(ctx context.Context, svc *compute.Service, p *proje
 		})
 }
 
-func scanComputeRegionCompositeHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionCompositeHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionCompositeHealthChecks.aggregatedList",
 		svc.RegionCompositeHealthChecks.AggregatedList(p.ID),
-		func(page *compute.CompositeHealthCheckAggregatedList) (int, int, error) {
+		func(page *compute.CompositeHealthCheckAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -122,10 +122,10 @@ func scanComputeRegionCompositeHealthChecks(ctx context.Context, svc *compute.Se
 // scanComputeRegionHealthAggregationPolicies' AggregatedList spans
 // regional+global scopes, but the ledger tracks one disco type — same
 // opportunistic-Region shape as Wave 4's NetworkAttachment/ServiceAttachment.
-func scanComputeRegionHealthAggregationPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionHealthAggregationPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionHealthAggregationPolicies.aggregatedList",
 		svc.RegionHealthAggregationPolicies.AggregatedList(p.ID),
-		func(page *compute.HealthAggregationPolicyAggregatedList) (int, int, error) {
+		func(page *compute.HealthAggregationPolicyAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				var region *string
@@ -151,10 +151,10 @@ func scanComputeRegionHealthAggregationPolicies(ctx context.Context, svc *comput
 // above. Note the scoped-list slice field is "Resources", not
 // "HealthCheckServices" (SDK naming irregularity, confirmed against the
 // vendored source).
-func scanComputeRegionHealthCheckServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionHealthCheckServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionHealthCheckServices.aggregatedList",
 		svc.RegionHealthCheckServices.AggregatedList(p.ID),
-		func(page *compute.HealthCheckServiceAggregatedList) (int, int, error) {
+		func(page *compute.HealthCheckServiceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				var region *string
@@ -176,10 +176,10 @@ func scanComputeRegionHealthCheckServices(ctx context.Context, svc *compute.Serv
 		})
 }
 
-func scanComputeRegionHealthSources(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionHealthSources(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionHealthSources.aggregatedList",
 		svc.RegionHealthSources.AggregatedList(p.ID),
-		func(page *compute.HealthSourceAggregatedList) (int, int, error) {
+		func(page *compute.HealthSourceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -204,10 +204,10 @@ func scanComputeRegionHealthSources(ctx context.Context, svc *compute.Service, p
 // scanComputeRegionNotificationEndpoints — same opportunistic-Region shape;
 // scoped-list slice field is also "Resources" (matches
 // scanComputeRegionHealthCheckServices' irregularity).
-func scanComputeRegionNotificationEndpoints(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionNotificationEndpoints(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionNotificationEndpoints.aggregatedList",
 		svc.RegionNotificationEndpoints.AggregatedList(p.ID),
-		func(page *compute.NotificationEndpointAggregatedList) (int, int, error) {
+		func(page *compute.NotificationEndpointAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				var region *string
@@ -229,10 +229,10 @@ func scanComputeRegionNotificationEndpoints(ctx context.Context, svc *compute.Se
 		})
 }
 
-func scanComputeHTTPHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeHTTPHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:httpHealthChecks.list",
 		svc.HttpHealthChecks.List(p.ID),
-		func(page *compute.HttpHealthCheckList) (int, int, error) {
+		func(page *compute.HttpHealthCheckList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, hc := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -246,10 +246,10 @@ func scanComputeHTTPHealthChecks(ctx context.Context, svc *compute.Service, p *p
 		})
 }
 
-func scanComputeHTTPSHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeHTTPSHealthChecks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:httpsHealthChecks.list",
 		svc.HttpsHealthChecks.List(p.ID),
-		func(page *compute.HttpsHealthCheckList) (int, int, error) {
+		func(page *compute.HttpsHealthCheckList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, hc := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -265,10 +265,10 @@ func scanComputeHTTPSHealthChecks(ctx context.Context, svc *compute.Service, p *
 
 // scanComputeSslCertificates covers both SslCertificate (global) and
 // RegionSslCertificate (regional) via one combined-scope AggregatedList call.
-func scanComputeSslCertificates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeSslCertificates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:sslCertificates.aggregatedList",
 		svc.SslCertificates.AggregatedList(p.ID),
-		func(page *compute.SslCertificateAggregatedList) (int, int, error) {
+		func(page *compute.SslCertificateAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeSslCertificate
@@ -294,10 +294,10 @@ func scanComputeSslCertificates(ctx context.Context, svc *compute.Service, p *pr
 
 // scanComputeSslPolicies covers both SslPolicy (global) and RegionSslPolicy
 // (regional) via one combined-scope AggregatedList call.
-func scanComputeSslPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeSslPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:sslPolicies.aggregatedList",
 		svc.SslPolicies.AggregatedList(p.ID),
-		func(page *compute.SslPoliciesAggregatedList) (int, int, error) {
+		func(page *compute.SslPoliciesAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeSslPolicy
@@ -321,10 +321,10 @@ func scanComputeSslPolicies(ctx context.Context, svc *compute.Service, p *projec
 		})
 }
 
-func scanComputeTargetSslProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetSslProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetSslProxies.list",
 		svc.TargetSslProxies.List(p.ID),
-		func(page *compute.TargetSslProxyList) (int, int, error) {
+		func(page *compute.TargetSslProxyList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, tsp := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -340,10 +340,10 @@ func scanComputeTargetSslProxies(ctx context.Context, svc *compute.Service, p *p
 
 // scanComputeTargetTCPProxies covers both TargetTcpProxy (global) and
 // RegionTargetTcpProxy (regional) via one combined-scope AggregatedList call.
-func scanComputeTargetTCPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetTCPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetTcpProxies.aggregatedList",
 		svc.TargetTcpProxies.AggregatedList(p.ID),
-		func(page *compute.TargetTcpProxyAggregatedList) (int, int, error) {
+		func(page *compute.TargetTcpProxyAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeTargetTCPProxy
@@ -367,10 +367,10 @@ func scanComputeTargetTCPProxies(ctx context.Context, svc *compute.Service, p *p
 		})
 }
 
-func scanComputeTargetGrpcProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetGrpcProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetGrpcProxies.list",
 		svc.TargetGrpcProxies.List(p.ID),
-		func(page *compute.TargetGrpcProxyList) (int, int, error) {
+		func(page *compute.TargetGrpcProxyList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, tgp := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -389,7 +389,7 @@ func scanComputeTargetGrpcProxies(ctx context.Context, svc *compute.Service, p *
 // (loadbalancing_scanners.go) use plain List, so the regional variant needs
 // its own per-region fan-out against a genuinely separate RegionX service,
 // reusing the same item/list SDK types the global scanners already import.
-func scanComputeRegionTargetHTTPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionTargetHTTPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionTargetHttpProxies.list",
 		func(region string) pager[compute.TargetHttpProxyList] {
 			return svc.RegionTargetHttpProxies.List(p.ID, region)
@@ -407,7 +407,7 @@ func scanComputeRegionTargetHTTPProxies(ctx context.Context, svc *compute.Servic
 		})
 }
 
-func scanComputeRegionTargetHTTPSProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionTargetHTTPSProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionTargetHttpsProxies.list",
 		func(region string) pager[compute.TargetHttpsProxyList] {
 			return svc.RegionTargetHttpsProxies.List(p.ID, region)
@@ -425,7 +425,7 @@ func scanComputeRegionTargetHTTPSProxies(ctx context.Context, svc *compute.Servi
 		})
 }
 
-func scanComputeRegionURLMaps(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionURLMaps(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionUrlMaps.list",
 		func(region string) pager[compute.UrlMapList] { return svc.RegionUrlMaps.List(p.ID, region) },
 		func(page *compute.UrlMapList) []*compute.UrlMap { return page.Items },
@@ -441,7 +441,7 @@ func scanComputeRegionURLMaps(ctx context.Context, svc *compute.Service, p *proj
 		})
 }
 
-func scanComputeRegionBackendBuckets(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionBackendBuckets(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionBackendBuckets.list",
 		func(region string) pager[compute.BackendBucketList] {
 			return svc.RegionBackendBuckets.List(p.ID, region)
@@ -459,10 +459,10 @@ func scanComputeRegionBackendBuckets(ctx context.Context, svc *compute.Service, 
 		})
 }
 
-func scanComputeTargetInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetInstances.aggregatedList",
 		svc.TargetInstances.AggregatedList(p.ID),
-		func(page *compute.TargetInstanceAggregatedList) (int, int, error) {
+		func(page *compute.TargetInstanceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, ti := range items.TargetInstances {
@@ -485,10 +485,10 @@ func scanComputeTargetInstances(ctx context.Context, svc *compute.Service, p *pr
 		})
 }
 
-func scanComputeTargetPools(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetPools(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetPools.aggregatedList",
 		svc.TargetPools.AggregatedList(p.ID),
-		func(page *compute.TargetPoolAggregatedList) (int, int, error) {
+		func(page *compute.TargetPoolAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)

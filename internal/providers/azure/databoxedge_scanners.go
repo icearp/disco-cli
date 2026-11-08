@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDataBoxEdge discovers Azure Data Box Edge / Stack Edge devices.
-func scanDataBoxEdge(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataBoxEdge(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdataboxedge.NewDevicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdataboxedge:NewDevicesClient: %w", err)
+		return 0, fmt.Errorf("armdataboxedge:NewDevicesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdataboxedge:Devices.ListBySubscription", TypeDataBoxEdgeDevice, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

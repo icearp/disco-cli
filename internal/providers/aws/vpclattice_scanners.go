@@ -114,7 +114,7 @@ func vlTags(client vpcLatticeAPI, acctID string) rowTagReader {
 	}
 }
 
-func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := vpclattice.NewFromConfig(acct.cfg, func(o *vpclattice.Options) { o.Region = region })
 	return runHostPhases(ctx, st, acct, region, "vpclattice", 0, vlPhases(ctx, client, acct, region, st, scanID))
 }
@@ -165,10 +165,10 @@ func vlPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region s
 		{"vpclattice:ListAccessLogSubscriptions", 0, func(p *phaseTotals) bool {
 			return scanVLAccessLogSubs(ctx, client, acct, region, st, scanID, servicesAndNetworks(), tags, p)
 		}},
-		countedPhase(0, "vpclattice:GetAuthPolicy", func() (int, int, error) {
+		countedPhase(0, "vpclattice:GetAuthPolicy", func() (int, error) {
 			return scanVLAuthPolicies(ctx, client, acct, region, st, scanID, serviceARNs(), networkARNs())
 		}),
-		countedPhase(0, "vpclattice:GetResourcePolicy", func() (int, int, error) {
+		countedPhase(0, "vpclattice:GetResourcePolicy", func() (int, error) {
 			return scanVLResourcePolicies(ctx, client, acct, region, st, scanID, serviceARNs(), networkARNs())
 		}),
 		{"vpclattice:ListDomainVerifications", 0, func(p *phaseTotals) bool {
@@ -189,10 +189,10 @@ func vlPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region s
 		{"vpclattice:ListServiceNetworkVpcAssociations", 0, func(p *phaseTotals) bool {
 			return scanVLSNVA(ctx, client, acct, region, st, scanID, networks, tags, p)
 		}},
-		countedPhase(0, vlListSNVpcEndpointAssocsOp, func() (int, int, error) {
+		countedPhase(0, vlListSNVpcEndpointAssocsOp, func() (int, error) {
 			return scanVLServiceNetworkVpcEndpointAssocs(ctx, client, acct, region, st, scanID, networks)
 		}),
-		countedPhase(0, vlListTargetsOp, func() (int, int, error) {
+		countedPhase(0, vlListTargetsOp, func() (int, error) {
 			return scanVLTargets(ctx, client, acct, region, st, scanID, tgs)
 		}),
 	}
@@ -205,7 +205,7 @@ func vlPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region s
 func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (services []childParent, storeWriteFailed bool) {
 	const op = "vpclattice:ListServices"
 	d := &detailedRows{getOp: "vpclattice:GetService", what: "service(s)", notFound: vlNotFound, tags: tags}
-	total, inserted, services, err := storeParentListWith(ctx, st, acct, region, op, "services", "Arn",
+	total, services, err := storeParentListWith(ctx, st, acct, region, op, "services", "Arn",
 		func(ctx context.Context, token *string) ([]types.ServiceSummary, *string, error) {
 			out, err := client.ListServices(ctx, &vpclattice.ListServicesInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
 			if err != nil {
@@ -231,7 +231,7 @@ func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, re
 			}
 			return out, nil
 		}))
-	return services, d.addPhase(p, op, total, inserted, err)
+	return services, d.addPhase(p, op, total, err)
 }
 
 // scanVLServiceNetworks stores the region's service networks with their tags
@@ -355,7 +355,7 @@ func scanVLAccessLogSubs(ctx context.Context, client vpcLatticeAPI, acct *accoun
 
 // scanVLAuthPolicies runs GetAuthPolicy per (service, service-network) —
 // returns ResourceNotFoundException when no auth policy attached.
-func scanVLAuthPolicies(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, int, error) {
+func scanVLAuthPolicies(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, error) {
 	var batch []*store.Resource
 	for _, ra := range append(append([]string{}, svcARNs...), netARNs...) {
 		id := ra
@@ -364,7 +364,7 @@ func scanVLAuthPolicies(ctx context.Context, client vpcLatticeAPI, acct *account
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("vpclattice:GetAuthPolicy %s: %w", ra, err)
+			return 0, fmt.Errorf("vpclattice:GetAuthPolicy %s: %w", ra, err)
 		}
 		if out.Policy == nil {
 			continue
@@ -380,7 +380,7 @@ func scanVLAuthPolicies(ctx context.Context, client vpcLatticeAPI, acct *account
 	return upsertBatch(st, batch, "vpclattice auth-policies")
 }
 
-func scanVLResourcePolicies(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, int, error) {
+func scanVLResourcePolicies(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, error) {
 	var batch []*store.Resource
 	for _, ra := range append(append([]string{}, svcARNs...), netARNs...) {
 		id := ra
@@ -389,7 +389,7 @@ func scanVLResourcePolicies(ctx context.Context, client vpcLatticeAPI, acct *acc
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("vpclattice:GetResourcePolicy %s: %w", ra, err)
+			return 0, fmt.Errorf("vpclattice:GetResourcePolicy %s: %w", ra, err)
 		}
 		if out.Policy == nil {
 			continue
@@ -409,7 +409,7 @@ func scanVLResourcePolicies(ctx context.Context, client vpcLatticeAPI, acct *acc
 // the tags their list element carries.
 func scanVLDomainVerifications(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "vpclattice:ListDomainVerifications"
-	total, inserted, err := storeTokenList(ctx, st, acct, region, op,
+	total, err := storeTokenList(ctx, st, acct, region, op,
 		func(ctx context.Context, token *string) ([]types.DomainVerificationSummary, *string, error) {
 			out, err := client.ListDomainVerifications(ctx, &vpclattice.ListDomainVerificationsInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
 			if err != nil {
@@ -425,7 +425,7 @@ func scanVLDomainVerifications(ctx context.Context, client vpcLatticeAPI, acct *
 			r.TagsJSON = mapTagsJSON(d.Tags)
 			return r, "", ""
 		})
-	return p.addPhase(op, total, inserted, err)
+	return p.addPhase(op, total, err)
 }
 
 // scanVLResourceConfigs stores the region's resource configurations with

@@ -138,7 +138,7 @@ func mhoTplARN(id string) string {
 
 func runMHO(t *testing.T, st *store.Store, stub *stubMHO) (int, error) {
 	t.Helper()
-	total, _, err := scanMHOWithClient(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanMHOWithClient(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -639,7 +639,7 @@ func TestScanMigrationHubOrchestrator_ChildrenContainedByParents(t *testing.T) {
 	})
 	acct := newTestAccount(testAccountID)
 	acct.cfg = cfgWithStub(stub, testRegion)
-	if _, _, err := scanMigrationHubOrchestrator(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanMigrationHubOrchestrator(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	wf, tpl := mhoNID("workflow", "wf"), mhoTplARN("tpl")

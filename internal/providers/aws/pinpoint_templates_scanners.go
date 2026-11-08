@@ -21,7 +21,7 @@ var pinpointTemplateTypes = map[pptypes.TemplateType]string{
 // ListTemplates, typed by TemplateType. A TemplateType disco does not know is
 // warned about. The listed TemplateResponse carries no tags (its model says
 // only the Get*Template ops return them), so none are stored.
-func scanPinpointTemplates(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPinpointTemplates(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, pinpointTemplatesOp,
 		func(ctx context.Context, token *string) ([]pptypes.TemplateResponse, *string, error) {
 			out, err := client.ListTemplates(ctx, &pinpoint.ListTemplatesInput{NextToken: token})

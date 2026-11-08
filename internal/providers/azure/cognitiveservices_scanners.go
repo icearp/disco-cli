@@ -22,17 +22,17 @@ func init() {
 
 // scanCognitiveServices discovers Azure AI / OpenAI (Cognitive Services)
 // accounts and subscription-wide commitment plans.
-func scanCognitiveServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCognitiveServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	accounts, err := armcognitiveservices.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcognitiveservices:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armcognitiveservices:NewAccountsClient: %w", err)
 	}
 	plans, err := armcognitiveservices.NewCommitmentPlansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcognitiveservices:NewCommitmentPlansClient: %w", err)
+		return 0, fmt.Errorf("armcognitiveservices:NewCommitmentPlansClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armcognitiveservices:Accounts.List", TypeCognitiveServicesAccount, sub, st, scanID,
 				accounts.NewListPager(nil),
 				func(p armcognitiveservices.AccountsClientListResponse) []*armcognitiveservices.Account {
@@ -42,7 +42,7 @@ func scanCognitiveServices(ctx context.Context, sub *subscription, cred azcore.T
 					return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armcognitiveservices:CommitmentPlans.ListPlansBySubscription", TypeCognitiveCommitmentPlan, sub, st, scanID,
 				plans.NewListPlansBySubscriptionPager(nil),
 				func(p armcognitiveservices.CommitmentPlansClientListPlansBySubscriptionResponse) []*armcognitiveservices.CommitmentPlan {

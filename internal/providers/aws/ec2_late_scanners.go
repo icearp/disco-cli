@@ -38,10 +38,10 @@ const (
 // independent and run concurrently under a WaitGroup, not an errgroup, so one
 // failure cancels no sibling. Each phase's error is added to errs under its
 // own op, in phase order, for scanEC2 to join.
-func scanEC2Late(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) (total, inserted int) {
+func scanEC2Late(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) (total int) {
 	phases := []struct {
 		op  string
-		run func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+		run func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	}{
 		{ec2FastSnapshotRestoresOp, scanEC2FastSnapshotRestores},
 		{ec2FastLaunchImagesOp, scanEC2FastLaunchImages},
@@ -61,24 +61,23 @@ func scanEC2Late(ctx context.Context, client ec2API, acct *account, region strin
 		{ec2VPCEndpointServicePermissionsOp, scanVPCEndpointServicePermissions},
 	}
 	type result struct {
-		total, inserted int
-		err             error
+		total int
+		err   error
 	}
 	results := make([]result, len(phases))
 	var wg sync.WaitGroup
 	for i, phase := range phases {
 		wg.Go(func() {
-			t, n, perr := phase.run(ctx, client, acct, region, st, scanID)
-			results[i] = result{t, n, perr}
+			t, perr := phase.run(ctx, client, acct, region, st, scanID)
+			results[i] = result{t, perr}
 		})
 	}
 	wg.Wait()
 	for i, r := range results {
 		total += r.total
-		inserted += r.inserted
 		errs.add(phases[i].op, r.err)
 	}
-	return total, inserted
+	return total
 }
 
 // fastSnapshotRestoreNativeID builds the NativeID of fast snapshot restore on
@@ -103,7 +102,7 @@ func fastLaunchImageNativeID(partition, region, accountID, imageID string) strin
 // until it reaches disabled. The zone comes from AvailabilityZone alone: an
 // entry without it is dropped, not keyed by AvailabilityZoneId, so the
 // NativeID has one source.
-func scanEC2FastSnapshotRestores(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2FastSnapshotRestores(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	in := &ec2.DescribeFastSnapshotRestoresInput{Filters: []ec2types.Filter{{Name: sdkaws.String("owner-id"), Values: []string{acct.ID}}}}
 	pager := ec2.NewDescribeFastSnapshotRestoresPaginator(client, in,
 		func(o *ec2.DescribeFastSnapshotRestoresPaginatorOptions) { o.Limit = ec2FastSnapshotRestoresPageLimit })
@@ -135,7 +134,7 @@ func scanEC2FastSnapshotRestores(ctx context.Context, client ec2API, acct *accou
 // scanEC2FastLaunchImages stores the Windows fast launch configuration of each
 // AMI it is enabled for. FastLaunchStateCode has no disabled value, so every
 // listed state is kept.
-func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := ec2.NewDescribeFastLaunchImagesPaginator(client, &ec2.DescribeFastLaunchImagesInput{},
 		func(o *ec2.DescribeFastLaunchImagesPaginatorOptions) { o.Limit = ec2FastLaunchImagesPageLimit })
 	return ec2PageScan(ctx, ec2FastLaunchImagesOp, acct, region, st, pager,
@@ -169,16 +168,16 @@ func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, 
 // of default `disco check` input. AWS documents no ARN for it; the NativeID is
 // synthesized in ec2ARNIn shape and carries the Region, so Regions do not share
 // one row.
-func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetAllowedImagesSettings(ctx, &ec2.GetAllowedImagesSettingsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, ec2AllowedImagesSettingsOp, acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, ec2AllowedImagesSettingsOp, acct.ID, region, err)
 		}
 		if isEC2RegionFeatureGap(err) {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("%s: %w", ec2AllowedImagesSettingsOp, err)
+		return 0, fmt.Errorf("%s: %w", ec2AllowedImagesSettingsOp, err)
 	}
 	return upsertBatch(st, []*store.Resource{{
 		Provider:       "aws",
@@ -198,7 +197,7 @@ func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *accou
 // sale history, not live resources: the status filter keeps the unpaginated
 // response from carrying that whole history. AWS documents no ARN for a
 // listing; the NativeID is synthesized in ec2ARNIn shape from the listing id.
-func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.DescribeReservedInstancesListings(ctx, &ec2.DescribeReservedInstancesListingsInput{
 		Filters: []ec2types.Filter{{
 			Name:   sdkaws.String("status"),
@@ -207,12 +206,12 @@ func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *
 	})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, ec2ReservedInstancesListingsOp, acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, ec2ReservedInstancesListingsOp, acct.ID, region, err)
 		}
 		if isEC2RegionFeatureGap(err) {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("%s: %w", ec2ReservedInstancesListingsOp, err)
+		return 0, fmt.Errorf("%s: %w", ec2ReservedInstancesListingsOp, err)
 	}
 	var batch []*store.Resource
 	for _, l := range out.ReservedInstancesListings {
@@ -242,7 +241,7 @@ func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *
 // scanEC2ServiceLinkVirtualInterfaces stores the Outpost service link virtual
 // interfaces, keyed by the ARN the API returns. Deleted interfaces are
 // dropped. DescribeServiceLinkVirtualInterfaces has no SDK paginator.
-func scanEC2ServiceLinkVirtualInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2ServiceLinkVirtualInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var children []containedChild
 	var token *string
 	for {
@@ -252,7 +251,7 @@ func scanEC2ServiceLinkVirtualInterfaces(ctx context.Context, client ec2API, acc
 		})
 		if err != nil {
 			if token == nil && isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return upsertRegionChildren(st, acct, region, ec2ServiceLinkVirtualInterfacesOp, children, err)
 		}

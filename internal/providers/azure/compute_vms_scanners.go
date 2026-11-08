@@ -19,10 +19,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeVMExtension, Service: "microsoft.compute"})
 }
 
-func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewVirtualMachinesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachinesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewVirtualMachinesClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -30,9 +30,9 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:VirtualMachines.ListAll", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:VirtualMachines.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:VirtualMachines.ListAll: %w", err)
+			return 0, fmt.Errorf("armcompute:VirtualMachines.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -65,27 +65,26 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 			pairs = append(pairs, rgHierarchyPair(sub, TypeComputeVirtualMachine, sv(vm.ID)))
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Azure VMs: %w", err)
+				return 0, fmt.Errorf("upsert Azure VMs: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return 0, 0, fmt.Errorf("closure Azure VMs: %w", err)
+				return 0, fmt.Errorf("closure Azure VMs: %w", err)
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanVMExtensions lists all extensions for every VM in the subscription, fanning
 // out one API call per VM via errgroup (bounded by maxConcurrentFanout). Must run
 // after scanVMs has populated the store.
-func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewVirtualMachineExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineExtensionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewVirtualMachineExtensionsClient: %w", err)
 	}
 
 	// Load all VMs for this subscription from the store.
@@ -96,10 +95,10 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 		Limit:     util.AllResources,
 	})
 	if err != nil {
-		return 0, 0, fmt.Errorf("list VMs for extension scan: %w", err)
+		return 0, fmt.Errorf("list VMs for extension scan: %w", err)
 	}
 	if len(vms) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	var (
@@ -165,19 +164,18 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure VM extensions: %w", err)
+			return 0, fmt.Errorf("upsert Azure VM extensions: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure VM extensions: %w", err)
+			return 0, fmt.Errorf("closure Azure VM extensions: %w", err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

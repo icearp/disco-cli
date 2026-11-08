@@ -21,10 +21,10 @@ func init() {
 // scanNotificationsContacts discovers AWS User Notifications Contacts email
 // contacts. Global service, called once in its home region (homeRegion;
 // us-east-1 for aws).
-func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("notificationscontacts")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := notificationscontacts.NewFromConfig(acct.cfg, func(o *notificationscontacts.Options) { o.Region = region })
 
@@ -34,9 +34,9 @@ func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st 
 		out, err := client.ListEmailContacts(ctx, &notificationscontacts.ListEmailContactsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "notifications-contacts:ListEmailContacts", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "notifications-contacts:ListEmailContacts", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("notifications-contacts:ListEmailContacts: %w", err)
+			return 0, fmt.Errorf("notifications-contacts:ListEmailContacts: %w", err)
 		}
 		for _, e := range out.EmailContacts {
 			arn := sv(e.Arn)

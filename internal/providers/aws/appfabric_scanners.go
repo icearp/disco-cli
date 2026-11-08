@@ -67,14 +67,14 @@ type ingestionDestAttrs struct {
 // App authorizations are read from the list summary, never
 // GetAppAuthorization, to avoid pulling the OAuth/API-key credential body
 // into the store.
-func scanAppFabric(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppFabric(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := appfabric.NewFromConfig(acct.cfg, func(o *appfabric.Options) { o.Region = region })
 	tags := afTags(client).sharingDenials()
 	var (
 		bundles    []childParent
 		ingestions []childParent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "appfabric", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "appfabric", 0, []hostPhase{
 		{op: "appfabric:ListAppBundles", run: func(p *phaseTotals) (failed bool) {
 			bundles, failed = scanAppFabricBundles(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -91,7 +91,7 @@ func scanAppFabric(ctx context.Context, acct *account, region string, st *store.
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // afTags reads a row's tags with ListTagsForResource, sent the row's
@@ -277,11 +277,11 @@ func scanAppFabricDestinations(ctx context.Context, client appFabricAPI, acct *a
 		}
 		return flattenIngestionDest(got.IngestionDestination), nil
 	})(out.rows)
-	total, inserted, err := out.store(st, acct, region)
+	total, err := out.store(st, acct, region)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warn()
 	}
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // flattenIngestionDest embeds the native destination body and lifts the S3

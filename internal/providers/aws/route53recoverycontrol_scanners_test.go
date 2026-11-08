@@ -276,7 +276,7 @@ func r53rcHandlers(c *r53rcCalls) map[string]func(in any) (any, error) {
 // r53rcScanIn runs the scan's real entry point for acct against handlers,
 // noting in calls the region every call reached; every op they do not answer
 // is denied.
-func r53rcScanIn(ctx context.Context, st *store.Store, acct *account, calls *r53rcCalls, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func r53rcScanIn(ctx context.Context, st *store.Store, acct *account, calls *r53rcCalls, handlers map[string]func(in any) (any, error)) (int, error) {
 	withRegion := make(map[string]func(context.Context, any) (any, error), len(handlers))
 	for op, h := range handlers {
 		withRegion[op] = func(ctx context.Context, in any) (any, error) {
@@ -290,7 +290,7 @@ func r53rcScanIn(ctx context.Context, st *store.Store, acct *account, calls *r53
 	return scanR53RecoveryControl(ctx, acct, "", st, testScanID)
 }
 
-func r53rcScan(ctx context.Context, st *store.Store, calls *r53rcCalls, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func r53rcScan(ctx context.Context, st *store.Store, calls *r53rcCalls, handlers map[string]func(in any) (any, error)) (int, error) {
 	return r53rcScanIn(ctx, st, newTestAccount(testAccountID), calls, handlers)
 }
 
@@ -317,7 +317,9 @@ func TestScanR53RecoveryControl_StoresEveryRowWithItsTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newR53RCCalls()
 
-	total, inserted, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := r53rcScan(context.Background(), counted, calls, r53rcHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -402,18 +404,18 @@ func TestScanR53RecoveryControl_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanR53RecoveryControl_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	first := newR53RCCalls()
-	if _, _, err := r53rcScan(context.Background(), st, first, r53rcHandlers(first)); err != nil {
+	if _, err := r53rcScan(context.Background(), st, first, r53rcHandlers(first)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	again := newR53RCCalls()
-	total, _, err := r53rcScan(context.Background(), st, again, r53rcHandlers(again))
+	total, err := r53rcScan(context.Background(), st, again, r53rcHandlers(again))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -433,7 +435,9 @@ func TestScanR53RecoveryControl_EmptyListings(t *testing.T) {
 	handlers["ListClusters"] = func(any) (any, error) { return &route53recoverycontrolconfig.ListClustersOutput{}, nil }
 	handlers["ListControlPanels"] = func(any) (any, error) { return &route53recoverycontrolconfig.ListControlPanelsOutput{}, nil }
 
-	total, inserted, err := r53rcScan(context.Background(), st, calls, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := r53rcScan(context.Background(), counted, calls, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -492,7 +496,7 @@ func TestScanR53RecoveryControl_TagReadFailures(t *testing.T) {
 			calls := newR53RCCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+			total, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -568,7 +572,7 @@ func TestScanR53RecoveryControl_OtherAccountRowKeptUntagged(t *testing.T) {
 				calls.errs[arn] = e.err
 			}
 
-			total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+			total, err := r53rcScan(context.Background(), st, calls, handlers)
 			if err != nil || total != 3 {
 				t.Fatalf("scan = %d, %v; want 3, nil", total, err)
 			}
@@ -600,7 +604,7 @@ func TestScanR53RecoveryControl_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+	total, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -622,7 +626,7 @@ func TestScanR53RecoveryControl_TagThrottleDemotedBesideHardError(t *testing.T) 
 	calls.errs[r53rcClusterARN("bare")] = r53rcTestThrottle
 	calls.errs[r53rcKindOf(t, "ListSafetyRules").native(r53rcPanelARN("tagged"), "bare")] = r53rcTestBad
 
-	_, _, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+	_, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -641,7 +645,7 @@ func TestScanR53RecoveryControl_FailedWriteStopsScan(t *testing.T) {
 	calls := newR53RCCalls()
 	calls.errs[r53rcPanelARN("tagged")] = r53rcTestDenied
 
-	total, _, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+	total, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -698,7 +702,7 @@ func TestScanR53RecoveryControl_ListFailureKeepsPagesAndLaterPhases(t *testing.T
 				return list(in)
 			}
 
-			total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+			total, err := r53rcScan(context.Background(), st, calls, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -745,7 +749,7 @@ func TestScanR53RecoveryControl_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+	total, err := r53rcScan(context.Background(), st, calls, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -789,7 +793,7 @@ func TestScanR53RecoveryControl_PerPanelFailures(t *testing.T) {
 					return answer(in)
 				}
 
-				total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+				total, err := r53rcScan(context.Background(), st, calls, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -914,7 +918,7 @@ func TestScanR53RecoveryControl_ElementWithoutARN(t *testing.T) {
 				return c.answer(in), nil
 			}
 
-			total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+			total, err := r53rcScan(context.Background(), st, calls, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -951,7 +955,7 @@ func TestScanR53RecoveryControl_PartitionsWithoutHomeMakeNoCall(t *testing.T) {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			calls := newR53RCCalls()
-			total, _, err := r53rcScanIn(context.Background(), st, partitionAccount(pf.partition), calls, r53rcHandlers(calls))
+			total, err := r53rcScanIn(context.Background(), st, partitionAccount(pf.partition), calls, r53rcHandlers(calls))
 			if !errors.Is(err, errServiceUnavailable) || total != 0 {
 				t.Fatalf("scan = %d, %v; want 0, errServiceUnavailable", total, err)
 			}
@@ -980,7 +984,7 @@ func TestScanR53RecoveryControl_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := r53rcScan(ctx, st, calls, handlers)
+	_, err := r53rcScan(ctx, st, calls, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1010,7 +1014,7 @@ func TestScanR53RecoveryControl_NXDOMAIN(t *testing.T) {
 		calls := newR53RCCalls()
 		handlers := r53rcHandlers(calls)
 		handlers["ListSafetyRules"] = func(any) (any, error) { return nil, nx }
-		total, _, err := r53rcScan(context.Background(), st, calls, handlers)
+		total, err := r53rcScan(context.Background(), st, calls, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := r53rcTestTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1020,7 +1024,7 @@ func TestScanR53RecoveryControl_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newR53RCCalls()
 		calls.errs[r53rcClusterARN("bare")] = nx
-		_, _, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
+		_, err := r53rcScan(context.Background(), st, calls, r53rcHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1028,7 +1032,7 @@ func TestScanR53RecoveryControl_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanR53RecoveryControl(context.Background(), acct, "", st, testScanID)
+		_, err := scanR53RecoveryControl(context.Background(), acct, "", st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

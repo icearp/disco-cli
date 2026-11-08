@@ -42,20 +42,19 @@ func (p *singlePager[P]) NextPage(context.Context) (P, error) {
 	return p.page, nil
 }
 
-// azRunPhases runs scan phases concurrently, summing (total, inserted) and
+// azRunPhases runs scan phases concurrently, summing their totals and
 // returning the first non-nil error. Each phase is one azSimpleScan /
 // azRGFanoutScan call. Use for multi-type single-service scanners (e.g.
 // azurestackhci, connectedvmware) instead of hand-rolling WaitGroup + mutex
 // aggregation each time.
-func azRunPhases(phases ...func() (int, int, error)) (total, inserted int, err error) {
+func azRunPhases(phases ...func() (int, error)) (total int, err error) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, p := range phases {
 		wg.Go(func() {
-			t, i, e := p()
+			t, e := p()
 			mu.Lock()
 			total += t
-			inserted += i
 			if e != nil && err == nil {
 				err = e
 			}
@@ -63,7 +62,7 @@ func azRunPhases(phases ...func() (int, int, error)) (total, inserted int, err e
 		})
 	}
 	wg.Wait()
-	return total, inserted, err
+	return total, err
 }
 
 // azPageScan runs a paginated Azure list call, converting each page to resources
@@ -76,28 +75,27 @@ func azPageScan[P any](
 	st *store.Store,
 	pager azPager[P],
 	toResources func(P) ([]*store.Resource, [][2]string),
-) (total, inserted int, err error) {
+) (total int, err error) {
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return total, inserted, skipIfAccessDenied(st, action, sub.ID, err)
+				return total, skipIfAccessDenied(st, action, sub.ID, err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", action, err)
+			return total, fmt.Errorf("%s: %w", action, err)
 		}
 		batch, pairs := toResources(page)
 		if len(batch) == 0 {
 			continue
 		}
-		n, err := st.UpsertResources(batch)
+		_, err = st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert %s: %w", action, err)
+			return total, fmt.Errorf("upsert %s: %w", action, err)
 		}
 		total += len(batch)
-		inserted += n
 		if len(pairs) > 0 {
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return total, inserted, fmt.Errorf("closure %s: %w", action, err)
+				return total, fmt.Errorf("closure %s: %w", action, err)
 			}
 		}
 	}
@@ -206,13 +204,13 @@ func azRGFanoutScan[T any, P any](
 	pagerFn func(rg string) azPager[P],
 	pageItems func(P) []*T,
 	extract func(*T) azTrackedBase,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	rgs, err := listSubscriptionRGNames(ctx, sub, cred)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(rgs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	var (
@@ -250,21 +248,21 @@ func azRGFanoutScan[T any, P any](
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(allBatch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(allBatch)
+	_, err = st.UpsertResources(allBatch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", action, err)
+		return 0, fmt.Errorf("upsert %s: %w", action, err)
 	}
 	if len(allPairs) > 0 {
 		if err := st.RecordHierarchyBatch(allPairs); err != nil {
-			return len(allBatch), n, fmt.Errorf("closure %s: %w", action, err)
+			return len(allBatch), fmt.Errorf("closure %s: %w", action, err)
 		}
 	}
-	return len(allBatch), n, nil
+	return len(allBatch), nil
 }
 
 // isResourceGroupNotFound reports whether err is an Azure 404 RG-vanished
@@ -291,7 +289,7 @@ func azSimpleScan[T any, P any](
 	pager azPager[P],
 	pageItems func(P) []*T,
 	extract func(*T) azTrackedBase,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	return azPageScan(ctx, action, sub, st, pager, func(page P) ([]*store.Resource, [][2]string) {
 		return azTrackedRows(sub, scanID, rtype, pageItems(page), extract)
 	})

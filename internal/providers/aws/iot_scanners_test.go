@@ -301,7 +301,9 @@ func TestScanIoT_StoresTagsOfEveryTaggedType(t *testing.T) {
 	tags := &iotTagCalls{}
 	acct.cfg = opStubConfig(iotFixtureHandlers(tags), iotDenied)
 
-	total, inserted, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanIoT(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -343,7 +345,7 @@ func runIoTPolicies(t *testing.T, st *store.Store, tags *iotTagCalls, handlers m
 		iotListPolicies(context.Background(), client, acct, testRegion, testScanID)) {
 		t.Fatal("storeWriteFailed = true; want false")
 	}
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	return p, err
 }
 
@@ -514,7 +516,7 @@ func TestScanIoTInventory_EmptyARNNotStored(t *testing.T) {
 			var p phaseTotals
 			acct := newTestAccount(testAccountID)
 			scanIoTInventory(context.Background(), client, acct, testRegion, st, testScanID, &p, newIoTTags(client))
-			if _, _, err := p.result(st, acct, testRegion); err != nil {
+			if _, err := p.result(st, acct, testRegion); err != nil {
 				t.Fatalf("err = %v", err)
 			}
 			if n := len(rowsByNativeID(t, st, c.typ)); n != 0 {
@@ -574,7 +576,7 @@ func TestScanIoT_PhaseErrorRunsEveryOtherPhase(t *testing.T) {
 	handlers["ListCertificateProviders"] = func(any) (any, error) { return nil, iotInvalidRequest }
 	acct.cfg = opStubConfig(handlers, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "InvalidRequestException")
 	for _, typ := range []string{TypeIoTPolicy, TypeIoTDomainConfiguration, TypeIoTThingGroup, TypeIoTStream} {
 		if n := len(rowsByNativeID(t, st, typ)); n != 2 {
@@ -617,7 +619,7 @@ func TestScanIoT_FamilyErrorDoesNotCancelOthers(t *testing.T) {
 	handlers["ListTagsForResource"] = func(_ context.Context, in any) (any, error) { return tags.handler(in) }
 	acct.cfg = opStubConfigCtx(handlers, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "InvalidRequestException")
 	if n := len(rowsByNativeID(t, st, TypeIoTThingGroup)); n != 2 {
 		t.Errorf("thing groups stored = %d; want 2", n)
@@ -637,7 +639,7 @@ func TestScanIoT_TagThrottleDemotedBesideHardError(t *testing.T) {
 	handlers["ListDimensions"] = func(any) (any, error) { return nil, iotInvalidRequest }
 	acct.cfg = opStubConfig(handlers, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 	}
@@ -677,7 +679,7 @@ func TestScanIoT_FailedWriteStops(t *testing.T) {
 	}
 	acct.cfg = opStubConfig(handlers, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -710,7 +712,7 @@ func TestScanIoTDomainConfigurations_ManagedNotTagRead(t *testing.T) {
 	if scanIoTDomainConfigurations(context.Background(), client, acct, testRegion, st, testScanID, &p, newIoTTags(client)) {
 		t.Fatal("storeWriteFailed = true; want false")
 	}
-	if _, _, err := p.result(st, acct, testRegion); err != nil {
+	if _, err := p.result(st, acct, testRegion); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if !slices.Equal(tags.arns, []string{custom}) {
@@ -779,7 +781,7 @@ func TestScanIoT_ListPageErrorKeepsEarlierPages(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, iotDenied)
 
-			_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			assertAPICode(t, err, "InvalidRequestException")
 			rows := rowsByNativeID(t, st, c.typ)
 			if _, ok := rows[iotTestARN(c.kind, "tagged")]; !ok || len(rows) != 1 {
@@ -869,7 +871,7 @@ func TestScanIoT_UntaggedDescribeDenialWarns(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(c.handlers, iotDenied)
 
-			if _, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("err = %v", err)
 			}
 			if *warns != 1 {
@@ -895,7 +897,7 @@ func TestScanIoT_TopicRuleDestinationNotFoundReturned(t *testing.T) {
 		"GetTopicRuleDestination": func(any) (any, error) { return nil, apiErr("ResourceNotFoundException", "gone") },
 	}, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ResourceNotFoundException")
 }
 
@@ -935,7 +937,7 @@ func TestScanIoTSoftware_PackageVersionListFailures(t *testing.T) {
 		},
 	}, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
 		t.Errorf("iot:ListPackageVersions warnings = %d; want 1", *warns)
@@ -964,7 +966,7 @@ func TestScanIoT_PrincipalPhaseListErrorsLabelledByListOp(t *testing.T) {
 	handlers["ListDimensions"] = func(any) (any, error) { return nil, iotInvalidRequest }
 	acct.cfg = opStubConfig(handlers, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "InvalidRequestException")
 	for op, n := range want {
 		if *got[op] != n {
@@ -1001,7 +1003,7 @@ func TestScanIoT_TagReadsHoldTheSharedBound(t *testing.T) {
 			client := iot.NewFromConfig(opStubConfig(handlers, iotDenied))
 			tags = newIoTTags(client)
 			st := newTestStore(t)
-			if _, _, err := scanIoTFamilies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, tags); err != nil {
+			if _, err := scanIoTFamilies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, tags); err != nil {
 				t.Fatalf("err = %v", err)
 			}
 			if calls != len(iotFixtureNames) {
@@ -1157,7 +1159,7 @@ func TestScanIoT_PerKeyTransient(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(c.handlers(iotFailOn(map[string]error{"a": throttle})), iotDenied)
 
-			_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeTransient {
 				t.Errorf("classifyServiceError = %v; want outcomeTransient (err %v)", got, err)
 			}
@@ -1172,7 +1174,7 @@ func TestScanIoT_PerKeyTransient(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(c.handlers(iotFailOn(map[string]error{"a": throttle, "b": iotInvalidRequest})), iotDenied)
 
-			_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 			}
@@ -1206,7 +1208,7 @@ func TestScanIoT_FailedWriteSendsNoDenialWarning(t *testing.T) {
 				return nil
 			}), iotDenied)
 
-			_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1366,7 +1368,7 @@ func TestScanIoT_DescribeDeniedKeepsListedElement(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, iotDenied)
 
-			if _, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("err = %v", err)
 			}
 			if *warns != 1 {
@@ -1482,7 +1484,7 @@ func TestScanIoT_PrincipalListing(t *testing.T) {
 				acct := newTestAccount(testAccountID)
 				acct.cfg = opStubConfig(handlers, iotDenied)
 
-				_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+				_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 				if c.wantCode == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1567,7 +1569,7 @@ func TestScanIoT_LateNXDOMAINNotRegionUnavailable(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(c.handlers(), iotDenied)
 
-			total, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 			}
@@ -1616,7 +1618,7 @@ func TestScanIoT_ListsAtTheirPageCaps(t *testing.T) {
 		},
 	}, iotDenied)
 
-	if _, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	want := map[string]int32{
@@ -1636,7 +1638,9 @@ func TestScanIoT_RescanInsertsNone(t *testing.T) {
 	acct.cfg = opStubConfig(iotFixtureHandlers(&iotTagCalls{}), iotDenied)
 	want := 2 * len(iotTaggedFixtures())
 	for i, wantInserted := range []int{want, 0} {
-		total, inserted, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+		counted, upserts := countUpserts(st)
+		total, err := scanIoT(context.Background(), acct, testRegion, counted, testScanID)
+		inserted := upserts()
 		if err != nil {
 			t.Fatalf("scan %d: err = %v", i+1, err)
 		}
@@ -1663,7 +1667,7 @@ func TestScanIoT_DescribeDeniedManagedDomainKeptUntagged(t *testing.T) {
 		},
 	}, iotDenied)
 
-	if _, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeIoTDomainConfiguration)[arn]
@@ -1704,7 +1708,7 @@ func TestScanIoT_FailedWriteBesideNXDOMAIN(t *testing.T) {
 		},
 	}, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1741,7 +1745,7 @@ func TestScanIoT_DescribeFailureKeepsListedElement(t *testing.T) {
 				"DescribeThingGroup": func(any) (any, error) { return nil, c.err },
 			}, iotDenied)
 
-			_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 			if c.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1775,7 +1779,7 @@ func TestScanIoT_NXDOMAINWithNothingStoredIsRegionUnavailable(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(nil, &net.DNSError{Err: "no such host", Name: "iot.us-east-1.amazonaws.com", IsNotFound: true})
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeUnavailable {
 		t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
 	}
@@ -1794,7 +1798,7 @@ func TestScanIoT_RescanKeepsCountsBesideLateNXDOMAIN(t *testing.T) {
 	acct.cfg = opStubConfig(handlers, iotDenied)
 	want := 2*len(iotTaggedFixtures()) - 2
 	for i := range 2 {
-		total, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+		total, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("scan %d: classifyServiceError = %v; want outcomeError (err %v)", i+1, got, err)
 		}
@@ -1821,7 +1825,7 @@ func TestScanIoT_DescribeWithoutARNKeepsListedElement(t *testing.T) {
 		"DescribeThingGroup": func(any) (any, error) { return &iot.DescribeThingGroupOutput{ThingGroupName: ptrStr("a")}, nil },
 	}, iotDenied)
 
-	if _, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeIoTThingGroup)[arn]
@@ -1854,7 +1858,7 @@ func TestScanIoT_FallbackThrottleBesideHardError(t *testing.T) {
 			func(*string) any { return nil }),
 	}, iotDenied)
 
-	_, _, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 	}

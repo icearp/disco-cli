@@ -15,10 +15,10 @@ func init() {
 }
 
 // scanWebPubSub discovers Azure Web PubSub resources.
-func scanWebPubSub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWebPubSub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armwebpubsub.NewClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armwebpubsub:NewClient: %w", err)
+		return 0, fmt.Errorf("armwebpubsub:NewClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armwebpubsub:Client.ListBySubscription", TypeWebPubSub, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

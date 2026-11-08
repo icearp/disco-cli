@@ -238,7 +238,9 @@ func TestScanEntra_RefusesADirectoryTheTokenDoesNotName(t *testing.T) {
 	st := recordingStore(&svcs, &notices, &warnings)
 
 	cred := &recordingCred{tok: jwtWithTid(discoDirectory)}
-	total, inserted, err := scanEntra(context.Background(), []subscription{{ID: "sub"}}, cred, federatedWithGraph, st, "scan-id")
+	counted, upserts := countUpserts(st)
+	total, err := scanEntra(context.Background(), []subscription{{ID: "sub"}}, cred, federatedWithGraph, counted, "scan-id")
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanEntra returned err = %v; want nil (a refusal is a warning, not a scan failure)", err)
 	}
@@ -267,7 +269,7 @@ func TestScanEntra_UnfederatedAsksForNoParticularDirectory(t *testing.T) {
 	st := recordingStore(&svcs, &notices, &warnings)
 
 	cred := &recordingCred{err: errors.New("stop before any graph call")}
-	if _, _, err := scanEntra(context.Background(), []subscription{{ID: "sub"}}, cred, wifConfig{}, st, "scan-id"); err != nil {
+	if _, err := scanEntra(context.Background(), []subscription{{ID: "sub"}}, cred, wifConfig{}, st, "scan-id"); err != nil {
 		t.Fatalf("scanEntra returned err = %v; want nil", err)
 	}
 	reqs := cred.requested()
@@ -416,7 +418,7 @@ func TestScanEntra_PinsOnlyWhatTheGateAdmitted(t *testing.T) {
 			st := recordingStore(&svcs, &notices, &warnings)
 
 			cred := &recordingCred{err: errors.New("stop before any call")}
-			if _, _, err := scanEntra(t.Context(), []subscription{{ID: "sub"}}, cred, tc.cfg, st, "scan-id"); err != nil {
+			if _, err := scanEntra(t.Context(), []subscription{{ID: "sub"}}, cred, tc.cfg, st, "scan-id"); err != nil {
 				t.Fatalf("scanEntra returned err = %v; want nil", err)
 			}
 			reqs := cred.requested()
@@ -451,7 +453,7 @@ func TestScanEntra_AcceptsTheConsentedDirectoryInEitherCase(t *testing.T) {
 	// graph.microsoft.com with a forged bearer.
 	cred := &recordingCred{tok: jwtWithTid(customerDirectory), okCalls: 1}
 
-	_, _, _ = scanEntra(t.Context(), []subscription{{ID: "sub"}}, cred, cfg, st, "scan-id")
+	_, _ = scanEntra(t.Context(), []subscription{{ID: "sub"}}, cred, cfg, st, "scan-id")
 
 	for _, w := range warnings {
 		if strings.Contains(w.Message, "different directory") {
@@ -832,7 +834,7 @@ func TestRunTenantServices_BoundsEachService(t *testing.T) {
 	registeredTenantServices = []tenantServiceEntry{{
 		name:        "azure:test.deadline",
 		graphScoped: true,
-		fn: func(ctx context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
+		fn: func(ctx context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, error) {
 			var dl time.Time
 			dl, hadOne = ctx.Deadline()
 			if hadOne {
@@ -845,7 +847,7 @@ func TestRunTenantServices_BoundsEachService(t *testing.T) {
 			cancelParent()
 			inheritedCancel = ctx.Err() != nil
 			gotDeadline = true
-			return 0, 0, nil
+			return 0, nil
 		},
 	}}
 	defer func() { registeredTenantServices = restore }()
@@ -1661,7 +1663,7 @@ func TestRunTenantServices_ReleasesTheDeadlineWhenAServicePanics(t *testing.T) {
 	registeredTenantServices = []tenantServiceEntry{{
 		name:        "azure:test.panic",
 		graphScoped: true,
-		fn: func(ctx context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
+		fn: func(ctx context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, error) {
 			captured = ctx
 			panic("a tenant service panicked")
 		},
@@ -1849,7 +1851,7 @@ func TestRunTenantPhase_AccountsForSkipsEvenWhenAServicePanics(t *testing.T) {
 		{
 			name:        "azure:test.graph",
 			graphScoped: true,
-			fn: func(context.Context, []subscription, azcore.TokenCredential, wifConfig, *store.Store, string) (int, int, error) {
+			fn: func(context.Context, []subscription, azcore.TokenCredential, wifConfig, *store.Store, string) (int, error) {
 				panic("a tenant service panicked")
 			},
 		},

@@ -42,7 +42,9 @@ func TestScanCloudRunJobs_JobExecutionChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudRunJobsService(t, srv)
 
-	total, inserted, err := scanCloudRunJobsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunJobsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunJobsWithClient: %v", err)
 	}
@@ -91,7 +93,9 @@ func TestScanCloudRunJobs_ExecutionsAPINotEnabledShapeDoesNotDisableWholeService
 	t.Cleanup(srv.Close)
 	svc := fakeCloudRunJobsService(t, srv)
 
-	total, inserted, err := scanCloudRunJobsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunJobsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunJobsWithClient: %v (Executions' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -112,7 +116,9 @@ func TestScanCloudRunJobs_EmptyProjectNoJobs(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudRunJobsService(t, srv)
 
-	total, inserted, err := scanCloudRunJobsWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunJobsWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunJobsWithClient: %v", err)
 	}

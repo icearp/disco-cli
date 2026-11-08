@@ -174,7 +174,7 @@ func deadlineHandlers(calls *dlMemberCalls) map[string]func(in any) (any, error)
 	}
 }
 
-func scanDeadlineTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func scanDeadlineTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, dlDenied)
@@ -189,7 +189,9 @@ func TestScanDeadline_StoresMembers(t *testing.T) {
 		warnings[op] = bacWarnings(st, op)
 	}
 	var calls dlMemberCalls
-	total, inserted, err := scanDeadlineTopLevel(t, st, deadlineHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := scanDeadlineTopLevel(t, counted, deadlineHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDeadline: %v", err)
 	}
@@ -263,7 +265,7 @@ func TestScanDeadline_NoMembers(t *testing.T) {
 	h["ListFarmMembers"] = func(any) (any, error) { return &deadline.ListFarmMembersOutput{}, nil }
 	h["ListFleetMembers"] = func(any) (any, error) { return &deadline.ListFleetMembersOutput{}, nil }
 	h["ListQueueMembers"] = func(any) (any, error) { return &deadline.ListQueueMembersOutput{}, nil }
-	total, _, err := scanDeadlineTopLevel(t, st, h)
+	total, err := scanDeadlineTopLevel(t, st, h)
 	if err != nil {
 		t.Fatalf("scanDeadline: %v", err)
 	}
@@ -329,7 +331,7 @@ func TestScanDeadline_FailedMemberParent(t *testing.T) {
 					}
 					return next(in)
 				}
-				_, _, err := scanDeadlineTopLevel(t, st, h)
+				_, err := scanDeadlineTopLevel(t, st, h)
 				if tc.wantCode == "" {
 					if err != nil {
 						t.Fatalf("err = %v, want nil", err)
@@ -369,7 +371,7 @@ func TestScanDeadline_OlderPhaseErrorStillRunsMembers(t *testing.T) {
 	var calls dlMemberCalls
 	h := deadlineHandlers(&calls)
 	h["ListMonitors"] = func(any) (any, error) { return nil, dlBadInput }
-	total, _, err := scanDeadlineTopLevel(t, st, h)
+	total, err := scanDeadlineTopLevel(t, st, h)
 	assertAPICode(t, err, "ValidationException")
 	for typ, want := range map[string][]string{
 		TypeDeadlineFarmMember:  dlTestFarmMembers,
@@ -397,7 +399,7 @@ func TestScanDeadline_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	h := deadlineHandlers(&calls)
 	h["ListMonitors"] = func(any) (any, error) { return nil, dlThrottle }
 	h["ListQueueMembers"] = func(any) (any, error) { return nil, dlBadInput }
-	_, _, err := scanDeadlineTopLevel(t, st, h)
+	_, err := scanDeadlineTopLevel(t, st, h)
 	assertAPICode(t, err, "ValidationException")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError; the hard member error must not be masked", err, got)
@@ -479,7 +481,7 @@ func TestScanDeadline_MembersOfPartlyListedParents(t *testing.T) {
 				}
 				return nil, dlDenied
 			}
-			if _, _, err := scanDeadlineTopLevel(t, st, h); err != nil {
+			if _, err := scanDeadlineTopLevel(t, st, h); err != nil {
 				t.Fatalf("scanDeadline: %v", err)
 			}
 			if got := tc.calls(&calls).distinct(); !slices.Equal(got, tc.want) {
@@ -524,7 +526,7 @@ func TestScanDeadline_NoMembersOfUnwrittenParents(t *testing.T) {
 				}
 				return next(in)
 			}
-			_, _, err = scanDeadlineTopLevel(t, st, h)
+			_, err = scanDeadlineTopLevel(t, st, h)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Errorf("err = %v, want store.ErrStoreWrite", err)
 			}
@@ -625,7 +627,7 @@ func TestScanDeadline_MemberListingEndedEarlyKeepsPages(t *testing.T) {
 					}
 					return next(in)
 				}
-				_, _, err := scanDeadlineTopLevel(t, st, h)
+				_, err := scanDeadlineTopLevel(t, st, h)
 				tc.want(t, err)
 				want := []string{op.firstPage, op.rows[2]}
 				slices.Sort(want)
@@ -662,7 +664,7 @@ func TestScanDeadline_MemberWriteFailureSendsNoWarning(t *testing.T) {
 					}
 					return next(in)
 				}
-				_, _, err := scanDeadlineTopLevel(t, st, h)
+				_, err := scanDeadlineTopLevel(t, st, h)
 				if !errors.Is(err, store.ErrStoreWrite) {
 					t.Fatalf("err = %v, want store.ErrStoreWrite", err)
 				}
@@ -693,7 +695,7 @@ func TestScanDeadline_MemberNXDOMAIN(t *testing.T) {
 				}
 				return next(in)
 			}
-			total, _, err := scanDeadlineTopLevel(t, st, h)
+			total, err := scanDeadlineTopLevel(t, st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			if total == 0 {
 				t.Error("total = 0; want the stored rows counted")
@@ -710,7 +712,7 @@ func TestScanDeadline_MemberNXDOMAIN(t *testing.T) {
 	}}
 	for _, phase := range []struct {
 		op  string
-		run func(context.Context, deadlineAPI, *account, string, *store.Store, string, []dlFarmRef) (int, int, error)
+		run func(context.Context, deadlineAPI, *account, string, *store.Store, string, []dlFarmRef) (int, error)
 	}{
 		{"ListFarmMembers", scanDeadlineFarmMembers},
 		{"ListFleetMembers", scanDeadlineFleetMembers},
@@ -720,7 +722,7 @@ func TestScanDeadline_MemberNXDOMAIN(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "deadline:"+phase.op)
 			client := deadline.NewFromConfig(opStubConfig(nil, nx))
-			total, _, err := phase.run(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, farms)
+			total, err := phase.run(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, farms)
 			assertGlueOutcome(t, err, outcomeUnavailable)
 			if total != 0 {
 				t.Errorf("total = %d, want 0", total)

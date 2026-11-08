@@ -28,40 +28,39 @@ type daxAPI interface {
 
 // scanDAX discovers DynamoDB Accelerator clusters, parameter groups, and
 // subnet groups. ParameterGroup + SubnetGroup carry no native ARN; synth.
-func scanDAX(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDAX(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := dax.NewFromConfig(acct.cfg, func(o *dax.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanDAXClusters(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDAXParameterGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDAXSubnetGroups(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanDAXClusters(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanDAXParameterGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanDAXSubnetGroups(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanDAXClusters(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDAXClusters(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.DescribeClusters(ctx, &dax.DescribeClustersInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dax:DescribeClusters", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dax:DescribeClusters", acct.ID, region, err)
 			}
 			// Regions without the DAX V3 control plane reject DescribeClusters with
 			// InvalidParameterValueException "Access Denied to API Version: DAX_V3".
 			// Per-region availability gap, not a real denial — silent-skip.
 			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("dax:DescribeClusters: %w", err)
+			return 0, fmt.Errorf("dax:DescribeClusters: %w", err)
 		}
 		for _, c := range out.Clusters {
 			arn := sv(c.ClusterArn)
@@ -84,22 +83,22 @@ func scanDAXClusters(ctx context.Context, client daxAPI, acct *account, region s
 	return upsertBatch(st, batch, "dax clusters")
 }
 
-func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.DescribeParameterGroups(ctx, &dax.DescribeParameterGroupsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dax:DescribeParameterGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dax:DescribeParameterGroups", acct.ID, region, err)
 			}
 			// Same DAX V3 control-plane gap DescribeClusters guards above — the
 			// region rejects the call with InvalidParameterValueException rather
 			// than an access-denied code. Silent-skip, don't fail the scan.
 			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("dax:DescribeParameterGroups: %w", err)
+			return 0, fmt.Errorf("dax:DescribeParameterGroups: %w", err)
 		}
 		for _, p := range out.ParameterGroups {
 			name := sv(p.ParameterGroupName)
@@ -125,20 +124,20 @@ func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, r
 	return upsertBatch(st, batch, "dax parameter-groups")
 }
 
-func scanDAXSubnetGroups(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDAXSubnetGroups(ctx context.Context, client daxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.DescribeSubnetGroups(ctx, &dax.DescribeSubnetGroupsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dax:DescribeSubnetGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dax:DescribeSubnetGroups", acct.ID, region, err)
 			}
 			// Same DAX V3 control-plane gap DescribeClusters guards above.
 			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("dax:DescribeSubnetGroups: %w", err)
+			return 0, fmt.Errorf("dax:DescribeSubnetGroups: %w", err)
 		}
 		for _, s := range out.SubnetGroups {
 			name := sv(s.SubnetGroupName)

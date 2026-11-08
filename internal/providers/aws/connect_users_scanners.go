@@ -32,30 +32,30 @@ type connectUsersAPI interface {
 }
 
 // scanConnectUsers runs the Users-family phases per instance.
-func scanConnectUsers(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectUsers(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect users", func() (int, int, error) {
+		connectPhase{"connect users", func() (int, error) {
 			return scanConnectUserList(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect user hierarchy groups", func() (int, int, error) {
+		connectPhase{"connect user hierarchy groups", func() (int, error) {
 			return scanConnectUserHierarchyGroups(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect user hierarchy structures", func() (int, int, error) {
+		connectPhase{"connect user hierarchy structures", func() (int, error) {
 			return scanConnectUserHierarchyStructures(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect security profiles", func() (int, int, error) {
+		connectPhase{"connect security profiles", func() (int, error) {
 			return scanConnectSecurityProfiles(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect predefined attributes", func() (int, int, error) {
+		connectPhase{"connect predefined attributes", func() (int, error) {
 			return scanConnectPredefinedAttributes(ctx, client, instances, acct, region, st, scanID)
 		}},
 	)
 }
 
-func scanConnectUserList(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectUserList(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListUsers", instances,
 		func(instID string) connectPager[*connect.ListUsersOutput] {
 			return connect.NewListUsersPaginator(client, &connect.ListUsersInput{InstanceId: &instID},
@@ -88,7 +88,7 @@ func scanConnectUserList(ctx context.Context, client connectUsersAPI, instances 
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListUserHierarchyGroups", instances,
 		func(instID string) connectPager[*connect.ListUserHierarchyGroupsOutput] {
 			return connect.NewListUserHierarchyGroupsPaginator(client, &connect.ListUserHierarchyGroupsInput{InstanceId: &instID},
@@ -126,7 +126,7 @@ func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI,
 // scanConnectUserHierarchyStructures emits one row per instance: a
 // singleton describing the agent-hierarchy config. NativeID synthesized
 // as arn:{p}:connect:{region}:{acct}:instance/{instID}/agent-hierarchy.
-func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -138,7 +138,7 @@ func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsers
 			if isAccessDenied(derr) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("connect:DescribeUserHierarchyStructure %s: %w", instID, derr)
+			return 0, fmt.Errorf("connect:DescribeUserHierarchyStructure %s: %w", instID, derr)
 		}
 		if out.HierarchyStructure == nil {
 			continue
@@ -158,16 +158,16 @@ func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsers
 		})
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert connect user hierarchy structures: %w", uerr)
+		return 0, fmt.Errorf("upsert connect user hierarchy structures: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanConnectSecurityProfiles(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectSecurityProfiles(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListSecurityProfiles", instances,
 		func(instID string) connectPager[*connect.ListSecurityProfilesOutput] {
 			return connect.NewListSecurityProfilesPaginator(client, &connect.ListSecurityProfilesInput{InstanceId: &instID},
@@ -205,7 +205,7 @@ func scanConnectSecurityProfiles(ctx context.Context, client connectUsersAPI, in
 // scanConnectPredefinedAttributes — PredefinedAttribute lacks an SDK ARN
 // field; synthesize as
 // arn:{p}:connect:{region}:{acct}:instance/{instID}/predefined-attribute/{name}.
-func scanConnectPredefinedAttributes(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectPredefinedAttributes(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents := make([]connectListed[cttypes.InstanceSummary], 0, len(instances))
 	for _, inst := range instances {
 		if id := sv(inst.Id); id != "" {

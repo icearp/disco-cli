@@ -22,12 +22,12 @@ func init() {
 // alongside customer-authored definitions and stored under each subscription's
 // account_id (acceptable duplication — same as RBAC role-definitions).
 // Exemptions (`armpolicy.ExemptionsClient`) deferred — narrow customer base.
-func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	defClient, err := armpolicy.NewDefinitionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armpolicy:NewDefinitionsClient: %w", err)
+		return 0, fmt.Errorf("armpolicy:NewDefinitionsClient: %w", err)
 	}
-	dt, di, err := azPageScan(ctx, "armpolicy:Definitions.List", sub, st,
+	dt, err := azPageScan(ctx, "armpolicy:Definitions.List", sub, st,
 		defClient.NewListPager(nil),
 		func(page armpolicy.DefinitionsClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -55,16 +55,15 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 			return batch, nil
 		})
 	total += dt
-	inserted += di
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	setClient, err := armpolicy.NewSetDefinitionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return total, inserted, fmt.Errorf("armpolicy:NewSetDefinitionsClient: %w", err)
+		return total, fmt.Errorf("armpolicy:NewSetDefinitionsClient: %w", err)
 	}
-	st1, si1, err := azPageScan(ctx, "armpolicy:SetDefinitions.List", sub, st,
+	st1, err := azPageScan(ctx, "armpolicy:SetDefinitions.List", sub, st,
 		setClient.NewListPager(nil),
 		func(page armpolicy.SetDefinitionsClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -92,16 +91,15 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 			return batch, nil
 		})
 	total += st1
-	inserted += si1
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	asnClient, err := armpolicy.NewAssignmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return total, inserted, fmt.Errorf("armpolicy:NewAssignmentsClient: %w", err)
+		return total, fmt.Errorf("armpolicy:NewAssignmentsClient: %w", err)
 	}
-	at, ai, err := azPageScan(ctx, "armpolicy:Assignments.List", sub, st,
+	at, err := azPageScan(ctx, "armpolicy:Assignments.List", sub, st,
 		asnClient.NewListPager(nil),
 		func(page armpolicy.AssignmentsClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -121,8 +119,7 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 			return batch, nil
 		})
 	total += at
-	inserted += ai
-	return total, inserted, err
+	return total, err
 }
 
 // managedPolicyTypes is the PolicyType value set disco treats as

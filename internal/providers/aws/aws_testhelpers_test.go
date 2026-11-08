@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -466,4 +467,15 @@ func countStoredRows(t *testing.T, st *store.Store) int {
 		t.Fatalf("count rows: %v", err)
 	}
 	return n
+}
+
+// countUpserts binds upsert and quota counters to st, as the dispatcher does around a service scan, and returns the
+// counting store and a func reporting the first discoveries plus version splits written through it so far, resources
+// and quota limits together.
+func countUpserts(st *store.Store) (*store.Store, func() int) {
+	var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+	counted := st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC)
+	return counted, func() int {
+		return int(newC.Load() + changedC.Load() + quotaNewC.Load() + quotaChangedC.Load())
+	}
 }

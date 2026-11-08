@@ -75,16 +75,16 @@ type dzDomain struct {
 	envIDs     []string
 }
 
-func scanDataZone(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataZone(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := datazone.NewFromConfig(acct.cfg, func(o *datazone.Options) { o.Region = region })
 
 	// domains holds only the domains stored, so a failed ListDomains or
 	// GetDomain call, filed in errs under its own op, still lets the child
 	// phases walk them; a failed write stops here.
 	var errs phaseErrs
-	domains, total, inserted, werr := scanDataZoneDomains(ctx, client, acct, region, st, scanID, &errs)
+	domains, total, werr := scanDataZoneDomains(ctx, client, acct, region, st, scanID, &errs)
 	if werr != nil || len(domains) == 0 {
-		return total, inserted, errors.Join(errs.join(st, acct, region), werr)
+		return total, errors.Join(errs.join(st, acct, region), werr)
 	}
 
 	// Every phase runs whatever an earlier one returned, except a failed store
@@ -92,75 +92,74 @@ func scanDataZone(ctx context.Context, acct *account, region string, st *store.S
 	// walks only the parents that were stored.
 	for _, phase := range []struct {
 		op   string
-		scan func() (int, int, error)
+		scan func() (int, error)
 	}{
-		{"datazone:ListDomainUnitsForParent", func() (int, int, error) {
+		{"datazone:ListDomainUnitsForParent", func() (int, error) {
 			return scanDataZoneDomainUnits(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListProjectProfiles", func() (int, int, error) {
+		{"datazone:ListProjectProfiles", func() (int, error) {
 			return scanDataZoneProjectProfiles(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListProjects", func() (int, int, error) {
+		{"datazone:ListProjects", func() (int, error) {
 			return scanDataZoneProjects(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListProjectMemberships", func() (int, int, error) {
+		{"datazone:ListProjectMemberships", func() (int, error) {
 			return scanDataZoneProjectMemberships(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:SearchGroupProfiles", func() (int, int, error) {
+		{"datazone:SearchGroupProfiles", func() (int, error) {
 			return scanDataZoneGroupProfiles(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:SearchUserProfiles", func() (int, int, error) {
+		{"datazone:SearchUserProfiles", func() (int, error) {
 			return scanDataZoneUserProfiles(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListEnvironmentProfiles", func() (int, int, error) {
+		{"datazone:ListEnvironmentProfiles", func() (int, error) {
 			return scanDataZoneEnvironmentProfiles(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListEnvironmentBlueprintConfigurations", func() (int, int, error) {
+		{"datazone:ListEnvironmentBlueprintConfigurations", func() (int, error) {
 			return scanDataZoneEnvironmentBlueprintConfigurations(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListEnvironments", func() (int, int, error) {
+		{"datazone:ListEnvironments", func() (int, error) {
 			return scanDataZoneEnvironments(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListEnvironmentActions", func() (int, int, error) {
+		{"datazone:ListEnvironmentActions", func() (int, error) {
 			return scanDataZoneEnvironmentActions(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListSubscriptionTargets", func() (int, int, error) {
+		{"datazone:ListSubscriptionTargets", func() (int, error) {
 			return scanDataZoneSubscriptionTargets(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListDataSources", func() (int, int, error) {
+		{"datazone:ListDataSources", func() (int, error) {
 			return scanDataZoneDataSources(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListConnections", func() (int, int, error) {
+		{"datazone:ListConnections", func() (int, error) {
 			return scanDataZoneConnections(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListEnvironmentBlueprints", func() (int, int, error) {
+		{"datazone:ListEnvironmentBlueprints", func() (int, error) {
 			return scanDataZoneEnvironmentBlueprints(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListRules", func() (int, int, error) {
+		{"datazone:ListRules", func() (int, error) {
 			return scanDataZoneRules(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListSubscriptions", func() (int, int, error) {
+		{"datazone:ListSubscriptions", func() (int, error) {
 			return scanDataZoneSubscriptions(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListSubscriptionGrants", func() (int, int, error) {
+		{"datazone:ListSubscriptionGrants", func() (int, error) {
 			return scanDataZoneSubscriptionGrants(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListAccountPools", func() (int, int, error) {
+		{"datazone:ListAccountPools", func() (int, error) {
 			return scanDataZoneAccountPools(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{"datazone:ListNotebooks", func() (int, int, error) {
+		{"datazone:ListNotebooks", func() (int, error) {
 			return scanDataZoneNotebooks(ctx, client, acct, region, st, scanID, domains)
 		}},
 	} {
-		t, i, ferr := phase.scan()
+		t, ferr := phase.scan()
 		total += t
-		inserted += i
 		errs.add(phase.op, ferr)
 		if errors.Is(ferr, store.ErrStoreWrite) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 func dzARN(partition, region, acct, domainID, kind, id string) string {
@@ -186,7 +185,7 @@ type dzDomainReads struct {
 // was denied and filing any other error in errs under ListDomains; every
 // GetDomain error that is neither a denial nor a not-found is filed under
 // GetDomain. It returns only a failed write.
-func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) ([]*dzDomain, int, int, error) {
+func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) ([]*dzDomain, int, error) {
 	var (
 		domains    []*dzDomain
 		batch      []*store.Resource
@@ -222,9 +221,9 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, uerr := upsertBatch(st, batch, "datazone domains")
+	total, uerr := upsertBatch(st, batch, "datazone domains")
 	if uerr != nil {
-		return nil, total, inserted, uerr
+		return nil, total, uerr
 	}
 	if listDenied != nil {
 		_ = skipIfAccessDenied(st, dzListDomainsOp, acct.ID, region, fmt.Errorf(
@@ -235,7 +234,7 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 		_ = skipIfAccessDenied(st, dzGetDomainOp, acct.ID, region, fmt.Errorf(kept, reads.denied.count, reads.denied.first, reads.denied.err))
 	}
 	warnNotStored(st, dzListDomainsOp, acct, region, &reads.unkeyed, "domains have an empty ARN or id")
-	return domains, total, inserted, nil
+	return domains, total, nil
 }
 
 // dzDomainRow builds a listed domain's row and child-phase handle from its
@@ -282,7 +281,7 @@ func dzDomainRow(ctx context.Context, client dataZoneAPI, acct *account, region,
 
 // scanDataZoneDomainUnits walks the domain unit tree starting at the
 // domain's root unit. BFS via ListDomainUnitsForParent.
-func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListDomainUnitsForParent", what: "domain units"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -327,7 +326,7 @@ func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *acco
 	return f.finish(batch)
 }
 
-func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjects", what: "projects"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -361,7 +360,7 @@ func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account
 	return f.finish(batch)
 }
 
-func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjectProfiles", what: "project profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -394,7 +393,7 @@ func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *
 	return f.finish(batch)
 }
 
-func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjectMemberships", what: "project memberships"}
 	var batch []*store.Resource
 	memberIdx := 0
@@ -430,7 +429,7 @@ func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acc
 	return f.finish(batch)
 }
 
-func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironments", what: "environments"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -469,7 +468,7 @@ func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *acc
 	return f.finish(batch)
 }
 
-func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentProfiles", what: "environment profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -502,7 +501,7 @@ func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, ac
 	return f.finish(batch)
 }
 
-func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentActions", what: "environment actions"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -540,7 +539,7 @@ func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acc
 	return f.finish(batch)
 }
 
-func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentBlueprintConfigurations", what: "environment blueprint configurations"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -570,7 +569,7 @@ func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client 
 	return f.finish(batch)
 }
 
-func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListSubscriptionTargets", what: "subscription targets"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -608,7 +607,7 @@ func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, ac
 	return f.finish(batch)
 }
 
-func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListDataSources", what: "data sources"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -646,7 +645,7 @@ func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *acco
 	return f.finish(batch)
 }
 
-func scanDataZoneConnections(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneConnections(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListConnections", what: "connections"}
 	var batch []*store.Resource
 	for _, d := range domains {

@@ -53,7 +53,7 @@ const (
 
 // scanRedshiftServerless discovers Redshift Serverless namespaces, workgroups
 // and their satellites.
-func scanRedshiftServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedshiftServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := redshiftserverless.NewFromConfig(acct.cfg, func(o *redshiftserverless.Options) { o.Region = region })
 	return scanRSSPhases(ctx, client, acct, region, st, scanID)
 }
@@ -73,10 +73,10 @@ func scanRedshiftServerless(ctx context.Context, acct *account, region string, s
 // "recovery-point/", is not the Service Reference's "recoverypoint/", so it
 // is no ARN to send either. Snapshots differ in exactly this: each listed
 // snapshot carries its SnapshotArn.
-func scanRSSPhases(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSPhases(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := rssTags(client).sharingDenials()
 	var namespaces, workgroups []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "redshift-serverless", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "redshift-serverless", 0, []hostPhase{
 		{op: "redshiftserverless:ListNamespaces", run: func(p *phaseTotals) (failed bool) {
 			namespaces, failed = scanRSSNamespaces(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -88,33 +88,33 @@ func scanRSSPhases(ctx context.Context, client redshiftServerlessAPI, acct *acco
 			workgroups, failed = scanRSSWorkgroups(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "redshiftserverless:ListEndpointAccess", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListEndpointAccess", func() (int, error) {
 			return scanRSSEndpointAccess(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListRecoveryPoints", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListRecoveryPoints", func() (int, error) {
 			return scanRSSRecoveryPoints(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListManagedWorkgroups", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListManagedWorkgroups", func() (int, error) {
 			return scanRSSManagedWorkgroups(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListReservations", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListReservations", func() (int, error) {
 			return scanRSSReservations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListSnapshotCopyConfigurations", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListSnapshotCopyConfigurations", func() (int, error) {
 			return scanRSSSnapshotCopyConfigurations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListUsageLimits", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListUsageLimits", func() (int, error) {
 			return scanRSSUsageLimits(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "redshiftserverless:ListScheduledActions", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListScheduledActions", func() (int, error) {
 			return scanRSSScheduledActions(ctx, client, acct, region, st, scanID, namespaces)
 		}),
-		countedPhase(0, "redshiftserverless:ListCustomDomainAssociations", func() (int, int, error) {
+		countedPhase(0, "redshiftserverless:ListCustomDomainAssociations", func() (int, error) {
 			return scanRSSCustomDomainAssociations(ctx, client, acct, region, st, scanID, workgroups)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // rssTags reads a row's tags with ListTagsForResource, sent the row's
@@ -219,16 +219,16 @@ func scanRSSWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *
 		tags.untaggedIfOtherAccount(acct.ID), p)
 }
 
-func scanRSSEndpointAccess(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSEndpointAccess(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListEndpointAccessPaginator(client, &redshiftserverless.ListEndpointAccessInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "redshiftserverless:ListEndpointAccess", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "redshiftserverless:ListEndpointAccess", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("redshiftserverless:ListEndpointAccess: %w", err)
+			return 0, fmt.Errorf("redshiftserverless:ListEndpointAccess: %w", err)
 		}
 		for _, e := range out.Endpoints {
 			arn := sv(e.EndpointArn)
@@ -247,16 +247,16 @@ func scanRSSEndpointAccess(ctx context.Context, client redshiftServerlessAPI, ac
 	return upsertBatch(st, batch, "redshiftserverless endpoint access")
 }
 
-func scanRSSRecoveryPoints(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSRecoveryPoints(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListRecoveryPointsPaginator(client, &redshiftserverless.ListRecoveryPointsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "redshiftserverless:ListRecoveryPoints", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "redshiftserverless:ListRecoveryPoints", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("redshiftserverless:ListRecoveryPoints: %w", err)
+			return 0, fmt.Errorf("redshiftserverless:ListRecoveryPoints: %w", err)
 		}
 		for _, p := range out.RecoveryPoints {
 			id := sv(p.RecoveryPointId)
@@ -274,16 +274,16 @@ func scanRSSRecoveryPoints(ctx context.Context, client redshiftServerlessAPI, ac
 
 // scanRSSManagedWorkgroups discovers AWS-managed (Amazon-operated) workgroups,
 // e.g. those backing zero-ETL / SageMaker integrations. edge-less + provider-managed.
-func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListManagedWorkgroupsPaginator(client, &redshiftserverless.ListManagedWorkgroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "redshiftserverless:ListManagedWorkgroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "redshiftserverless:ListManagedWorkgroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("redshiftserverless:ListManagedWorkgroups: %w", err)
+			return 0, fmt.Errorf("redshiftserverless:ListManagedWorkgroups: %w", err)
 		}
 		for _, w := range out.ManagedWorkgroups {
 			id := sv(w.ManagedWorkgroupId)
@@ -303,7 +303,7 @@ func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI,
 	return upsertBatch(st, batch, "redshiftserverless managed workgroups")
 }
 
-func scanRSSReservations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSReservations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListReservationsPaginator(client, &redshiftserverless.ListReservationsInput{})
 	return pageScan(ctx, "redshiftserverless:ListReservations", acct, region, st, pager.HasMorePages,
 		func(ctx context.Context) (*redshiftserverless.ListReservationsOutput, error) {
@@ -326,7 +326,7 @@ func scanRSSReservations(ctx context.Context, client redshiftServerlessAPI, acct
 		})
 }
 
-func scanRSSSnapshotCopyConfigurations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSSnapshotCopyConfigurations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListSnapshotCopyConfigurationsPaginator(client, &redshiftserverless.ListSnapshotCopyConfigurationsInput{})
 	return pageScan(ctx, "redshiftserverless:ListSnapshotCopyConfigurations", acct, region, st, pager.HasMorePages,
 		func(ctx context.Context) (*redshiftserverless.ListSnapshotCopyConfigurationsOutput, error) {
@@ -352,7 +352,7 @@ func scanRSSSnapshotCopyConfigurations(ctx context.Context, client redshiftServe
 // scanRSSUsageLimits lists the region's usage limits in one call: the API
 // documents ResourceArn as an optional filter ("Lists all usage limits"), so
 // it needs no per-workgroup/namespace fan-out.
-func scanRSSUsageLimits(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRSSUsageLimits(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := redshiftserverless.NewListUsageLimitsPaginator(client, &redshiftserverless.ListUsageLimitsInput{})
 	return pageScan(ctx, "redshiftserverless:ListUsageLimits", acct, region, st, pager.HasMorePages,
 		func(ctx context.Context) (*redshiftserverless.ListUsageLimitsOutput, error) {
@@ -381,10 +381,10 @@ func scanRSSUsageLimits(ctx context.Context, client redshiftServerlessAPI, acct 
 // the call is not made. The row is identity-only: ScheduledActionAssociation
 // carries just the two names, and the schedule, target action and role would
 // need a GetScheduledAction per action, which is not called.
-func scanRSSScheduledActions(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) (int, int, error) {
+func scanRSSScheduledActions(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) (int, error) {
 	const op = "redshiftserverless:ListScheduledActions"
 	if len(namespaces) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	nsARN := parentARNByName(namespaces)
 	var children []containedChild
@@ -396,7 +396,7 @@ func scanRSSScheduledActions(ctx context.Context, client redshiftServerlessAPI, 
 				_ = skipIfAccessDenied(st, op, acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
+			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 		for _, a := range out.ScheduledActions {
 			name := sv(a.ScheduledActionName)
@@ -421,10 +421,10 @@ func scanRSSScheduledActions(ctx context.Context, client redshiftServerlessAPI, 
 // workgroups this scan stored; one whose workgroup was not stored cannot be
 // keyed and is skipped. With no stored workgroups nothing could be keyed, so
 // the call is not made.
-func scanRSSCustomDomainAssociations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, workgroups []childParent) (int, int, error) {
+func scanRSSCustomDomainAssociations(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, workgroups []childParent) (int, error) {
 	const op = "redshiftserverless:ListCustomDomainAssociations"
 	if len(workgroups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	wgARN := parentARNByName(workgroups)
 	var children []containedChild
@@ -436,7 +436,7 @@ func scanRSSCustomDomainAssociations(ctx context.Context, client redshiftServerl
 				_ = skipIfAccessDenied(st, op, acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
+			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 		for _, a := range out.Associations {
 			domain := sv(a.CustomDomainName)

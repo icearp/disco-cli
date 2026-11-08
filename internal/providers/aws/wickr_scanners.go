@@ -64,7 +64,7 @@ var wickrNetworkSkipCodes = []skipCode{
 
 // scanWickr discovers AWS Wickr networks with their security groups, bots,
 // network settings and users.
-func scanWickr(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWickr(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := wickr.NewFromConfig(acct.cfg, wickrClientOptions(region))
 	return scanWickrAll(ctx, client, acct, region, st, scanID)
 }
@@ -87,20 +87,20 @@ func wickrClientOptions(region string) func(*wickr.Options) {
 // are independent: each runs whatever the others returned, and their errors
 // are joined. Each tallies its transient errors per network, so no child
 // phase's error is transient and none needs demoteTransient.
-func scanWickrAll(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, networks, err := scanWickrNetworks(ctx, client, acct, region, st, scanID)
+func scanWickrAll(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, networks, err := scanWickrNetworks(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	var errs []error
-	for _, phase := range []func(context.Context, wickrAPI, *account, string, *store.Store, string, []childParent) (int, int, error){
+	for _, phase := range []func(context.Context, wickrAPI, *account, string, *store.Store, string, []childParent) (int, error){
 		scanWickrSecurityGroups, scanWickrBots, scanWickrNetworkSettings, scanWickrUsers,
 	} {
-		t, i, err := phase(ctx, client, acct, region, st, scanID, networks)
-		total, inserted = total+t, inserted+i
+		t, err := phase(ctx, client, acct, region, st, scanID, networks)
+		total += t
 		errs = append(errs, err)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, errors.Join(errs...)
 }
 
 // isWickrDenied reports an IAM denial: an AWS access-denied code, or
@@ -112,7 +112,7 @@ func isWickrDenied(err error) bool {
 // scanWickrNetworks stores the region's networks, NativeID = NetworkArn, and
 // returns the stored networks that carry a NetworkId as the parents of the
 // child phases.
-func scanWickrNetworks(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, networks []childParent, err error) {
+func scanWickrNetworks(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string) (total int, networks []childParent, err error) {
 	pager := wickr.NewListNetworksPaginator(client, &wickr.ListNetworksInput{}, func(o *wickr.ListNetworksPaginatorOptions) {
 		o.Limit = wickrPageLimit
 		o.StopOnDuplicateToken = true
@@ -122,9 +122,9 @@ func scanWickrNetworks(ctx context.Context, client wickrAPI, acct *account, regi
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isWickrDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, wickrListNetworksOp, acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, wickrListNetworksOp, acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("%s: %w", wickrListNetworksOp, err)
+			return 0, nil, fmt.Errorf("%s: %w", wickrListNetworksOp, err)
 		}
 		for _, n := range out.Networks {
 			arn := sv(n.NetworkArn)
@@ -141,11 +141,11 @@ func scanWickrNetworks(ctx context.Context, client wickrAPI, acct *account, regi
 			}
 		}
 	}
-	total, inserted, err = upsertBatch(st, batch, "wickr networks")
+	total, err = upsertBatch(st, batch, "wickr networks")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, networks, nil
+	return total, networks, nil
 }
 
 // wickrChildNativeID keys a network child under the network ARN: the API
@@ -162,8 +162,8 @@ func wickrChildNativeID(networkARN, kind, id string) string {
 // warning for all such networks, and anything else fails the phase; rows a
 // network stored before its error stay.
 func wickrChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, networks []childParent,
-	storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundError") }
 	return childFanOutStoredSkipCodes(ctx, st, acct, region, op, networks, isGone, byParentARN, "network(s)", wickrNetworkSkipCodes, storeChildren)
 }
@@ -173,32 +173,32 @@ func wickrChildFanOut(ctx context.Context, st *store.Store, acct *account, regio
 // page in memory.
 func wickrStorePages[Page any](ctx context.Context, st *store.Store, op, networkID string,
 	hasMore func() bool, next func(context.Context) (Page, error), rows func(Page) []*store.Resource,
-) (int, int, error) {
-	var total, inserted int
+) (int, error) {
+	var total int
 	for hasMore() {
 		page, err := next(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var children []containedChild
 		for _, r := range rows(page) {
 			children = append(children, containedChild{row: r, parentID: networkID})
 		}
-		t, i, err := upsertContained(st, op, children)
-		total, inserted = total+t, inserted+i
+		t, err := upsertContained(st, op, children)
+		total += t
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanWickrSecurityGroups stores each network's security groups. The default
 // group (IsDefault) is not provider-managed although DeleteSecurityGroup rejects
 // it: UpdateSecurityGroup changes its settings, which are customer posture.
-func scanWickrSecurityGroups(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
+func scanWickrSecurityGroups(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, error) {
 	return wickrChildFanOut(ctx, st, acct, region, wickrListSecurityGroupsOp, networks,
-		func(ctx context.Context, n childParent) (int, int, error) {
+		func(ctx context.Context, n childParent) (int, error) {
 			pager := wickr.NewListSecurityGroupsPaginator(client, &wickr.ListSecurityGroupsInput{NetworkId: sdkaws.String(n.id)},
 				func(o *wickr.ListSecurityGroupsPaginatorOptions) {
 					o.Limit = wickrPageLimit
@@ -226,9 +226,9 @@ func scanWickrSecurityGroups(ctx context.Context, client wickrAPI, acct *account
 }
 
 // scanWickrBots stores each network's bots.
-func scanWickrBots(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
+func scanWickrBots(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, error) {
 	return wickrChildFanOut(ctx, st, acct, region, wickrListBotsOp, networks,
-		func(ctx context.Context, n childParent) (int, int, error) {
+		func(ctx context.Context, n childParent) (int, error) {
 			pager := wickr.NewListBotsPaginator(client, &wickr.ListBotsInput{NetworkId: sdkaws.String(n.id)},
 				func(o *wickr.ListBotsPaginatorOptions) {
 					o.Limit = wickrPageLimit
@@ -263,12 +263,12 @@ func wickrNetworkSettingsNativeID(networkARN string) string {
 
 // scanWickrNetworkSettings stores the settings of each network that returns
 // any, one row per network holding the whole GetNetworkSettings body.
-func scanWickrNetworkSettings(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
+func scanWickrNetworkSettings(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, error) {
 	return wickrChildFanOut(ctx, st, acct, region, wickrGetNetworkSettingsOp, networks,
-		func(ctx context.Context, n childParent) (int, int, error) {
+		func(ctx context.Context, n childParent) (int, error) {
 			out, err := client.GetNetworkSettings(ctx, &wickr.GetNetworkSettingsInput{NetworkId: sdkaws.String(n.id)})
 			if err != nil || len(out.Settings) == 0 {
-				return 0, 0, err
+				return 0, err
 			}
 			return upsertContained(st, wickrGetNetworkSettingsOp, []containedChild{{
 				parentID: store.ResourceID("aws", acct.ID, n.arn),
@@ -283,9 +283,9 @@ func scanWickrNetworkSettings(ctx context.Context, client wickrAPI, acct *accoun
 
 // scanWickrUsers stores each network's users a page at a time, since a
 // network's user count has no small bound.
-func scanWickrUsers(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
+func scanWickrUsers(ctx context.Context, client wickrAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, error) {
 	return wickrChildFanOut(ctx, st, acct, region, wickrListUsersOp, networks,
-		func(ctx context.Context, n childParent) (int, int, error) {
+		func(ctx context.Context, n childParent) (int, error) {
 			pager := wickr.NewListUsersPaginator(client, &wickr.ListUsersInput{NetworkId: sdkaws.String(n.id)},
 				func(o *wickr.ListUsersPaginatorOptions) {
 					o.Limit = wickrPageLimit

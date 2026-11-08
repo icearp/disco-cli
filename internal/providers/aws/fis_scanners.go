@@ -25,23 +25,21 @@ type fisAPI interface {
 
 // scanFIS discovers FIS (Fault Injection Service) experiment templates and
 // per-template target-account configurations.
-func scanFIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := fis.NewFromConfig(acct.cfg, func(o *fis.Options) { o.Region = region })
 
-	templates, t, i, ferr := scanFISExperimentTemplates(ctx, client, acct, region, st, scanID)
+	templates, t, ferr := scanFISExperimentTemplates(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanFISTargetAccountConfigs(ctx, client, templates, acct, region, st, scanID)
+	t, ferr = scanFISTargetAccountConfigs(ctx, client, templates, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 type fisTemplateRef struct {
@@ -49,7 +47,7 @@ type fisTemplateRef struct {
 	ARN string
 }
 
-func scanFISExperimentTemplates(ctx context.Context, client fisAPI, acct *account, region string, st *store.Store, scanID string) ([]fisTemplateRef, int, int, error) {
+func scanFISExperimentTemplates(ctx context.Context, client fisAPI, acct *account, region string, st *store.Store, scanID string) ([]fisTemplateRef, int, error) {
 	var batch []*store.Resource
 	var refs []fisTemplateRef
 	var nextToken *string
@@ -57,9 +55,9 @@ func scanFISExperimentTemplates(ctx context.Context, client fisAPI, acct *accoun
 		out, err := client.ListExperimentTemplates(ctx, &fis.ListExperimentTemplatesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "fis:ListExperimentTemplates", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "fis:ListExperimentTemplates", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("fis:ListExperimentTemplates: %w", err)
+			return nil, 0, fmt.Errorf("fis:ListExperimentTemplates: %w", err)
 		}
 		for _, t := range out.ExperimentTemplates {
 			arn := sv(t.Arn)
@@ -80,11 +78,11 @@ func scanFISExperimentTemplates(ctx context.Context, client fisAPI, acct *accoun
 		}
 		nextToken = out.NextToken
 	}
-	t, i, err := upsertBatch(st, batch, "fis experiment-templates")
-	return refs, t, i, err
+	t, err := upsertBatch(st, batch, "fis experiment-templates")
+	return refs, t, err
 }
 
-func scanFISTargetAccountConfigs(ctx context.Context, client fisAPI, templates []fisTemplateRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFISTargetAccountConfigs(ctx context.Context, client fisAPI, templates []fisTemplateRef, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, tpl := range templates {
 		tplID := tpl.ID
@@ -102,7 +100,7 @@ func scanFISTargetAccountConfigs(ctx context.Context, client fisAPI, templates [
 				if isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("fis:ListTargetAccountConfigurations t=%s: %w", tplID, err)
+				return 0, fmt.Errorf("fis:ListTargetAccountConfigurations t=%s: %w", tplID, err)
 			}
 			for _, c := range out.TargetAccountConfigurations {
 				accountID := sv(c.AccountId)

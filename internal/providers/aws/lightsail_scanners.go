@@ -92,66 +92,65 @@ const (
 // which would fail every later phase too; the errors are joined by phaseErrs.
 // The TLS-certificate and access-key phases fan out over the load balancers
 // and buckets the earlier phases stored.
-func scanLightsail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLightsail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := lightsail.NewFromConfig(acct.cfg, func(o *lightsail.Options) { o.Region = region })
 	return scanLightsailWith(ctx, client, acct, region, st, scanID)
 }
 
-func scanLightsailWith(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLightsailWith(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var (
 		lbNames []string
 		buckets []childParent
 	)
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{lsGetInstancesOp, func() (int, int, error) { return scanLightsailInstances(ctx, client, acct, region, st, scanID) }},
-		{lsGetRelationalDatabasesOp, func() (int, int, error) { return scanLightsailDatabases(ctx, client, acct, region, st, scanID) }},
-		{lsGetContainerServicesOp, func() (int, int, error) {
+		{lsGetInstancesOp, func() (int, error) { return scanLightsailInstances(ctx, client, acct, region, st, scanID) }},
+		{lsGetRelationalDatabasesOp, func() (int, error) { return scanLightsailDatabases(ctx, client, acct, region, st, scanID) }},
+		{lsGetContainerServicesOp, func() (int, error) {
 			return scanLightsailContainerServices(ctx, client, acct, region, st, scanID)
 		}},
-		{lsGetLoadBalancersOp, func() (t, i int, err error) {
-			lbNames, t, i, err = scanLSLoadBalancers(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{lsGetLoadBalancersOp, func() (t int, err error) {
+			lbNames, t, err = scanLSLoadBalancers(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{lsGetAlarmsOp, func() (int, int, error) { return scanLSAlarms(ctx, client, acct, region, st, scanID) }},
-		{lsGetBucketsOp, func() (t, i int, err error) {
-			buckets, t, i, err = scanLSBuckets(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{lsGetAlarmsOp, func() (int, error) { return scanLSAlarms(ctx, client, acct, region, st, scanID) }},
+		{lsGetBucketsOp, func() (t int, err error) {
+			buckets, t, err = scanLSBuckets(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{lsGetCertificatesOp, func() (int, int, error) { return scanLSCertificates(ctx, client, acct, region, st, scanID) }},
-		{lsGetRelationalDatabaseSnapshotsOp, func() (int, int, error) {
+		{lsGetCertificatesOp, func() (int, error) { return scanLSCertificates(ctx, client, acct, region, st, scanID) }},
+		{lsGetRelationalDatabaseSnapshotsOp, func() (int, error) {
 			return scanLSDatabaseSnapshots(ctx, client, acct, region, st, scanID)
 		}},
-		{lsGetDisksOp, func() (int, int, error) { return scanLSDisks(ctx, client, acct, region, st, scanID) }},
-		{lsGetDiskSnapshotsOp, func() (int, int, error) { return scanLSDiskSnapshots(ctx, client, acct, region, st, scanID) }},
-		{lsGetDistributionsOp, func() (int, int, error) { return scanLSDistributions(ctx, client, acct, region, st, scanID) }},
-		{lsGetDomainsOp, func() (int, int, error) { return scanLSDomains(ctx, client, acct, region, st, scanID) }},
-		{lsGetInstanceSnapshotsOp, func() (int, int, error) {
+		{lsGetDisksOp, func() (int, error) { return scanLSDisks(ctx, client, acct, region, st, scanID) }},
+		{lsGetDiskSnapshotsOp, func() (int, error) { return scanLSDiskSnapshots(ctx, client, acct, region, st, scanID) }},
+		{lsGetDistributionsOp, func() (int, error) { return scanLSDistributions(ctx, client, acct, region, st, scanID) }},
+		{lsGetDomainsOp, func() (int, error) { return scanLSDomains(ctx, client, acct, region, st, scanID) }},
+		{lsGetInstanceSnapshotsOp, func() (int, error) {
 			return scanLSInstanceSnapshots(ctx, client, acct, region, st, scanID)
 		}},
-		{lsGetLoadBalancerTLSCertsOp, func() (int, int, error) {
+		{lsGetLoadBalancerTLSCertsOp, func() (int, error) {
 			return scanLSLBTlsCertificates(ctx, client, acct, region, st, scanID, lbNames)
 		}},
-		{lsGetStaticIpsOp, func() (int, int, error) { return scanLSStaticIps(ctx, client, acct, region, st, scanID) }},
-		{lsGetKeyPairsOp, func() (int, int, error) { return scanLSKeyPairs(ctx, client, acct, region, st, scanID) }},
-		{lsGetContactMethodsOp, func() (int, int, error) { return scanLSContactMethods(ctx, client, acct, region, st, scanID) }},
-		{lsGetBucketAccessKeysOp, func() (int, int, error) {
+		{lsGetStaticIpsOp, func() (int, error) { return scanLSStaticIps(ctx, client, acct, region, st, scanID) }},
+		{lsGetKeyPairsOp, func() (int, error) { return scanLSKeyPairs(ctx, client, acct, region, st, scanID) }},
+		{lsGetContactMethodsOp, func() (int, error) { return scanLSContactMethods(ctx, client, acct, region, st, scanID) }},
+		{lsGetBucketAccessKeysOp, func() (int, error) {
 			return scanLSBucketAccessKeys(ctx, client, acct, region, st, scanID, buckets)
 		}},
 	}
 	var errs phaseErrs
 	for _, p := range phases {
-		t, i, perr := p.run()
+		t, perr := p.run()
 		total += t
-		inserted += i
 		errs.add(p.op, perr)
 		if errors.Is(perr, store.ErrStoreWrite) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // lsList reads every page of a Lightsail Get* list op (manual pageToken
@@ -167,7 +166,7 @@ func lsList[O, E any](
 	get func(ctx context.Context, token *string) (O, error),
 	page func(O) (items []E, next *string),
 	row func(E) *store.Resource,
-) (stored []E, total, inserted int, err error) {
+) (stored []E, total int, err error) {
 	var (
 		listed  []E
 		batch   []*store.Resource
@@ -205,8 +204,8 @@ func lsList[O, E any](
 		token = next
 	}
 	warnNotStored(st, op, acct, region, &noARN, what+" have no ARN")
-	total, inserted, err = upsertListed(st, batch, op, listErr)
-	return listed, total, inserted, err
+	total, err = upsertListed(st, batch, op, listErr)
+	return listed, total, err
 }
 
 // lsWarnDenied warns once, scoped to the account and region, for every key of
@@ -233,8 +232,8 @@ func lsTagsJSON(tags []lightsailtypes.Tag) *string {
 	return kvTagsJSON(tags, func(t lightsailtypes.Tag) (*string, *string) { return t.Key, t.Value })
 }
 
-func scanLightsailInstances(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, t, i, err := lsList(ctx, st, acct, region, lsGetInstancesOp, "instances",
+func scanLightsailInstances(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, t, err := lsList(ctx, st, acct, region, lsGetInstancesOp, "instances",
 		func(ctx context.Context, token *string) (*lightsail.GetInstancesOutput, error) {
 			return client.GetInstances(ctx, &lightsail.GetInstancesInput{PageToken: token})
 		},
@@ -248,11 +247,11 @@ func scanLightsailInstances(ctx context.Context, client lightsailAPI, acct *acco
 			}
 			return r
 		})
-	return t, i, err
+	return t, err
 }
 
-func scanLightsailDatabases(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, t, i, err := lsList(ctx, st, acct, region, lsGetRelationalDatabasesOp, "databases",
+func scanLightsailDatabases(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, t, err := lsList(ctx, st, acct, region, lsGetRelationalDatabasesOp, "databases",
 		func(ctx context.Context, token *string) (*lightsail.GetRelationalDatabasesOutput, error) {
 			return client.GetRelationalDatabases(ctx, &lightsail.GetRelationalDatabasesInput{PageToken: token})
 		},
@@ -264,12 +263,12 @@ func scanLightsailDatabases(ctx context.Context, client lightsailAPI, acct *acco
 			r.Status = nonEmptyPtr(sv(e.State))
 			return r
 		})
-	return t, i, err
+	return t, err
 }
 
 // scanLightsailContainerServices: GetContainerServices is not paginated.
-func scanLightsailContainerServices(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, t, i, err := lsList(ctx, st, acct, region, lsGetContainerServicesOp, "container services",
+func scanLightsailContainerServices(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, t, err := lsList(ctx, st, acct, region, lsGetContainerServicesOp, "container services",
 		func(ctx context.Context, _ *string) (*lightsail.GetContainerServicesOutput, error) {
 			return client.GetContainerServices(ctx, &lightsail.GetContainerServicesInput{})
 		},
@@ -281,5 +280,5 @@ func scanLightsailContainerServices(ctx context.Context, client lightsailAPI, ac
 			r.Status = nonEmptyPtr(string(e.State))
 			return r
 		})
-	return t, i, err
+	return t, err
 }

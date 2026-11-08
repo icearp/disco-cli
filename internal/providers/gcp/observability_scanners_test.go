@@ -51,7 +51,9 @@ func TestScanLoggingBuckets_BucketLinkViewFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeLoggingService(t, srv)
 
-	bucketIDs, total, inserted, err := scanLoggingBuckets(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	bucketIDs, total, err := scanLoggingBuckets(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanLoggingBuckets: %v", err)
 	}
@@ -62,14 +64,18 @@ func TestScanLoggingBuckets_BucketLinkViewFanout(t *testing.T) {
 		t.Fatalf("bucketIDs: got %v, want 2 entries", bucketIDs)
 	}
 
-	total, inserted, err = scanLoggingBucketLinks(t.Context(), svc, p, bucketIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanLoggingBucketLinks(t.Context(), svc, p, bucketIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanLoggingBucketLinks: %v", err)
 	}
 	if total != 1 || inserted != 1 {
 		t.Fatalf("link counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	total, inserted, err = scanLoggingBucketViews(t.Context(), svc, p, bucketIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanLoggingBucketViews(t.Context(), svc, p, bucketIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanLoggingBucketViews: %v", err)
 	}
@@ -149,7 +155,9 @@ func TestScanLoggingBucketLinks_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeLoggingService(t, srv)
 
-	total, inserted, err := scanLoggingBucketLinks(t.Context(), svc, p, []string{b1Native, b2Native}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanLoggingBucketLinks(t.Context(), svc, p, []string{b1Native, b2Native}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanLoggingBucketLinks: %v", err)
 	}
@@ -200,9 +208,11 @@ func TestScanLoggingFlatPhases_Basic(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeLoggingService(t, srv)
 
-	check := func(label string, fn func() (int, int, error)) {
+	check := func(label string, fn func(st *store.Store) (int, error)) {
 		t.Helper()
-		total, inserted, err := fn()
+		counted, upserts := countUpserts(st)
+		total, err := fn(counted)
+		inserted := upserts()
 		if err != nil {
 			t.Fatalf("%s: %v", label, err)
 		}
@@ -210,11 +220,13 @@ func TestScanLoggingFlatPhases_Basic(t *testing.T) {
 			t.Errorf("%s counts: got total=%d inserted=%d, want 1/1", label, total, inserted)
 		}
 	}
-	check("sinks", func() (int, int, error) { return scanLoggingSinks(t.Context(), svc, p, st, testScanID) })
-	check("exclusions", func() (int, int, error) { return scanLoggingExclusions(t.Context(), svc, p, st, testScanID) })
-	check("metrics", func() (int, int, error) { return scanLoggingMetrics(t.Context(), svc, p, st, testScanID) })
-	check("logScopes", func() (int, int, error) { return scanLoggingLogScopes(t.Context(), svc, p, st, testScanID) })
-	check("savedQueries", func() (int, int, error) { return scanLoggingSavedQueries(t.Context(), svc, p, st, testScanID) })
+	check("sinks", func(st *store.Store) (int, error) { return scanLoggingSinks(t.Context(), svc, p, st, testScanID) })
+	check("exclusions", func(st *store.Store) (int, error) { return scanLoggingExclusions(t.Context(), svc, p, st, testScanID) })
+	check("metrics", func(st *store.Store) (int, error) { return scanLoggingMetrics(t.Context(), svc, p, st, testScanID) })
+	check("logScopes", func(st *store.Store) (int, error) { return scanLoggingLogScopes(t.Context(), svc, p, st, testScanID) })
+	check("savedQueries", func(st *store.Store) (int, error) {
+		return scanLoggingSavedQueries(t.Context(), svc, p, st, testScanID)
+	})
 
 	// Metric.Name may contain "/" (SDK example: "nginx/requests") — NativeID
 	// must come from the SDK-populated, already-URL-encoded ResourceName,
@@ -237,7 +249,9 @@ func TestScanLoggingBuckets_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeLoggingService(t, srv)
 
-	bucketIDs, total, inserted, err := scanLoggingBuckets(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	bucketIDs, total, err := scanLoggingBuckets(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanLoggingBuckets (denied): expected nil error, got %v", err)
 	}

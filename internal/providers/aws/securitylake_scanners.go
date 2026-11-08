@@ -75,7 +75,7 @@ const (
 //
 // AWS::SecurityLake::SubscriberNotification is skipped: the SDK exposes only
 // Create/Delete/Update, no list endpoint.
-func scanSecurityLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecurityLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := securitylake.NewFromConfig(acct.cfg, func(o *securitylake.Options) { o.Region = region })
 	return scanSecurityLakeWith(ctx, client, acct, region, st, scanID)
 }
@@ -87,19 +87,19 @@ func scanSecurityLake(ctx context.Context, acct *account, region string, st *sto
 // errors are joined by phaseErrs under their own ops: a transient one alone, or
 // beside transient ones only, marks the scan partial; beside a hard one it is
 // demoted to a warning under the op that failed.
-func scanSecurityLakeWith(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, storedLakes, err := scanSLDataLakes(ctx, client, acct, region, st, scanID)
+func scanSecurityLakeWith(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, storedLakes, err := scanSLDataLakes(ctx, client, acct, region, st, scanID)
 	if errors.Is(err, errServiceDisabled) {
-		return total, inserted, err
+		return total, err
 	}
 	var subsErr error
 	if err == nil || isDemotableTransient(err) {
-		var t, i int
-		t, i, subsErr = scanSLSubscribers(ctx, client, acct, region, st, scanID)
-		total, inserted = total+t, inserted+i
+		var t int
+		t, subsErr = scanSLSubscribers(ctx, client, acct, region, st, scanID)
+		total += t
 	}
-	t, i, derr, lerr := scanSLDataLakeSources(ctx, client, acct, region, st, scanID, storedLakes)
-	total, inserted = total+t, inserted+i
+	t, derr, lerr := scanSLDataLakeSources(ctx, client, acct, region, st, scanID, storedLakes)
+	total += t
 	// The dispatcher reads the not-enabled sentinel ahead of a hard error and
 	// discards every count with it, so it stands only when no other phase
 	// stored a row or failed; otherwise the subscribers' answer is a warning.
@@ -115,23 +115,23 @@ func scanSecurityLakeWith(ctx context.Context, client securityLakeAPI, acct *acc
 	errs.add(slSubscribersOp, subsErr)
 	errs.add(slDataLakeSourcesOp, derr)
 	errs.add(slLogSourcesOp, lerr)
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // scanSLDataLakes stores the region's data lakes and returns the ARNs it
 // stored, so the source phase links only to data lake rows that exist. The
 // set is nil when the listing or the upsert failed, which tells a data lake
 // ListDataLakes did not list apart from one it could not be asked about.
-func scanSLDataLakes(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
+func scanSLDataLakes(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, map[string]bool, error) {
 	out, err := client.ListDataLakes(ctx, &securitylake.ListDataLakesInput{Regions: []string{region}})
 	if err != nil {
 		if isSecurityLakeNotEnabled(err) {
-			return 0, 0, nil, markServiceDisabled(err)
+			return 0, nil, markServiceDisabled(err)
 		}
 		if isAccessDenied(err) {
-			return 0, 0, nil, skipIfAccessDenied(st, slDataLakesOp, acct.ID, region, err)
+			return 0, nil, skipIfAccessDenied(st, slDataLakesOp, acct.ID, region, err)
 		}
-		return 0, 0, nil, fmt.Errorf("%s: %w", slDataLakesOp, err)
+		return 0, nil, fmt.Errorf("%s: %w", slDataLakesOp, err)
 	}
 	stored := map[string]bool{}
 	var batch []*store.Resource
@@ -150,26 +150,26 @@ func scanSLDataLakes(ctx context.Context, client securityLakeAPI, acct *account,
 		})
 		stored[arn] = true
 	}
-	total, inserted, err := upsertBatch(st, batch, "securitylake data-lakes")
+	total, err := upsertBatch(st, batch, "securitylake data-lakes")
 	if err != nil {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, stored, nil
+	return total, stored, nil
 }
 
-func scanSLSubscribers(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSLSubscribers(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securitylake.NewListSubscribersPaginator(client, &securitylake.ListSubscribersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSecurityLakeNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, slSubscribersOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, slSubscribersOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", slSubscribersOp, err)
+			return 0, fmt.Errorf("%s: %w", slSubscribersOp, err)
 		}
 		for _, s := range out.Subscribers {
 			arn := sv(s.SubscriberArn)
@@ -236,7 +236,7 @@ type slListedSource struct {
 // scan is a version split. A ListLogSources entry that matches no stored row
 // is reported too: by name after a complete GetDataLakeSources listing, and
 // counted under GetDataLakeSources after one cut short.
-func scanSLDataLakeSources(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string, storedLakes map[string]bool) (total, inserted int, err, logErr error) {
+func scanSLDataLakeSources(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string, storedLakes map[string]bool) (total int, err, logErr error) {
 	listed, complete, err := listSLDataLakeSources(ctx, client, acct, region, st)
 	logSources, logErr := listSLLogSources(ctx, client, acct, region, st)
 
@@ -295,8 +295,8 @@ func scanSLDataLakeSources(ctx context.Context, client securityLakeAPI, acct *ac
 	if logSources != nil {
 		logSources.reportUnmatched(st, acct, region, matched, complete)
 	}
-	total, inserted, err = upsertRegionChildren(st, acct, region, slDataLakeSourcesOp, children, err)
-	return total, inserted, err, logErr
+	total, err = upsertRegionChildren(st, acct, region, slDataLakeSourcesOp, children, err)
+	return total, err, logErr
 }
 
 // sortedSLLogSources copies a row's entries in a fixed order, AWS-native

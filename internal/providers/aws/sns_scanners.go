@@ -60,48 +60,45 @@ type snsAPI interface {
 // rows. Each phase's transient error is demoted to a warning only beside a hard
 // error: joined, it would be buried in the hard error instead of reported under
 // its op; the rest are joined and the counts summed.
-func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := sns.NewFromConfig(acct.cfg, func(o *sns.Options) { o.Region = region })
-	total, inserted, err := scanSNSTopicPhases(ctx, client, acct, region, st, scanID)
+	total, err := scanSNSTopicPhases(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add("sns", err)
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{snsListPlatformApplicationsOp, func() (int, int, error) {
+		{snsListPlatformApplicationsOp, func() (int, error) {
 			return scanSNSPlatformApplications(ctx, client, acct, region, st, scanID)
 		}},
-		{snsListOriginationNumbersOp, func() (int, int, error) {
+		{snsListOriginationNumbersOp, func() (int, error) {
 			return scanSNSOriginationNumbers(ctx, client, acct, region, st, scanID)
 		}},
 	} {
-		t, i, perr := phase.run()
+		t, perr := phase.run()
 		total += t
-		inserted += i
 		errs.add(phase.op, perr)
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // scanSNSTopicPhases runs the topic phase, then the subscription and topic
 // policy phases, stopping at the first error. ListTopics returns only ARNs;
 // GetTopicAttributes runs concurrently to fetch the attributes map
 // (KmsMasterKeyId, RedrivePolicy, etc.) the resolver needs.
-func scanSNSTopicPhases(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanSNSTopics(ctx, client, acct, region, st, scanID)
+func scanSNSTopicPhases(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	t, ferr := scanSNSTopics(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	t, i, ferr = scanSNSExtended(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSNSExtended(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSNSTopics is the testable scan body: depends only on the narrow snsAPI
@@ -111,11 +108,11 @@ func scanSNSTopicPhases(ctx context.Context, client snsAPI, acct *account, regio
 // A denied GetTopicAttributes drops that topic and warns once for the phase.
 // pageScanConcurrent warns only for the shared denial codes, so SNS's own
 // AuthorizationError from ListTopics is mapped to a warning here.
-func scanSNSTopics(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNSTopics(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const listOp = "sns:ListTopics"
 	p := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
 	var denyOnce sync.Once
-	total, inserted, err := pageScanConcurrent(ctx, listOp, acct, region, st,
+	total, err := pageScanConcurrent(ctx, listOp, acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*sns.ListTopicsOutput, error) { return p.NextPage(c) },
 		func(o *sns.ListTopicsOutput) []string {
@@ -147,9 +144,9 @@ func scanSNSTopics(ctx context.Context, client snsAPI, acct *account, region str
 			}, nil
 		}, 0)
 	if isSNSDenied(err) {
-		return total, inserted, skipIfAccessDenied(st, listOp, acct.ID, region, err)
+		return total, skipIfAccessDenied(st, listOp, acct.ID, region, err)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // isSNSDenied reports an IAM denial. SNS answers one with its own modeled
@@ -168,26 +165,25 @@ func isSNSDenied(err error) bool {
 func snsListPages[Page any](
 	ctx context.Context, st *store.Store, acct *account, region, op string,
 	hasMore func() bool, next func(context.Context) (Page, error), rows func(Page) []*store.Resource,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	for first := true; hasMore(); first = false {
 		page, err := next(ctx)
 		if err != nil {
 			switch {
 			case isSNSDenied(err):
-				return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, err)
+				return total, skipIfAccessDenied(st, op, acct.ID, region, err)
 			case first && isOpNotDeployed(err):
-				return total, inserted, nil
+				return total, nil
 			}
-			return total, inserted, fmt.Errorf("%s: %w", op, err)
+			return total, fmt.Errorf("%s: %w", op, err)
 		}
-		t, i, err := upsertBatch(st, rows(page), op)
+		t, err := upsertBatch(st, rows(page), op)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // snsPlatformApplicationName is the application name, the last segment of
@@ -199,7 +195,7 @@ func snsPlatformApplicationName(arn string) string {
 // scanSNSPlatformApplications stores the mobile push platform applications.
 // The listing carries each application's attributes; the descriptor's redact
 // rules keep any push credential out of the store.
-func scanSNSPlatformApplications(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNSPlatformApplications(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := sns.NewListPlatformApplicationsPaginator(client, &sns.ListPlatformApplicationsInput{},
 		func(o *sns.ListPlatformApplicationsPaginatorOptions) { o.StopOnDuplicateToken = true })
 	return snsListPages(ctx, st, acct, region, snsListPlatformApplicationsOp, p.HasMorePages,
@@ -235,7 +231,7 @@ func snsOriginationNumberNativeID(partition, region, accountID, phoneNumber stri
 
 // scanSNSOriginationNumbers stores the account's dedicated SMS origination
 // numbers.
-func scanSNSOriginationNumbers(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNSOriginationNumbers(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := sns.NewListOriginationNumbersPaginator(client, &sns.ListOriginationNumbersInput{},
 		func(o *sns.ListOriginationNumbersPaginatorOptions) {
 			o.Limit = snsOriginationNumbersPageLimit

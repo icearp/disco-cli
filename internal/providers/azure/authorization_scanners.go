@@ -42,25 +42,24 @@ func init() {
 // tenant-scoped but returned by the subscription-scoped list call; they are
 // stored under each subscription's account_id (acceptable duplication — the
 // ResourceID hash differs, so per-sub resolvers still FK-match locally).
-func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	// Role definitions first so the resolver can FK from assignments.
 	defClient, err := armauthorization.NewRoleDefinitionsClient(cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armauthorization:NewRoleDefinitionsClient: %w", err)
+		return 0, fmt.Errorf("armauthorization:NewRoleDefinitionsClient: %w", err)
 	}
-	dt, di, err := scanRoleDefinitionsInto(ctx, sub, st, scanID, defClient)
+	dt, err := scanRoleDefinitionsInto(ctx, sub, st, scanID, defClient)
 	total += dt
-	inserted += di
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Role assignments.
 	asnClient, err := armauthorization.NewRoleAssignmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return total, inserted, fmt.Errorf("armauthorization:NewRoleAssignmentsClient: %w", err)
+		return total, fmt.Errorf("armauthorization:NewRoleAssignmentsClient: %w", err)
 	}
-	at, ai, err := azPageScan(ctx, "armauthorization:RoleAssignments.ListForSubscription", sub, st,
+	at, err := azPageScan(ctx, "armauthorization:RoleAssignments.ListForSubscription", sub, st,
 		asnClient.NewListForSubscriptionPager(nil),
 		func(page armauthorization.RoleAssignmentsClientListForSubscriptionResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -80,8 +79,7 @@ func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.Token
 			return batch, nil
 		})
 	total += at
-	inserted += ai
-	return total, inserted, err
+	return total, err
 }
 
 // scanRoleDefinitionsInto lists role definitions visible from the subscription
@@ -89,7 +87,7 @@ func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.Token
 // roles — those are deduplicated under the tenant account by
 // scanAuthorizationBuiltins — so only custom roles persist per-sub. Testable
 // core (takes a pre-built client).
-func scanRoleDefinitionsInto(ctx context.Context, sub *subscription, st *store.Store, scanID string, client *armauthorization.RoleDefinitionsClient) (total, inserted int, err error) {
+func scanRoleDefinitionsInto(ctx context.Context, sub *subscription, st *store.Store, scanID string, client *armauthorization.RoleDefinitionsClient) (total int, err error) {
 	subScope := "/subscriptions/" + sub.ID
 	return azPageScan(ctx, "armauthorization:RoleDefinitions.List", sub, st,
 		client.NewListPager(subScope, nil),
@@ -127,10 +125,10 @@ func scanRoleDefinitionsInto(ctx context.Context, sub *subscription, st *store.S
 // scanAuthorizationNamespace runs every Microsoft.authorization scanner phase concurrently. The
 // authorization ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanAuthorization(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanPolicy(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanAuthorization(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanPolicy(ctx, sub, cred, st, scanID) },
 	)
 }
 
@@ -138,14 +136,13 @@ func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred azc
 // (role, policy, policy-set) once per scan and stores them under the tenant GUID.
 // No-ops when the tenant GUID is unavailable — the per-sub scanners then keep
 // storing built-ins under each subscription (current behavior, no data loss).
-func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total int, err error) {
 	if len(subs) == 0 || subs[0].tenantID == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	tenantID := subs[0].tenantID
-	add := func(t, i int, e error) {
+	add := func(t int, e error) {
 		total += t
-		inserted += i
 		if e != nil && err == nil {
 			err = e
 		}
@@ -159,14 +156,14 @@ func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred az
 	// per-sub error is surfaced only when NO subscription yielded built-ins.
 	defClient, derr := armauthorization.NewRoleDefinitionsClient(cred, azClientOptions)
 	if derr != nil {
-		return total, inserted, fmt.Errorf("armauthorization:NewRoleDefinitionsClient: %w", derr)
+		return total, fmt.Errorf("armauthorization:NewRoleDefinitionsClient: %w", derr)
 	}
-	var roleTotal, roleIns int
+	var roleTotal int
 	var roleErr error
 	for i := range subs {
-		rt, ri, rerr := scanBuiltinRoleDefsInto(ctx, "/subscriptions/"+subs[i].ID, tenantID, st, scanID, defClient)
+		rt, rerr := scanBuiltinRoleDefsInto(ctx, "/subscriptions/"+subs[i].ID, tenantID, st, scanID, defClient)
 		if rerr == nil && rt > 0 {
-			roleTotal, roleIns, roleErr = rt, ri, nil
+			roleTotal, roleErr = rt, nil
 			break
 		}
 		if rerr != nil {
@@ -174,7 +171,6 @@ func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred az
 		}
 	}
 	total += roleTotal
-	inserted += roleIns
 	if roleTotal == 0 && roleErr != nil {
 		err = roleErr
 	}
@@ -183,24 +179,24 @@ func scanAuthorizationBuiltins(ctx context.Context, subs []subscription, cred az
 	// scope needed); the client ctor still wants a subscription ID.
 	polClient, perr := armpolicy.NewDefinitionsClient(subs[0].ID, cred, azClientOptions)
 	if perr != nil {
-		return total, inserted, fmt.Errorf("armpolicy:NewDefinitionsClient: %w", perr)
+		return total, fmt.Errorf("armpolicy:NewDefinitionsClient: %w", perr)
 	}
 	add(scanBuiltinPolicyDefsInto(ctx, tenantID, st, scanID, polClient))
 
 	setClient, serr := armpolicy.NewSetDefinitionsClient(subs[0].ID, cred, azClientOptions)
 	if serr != nil {
-		return total, inserted, fmt.Errorf("armpolicy:NewSetDefinitionsClient: %w", serr)
+		return total, fmt.Errorf("armpolicy:NewSetDefinitionsClient: %w", serr)
 	}
 	add(scanBuiltinPolicySetDefsInto(ctx, tenantID, st, scanID, setClient))
 
-	return total, inserted, err
+	return total, err
 }
 
 // scanBuiltinRoleDefsInto lists built-in role definitions at subScope and stores
 // them under accountID with a scope-free NativeID (roleDefSuffix), so the
 // resolver FKs assignments to the single tenant copy regardless of each
 // assignment's scope prefix. Testable core (takes a pre-built client).
-func scanBuiltinRoleDefsInto(ctx context.Context, subScope, accountID string, st *store.Store, scanID string, client *armauthorization.RoleDefinitionsClient) (total, inserted int, err error) {
+func scanBuiltinRoleDefsInto(ctx context.Context, subScope, accountID string, st *store.Store, scanID string, client *armauthorization.RoleDefinitionsClient) (total int, err error) {
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
 	filter := "type eq 'BuiltInRole'"
 	return azPageScan(ctx, "armauthorization:RoleDefinitions.List", scopeRef, st,
@@ -237,7 +233,7 @@ func scanBuiltinRoleDefsInto(ctx context.Context, subScope, accountID string, st
 // scanBuiltinPolicyDefsInto lists built-in policy definitions (tenant-level) and
 // stores them under accountID. Their ARM IDs are already scope-free, so the
 // NativeID is stored verbatim. Testable core.
-func scanBuiltinPolicyDefsInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armpolicy.DefinitionsClient) (total, inserted int, err error) {
+func scanBuiltinPolicyDefsInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armpolicy.DefinitionsClient) (total int, err error) {
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
 	return azPageScan(ctx, "armpolicy:Definitions.ListBuiltIn", scopeRef, st,
 		client.NewListBuiltInPager(nil),
@@ -264,7 +260,7 @@ func scanBuiltinPolicyDefsInto(ctx context.Context, accountID string, st *store.
 
 // scanBuiltinPolicySetDefsInto lists built-in policy set definitions
 // (tenant-level) and stores them under accountID. Testable core.
-func scanBuiltinPolicySetDefsInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armpolicy.SetDefinitionsClient) (total, inserted int, err error) {
+func scanBuiltinPolicySetDefsInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armpolicy.SetDefinitionsClient) (total int, err error) {
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
 	return azPageScan(ctx, "armpolicy:SetDefinitions.ListBuiltIn", scopeRef, st,
 		client.NewListBuiltInPager(nil),

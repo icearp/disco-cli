@@ -224,7 +224,7 @@ func wsTagHandlers(c *wsTagCalls) map[string]func(in any) (any, error) {
 
 // wsTagScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func wsTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func wsTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wsDenied)
 	return scanWorkSpaces(ctx, acct, testRegion, st, testScanID)
@@ -252,7 +252,9 @@ func TestScanWorkSpaces_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newWSTagCalls()
 
-	total, inserted, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := wsTagScan(context.Background(), counted, wsTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -342,7 +344,9 @@ func TestScanWorkSpaces_EmptyListings(t *testing.T) {
 	} {
 		h[op] = func(any) (any, error) { return out, nil }
 	}
-	total, inserted, err := wsTagScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := wsTagScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -359,16 +363,16 @@ func TestScanWorkSpaces_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanWorkSpaces_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls())); err != nil {
+	if _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls()))
+	total, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -420,7 +424,7 @@ func TestScanWorkSpaces_TagReadFailures(t *testing.T) {
 			id, arn := c.k.id("tagged"), c.k.arn("tagged")
 			calls.errs[id] = c.err
 
-			total, _, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+			total, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -471,7 +475,7 @@ func TestScanWorkSpaces_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.id("bare")] = wsDenied
 	}
 
-	total, _, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+	total, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -502,7 +506,7 @@ func TestScanWorkSpaces_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[wsKindOf(t, "DescribeWorkspacesPools").id("tagged")] = wsThrottled
 	calls.errs[wsKindOf(t, "DescribeIpGroups").id("bare")] = wsInvalid
 
-	_, _, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+	_, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, wsTestInvalid)
 	if *warns != 1 {
@@ -521,7 +525,7 @@ func TestScanWorkSpaces_FailedWriteStopsScan(t *testing.T) {
 	k := wsKindOf(t, "DescribeWorkspaceBundles")
 	calls.errs[k.id("tagged")] = wsDenied
 
-	total, _, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+	total, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -555,7 +559,7 @@ func TestScanWorkSpaces_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := wsKindOf(t, op)
 			handlers[k.op] = failOnCall(2, wsInvalid, handlers[k.op])
 
-			total, _, err := wsTagScan(context.Background(), st, handlers)
+			total, err := wsTagScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, wsTestInvalid)
 			if total != wsTestStored-1 {
@@ -589,7 +593,7 @@ func TestScanWorkSpaces_RepeatedTokenKeepsPages(t *testing.T) {
 		}
 		return k.wrap(k.elem(k.arn(suffix), k.id(suffix), k.name(suffix)), sdkaws.String("same")), nil
 	}
-	total, _, err := wsTagScan(context.Background(), st, handlers)
+	total, err := wsTagScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -620,7 +624,7 @@ func TestScanWorkSpaces_ElementWithoutIDWarns(t *testing.T) {
 				elem := wsWithoutID(t, k.elem("", "", name))
 				handlers[k.op] = func(any) (any, error) { return k.wrap(elem, nil), nil }
 
-				total, _, err := wsTagScan(context.Background(), st, handlers)
+				total, err := wsTagScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -695,7 +699,7 @@ func TestScanWorkSpaces_AmazonBundleNotTagRead(t *testing.T) {
 		b.Owner = sdkaws.String("AMAZON")
 		return k.wrap(b, nil), nil
 	}
-	if _, _, err := wsTagScan(context.Background(), st, handlers); err != nil {
+	if _, err := wsTagScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, k.typ)
@@ -774,7 +778,7 @@ func TestScanWorkSpaces_SharedInRowsReadUnderOwner(t *testing.T) {
 					slices.Sort(wantWarns)
 				}
 
-				total, _, err := wsTagScan(context.Background(), st, handlers)
+				total, err := wsTagScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -840,7 +844,7 @@ func TestScanWorkSpaces_PartitionRows(t *testing.T) {
 			calls.errs[images.id("tagged")] = wsDenied
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, wsDenied)
-			if _, _, err := scanWorkSpaces(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanWorkSpaces(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, k := range wsKinds() {
@@ -883,7 +887,7 @@ func TestScanWorkSpaces_PoolsGap(t *testing.T) {
 			warns := countOpWarnings(st, "workspaces:"+k.op)
 			handlers := wsTagHandlers(newWSTagCalls())
 			handlers[k.op] = failOnCall(c.call, gap, handlers[k.op])
-			if _, _, err := wsTagScan(context.Background(), st, handlers); err != nil {
+			if _, err := wsTagScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if got := nativeIDs(rowsByNativeID(t, st, k.typ)); !slices.Equal(got, c.wantPools) {
@@ -915,7 +919,7 @@ func TestScanWorkSpaces_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := wsTagScan(ctx, st, handlers)
+	_, err := wsTagScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -942,7 +946,7 @@ func TestScanWorkSpaces_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := wsTagHandlers(newWSTagCalls())
 		handlers["DescribeWorkspaceImages"] = func(any) (any, error) { return nil, nx }
-		total, _, err := wsTagScan(context.Background(), st, handlers)
+		total, err := wsTagScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != wsTestStored-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, wsTestStored-2)
@@ -952,7 +956,7 @@ func TestScanWorkSpaces_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newWSTagCalls()
 		calls.errs[wsKindOf(t, "DescribeWorkspaces").id("bare")] = nx
-		_, _, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
+		_, err := wsTagScan(context.Background(), st, wsTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -960,7 +964,7 @@ func TestScanWorkSpaces_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

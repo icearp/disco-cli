@@ -59,14 +59,14 @@ var casesGone = []string{"ResourceNotFoundException"}
 // do (runHostPhases). The child phases read the parents stored this scan,
 // those parents concurrently. Every type but field options has its tags read
 // per row (casesTags), whose denials are one warning for the whole scan.
-func scanCases(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCases(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := connectcases.NewFromConfig(acct.cfg, func(o *connectcases.Options) { o.Region = region })
 	tags := casesTags(client).sharingDenials()
 	var (
 		domains      []childParent
 		selectFields []casesSelectField
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "cases", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "cases", 0, []hostPhase{
 		{op: "connectcases:ListDomains", run: func(p *phaseTotals) (failed bool) {
 			domains, failed = scanCasesDomains(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -84,12 +84,12 @@ func scanCases(ctx context.Context, acct *account, region string, st *store.Stor
 		{op: "connectcases:ListTemplates", run: func(p *phaseTotals) bool {
 			return scanCasesTemplates(ctx, client, acct, region, st, scanID, domains, tags, p)
 		}},
-		countedPhase(0, casesListFieldOptionsOp, func() (int, int, error) {
+		countedPhase(0, casesListFieldOptionsOp, func() (int, error) {
 			return scanCasesFieldOptions(ctx, client, acct, region, st, scanID, selectFields)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // casesTags reads a row's tags with ListTagsForResource, sent the row's
@@ -250,7 +250,7 @@ func casesFieldOptionNativeID(fieldARN, value string) string {
 // any other error, a transient one after the SDK's retries included, is
 // returned after the rows are stored. Options carry no ARN, so no tags are
 // read for them.
-func scanCasesFieldOptions(ctx context.Context, client casesAPI, acct *account, region string, st *store.Store, scanID string, fields []casesSelectField) (int, int, error) {
+func scanCasesFieldOptions(ctx context.Context, client casesAPI, acct *account, region string, st *store.Store, scanID string, fields []casesSelectField) (int, error) {
 	parents := make([]childParent, len(fields))
 	byARN := make(map[string]casesSelectField, len(fields))
 	for i, f := range fields {

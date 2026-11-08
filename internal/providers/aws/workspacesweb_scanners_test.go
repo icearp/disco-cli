@@ -211,7 +211,7 @@ func wswHandlers(t *testing.T, c *wswCalls) map[string]func(any) (any, error) {
 
 // wswScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func wswScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func wswScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wswDenied)
 	return scanWorkSpacesWeb(ctx, acct, testRegion, st, testScanID)
@@ -264,7 +264,9 @@ func TestScanWorkSpacesWeb_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newWSWCalls()
 
-	total, inserted, err := wswScan(context.Background(), st, wswHandlers(t, calls))
+	counted, upserts := countUpserts(st)
+	total, err := wswScan(context.Background(), counted, wswHandlers(t, calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -346,7 +348,7 @@ func TestScanWorkSpacesWeb_TagReadFailures(t *testing.T) {
 					calls := newWSWCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := wswScan(context.Background(), st, wswHandlers(t, calls))
+					total, err := wswScan(context.Background(), st, wswHandlers(t, calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -390,7 +392,7 @@ func TestScanWorkSpacesWeb_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[wswARN(k, "tagged")] = wswDenied
 	calls.errs[wswARN(k, "bare")] = wswDenied
 
-	if _, _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
+	if _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 {
@@ -409,7 +411,7 @@ func TestScanWorkSpacesWeb_PortalGoneHasNoIdentityProviders(t *testing.T) {
 	calls := newWSWCalls()
 	calls.errs[wswPortalARN(t, "bare")] = wswNotFound
 
-	if _, _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
+	if _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if want := []string{wswPortalARN(t, "tagged"), wswPortalARN(t, "tagged")}; !slices.Equal(calls.portals, want) {
@@ -446,7 +448,7 @@ func TestScanWorkSpacesWeb_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := wswHandlers(t, newWSWCalls())
 			delete(handlers, c.op)
 
-			total, _, err := wswScan(context.Background(), st, handlers)
+			total, err := wswScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -493,7 +495,7 @@ func TestScanWorkSpacesWeb_IdentityProvidersPerPortal(t *testing.T) {
 				return next(in)
 			}
 
-			total, _, err := wswScan(context.Background(), st, handlers)
+			total, err := wswScan(context.Background(), st, handlers)
 			if c.code != "" {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, c.code)
@@ -525,7 +527,7 @@ func TestScanWorkSpacesWeb_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[wswARN(wswKindOf(t, "ListNetworkSettings"), "tagged")] = wswThrottle
 	calls.errs[wswARN(wswKindOf(t, "ListSessionLoggers"), "bare")] = wswValidation
 
-	_, _, err := wswScan(context.Background(), st, wswHandlers(t, calls))
+	_, err := wswScan(context.Background(), st, wswHandlers(t, calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -543,7 +545,7 @@ func TestScanWorkSpacesWeb_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newWSWCalls()
 	calls.errs[wswPortalARN(t, "tagged")] = wswDenied
 
-	_, _, err := wswScan(context.Background(), st, wswHandlers(t, calls))
+	_, err := wswScan(context.Background(), st, wswHandlers(t, calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -566,7 +568,7 @@ func TestScanWorkSpacesWeb_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 	k := wswKindOf(t, "ListPortals")
 	handlers[k.op] = failOnCall(2, wswValidation, handlers[k.op])
 
-	total, _, err := wswScan(context.Background(), st, handlers)
+	total, err := wswScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != wswTotalCount-3 {
@@ -598,7 +600,7 @@ func TestScanWorkSpacesWeb_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := wswScan(context.Background(), st, handlers)
+	total, err := wswScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -628,7 +630,7 @@ func TestScanWorkSpacesWeb_UnstorableItemsWarn(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := wswScan(context.Background(), st, handlers)
+	total, err := wswScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -655,7 +657,7 @@ func TestScanWorkSpacesWeb_ElementWithNoIdentifierWarns(t *testing.T) {
 		return &workspacesweb.ListBrowserSettingsOutput{BrowserSettings: []wswtypes.BrowserSettingsSummary{{}}}, nil
 	}
 
-	total, _, err := wswScan(context.Background(), st, handlers)
+	total, err := wswScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -702,7 +704,7 @@ func TestScanWorkSpacesWeb_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, wswDenied)
 
-	if _, _, err := scanWorkSpacesWeb(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanWorkSpacesWeb(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(calls.tagARNs)
@@ -737,7 +739,7 @@ func TestScanWorkSpacesWeb_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := wswScan(ctx, st, handlers)
+	_, err := wswScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -766,7 +768,7 @@ func TestScanWorkSpacesWeb_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := wswHandlers(t, newWSWCalls())
 		handlers["ListTrustStores"] = func(any) (any, error) { return nil, nx }
-		total, _, err := wswScan(context.Background(), st, handlers)
+		total, err := wswScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != wswTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, wswTotalCount-2)
@@ -776,7 +778,7 @@ func TestScanWorkSpacesWeb_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newWSWCalls()
 		calls.errs[wswPortalARN(t, "bare")] = nx
-		_, _, err := wswScan(context.Background(), st, wswHandlers(t, calls))
+		_, err := wswScan(context.Background(), st, wswHandlers(t, calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -784,7 +786,7 @@ func TestScanWorkSpacesWeb_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanWorkSpacesWeb(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanWorkSpacesWeb(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

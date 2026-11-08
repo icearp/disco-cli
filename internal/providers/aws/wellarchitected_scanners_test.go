@@ -76,7 +76,7 @@ func waChildCases() []waChildCase {
 				return out
 			},
 			run: func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
-				total, _, err := scanWALensReviews(ctx, c, ps, acct, testRegion, st, testScanID)
+				total, err := scanWALensReviews(ctx, c, ps, acct, testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -95,7 +95,7 @@ func waChildCases() []waChildCase {
 				return out
 			},
 			run: func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
-				total, _, err := scanWAWorkloadShares(ctx, c, ps, acct, testRegion, st, testScanID)
+				total, err := scanWAWorkloadShares(ctx, c, ps, acct, testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -114,7 +114,7 @@ func waChildCases() []waChildCase {
 				return out
 			},
 			run: func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
-				total, _, err := scanWALensShares(ctx, c, ps, acct, testRegion, st, testScanID)
+				total, err := scanWALensShares(ctx, c, ps, acct, testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -133,7 +133,7 @@ func waChildCases() []waChildCase {
 				return out
 			},
 			run: func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
-				total, _, err := scanWAProfileShares(ctx, c, ps, acct, testRegion, st, testScanID)
+				total, err := scanWAProfileShares(ctx, c, ps, acct, testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -152,7 +152,7 @@ func waChildCases() []waChildCase {
 				return out
 			},
 			run: func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
-				total, _, err := scanWATemplateShares(ctx, c, ps, acct, testRegion, st, testScanID)
+				total, err := scanWATemplateShares(ctx, c, ps, acct, testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -312,7 +312,7 @@ func TestScanWALensReviews_LensAliasFormsKeyOneNativeID(t *testing.T) {
 				client := waStubClient(map[string]func(any) (any, error){"ListLensReviews": func(any) (any, error) {
 					return &wellarchitected.ListLensReviewsOutput{LensReviewSummaries: []watypes.LensReviewSummary{{LensAlias: ptrStr(alias)}}}, nil
 				}})
-				if _, _, err := scanWALensReviews(context.Background(), client, []childParent{workload}, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+				if _, err := scanWALensReviews(context.Background(), client, []childParent{workload}, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 					t.Fatalf("scan %q: %v", alias, err)
 				}
 			}
@@ -379,7 +379,7 @@ func TestScanWellArchitected_ChildPhasesStoreRowsUnderParents(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(waServiceHandlers(), waDenied)
-	if _, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWellArchitected: %v", err)
 	}
 	for _, c := range []struct{ typ, parent, child string }{
@@ -408,7 +408,7 @@ func TestScanWellArchitected_ChildPhaseErrorAfterListPhases(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, waBadInput }
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, waDenied)
-			if _, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ValidationException") {
+			if _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ValidationException") {
 				t.Fatalf("err = %v, want ValidationException", err)
 			}
 			if len(rowsByNativeID(t, st, TypeWellArchitectedReviewTemplate)) != 1 {
@@ -460,7 +460,7 @@ func waAgentFail(err error) waAgentPageFn {
 func runWAAgentProfiles(t *testing.T, st *store.Store, handler func(any) (any, error)) (int, error) {
 	t.Helper()
 	client := waStubClient(map[string]func(any) (any, error){"ListAgentProfiles": handler})
-	total, _, _, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, _, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -605,7 +605,9 @@ func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(waAgentServiceHandlers(), waDenied)
-	total, inserted, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWellArchitected(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanWellArchitected: %v", err)
 	}
@@ -642,7 +644,9 @@ func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 	h["ListTemplateShares"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, waDenied)
-	total, inserted, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWellArchitected(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Fatalf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -675,7 +679,7 @@ func TestScanWAAgentProfiles_StoreWriteFailureKeepsListError(t *testing.T) {
 			}
 			return nil, waBadInput
 		})})
-	total, _, profiles, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, profiles, err := scanWAAgentProfiles(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || !isAPIErrorCode(err, "ValidationException") || total != 0 {
 		t.Fatalf("total = %d, err = %v; want 0 and both store.ErrStoreWrite and ValidationException", total, err)
 	}
@@ -725,7 +729,7 @@ func TestScanWellArchitected_AgentProfilesIndependentOfToolPhases(t *testing.T) 
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, waDenied)
-			_, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
 				t.Fatalf("err = %v, want a hard ValidationException", err)
 			}
@@ -748,14 +752,14 @@ type waAgentChildCase struct {
 	page func(ids []string, next *string) any
 	// attrsOK checks the stored attributes carry the SDK element's content.
 	attrsOK func(attrs string) bool
-	run     func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, int, error)
+	run     func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, error)
 }
 
 var waAgentChildCreated = time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
 
 func waAgentChildCases() []waAgentChildCase {
-	run := func(fn func(context.Context, wellArchitectedAPI, []childParent, *account, string, *store.Store, string) (int, int, error)) func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, int, error) {
-		return func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, int, error) {
+	run := func(fn func(context.Context, wellArchitectedAPI, []childParent, *account, string, *store.Store, string) (int, error)) func(context.Context, wellArchitectedAPI, []childParent, *store.Store) (int, error) {
+		return func(ctx context.Context, c wellArchitectedAPI, ps []childParent, st *store.Store) (int, error) {
 			return fn(ctx, c, ps, newTestAccount(testAccountID), testRegion, st, testScanID)
 		}
 	}
@@ -875,7 +879,9 @@ func TestWAAgentChildPhases_TwoPagesStoredUnderProfiles(t *testing.T) {
 			parents := seedWAAgentProfiles(t, st)
 			calls := &waAgentChildCalls{}
 			client := waStubClient(map[string]func(any) (any, error){c.op: waAgentChildHandler(c, calls, noAgentFail)})
-			total, inserted, err := c.run(context.Background(), client, parents, st)
+			counted, upserts := countUpserts(st)
+			total, err := c.run(context.Background(), client, parents, counted)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -919,7 +925,9 @@ func TestWAAgentChildPhases_Empty(t *testing.T) {
 			st := newTestStore(t)
 			parents := seedWAAgentProfiles(t, st)
 			client := waStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return c.page(nil, nil), nil }})
-			total, inserted, err := c.run(context.Background(), client, parents, st)
+			counted, upserts := countUpserts(st)
+			total, err := c.run(context.Background(), client, parents, counted)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
 				t.Fatalf("total, inserted = %d, %d, err = %v; want 0 rows, nil", total, inserted, err)
 			}
@@ -942,7 +950,7 @@ func TestWAAgentChildPhases_RepeatedTokenStops(t *testing.T) {
 				}
 				return c.page([]string{fmt.Sprintf("c%d", calls)}, ptrStr("same")), nil
 			}})
-			total, _, err := c.run(context.Background(), client, parents, st)
+			total, err := c.run(context.Background(), client, parents, st)
 			if err != nil || total != 2 || calls != 2 {
 				t.Fatalf("total = %d, calls = %d, err = %v; want 2, 2, nil", total, calls, err)
 			}
@@ -991,7 +999,9 @@ func TestWAAgentChildPhases_ErrorLadder(t *testing.T) {
 				parents := seedWAAgentProfiles(t, st)
 				warns := countOpWarnings(st, "wellarchitected:"+c.op)
 				client := waStubClient(map[string]func(any) (any, error){c.op: waAgentChildHandler(c, &waAgentChildCalls{}, tc.fail)})
-				total, inserted, err := c.run(context.Background(), client, parents, st)
+				counted, upserts := countUpserts(st)
+				total, err := c.run(context.Background(), client, parents, counted)
+				inserted := upserts()
 				if tc.wantErr == "" && err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
@@ -1051,7 +1061,7 @@ func TestScanWellArchitected_AgentChildrenListStoredProfiles(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, waDenied)
-			if _, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWellArchitected: %v", err)
 			}
 			for op, pc := range calls {
@@ -1089,7 +1099,7 @@ func TestScanWellArchitected_AgentChildPhaseErrors(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, waDenied)
-			_, _, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "ValidationException") || classifyServiceError(err) != outcomeError {
 				t.Fatalf("err = %v, want a hard ValidationException", err)
 			}
@@ -1297,14 +1307,14 @@ func (f *waFixture) taggedARNs() []string {
 
 // scanWith runs the scan's real entry point against handlers in f's
 // partition and region; every op handlers does not answer is denied.
-func (f *waFixture) scanWith(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func (f *waFixture) scanWith(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(handlers, waDenied)
 	return scanWellArchitected(ctx, acct, f.region, st, testScanID)
 }
 
-func (f *waFixture) scan(ctx context.Context, st *store.Store) (int, int, error) {
+func (f *waFixture) scan(ctx context.Context, st *store.Store) (int, error) {
 	return f.scanWith(ctx, st, f.handlers())
 }
 
@@ -1332,7 +1342,9 @@ func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newWAFixture("aws", testRegion)
 
-	total, inserted, err := f.scan(context.Background(), st)
+	counted, upserts := countUpserts(st)
+	total, err := f.scan(context.Background(), counted)
+	inserted := upserts()
 	if err != nil || total != waTotal || inserted != waTotal {
 		t.Fatalf("total, inserted, err = %d, %d, %v; want %d, %d, nil", total, inserted, err, waTotal, waTotal)
 	}
@@ -1419,17 +1431,17 @@ func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanWA_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
-	if _, _, err := f.scan(context.Background(), st); err != nil {
+	if _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil || total != waTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, waTotal)
 	}
@@ -1454,7 +1466,7 @@ func TestScanWA_EmptyListings(t *testing.T) {
 		return &wellarchitected.ListReviewTemplatesOutput{}, f.call("ListReviewTemplates", "", in)
 	}
 
-	total, _, err := f.scanWith(context.Background(), st, handlers)
+	total, err := f.scanWith(context.Background(), st, handlers)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -1506,7 +1518,7 @@ func TestScanWA_TagReadFailures(t *testing.T) {
 			f := newWAFixture("aws", testRegion)
 			f.errs["ListTagsForResource/"+c.arn] = c.err
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1558,7 +1570,7 @@ func TestScanWA_TagDenialsWarnOncePerScan(t *testing.T) {
 		f.errs["ListTagsForResource/"+f.own(r[0], r[1])] = waDenied
 	}
 
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1577,7 +1589,7 @@ func TestScanWA_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs["ListTagsForResource/"+f.own("workload", "w1")] = waThrottle
 	f.errs["ListTagsForResource/"+f.own("review-template", "t1")] = waBadInput
 
-	_, _, err := f.scan(context.Background(), st)
+	_, err := f.scan(context.Background(), st)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1606,7 +1618,7 @@ func TestScanWA_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			f := newWAFixture("aws", testRegion)
 			f.errs[c.key] = c.err
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.err == waDenied {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1652,7 +1664,7 @@ func TestScanWA_RepeatedToken(t *testing.T) {
 		}}, nil
 	}
 
-	_, _, err := f.scanWith(context.Background(), st, handlers)
+	_, err := f.scanWith(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1672,7 +1684,7 @@ func TestScanWA_NXDOMAIN(t *testing.T) {
 		f := newWAFixture("aws", testRegion)
 		f.errs["ListWorkloads/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -1686,7 +1698,7 @@ func TestScanWA_NXDOMAIN(t *testing.T) {
 		f := newWAFixture("aws", testRegion)
 		f.errs["ListLenses/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := waTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d rows stored but the lenses", total, want)
@@ -1709,7 +1721,7 @@ func TestScanWA_ContextEndReportedOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	total, _, err := f.scanWith(ctx, st, handlers)
+	total, err := f.scanWith(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1741,7 +1753,7 @@ func TestScanWA_FailedWriteStopsScan(t *testing.T) {
 	f := newWAFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.own("lens", "custom1")] = waDenied
 
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1788,7 +1800,7 @@ func TestScanWA_FailedWorkloadWriteSendsNoChildIDWarning(t *testing.T) {
 		}), nil
 	}
 
-	total, _, err := f.scanWith(context.Background(), st, handlers)
+	total, err := f.scanWith(context.Background(), st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1808,7 +1820,7 @@ func TestScanWA_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newWAFixture(c.partition, c.region)
-			if _, _, err := f.scan(context.Background(), st); err != nil {
+			if _, err := f.scan(context.Background(), st); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := f.called("ListTagsForResource"), f.taggedARNs(); !slices.Equal(got, want) {

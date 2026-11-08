@@ -63,7 +63,7 @@ type socialMessagingWABAs struct {
 
 // scanSocialMessaging discovers linked WhatsApp Business Accounts (WABAs) and,
 // per WABA, its registered phone numbers, WhatsApp Flows and message templates.
-func scanSocialMessaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSocialMessaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := socialmessaging.NewFromConfig(acct.cfg, socialMessagingClientOptions(region))
 	return scanSocialMessagingAll(ctx, client, acct, region, st, scanID)
 }
@@ -85,33 +85,32 @@ func socialMessagingClientOptions(region string) func(*socialmessaging.Options) 
 // side's transient error is demoted to a warning only beside a hard error:
 // joined, it would be buried in the hard error instead of reported under its
 // op.
-func scanSocialMessagingAll(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, wabas, err := scanSocialMessagingOlderPhases(ctx, client, acct, region, st, scanID)
-	ft, fi, ferr := scanSocialMessagingFlows(ctx, client, acct, region, st, scanID, wabas)
-	tt, ti, terr := scanSocialMessagingTemplates(ctx, client, acct, region, st, scanID, wabas)
-	return total + ft + tt, inserted + fi + ti, demoteBeside(st, "social-messaging", acct, region, err, ferr, terr)
+func scanSocialMessagingAll(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, wabas, err := scanSocialMessagingOlderPhases(ctx, client, acct, region, st, scanID)
+	ft, ferr := scanSocialMessagingFlows(ctx, client, acct, region, st, scanID, wabas)
+	tt, terr := scanSocialMessagingTemplates(ctx, client, acct, region, st, scanID, wabas)
+	return total + ft + tt, demoteBeside(st, "social-messaging", acct, region, err, ferr, terr)
 }
 
 // scanSocialMessagingOlderPhases runs the phases that predate flows and
 // message templates (WABAs, then each WABA's phone numbers), stopping at the
 // first hard error, and returns the WABAs stored before it.
-func scanSocialMessagingOlderPhases(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, wabas socialMessagingWABAs, err error) {
-	wabas, total, inserted, err = scanSocialMessagingWABAs(ctx, client, acct, region, st, scanID)
+func scanSocialMessagingOlderPhases(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (total int, wabas socialMessagingWABAs, err error) {
+	wabas, total, err = scanSocialMessagingWABAs(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return 0, 0, socialMessagingWABAs{}, err
+		return 0, socialMessagingWABAs{}, err
 	}
 	for _, p := range wabas.parents {
-		t, i, perr := scanSocialMessagingPhoneNumbers(ctx, client, acct, region, st, scanID, p.id)
+		t, perr := scanSocialMessagingPhoneNumbers(ctx, client, acct, region, st, scanID, p.id)
 		if perr != nil {
-			return total, inserted, wabas, perr
+			return total, wabas, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, wabas, nil
+	return total, wabas, nil
 }
 
-func scanSocialMessagingWABAs(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (socialMessagingWABAs, int, int, error) {
+func scanSocialMessagingWABAs(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (socialMessagingWABAs, int, error) {
 	pager := socialmessaging.NewListLinkedWhatsAppBusinessAccountsPaginator(client, &socialmessaging.ListLinkedWhatsAppBusinessAccountsInput{})
 	var batch []*store.Resource
 	wabas := socialMessagingWABAs{incomplete: map[string]bool{}}
@@ -119,9 +118,9 @@ func scanSocialMessagingWABAs(ctx context.Context, client socialMessagingAPI, ac
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return socialMessagingWABAs{}, 0, 0, skipIfAccessDenied(st, "social-messaging:ListLinkedWhatsAppBusinessAccounts", acct.ID, region, err)
+				return socialMessagingWABAs{}, 0, skipIfAccessDenied(st, "social-messaging:ListLinkedWhatsAppBusinessAccounts", acct.ID, region, err)
 			}
-			return socialMessagingWABAs{}, 0, 0, fmt.Errorf("social-messaging:ListLinkedWhatsAppBusinessAccounts: %w", err)
+			return socialMessagingWABAs{}, 0, fmt.Errorf("social-messaging:ListLinkedWhatsAppBusinessAccounts: %w", err)
 		}
 		for _, a := range out.LinkedAccounts {
 			arn := sv(a.Arn)
@@ -143,24 +142,24 @@ func scanSocialMessagingWABAs(ctx context.Context, client socialMessagingAPI, ac
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "social-messaging wabas")
+	t, err := upsertBatch(st, batch, "social-messaging wabas")
 	if err != nil {
-		return socialMessagingWABAs{}, 0, 0, err
+		return socialMessagingWABAs{}, 0, err
 	}
-	return wabas, t, i, nil
+	return wabas, t, nil
 }
 
-func scanSocialMessagingPhoneNumbers(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID, wabaID string) (int, int, error) {
+func scanSocialMessagingPhoneNumbers(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID, wabaID string) (int, error) {
 	id := wabaID
 	out, err := client.GetLinkedWhatsAppBusinessAccount(ctx, &socialmessaging.GetLinkedWhatsAppBusinessAccountInput{Id: &id})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "social-messaging:GetLinkedWhatsAppBusinessAccount", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "social-messaging:GetLinkedWhatsAppBusinessAccount", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("social-messaging:GetLinkedWhatsAppBusinessAccount: %w", err)
+		return 0, fmt.Errorf("social-messaging:GetLinkedWhatsAppBusinessAccount: %w", err)
 	}
 	if out.Account == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	wabaArn := sv(out.Account.Arn)
 	var batch []*store.Resource
@@ -183,7 +182,7 @@ func scanSocialMessagingPhoneNumbers(ctx context.Context, client socialMessaging
 // scanSocialMessagingFlows stores each WABA's WhatsApp Flows under it. The API
 // returns no flow ARN, so the NativeID is {wabaARN}/flow/{FlowId}; the model
 // pins FlowId to digits.
-func scanSocialMessagingFlows(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string, wabas socialMessagingWABAs) (int, int, error) {
+func scanSocialMessagingFlows(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string, wabas socialMessagingWABAs) (int, error) {
 	return socialMessagingChildFanOut(ctx, st, acct, region, socialMessagingListFlowsOp, wabas, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		pager := socialmessaging.NewListWhatsAppFlowsPaginator(client, &socialmessaging.ListWhatsAppFlowsInput{Id: &p.id},
 			func(o *socialmessaging.ListWhatsAppFlowsPaginatorOptions) {
@@ -221,9 +220,9 @@ func scanSocialMessagingFlows(ctx context.Context, client socialMessagingAPI, ac
 //
 // The model leaves MetaTemplateId optional; a template without one is not
 // stored, and the count of those is reported in one warning.
-func scanSocialMessagingTemplates(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string, wabas socialMessagingWABAs) (int, int, error) {
+func scanSocialMessagingTemplates(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string, wabas socialMessagingWABAs) (int, error) {
 	var missingID atomic.Int64
-	total, inserted, err := socialMessagingChildFanOut(ctx, st, acct, region, socialMessagingListTemplatesOp, wabas, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+	total, err := socialMessagingChildFanOut(ctx, st, acct, region, socialMessagingListTemplatesOp, wabas, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		pager := socialmessaging.NewListWhatsAppMessageTemplatesPaginator(client, &socialmessaging.ListWhatsAppMessageTemplatesInput{Id: &p.id},
 			func(o *socialmessaging.ListWhatsAppMessageTemplatesPaginatorOptions) {
 				o.Limit = socialMessagingPageLimit
@@ -257,7 +256,7 @@ func scanSocialMessagingTemplates(ctx context.Context, client socialMessagingAPI
 			Message: fmt.Sprintf("%d template(s) without MetaTemplateId not stored", n),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // socialMessagingChildFanOut runs list for each WABA and stores the rows under
@@ -274,12 +273,12 @@ func scanSocialMessagingTemplates(ctx context.Context, client socialMessagingAPI
 func socialMessagingChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, wabas socialMessagingWABAs,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	const what = "WhatsApp Business Account(s)"
 	var metaDenied, notReady skipTally
 	retryable := make([]skipTally, len(socialMessagingRetryableCodes))
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, op, wabas.parents, isGone, byParentID,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, op, wabas.parents, isGone, byParentID,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, p)
 			for i, code := range socialMessagingRetryableCodes {
@@ -300,5 +299,5 @@ func socialMessagingChildFanOut(
 	}
 	metaDenied.warnCode(st, op, acct, region, "AccessDeniedByMetaException", what, "Meta refused access to them")
 	notReady.warnCode(st, op, acct, region, "InvalidParametersException", what, "their registration is not complete")
-	return total, inserted, err
+	return total, err
 }

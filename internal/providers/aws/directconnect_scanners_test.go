@@ -74,7 +74,7 @@ func TestScanDXInterconnects_TwoPagesStored(t *testing.T) {
 			}),
 	})
 	warns := countOpWarnings(st, dxDescribeInterconnectsOp)
-	total, _, err := scanDXInterconnects(context.Background(), client, acct, testRegion, st, testScanID)
+	total, err := scanDXInterconnects(context.Background(), client, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanDXInterconnects: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestScanDXInterconnects_Empty(t *testing.T) {
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"DescribeInterconnects": func(any) (any, error) { return &directconnect.DescribeInterconnectsOutput{}, nil },
 	})
-	total, _, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scanDXInterconnects = %d, %v; want 0, nil", total, err)
 	}
@@ -140,7 +140,7 @@ func TestScanDXInterconnects_RepeatedTokenFails(t *testing.T) {
 			}, nil
 		},
 	})
-	_, _, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -184,7 +184,7 @@ func TestScanDXInterconnects_Errors(t *testing.T) {
 					}, nil
 				},
 			})
-			_, _, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != (err != nil) {
 				t.Fatalf("err = %v; want error %v", err, tc.wantErr)
 			}
@@ -308,7 +308,7 @@ func TestScanDXResiliencyGroups_StoresGroupsWithAssociations(t *testing.T) {
 	st := newTestStore(t)
 	h := &dxGroupHandlers{}
 	client := newDXTestClient(h.handlers())
-	total, _, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanDXResiliencyGroups: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestScanDXResiliencyGroups_Empty(t *testing.T) {
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"ListResiliencyGroups": func(any) (any, error) { return &directconnect.ListResiliencyGroupsOutput{}, nil },
 	})
-	total, _, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scanDXResiliencyGroups = %d, %v; want 0, nil", total, err)
 	}
@@ -380,7 +380,7 @@ func TestScanDXResiliencyGroups_ListErrors(t *testing.T) {
 			client := newDXTestClient(map[string]func(any) (any, error){
 				"ListResiliencyGroups": func(any) (any, error) { return nil, tc.err },
 			})
-			_, _, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanDXResiliencyGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != (err != nil) {
 				t.Fatalf("err = %v; want error %v", err, tc.wantErr)
 			}
@@ -445,7 +445,7 @@ func TestScanDXResiliencyGroups_PerGroupErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, tc.warnOp)
 			h := &dxGroupHandlers{getErr: tc.getErr, assocErr: tc.assocErr}
-			total, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil {
 				t.Fatalf("scanDXResiliencyGroups: %v", err)
 			}
@@ -510,7 +510,7 @@ func TestScanDXResiliencyGroups_DetailWithoutARN(t *testing.T) {
 				}
 				return get(in)
 			}
-			if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+			if _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanDXResiliencyGroups: %v", err)
 			}
 			rows := rowsByNativeID(t, st, TypeDirectConnectResiliencyGroup)
@@ -551,7 +551,7 @@ func TestScanDXResiliencyGroups_EmptyGetWithoutARN(t *testing.T) {
 		}
 		return get(in)
 	}
-	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errDXNoGroupBody) {
 		t.Errorf("err = %v; want errDXNoGroupBody", err)
 	}
@@ -581,7 +581,7 @@ func TestScanDXVirtualInterfaces_UnmappedTypeWarned(t *testing.T) {
 			}}, nil
 		},
 	})
-	total, _, err := scanDXVirtualInterfaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDXVirtualInterfaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scanDXVirtualInterfaces = %d, %v; want 0, nil", total, err)
 	}
@@ -596,7 +596,7 @@ func TestScanDXResiliencyGroups_SummaryRowSharesDetailNativeID(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	for _, h := range []*dxGroupHandlers{{}, {getErr: map[string]error{"rg-a": dcDenied, "rg-b": dcDenied}}} {
-		if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+		if _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 			t.Fatalf("scanDXResiliencyGroups: %v", err)
 		}
 	}
@@ -623,7 +623,7 @@ func TestScanDXResiliencyGroups_StoppedGroupsStoredFromSummary(t *testing.T) {
 		}
 		return out, err
 	}
-	_, _, err := scanDXResiliencyGroups(ctx, newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXResiliencyGroups(ctx, newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -663,7 +663,7 @@ func TestScanDXResiliencyGroups_DeniedWithoutARNWarnedOnce(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dxGetResiliencyGroupOp)
 	h := &dxGroupHandlers{getErr: map[string]error{"rg-a": dcDenied}, summaryNoARN: map[string]bool{"rg-a": true}}
-	if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanDXResiliencyGroups: %v", err)
 	}
 	if rows := rowsByNativeID(t, st, TypeDirectConnectResiliencyGroup); len(rows) != 1 {
@@ -688,7 +688,7 @@ func TestScanDXResiliencyGroups_EmptyGetStoresSummary(t *testing.T) {
 		}
 		return get(in)
 	}
-	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errDXNoGroupBody) {
 		t.Fatalf("err = %v; want errDXNoGroupBody", err)
 	}
@@ -712,7 +712,7 @@ func TestScanDXResiliencyGroups_DenialWarningScope(t *testing.T) {
 		}
 	}
 	h := &dxGroupHandlers{getErr: map[string]error{"rg-a": dcDenied}}
-	if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanDXResiliencyGroups: %v", err)
 	}
 	if want := testAccountID + "/" + testRegion; !slices.Equal(scopes, []string{want}) {
@@ -743,7 +743,7 @@ func TestScanDXResiliencyGroups_ListErrorAfterPageKeepsGroups(t *testing.T) {
 				}
 				return list(in)
 			}
-			_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != isAPIErrorCode(err, "DirectConnectClientException") || (!tc.wantErr && err != nil) {
 				t.Fatalf("err = %v; want the DirectConnectClientException %v", err, tc.wantErr)
 			}
@@ -809,7 +809,7 @@ func TestScanDirectConnect_RunsEveryPhase(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(dxAllHandlers(nil), dcDenied)
-	total, _, err := scanDirectConnect(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanDirectConnect(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanDirectConnect: %v", err)
 	}
@@ -853,7 +853,7 @@ func TestScanDirectConnectAll_PhaseErrorsAreIndependent(t *testing.T) {
 		t.Run(tc.sdkOp+" lost "+strings.Join(tc.lost, ","), func(t *testing.T) {
 			st := newTestStore(t)
 			client := newDXTestClient(dxAllHandlers(map[string]func(any) (any, error){tc.sdkOp: tc.fn}))
-			_, _, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "DirectConnectClientException") {
 				t.Errorf("err = %v; want the failed phase's DirectConnectClientException", err)
 			}
@@ -891,7 +891,7 @@ func TestScanDirectConnectAll_TransientDemoted(t *testing.T) {
 				tc.throttledOp: func(any) (any, error) { return nil, dcThrottled },
 				tc.failedOp:    func(any) (any, error) { return nil, dcClientErr },
 			}))
-			total, _, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "DirectConnectClientException") {
 				t.Errorf("err = %v (outcome %v); want only the hard DirectConnectClientException (outcomeError)", err, got)
 			}
@@ -913,7 +913,7 @@ func TestScanDirectConnectAll_TransientAloneReturned(t *testing.T) {
 	client := newDXTestClient(dxAllHandlers(map[string]func(any) (any, error){
 		"DescribeLags": func(any) (any, error) { return nil, dcThrottled },
 	}))
-	total, _, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDirectConnectAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("err = %v (outcome %v); want outcomeTransient", err, got)
 	}
@@ -935,7 +935,7 @@ func TestScanDXResiliencyGroups_AssociationOrderStable(t *testing.T) {
 		handlers["ListResiliencyGroupAssociations"] = func(any) (any, error) {
 			return &directconnect.ListResiliencyGroupAssociationsOutput{Items: items}, nil
 		}
-		if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+		if _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 			t.Fatalf("scanDXResiliencyGroups: %v", err)
 		}
 		return rowsByNativeID(t, st, TypeDirectConnectResiliencyGroup)[dxTestGroupA].AttributesJSON
@@ -972,7 +972,7 @@ func TestScanDXResiliencyGroups_RepeatedListTokenFails(t *testing.T) {
 			{ResiliencyGroupId: sdkaws.String("rg-a"), State: directconnecttypes.ResiliencyGroupStateAvailable},
 		}}
 	})
-	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -1005,7 +1005,7 @@ func TestScanDXResiliencyGroups_RepeatedAssociationTokenFails(t *testing.T) {
 			{ResiliencyGroupId: sdkaws.String("rg-a"), ConnectionArn: sdkaws.String(dxTestConn1), State: directconnecttypes.ResiliencyGroupAssociationStateAssociated},
 		}}, nil
 	}
-	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -1085,7 +1085,7 @@ type dxListCase struct {
 	op, sdkOp string
 	pages     func(any) (any, error)
 	page1     func() any // a first page holding one element and NextToken "p2"
-	scan      func(context.Context, dxAPI, *account, string, *store.Store, string) (int, int, error)
+	scan      func(context.Context, dxAPI, *account, string, *store.Store, string) (int, error)
 	want      map[string]dxWantRow
 	wantWarns int
 }
@@ -1178,9 +1178,9 @@ func dxListCases() []dxListCase {
 			page1: func() any {
 				return &directconnect.DescribeDirectConnectGatewaysOutput{NextToken: sdkaws.String("p2"), DirectConnectGateways: []directconnecttypes.DirectConnectGateway{{DirectConnectGatewayId: sdkaws.String("g-1")}}}
 			},
-			scan: func(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-				_, t, i, err := scanDXGateways(ctx, client, acct, region, st, scanID)
-				return t, i, err
+			scan: func(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+				_, t, err := scanDXGateways(ctx, client, acct, region, st, scanID)
+				return t, err
 			},
 			want: map[string]dxWantRow{
 				"arn:aws:directconnect::123456789012:dx-gateway/g-1": {TypeDirectConnectDirectConnectGateway, "gw one", "available", "OwnerAccount", testAccountID, map[string]string{"env": "prod"}},
@@ -1198,7 +1198,9 @@ func TestScanDXListings_TwoPagesStoredWithTags(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, tc.op)
 			client := newDXTestClient(map[string]func(any) (any, error){tc.sdkOp: tc.pages})
-			total, inserted, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1244,7 +1246,7 @@ func TestScanDXListings_PageErrors(t *testing.T) {
 						return nil, ec.secondErr
 					},
 				})
-				total, _, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+				total, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if ec.wantErr != isAPIErrorCode(err, "DirectConnectClientException") || (!ec.wantErr && err != nil) {
 					t.Fatalf("err = %v; want the DirectConnectClientException %v", err, ec.wantErr)
 				}
@@ -1267,7 +1269,7 @@ func TestScanDXGateways_OnlyInUSEast1(t *testing.T) {
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"DescribeDirectConnectGateways": func(any) (any, error) { return nil, errors.New("listed outside us-east-1") },
 	})
-	ids, total, _, err := scanDXGateways(context.Background(), client, newTestAccount(testAccountID), "us-west-2", st, testScanID)
+	ids, total, err := scanDXGateways(context.Background(), client, newTestAccount(testAccountID), "us-west-2", st, testScanID)
 	if err != nil || total != 0 || ids != nil {
 		t.Errorf("scanDXGateways(us-west-2) = %v, %d, %v; want nil, 0, nil", ids, total, err)
 	}
@@ -1288,7 +1290,7 @@ func TestScanDXGateways_ReturnsStoredIDs(t *testing.T) {
 			}}, nil
 		},
 	})
-	ids, _, _, err := scanDXGateways(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	ids, _, err := scanDXGateways(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "DirectConnectClientException") {
 		t.Errorf("err = %v; want the DirectConnectClientException", err)
 	}
@@ -1339,7 +1341,7 @@ func TestScanDXGatewayAssociations_StoredPerGateway(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dxDescribeGatewayAssociationsOp)
 	client := newDXTestClient(map[string]func(any) (any, error){"DescribeDirectConnectGatewayAssociations": dxAssociationPages(nil)})
-	total, _, err := scanDXGatewayAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"g-1", "g-2"})
+	total, err := scanDXGatewayAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"g-1", "g-2"})
 	if err != nil {
 		t.Fatalf("scanDXGatewayAssociations: %v", err)
 	}
@@ -1375,7 +1377,7 @@ func TestScanDXGatewayAssociations_PerGatewayErrors(t *testing.T) {
 			client := newDXTestClient(map[string]func(any) (any, error){
 				"DescribeDirectConnectGatewayAssociations": dxAssociationPages(map[string]error{"g-0": tc.err, "g-9": tc.err}),
 			})
-			total, _, err := scanDXGatewayAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"g-0", "g-1", "g-9", "g-2"})
+			total, err := scanDXGatewayAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"g-0", "g-1", "g-9", "g-2"})
 			if tc.wantErr != isAPIErrorCode(err, "DirectConnectClientException") || (!tc.wantErr && err != nil) {
 				t.Fatalf("err = %v; want the DirectConnectClientException %v", err, tc.wantErr)
 			}

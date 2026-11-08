@@ -48,11 +48,11 @@ func TestScanDataZoneProfiles(t *testing.T) {
 	}
 	domains := []*dzDomain{{id: "dom-1"}}
 
-	gt, _, err := scanDataZoneGroupProfiles(context.Background(), stub, acct, testRegion, st, testScanID, domains)
+	gt, err := scanDataZoneGroupProfiles(context.Background(), stub, acct, testRegion, st, testScanID, domains)
 	if err != nil || gt != 1 {
 		t.Fatalf("scanDataZoneGroupProfiles: total=%d err=%v", gt, err)
 	}
-	ut, _, err := scanDataZoneUserProfiles(context.Background(), stub, acct, testRegion, st, testScanID, domains)
+	ut, err := scanDataZoneUserProfiles(context.Background(), stub, acct, testRegion, st, testScanID, domains)
 	if err != nil || ut != 1 {
 		t.Fatalf("scanDataZoneUserProfiles: total=%d err=%v", ut, err)
 	}

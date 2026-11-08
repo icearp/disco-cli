@@ -51,9 +51,9 @@ type elasticacheAPI interface {
 }
 
 // scanElastiCache discovers all ElastiCache resource types in the given region.
-func scanElastiCache(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCache(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := elasticache.NewFromConfig(acct.cfg, func(o *elasticache.Options) { o.Region = region })
-	for _, scan := range []func(context.Context, elasticacheAPI, *account, string, *store.Store, string) (int, int, error){
+	for _, scan := range []func(context.Context, elasticacheAPI, *account, string, *store.Store, string) (int, error){
 		scanElastiCacheReplicationGroups,
 		scanElastiCacheClusters,
 		scanElastiCacheGlobalReplicationGroups,
@@ -67,27 +67,26 @@ func scanElastiCache(ctx context.Context, acct *account, region string, st *stor
 		scanElastiCacheServerlessSnapshots,
 		scanElastiCacheSnapshots,
 	} {
-		tt, nn, err := scan(ctx, client, acct, region, st, scanID)
+		tt, err := scan(ctx, client, acct, region, st, scanID)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += tt
-		inserted += nn
 	}
 	return
 }
 
 // scanElastiCacheReplicationGroups pages DescribeReplicationGroups and upserts
 // each group, tags included via ListTagsForResource.
-func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeReplicationGroupsPaginator(client, &elasticache.DescribeReplicationGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeReplicationGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeReplicationGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeReplicationGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeReplicationGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, rg := range page.ReplicationGroups {
@@ -112,12 +111,11 @@ func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache replication groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache replication groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -125,15 +123,15 @@ func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI
 
 // scanElastiCacheClusters pages through DescribeCacheClusters. This covers
 // Memcached clusters and the individual shard clusters within Redis replication groups.
-func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeCacheClustersPaginator(client, &elasticache.DescribeCacheClustersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheClusters", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeCacheClusters", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeCacheClusters: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeCacheClusters: %w", err)
 		}
 		var batch []*store.Resource
 		for _, cc := range page.CacheClusters {
@@ -160,12 +158,11 @@ func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *a
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache clusters: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache clusters: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -174,7 +171,7 @@ func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *a
 // scanElastiCacheGlobalReplicationGroups pages through DescribeGlobalReplicationGroups.
 // These are global resources (not region-scoped); UpsertResources dedupes by
 // stable NativeID-derived primary key, so calling per-region is safe.
-func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	showMembers := true
 	pager := elasticache.NewDescribeGlobalReplicationGroupsPaginator(client, &elasticache.DescribeGlobalReplicationGroupsInput{
 		ShowMemberInfo: &showMembers,
@@ -183,9 +180,9 @@ func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elastica
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeGlobalReplicationGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeGlobalReplicationGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeGlobalReplicationGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeGlobalReplicationGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, grg := range page.GlobalReplicationGroups {
@@ -203,27 +200,26 @@ func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elastica
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache global replication groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache global replication groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanElastiCacheParameterGroups pages through DescribeCacheParameterGroups.
-func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeCacheParameterGroupsPaginator(client, &elasticache.DescribeCacheParameterGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheParameterGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeCacheParameterGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeCacheParameterGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeCacheParameterGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, pg := range page.CacheParameterGroups {
@@ -248,12 +244,11 @@ func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, 
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache parameter groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache parameter groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -270,18 +265,18 @@ func isCacheSecurityGroupsNotPermitted(err error) bool {
 // scanElastiCacheSecurityGroups pages through DescribeCacheSecurityGroups.
 // These are legacy EC2-Classic security groups; VPC-only accounts return
 // InvalidParameterValue, which is treated as an empty result.
-func scanElastiCacheSecurityGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheSecurityGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeCacheSecurityGroupsPaginator(client, &elasticache.DescribeCacheSecurityGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isCacheSecurityGroupsNotPermitted(err) {
-				return 0, 0, nil // VPC-only account — no EC2-Classic cache security groups
+				return 0, nil // VPC-only account — no EC2-Classic cache security groups
 			}
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheSecurityGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeCacheSecurityGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeCacheSecurityGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeCacheSecurityGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, sg := range page.CacheSecurityGroups {
@@ -305,27 +300,26 @@ func scanElastiCacheSecurityGroups(ctx context.Context, client elasticacheAPI, a
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache security groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache security groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanElastiCacheServerlessCaches pages through DescribeServerlessCaches.
-func scanElastiCacheServerlessCaches(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheServerlessCaches(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeServerlessCachesPaginator(client, &elasticache.DescribeServerlessCachesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeServerlessCaches", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeServerlessCaches", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeServerlessCaches: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeServerlessCaches: %w", err)
 		}
 		var batch []*store.Resource
 		for _, sc := range page.ServerlessCaches {
@@ -350,27 +344,26 @@ func scanElastiCacheServerlessCaches(ctx context.Context, client elasticacheAPI,
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache serverless caches: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache serverless caches: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanElastiCacheSubnetGroups pages through DescribeCacheSubnetGroups.
-func scanElastiCacheSubnetGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheSubnetGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeCacheSubnetGroupsPaginator(client, &elasticache.DescribeCacheSubnetGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheSubnetGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeCacheSubnetGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeCacheSubnetGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeCacheSubnetGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, sg := range page.CacheSubnetGroups {
@@ -394,27 +387,26 @@ func scanElastiCacheSubnetGroups(ctx context.Context, client elasticacheAPI, acc
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache subnet groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache subnet groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanElastiCacheUsers pages through DescribeUsers.
-func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeUsersPaginator(client, &elasticache.DescribeUsersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeUsers", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeUsers", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeUsers: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeUsers: %w", err)
 		}
 		var batch []*store.Resource
 		for _, u := range page.Users {
@@ -439,27 +431,26 @@ func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *acco
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache users: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache users: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanElastiCacheUserGroups pages through DescribeUserGroups.
-func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeUserGroupsPaginator(client, &elasticache.DescribeUserGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeUserGroups", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "elasticache:DescribeUserGroups", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("elasticache:DescribeUserGroups: %w", err)
+			return total, fmt.Errorf("elasticache:DescribeUserGroups: %w", err)
 		}
 		var batch []*store.Resource
 		for _, ug := range page.UserGroups {
@@ -484,12 +475,11 @@ func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct 
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert ElastiCache user groups: %w", err)
+				return total, fmt.Errorf("upsert ElastiCache user groups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return

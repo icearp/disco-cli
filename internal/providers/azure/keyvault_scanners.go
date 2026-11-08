@@ -20,12 +20,12 @@ func init() {
 }
 
 // scanKeyVault discovers Azure Key Vault vaults and Managed HSM pools.
-func scanKeyVault(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKeyVault(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armkeyvault.NewVaultsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
+				return 0, fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armkeyvault:Vaults.ListBySubscription", TypeKeyVaultVault, sub, st, scanID,
 				client.NewListBySubscriptionPager(nil),
@@ -34,10 +34,10 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 					return azTrackedBase{id: sv(v.ID), name: sv(v.Name), location: sv(v.Location), tags: v.Tags, full: v}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			hsmClient, err := armkeyvault.NewManagedHsmsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armkeyvault:NewManagedHsmsClient: %w", err)
+				return 0, fmt.Errorf("armkeyvault:NewManagedHsmsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armkeyvault:ManagedHsms.ListBySubscription", TypeKeyVaultManagedHSM, sub, st, scanID,
 				hsmClient.NewListBySubscriptionPager(nil),

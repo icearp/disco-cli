@@ -21,12 +21,12 @@ func init() {
 
 // scanDataReplication discovers Azure Site Recovery (data replication)
 // fabrics and replication vaults.
-func scanDataReplication(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataReplication(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			fabricClient, err := armrecoveryservicesdatareplication.NewFabricClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armrecoveryservicesdatareplication:NewFabricClient: %w", err)
+				return 0, fmt.Errorf("armrecoveryservicesdatareplication:NewFabricClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armrecoveryservicesdatareplication:Fabric.ListBySubscription", TypeDataReplicationFabric, sub, st, scanID,
 				fabricClient.NewListBySubscriptionPager(nil),
@@ -37,10 +37,10 @@ func scanDataReplication(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(f.ID), name: sv(f.Name), location: sv(f.Location), tags: f.Tags, full: f}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			vaultClient, err := armrecoveryservicesdatareplication.NewVaultClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armrecoveryservicesdatareplication:NewVaultClient: %w", err)
+				return 0, fmt.Errorf("armrecoveryservicesdatareplication:NewVaultClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armrecoveryservicesdatareplication:Vault.ListBySubscription", TypeDataReplicationVault, sub, st, scanID,
 				vaultClient.NewListBySubscriptionPager(nil),

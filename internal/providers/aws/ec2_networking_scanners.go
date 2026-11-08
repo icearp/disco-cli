@@ -49,61 +49,61 @@ func init() {
 // gateways, NAT gateways, route tables, EIPs, ENIs, NACLs, VPC endpoints, VPC
 // peering, DHCP options, egress-only IGWs, carrier gateways, VPC features,
 // VPC endpoint services, and network interface permissions.
-func scanEC2Networking(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2Networking(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) { return scanVPCs(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanSubnets(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) { return scanVPCs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, error) { return scanSubnets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, error) {
 			return scanInternetGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanNatGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanRouteTables(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanEIPs(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) { return scanEIPs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, error) {
 			return scanNetworkInterfaces(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanNetworkACLs(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEndpoints(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCPeeringConnections(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanDHCPOptions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEgressOnlyIGWs(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanCarrierGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCBlockPublicAccessOptions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCBlockPublicAccessExclusions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEndpointConnectionNotifications(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEndpointServices(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanNetworkInterfacePermissions(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpcs", acct, region, st,
 		ec2.NewDescribeVpcsPaginator(client, &ec2.DescribeVpcsInput{}),
@@ -130,7 +130,7 @@ func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, 
 	)
 }
 
-func scanSubnets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubnets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSubnets", acct, region, st,
 		ec2.NewDescribeSubnetsPaginator(client, &ec2.DescribeSubnetsInput{}),
@@ -158,7 +158,7 @@ func scanSubnets(ctx context.Context, client ec2API, acct *account, region strin
 	)
 }
 
-func scanInternetGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInternetGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeInternetGateways", acct, region, st,
 		ec2.NewDescribeInternetGatewaysPaginator(client, &ec2.DescribeInternetGatewaysInput{}),
@@ -183,7 +183,7 @@ func scanInternetGateways(ctx context.Context, client ec2API, acct *account, reg
 	)
 }
 
-func scanNatGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNatGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeNatGateways", acct, region, st,
 		ec2.NewDescribeNatGatewaysPaginator(client, &ec2.DescribeNatGatewaysInput{}),
@@ -211,7 +211,7 @@ func scanNatGateways(ctx context.Context, client ec2API, acct *account, region s
 	)
 }
 
-func scanRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeRouteTables", acct, region, st,
 		ec2.NewDescribeRouteTablesPaginator(client, &ec2.DescribeRouteTablesInput{}),
@@ -236,14 +236,14 @@ func scanRouteTables(ctx context.Context, client ec2API, acct *account, region s
 	)
 }
 
-func scanEIPs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEIPs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	// DescribeAddresses has no paginator; all results returned in one call.
 	out, err := client.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeAddresses", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ec2:DescribeAddresses", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("ec2:DescribeAddresses: %w", err)
+		return 0, fmt.Errorf("ec2:DescribeAddresses: %w", err)
 	}
 	var batch []*store.Resource
 	for _, addr := range out.Addresses {
@@ -261,17 +261,16 @@ func scanEIPs(ctx context.Context, client ec2API, acct *account, region string, 
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert EIPs: %w", err)
+			return 0, fmt.Errorf("upsert EIPs: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
-func scanNetworkInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeNetworkInterfaces", acct, region, st,
 		ec2.NewDescribeNetworkInterfacesPaginator(client, &ec2.DescribeNetworkInterfacesInput{}),
@@ -298,7 +297,7 @@ func scanNetworkInterfaces(ctx context.Context, client ec2API, acct *account, re
 	)
 }
 
-func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeNetworkAcls", acct, region, st,
 		ec2.NewDescribeNetworkAclsPaginator(client, &ec2.DescribeNetworkAclsInput{}),
@@ -323,7 +322,7 @@ func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region s
 	)
 }
 
-func scanVPCEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpcEndpoints", acct, region, st,
 		ec2.NewDescribeVpcEndpointsPaginator(client, &ec2.DescribeVpcEndpointsInput{}),
@@ -351,7 +350,7 @@ func scanVPCEndpoints(ctx context.Context, client ec2API, acct *account, region 
 	)
 }
 
-func scanVPCPeeringConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCPeeringConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpcPeeringConnections", acct, region, st,
 		ec2.NewDescribeVpcPeeringConnectionsPaginator(client, &ec2.DescribeVpcPeeringConnectionsInput{}),
@@ -378,7 +377,7 @@ func scanVPCPeeringConnections(ctx context.Context, client ec2API, acct *account
 	)
 }
 
-func scanDHCPOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDHCPOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeDhcpOptions", acct, region, st,
 		ec2.NewDescribeDhcpOptionsPaginator(client, &ec2.DescribeDhcpOptionsInput{}),
@@ -403,7 +402,7 @@ func scanDHCPOptions(ctx context.Context, client ec2API, acct *account, region s
 	)
 }
 
-func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeEgressOnlyInternetGateways", acct, region, st,
 		ec2.NewDescribeEgressOnlyInternetGatewaysPaginator(client, &ec2.DescribeEgressOnlyInternetGatewaysInput{}),
@@ -428,8 +427,8 @@ func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, regio
 	)
 }
 
-func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	total, inserted, err = ec2PageScan(
+func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	total, err = ec2PageScan(
 		ctx, "ec2:DescribeCarrierGateways", acct, region, st,
 		ec2.NewDescribeCarrierGatewaysPaginator(client, &ec2.DescribeCarrierGatewaysInput{}),
 		func(page *ec2.DescribeCarrierGatewaysOutput) []*store.Resource {
@@ -455,9 +454,9 @@ func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, regi
 	// Carrier gateways are Wavelength-zone-only; non-Wavelength regions
 	// reject with UnsupportedOperation — silent-skip.
 	if err != nil && isAPIErrorCode(err, "UnsupportedOperation") {
-		return 0, 0, nil
+		return 0, nil
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // scanVPCBlockPublicAccessOptions retrieves the VPC block public access
@@ -470,20 +469,20 @@ func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, regi
 // version-split the previous one and the surviving current row was whichever
 // region committed last. An account blocking public access in one region and
 // allowing it in another reported only one of the two, nondeterministically.
-func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcBlockPublicAccessOptions", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ec2:DescribeVpcBlockPublicAccessOptions", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessOptions: %w", err)
+		return 0, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessOptions: %w", err)
 	}
 	if out.VpcBlockPublicAccessOptions == nil {
 		return
 	}
 	opt := out.VpcBlockPublicAccessOptions
 	nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "vpc-block-public-access-options", acct.ID)
-	n, err := st.UpsertResource(&store.Resource{
+	_, err = st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
 		AccountName: &acct.Name,
@@ -495,15 +494,15 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 		DiscoveredBy:   scanID,
 	})
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert vpc-block-public-access-options: %w", err)
+		return 0, fmt.Errorf("upsert vpc-block-public-access-options: %w", err)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // scanVPCBlockPublicAccessExclusions stores the VPC Block Public Access
 // exclusions, those read before a failed page included (storeTokenList). The
 // SDK has no paginator for this op.
-func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ec2VPCBPAExclusionsOp,
 		func(ctx context.Context, token *string) ([]ec2types.VpcBlockPublicAccessExclusion, *string, error) {
 			out, err := client.DescribeVpcBlockPublicAccessExclusions(ctx, &ec2.DescribeVpcBlockPublicAccessExclusionsInput{
@@ -537,7 +536,7 @@ func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct
 	)
 }
 
-func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpcEndpointConnectionNotifications", acct, region, st,
 		ec2.NewDescribeVpcEndpointConnectionNotificationsPaginator(client, &ec2.DescribeVpcEndpointConnectionNotificationsInput{}),
@@ -566,7 +565,7 @@ func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, 
 // those read before a failed page included (storeTokenList). The owner filter
 // keeps out the AWS-managed services the API otherwise returns. The SDK has no
 // paginator for this op.
-func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
 	return storeTokenList(ctx, st, acct, region, ec2VPCEndpointServicesOp,
 		func(ctx context.Context, token *string) ([]ec2types.ServiceDetail, *string, error) {
@@ -608,10 +607,10 @@ func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, 
 // phase: an EC2 parent may be skipped only with a warning, and
 // storeTokenEachParent's notFound skips one silently when nothing was read
 // from it.
-func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	services, err := ec2StoredParents(st, acct, region, scanID, TypeEC2VPCEndpointService, "vpc-endpoint-service")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	svcIDs := make([]string, len(services))
 	for i, p := range services {
@@ -649,7 +648,7 @@ func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct 
 	)
 }
 
-func scanNetworkInterfacePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInterfacePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeNetworkInterfacePermissions", acct, region, st,
 		ec2.NewDescribeNetworkInterfacePermissionsPaginator(client, &ec2.DescribeNetworkInterfacePermissionsInput{}),

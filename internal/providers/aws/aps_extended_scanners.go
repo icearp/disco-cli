@@ -54,10 +54,10 @@ func (f *apsFanout) failed(wid string, laterPage bool, err error) {
 // beside any write error. A failed write is the phase's whole outcome, so it
 // warns about nothing else: "only the pages read before were stored" would be
 // false.
-func (f *apsFanout) finish(st *store.Store, acct *account, region string, batch []*store.Resource) (int, int, error) {
-	total, inserted, err := upsertListed(st, batch, f.op, errors.Join(f.errs...))
+func (f *apsFanout) finish(st *store.Store, acct *account, region string, batch []*store.Resource) (int, error) {
+	total, err := upsertListed(st, batch, f.op, errors.Join(f.errs...))
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	f.notReady.warnSkipped(st, f.op, acct, region, "workspace(s)",
 		"a workspace that is being created or updated refuses the call, so its "+f.what+" were not read")
@@ -68,10 +68,10 @@ func (f *apsFanout) finish(st *store.Store, acct *account, region string, batch 
 	f.vanished.warnCode(st, f.op, acct, region, "ResourceNotFoundException", "workspace(s)",
 		"each was deleted while its "+f.what+" were paged, so only the pages read before were stored")
 	warnNotStored(st, f.op, acct, region, &f.unkeyed, f.what+" have an empty ARN")
-	return total, inserted, err
+	return total, err
 }
 
-func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	f := &apsFanout{op: "amp:ListAnomalyDetectors", what: "anomaly detectors"}
 	var batch []*store.Resource
 	for _, w := range workspaces {
@@ -112,7 +112,7 @@ func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []ap
 	return f.finish(st, acct, region, batch)
 }
 
-func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	f := &apsFanout{op: "amp:ListRuleGroupsNamespaces", what: "rule groups namespaces"}
 	var batch []*store.Resource
 	for _, w := range workspaces {
@@ -163,7 +163,7 @@ func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces 
 
 // scanAPSResourcePolicies stores each workspace's resource-based policy under
 // the synthesized ARN {workspaceArn}/policy.
-func scanAPSResourcePolicies(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPSResourcePolicies(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	f := &apsFanout{op: "amp:DescribeResourcePolicy", what: "resource policies"}
 	var batch []*store.Resource
 	for _, w := range workspaces {

@@ -32,12 +32,12 @@ func init() {
 // scanContainerApps discovers Microsoft.App resources — Container Apps managed
 // environments + apps, connected environments, jobs, session pools.
 // Microsoft.App/builders has no subscription-wide list op in the SDK — omitted.
-func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			envClient, err := armappcontainers.NewManagedEnvironmentsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armappcontainers:NewManagedEnvironmentsClient: %w", err)
+				return 0, fmt.Errorf("armappcontainers:NewManagedEnvironmentsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armappcontainers:ManagedEnvironments.ListBySubscription", TypeAppContainersManagedEnvironment, sub, st, scanID,
 				envClient.NewListBySubscriptionPager(nil),
@@ -48,10 +48,10 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			appClient, err := armappcontainers.NewContainerAppsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armappcontainers:NewContainerAppsClient: %w", err)
+				return 0, fmt.Errorf("armappcontainers:NewContainerAppsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armappcontainers:ContainerApps.ListBySubscription", TypeAppContainersContainerApp, sub, st, scanID,
 				appClient.NewListBySubscriptionPager(nil),
@@ -62,10 +62,10 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			connEnvClient, err := armappcontainers.NewConnectedEnvironmentsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armappcontainers:NewConnectedEnvironmentsClient: %w", err)
+				return 0, fmt.Errorf("armappcontainers:NewConnectedEnvironmentsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armappcontainers:ConnectedEnvironments.ListBySubscription", TypeAppContainersConnectedEnvironment, sub, st, scanID,
 				connEnvClient.NewListBySubscriptionPager(nil),
@@ -76,10 +76,10 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			jobsClient, err := armappcontainers.NewJobsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armappcontainers:NewJobsClient: %w", err)
+				return 0, fmt.Errorf("armappcontainers:NewJobsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armappcontainers:Jobs.ListBySubscription", TypeAppContainersJob, sub, st, scanID,
 				jobsClient.NewListBySubscriptionPager(nil),
@@ -88,10 +88,10 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			poolClient, err := armappcontainers.NewContainerAppsSessionPoolsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armappcontainers:NewContainerAppsSessionPoolsClient: %w", err)
+				return 0, fmt.Errorf("armappcontainers:NewContainerAppsSessionPoolsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armappcontainers:ContainerAppsSessionPools.ListBySubscription", TypeAppContainersSessionPool, sub, st, scanID,
 				poolClient.NewListBySubscriptionPager(nil),
@@ -107,10 +107,10 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.Token
 
 // scanContainerInstance discovers Azure Container Instances container groups
 // (Microsoft.ContainerInstance).
-func scanContainerInstance(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanContainerInstance(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	aciClient, err := armcontainerinstance.NewContainerGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)
+		return 0, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcontainerinstance:ContainerGroups.List", TypeContainerInstanceContainerGroup, sub, st, scanID,
 		aciClient.NewListPager(nil),

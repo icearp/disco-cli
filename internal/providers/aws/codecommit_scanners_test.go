@@ -92,7 +92,7 @@ func TestScanCCApprovalRuleTemplates_StoresEachTemplate(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
-	total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(ccTemplateHandlers(calls, nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(ccTemplateHandlers(calls, nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -147,7 +147,7 @@ func TestScanCCApprovalRuleTemplates_SkipsGoneAndIDLessTemplates(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(ccTemplateHandlers(&parentCalls{}, override)), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(ccTemplateHandlers(&parentCalls{}, override)), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != 1 {
 				t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 			}
@@ -164,7 +164,7 @@ func TestScanCCApprovalRuleTemplates_Empty(t *testing.T) {
 	handlers := map[string]func(any) (any, error){
 		"ListApprovalRuleTemplates": func(any) (any, error) { return &codecommit.ListApprovalRuleTemplatesOutput{}, nil },
 	}
-	total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -187,7 +187,7 @@ func TestScanCCApprovalRuleTemplates_AccessDenied(t *testing.T) {
 			warned := countOpWarnings(st, "codecommit:"+c.op)
 			handlers := ccTemplateHandlers(&parentCalls{}, nil)
 			delete(handlers, c.op)
-			total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != c.wantTotal {
 				t.Errorf("total, err = %d, %v; want %d, nil", total, err, c.wantTotal)
 			}
@@ -209,7 +209,7 @@ func TestScanCCApprovalRuleTemplates_OtherErrorPropagates(t *testing.T) {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
 			handlers := ccTemplateHandlers(&parentCalls{}, map[string]func(any) (any, error){op: func(any) (any, error) { return nil, ccBadInput }})
-			_, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, ccBadInput) {
 				t.Errorf("err = %v, want the %s error", err, op)
 			}
@@ -254,7 +254,7 @@ func TestScanCCRepositoryTriggers_StoresEachRepositorysTriggers(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+	total, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -289,7 +289,7 @@ func TestScanCCRepositoryTriggers_Errors(t *testing.T) {
 		st := newTestStore(t)
 		repos := ccSeedRepos(t, st, "r-a", "r-b")
 		warned := countOpWarnings(st, "codecommit:GetRepositoryTriggers")
-		total, _, err := scanCCRepositoryTriggers(context.Background(), ccClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+		total, err := scanCCRepositoryTriggers(context.Background(), ccClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 		if err != nil || total != 0 {
 			t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 		}
@@ -301,7 +301,7 @@ func TestScanCCRepositoryTriggers_Errors(t *testing.T) {
 		st := newTestStore(t)
 		repos := ccSeedRepos(t, st, "r-a")
 		handlers := map[string]func(any) (any, error){"GetRepositoryTriggers": func(any) (any, error) { return nil, ccBadInput }}
-		_, _, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+		_, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 		if !errors.Is(err, ccBadInput) {
 			t.Errorf("err = %v, want the GetRepositoryTriggers error", err)
 		}
@@ -327,7 +327,7 @@ func TestScanCCRepositoryTriggers_BrokenKeySkipsOnlyThatRepository(t *testing.T)
 					return &codecommit.GetRepositoryTriggersOutput{Triggers: []codecommittypes.RepositoryTrigger{ccTrigger("tr-1")}}, nil
 				},
 			}
-			total, _, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+			total, err := scanCCRepositoryTriggers(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 			if err != nil || total != 1 {
 				t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 			}
@@ -356,7 +356,7 @@ func TestScanCCApprovalRuleTemplates_BrokenKeyKeepsTemplate(t *testing.T) {
 			return &codecommit.ListRepositoriesForApprovalRuleTemplateOutput{RepositoryNames: []string{"repo-a"}}, nil
 		},
 	})
-	total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -391,7 +391,7 @@ func TestScanCCRepositories_StoresEachPageWithMetadata(t *testing.T) {
 			}}, nil
 		},
 	}
-	repos, total, _, err := scanCCRepositories(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	repos, total, err := scanCCRepositories(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -451,7 +451,7 @@ func ccTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 func TestScanCodeCommitIn_RunsNewPhasesOverListedRepositories(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(ccTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(ccTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 3 {
 		t.Fatalf("total, err = %d, %v; want 3, nil", total, err)
 	}
@@ -473,7 +473,7 @@ func TestScanCodeCommitIn_NewPhaseErrorsKeepRepositories(t *testing.T) {
 		"ListApprovalRuleTemplates": func(any) (any, error) { return nil, listErr },
 		"GetRepositoryTriggers":     func(any) (any, error) { return nil, trigErr },
 	})
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, listErr) || !errors.Is(err, trigErr) {
 		t.Errorf("err = %v, want both new-phase errors", err)
 	}
@@ -489,7 +489,7 @@ func TestScanCodeCommitIn_RepositoryErrorKeepsTemplates(t *testing.T) {
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
 		"ListRepositories": func(any) (any, error) { return nil, ccBadInput },
 	})
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, ccBadInput) || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v, want the ListRepositories error classified outcomeError", err)
 	}
@@ -507,7 +507,7 @@ func TestScanCodeCommitIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
 		"ListApprovalRuleTemplates": func(any) (any, error) { return nil, ccThrottled },
 	})
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -529,7 +529,7 @@ func TestScanCodeCommitIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "codecommit.us-east-1.amazonaws.com", IsNotFound: true}
 		},
 	})
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -551,7 +551,7 @@ func TestScanCodeCommitIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "codecommit.us-east-1.amazonaws.com", IsNotFound: true}
 		}
 	}
-	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeUnavailable {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeUnavailable", err, got)
 	}

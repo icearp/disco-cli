@@ -168,7 +168,7 @@ func TestScanRUMAppMonitors_PagesAndLimit(t *testing.T) {
 			return &rum.ListAppMonitorsOutput{AppMonitorSummaries: []rumtypes.AppMonitorSummary{{Name: sdkaws.String("m2")}}}, nil
 		},
 	})
-	total, _, monitors, err := scanRUMAppMonitors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, monitors, err := scanRUMAppMonitors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -208,7 +208,7 @@ func TestScanRUMAppMonitors_LaterPageErrorKeepsEarlierPages(t *testing.T) {
 					}, nil
 				},
 			})
-			total, _, monitors, err := scanRUMAppMonitors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, monitors, err := scanRUMAppMonitors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("err = %v; want ValidationException: %v", err, tc.wantErr)
 			}
@@ -233,7 +233,7 @@ func TestScanRUMMetricsDestinations_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1", "m2", "m3"))
+	total, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1", "m2", "m3"))
 	if err != nil {
 		t.Fatalf("scanRUMMetricsDestinations: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestScanRUMMetricsDestinations_Empty(t *testing.T) {
 	client := newRUMTestClient(map[string]func(any) (any, error){
 		"ListRumMetricsDestinations": rumDestsHandler(&calls, nil, nil),
 	})
-	total, _, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1"))
+	total, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1"))
 	if err != nil || total != 0 || len(dests) != 0 {
 		t.Errorf("total, dests, err = %d, %v, %v; want 0, [], nil", total, dests, err)
 	}
@@ -319,7 +319,7 @@ func TestScanRUMMetricsDestinations_PerParentErrors(t *testing.T) {
 					"m3": {{rumCloudWatch()}},
 				}, map[string]error{"m1": tc.err, "m2": tc.err}),
 			})
-			total, _, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1", "m2", "m3"))
+			total, dests, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1", "m2", "m3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError || dests != nil {
 					t.Errorf("err, dests = %v, %v; want a hard %s and no destinations", err, dests, tc.wantErr)
@@ -356,7 +356,7 @@ func TestScanRUMMetricsDestinations_RepeatedTokenStops(t *testing.T) {
 			return &rum.ListRumMetricsDestinationsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, _, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1"))
+	_, _, err := scanRUMMetricsDestinations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumMonitors(t, st, "m1"))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -388,7 +388,7 @@ func TestScanRUMMetricDefinitions_RepeatedTokenStops(t *testing.T) {
 			return &rum.BatchGetRumMetricDefinitionsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}))
+	_, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -401,7 +401,7 @@ func TestScanRUM_AppMonitorsDenied(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rumListAppMonitorsOp)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(nil, rumDenied)}
-	total, _, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || total != 0 || *warns != 1 {
 		t.Errorf("total, warnings, err = %d, %d, %v; want 0, 1, nil", total, *warns, err)
 	}
@@ -426,7 +426,7 @@ func TestScanRUMMetricDefinitions_PagesAndFields(t *testing.T) {
 	})
 	dests := rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}, rumDestPair{"m1", rumEvidently()}, rumDestPair{"m2", rumCloudWatch()})
 
-	total, _, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, dests)
+	total, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, dests)
 	if err != nil {
 		t.Fatalf("scanRUMMetricDefinitions: %v", err)
 	}
@@ -475,7 +475,7 @@ func TestScanRUMMetricDefinitions_CloudWatchOmitsDestinationArn(t *testing.T) {
 	client := newRUMTestClient(map[string]func(any) (any, error){
 		"BatchGetRumMetricDefinitions": rumDefsHandler(&calls, nil, nil),
 	})
-	_, _, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", cw}))
+	_, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", cw}))
 	want := []string{rumDefsKey("m1", rumtypes.MetricDestinationCloudWatch, "")}
 	if got := calls.distinct(); err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("calls, err = %v, %v; want %v, nil", got, err, want)
@@ -489,7 +489,7 @@ func TestScanRUMMetricDefinitions_Empty(t *testing.T) {
 	client := newRUMTestClient(map[string]func(any) (any, error){
 		"BatchGetRumMetricDefinitions": rumDefsHandler(&calls, nil, nil),
 	})
-	total, _, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}))
+	total, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}))
 	if err != nil || total != 0 || len(calls.distinct()) != 1 {
 		t.Errorf("total, calls, err = %d, %v, %v; want 0, one call, nil", total, calls.distinct(), err)
 	}
@@ -528,7 +528,7 @@ func TestScanRUMMetricDefinitions_PerParentErrors(t *testing.T) {
 				}),
 			})
 			dests := rumDests(t, st, rumDestPair{"m1", rumCloudWatch()}, rumDestPair{"m2", rumCloudWatch()}, rumDestPair{"m3", rumCloudWatch()})
-			total, _, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, dests)
+			total, err := scanRUMMetricDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, dests)
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -598,7 +598,7 @@ func TestScanRUM_ChildrenOfStoredParents(t *testing.T) {
 	var destCalls, defCalls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(rumTopLevelHandlers(st, &destCalls, &defCalls), rumDenied)}
 
-	total, _, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanRUM: %v", err)
 	}
@@ -635,7 +635,7 @@ func TestScanRUM_DestinationFailureKeepsAppMonitors(t *testing.T) {
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, rumDenied)}
 
-	total, _, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v; want a hard InvalidRequestException", err)
 	}
@@ -657,7 +657,7 @@ func TestScanRUM_DefinitionFailureKeepsParents(t *testing.T) {
 	h["BatchGetRumMetricDefinitions"] = func(any) (any, error) { return nil, apiErr("InvalidRequestException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, rumDenied)}
 
-	total, _, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v; want a hard InvalidRequestException", err)
 	}
@@ -687,7 +687,7 @@ func TestScanRUM_AppMonitorThrottleDemotedBesideHardChildError(t *testing.T) {
 	h["ListRumMetricsDestinations"] = func(any) (any, error) { return nil, apiErr("InvalidRequestException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, rumDenied)}
 
-	_, _, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanRUM(context.Background(), acct, testRegion, st, testScanID)
 	if classifyServiceError(err) != outcomeError || *warns != 1 {
 		t.Errorf("outcome, warnings = %v, %d; want outcomeError, 1 (err %v)", classifyServiceError(err), *warns, err)
 	}

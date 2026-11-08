@@ -63,7 +63,9 @@ func TestScanCloudDNS_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeDNSService(t, srv)
 
-	total, inserted, err := scanCloudDNSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudDNSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudDNSWithClient: %v", err)
 	}
@@ -136,7 +138,9 @@ func TestScanCloudDNS_ZonePartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeDNSService(t, srv)
 
-	total, inserted, err := scanCloudDNSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudDNSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudDNSWithClient: %v", err)
 	}
@@ -169,7 +173,9 @@ func TestScanCloudDNS_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeDNSService(t, srv)
 
-	total, inserted, err := scanCloudDNSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudDNSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudDNSWithClient (denied): expected nil error, got %v", err)
 	}

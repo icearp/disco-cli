@@ -227,12 +227,12 @@ func mp2Handlers(c *mp2Calls) map[string]func(in any) (any, error) {
 
 // mp2ScanIn runs the scan's real entry point for acct in region against
 // handlers; every op they do not answer is denied.
-func mp2ScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mp2ScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, mp2TestDenied)
 	return scanMediaPackageV2(ctx, acct, region, st, testScanID)
 }
 
-func mp2Scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mp2Scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return mp2ScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers)
 }
 
@@ -283,7 +283,9 @@ func TestScanMediaPackageV2_StoresEveryRowWithItsTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newMP2Calls(t)
 
-	total, inserted, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := mp2Scan(context.Background(), counted, mp2Handlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -374,16 +376,16 @@ func TestScanMediaPackageV2_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanMediaPackageV2_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t))); err != nil {
+	if _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t)))
+	total, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -418,7 +420,9 @@ func TestScanMediaPackageV2_NoChannelGroups(t *testing.T) {
 				return &mediapackagev2.ListChannelGroupsOutput{}, nil
 			}
 
-			total, inserted, err := mp2Scan(context.Background(), st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := mp2Scan(context.Background(), counted, handlers)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}
@@ -465,7 +469,7 @@ func TestScanMediaPackageV2_TagReadFailures(t *testing.T) {
 			calls := newMP2Calls(t)
 			calls.errs[c.arn] = c.err
 
-			total, _, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+			total, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -514,7 +518,7 @@ func TestScanMediaPackageV2_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+	total, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -536,7 +540,7 @@ func TestScanMediaPackageV2_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[mp2TestGroupARN("g-bare")] = mp2TestThrottle
 	calls.errs[mp2KindOf(t, "ListOriginEndpoints").arnsOf(t)[5]] = mp2TestBad
 
-	_, _, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+	_, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -555,7 +559,7 @@ func TestScanMediaPackageV2_FailedWriteStopsScan(t *testing.T) {
 	calls := newMP2Calls(t)
 	calls.errs[mp2KindOf(t, "ListChannels").arnsOf(t)[0]] = mp2TestDenied
 
-	total, _, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+	total, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -603,7 +607,7 @@ func TestScanMediaPackageV2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := mp2Scan(context.Background(), st, handlers)
+			total, err := mp2Scan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -636,7 +640,7 @@ func TestScanMediaPackageV2_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := mp2Scan(context.Background(), st, handlers)
+	total, err := mp2Scan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -684,7 +688,7 @@ func TestScanMediaPackageV2_PerParentFailures(t *testing.T) {
 				handlers := mp2Handlers(calls)
 				failMP2(calls, handlers, c.op, c.path, e.err)
 
-				total, _, err := mp2Scan(context.Background(), st, handlers)
+				total, err := mp2Scan(context.Background(), st, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -717,7 +721,7 @@ func TestScanMediaPackageV2_PerParentFailures(t *testing.T) {
 			return out, err
 		}
 
-		total, _, err := mp2Scan(context.Background(), st, handlers)
+		total, err := mp2Scan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -819,7 +823,7 @@ func TestScanMediaPackageV2_ElementWithoutARNOrName(t *testing.T) {
 				return c.answer(in), nil
 			}
 
-			total, _, err := mp2Scan(context.Background(), st, handlers)
+			total, err := mp2Scan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -882,7 +886,7 @@ func TestScanMediaPackageV2_PartitionARNs(t *testing.T) {
 				return &mediapackagev2.ListOriginEndpointsOutput{Items: []mp2types.OriginEndpointListConfiguration{{Arn: sdkaws.String(endpointARN), OriginEndpointName: sdkaws.String("e")}}}, nil
 			}
 
-			if _, _, err := mp2ScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
+			if _, err := mp2ScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			got := calls.tagARNsMP2()
@@ -919,7 +923,7 @@ func TestScanMediaPackageV2_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := mp2Scan(ctx, st, handlers)
+	_, err := mp2Scan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -948,7 +952,7 @@ func TestScanMediaPackageV2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := mp2Handlers(newMP2Calls(t))
 		handlers["GetOriginEndpointPolicy"] = func(any) (any, error) { return nil, nx }
-		total, _, err := mp2Scan(context.Background(), st, handlers)
+		total, err := mp2Scan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := mp2TestTotal - 8; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -958,7 +962,7 @@ func TestScanMediaPackageV2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newMP2Calls(t)
 		calls.errs[mp2TestGroupARN("g-bare")] = nx
-		_, _, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
+		_, err := mp2Scan(context.Background(), st, mp2Handlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -966,7 +970,7 @@ func TestScanMediaPackageV2_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanMediaPackageV2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanMediaPackageV2(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

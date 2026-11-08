@@ -51,7 +51,7 @@ type rsApp struct{ envID, appID, arn string }
 // per-environment applications, and per-application services and routes.
 // Every phase runs; a child phase reads only the parents its parent phase
 // stored, and only a store write failure stops the scan.
-func scanRefactorSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRefactorSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := migrationhubrefactorspaces.NewFromConfig(acct.cfg, func(o *migrationhubrefactorspaces.Options) { o.Region = region })
 	var (
 		envs []childParent
@@ -59,27 +59,27 @@ func scanRefactorSpaces(ctx context.Context, acct *account, region string, st *s
 	)
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{rsEnvironmentsOp, func() (t, i int, err error) {
-			t, i, envs, err = scanRSEnvironments(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{rsEnvironmentsOp, func() (t int, err error) {
+			t, envs, err = scanRSEnvironments(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{rsApplicationsOp, func() (t, i int, err error) {
-			t, i, apps, err = scanRSApplications(ctx, client, acct, region, st, scanID, envs)
-			return t, i, err
+		{rsApplicationsOp, func() (t int, err error) {
+			t, apps, err = scanRSApplications(ctx, client, acct, region, st, scanID, envs)
+			return t, err
 		}},
-		{rsServicesOp, func() (int, int, error) {
+		{rsServicesOp, func() (int, error) {
 			return scanRSServices(ctx, client, acct, region, st, scanID, apps)
 		}},
-		{rsRoutesOp, func() (int, int, error) {
+		{rsRoutesOp, func() (int, error) {
 			return scanRSRoutes(ctx, client, acct, region, st, scanID, apps)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -102,7 +102,7 @@ func rsRow(acct *account, region, scanID, rtype, what string, arn, id, name *str
 
 // scanRSEnvironments also returns the stored environments for the
 // application phase.
-func scanRSEnvironments(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanRSEnvironments(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, rsEnvironmentsOp, "environments", "EnvironmentId",
 		func(ctx context.Context, token *string) ([]rstypes.EnvironmentSummary, *string, error) {
 			out, err := client.ListEnvironments(ctx, &migrationhubrefactorspaces.ListEnvironmentsInput{NextToken: token, MaxResults: sdkaws.Int32(rsPageMax)})
@@ -121,7 +121,7 @@ func scanRSEnvironments(ctx context.Context, client refactorSpacesAPI, acct *acc
 // and also returns the stored ones that carry an ApplicationId, for the
 // service and route phases; those without one are warned about once the
 // write succeeded. A failed write returns no applications.
-func scanRSApplications(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, int, []rsApp, error) {
+func scanRSApplications(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, []rsApp, error) {
 	envIDs := make([]string, len(envs))
 	for i, e := range envs {
 		envIDs[i] = e.id
@@ -130,7 +130,7 @@ func scanRSApplications(ctx context.Context, client refactorSpacesAPI, acct *acc
 		apps []rsApp
 		noID skipTally
 	)
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, rsApplicationsOp, rsNotFound, envIDs,
+	total, err := storeTokenEachParent(ctx, st, acct, region, rsApplicationsOp, rsNotFound, envIDs,
 		func(ctx context.Context, envID string, token *string) ([]rstypes.ApplicationSummary, *string, error) {
 			out, err := client.ListApplications(ctx, &migrationhubrefactorspaces.ListApplicationsInput{EnvironmentIdentifier: &envID, NextToken: token, MaxResults: sdkaws.Int32(rsPageMax)})
 			if err != nil {
@@ -150,10 +150,10 @@ func scanRSApplications(ctx context.Context, client refactorSpacesAPI, acct *acc
 			return r, why, key
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
 	warnNoChildID(st, rsApplicationsOp, acct, region, &noID, "applications", "ApplicationId")
-	return total, inserted, apps, err
+	return total, apps, err
 }
 
 // storeRSAppChildren lists op's items for each application concurrently
@@ -163,7 +163,7 @@ func storeRSAppChildren[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, apps []rsApp,
 	page func(ctx context.Context, app rsApp, token *string) ([]Item, *string, error),
 	row func(it Item) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	byARN := make(map[string]rsApp, len(apps))
 	arns := make([]string, len(apps))
 	for i, a := range apps {
@@ -176,7 +176,7 @@ func storeRSAppChildren[Item any](
 		func(_ string, it Item) (*store.Resource, string, string) { return row(it) })
 }
 
-func scanRSServices(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, apps []rsApp) (int, int, error) {
+func scanRSServices(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, apps []rsApp) (int, error) {
 	return storeRSAppChildren(ctx, st, acct, region, rsServicesOp, apps,
 		func(ctx context.Context, app rsApp, token *string) ([]rstypes.ServiceSummary, *string, error) {
 			out, err := client.ListServices(ctx, &migrationhubrefactorspaces.ListServicesInput{
@@ -193,7 +193,7 @@ func scanRSServices(ctx context.Context, client refactorSpacesAPI, acct *account
 }
 
 // scanRSRoutes stores routes without a name: RouteSummary has none.
-func scanRSRoutes(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, apps []rsApp) (int, int, error) {
+func scanRSRoutes(ctx context.Context, client refactorSpacesAPI, acct *account, region string, st *store.Store, scanID string, apps []rsApp) (int, error) {
 	return storeRSAppChildren(ctx, st, acct, region, rsRoutesOp, apps,
 		func(ctx context.Context, app rsApp, token *string) ([]rstypes.RouteSummary, *string, error) {
 			out, err := client.ListRoutes(ctx, &migrationhubrefactorspaces.ListRoutesInput{

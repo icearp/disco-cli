@@ -22,32 +22,31 @@ func init() {
 
 // scanEdgeMarketplace discovers Edge Marketplace offers + publishers, both
 // proxy resources (no location / tags).
-func scanEdgeMarketplace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEdgeMarketplace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	offersClient, err := armedgemarketplace.NewOffersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armedgemarketplace:NewOffersClient: %w", err)
+		return 0, fmt.Errorf("armedgemarketplace:NewOffersClient: %w", err)
 	}
 	publishersClient, err := armedgemarketplace.NewPublishersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armedgemarketplace:NewPublishersClient: %w", err)
+		return 0, fmt.Errorf("armedgemarketplace:NewPublishersClient: %w", err)
 	}
 
 	var (
 		mu       sync.Mutex
 		firstErr error
 	)
-	addTotals := func(t, n int, e error) {
+	addTotals := func(t int, e error) {
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		if e != nil && firstErr == nil {
 			firstErr = e
 		}
 	}
 
-	phases := []func() (int, int, error){
-		func() (int, int, error) {
+	phases := []func() (int, error){
+		func() (int, error) {
 			return azSimpleScan(ctx, "armedgemarketplace:Offers.ListBySubscription", TypeEdgeMarketplaceOffer, sub, st, scanID,
 				offersClient.NewListBySubscriptionPager(nil),
 				func(p armedgemarketplace.OffersClientListBySubscriptionResponse) []*armedgemarketplace.Offer {
@@ -57,7 +56,7 @@ func scanEdgeMarketplace(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armedgemarketplace:Publishers.ListBySubscription", TypeEdgeMarketplacePublisher, sub, st, scanID,
 				publishersClient.NewListBySubscriptionPager(nil),
 				func(p armedgemarketplace.PublishersClientListBySubscriptionResponse) []*armedgemarketplace.Publisher {
@@ -72,10 +71,10 @@ func scanEdgeMarketplace(ctx context.Context, sub *subscription, cred azcore.Tok
 	var wg sync.WaitGroup
 	for _, fn := range phases {
 		wg.Go(func() {
-			t, n, e := fn()
-			addTotals(t, n, e)
+			t, e := fn()
+			addTotals(t, e)
 		})
 	}
 	wg.Wait()
-	return total, inserted, firstErr
+	return total, firstErr
 }

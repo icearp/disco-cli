@@ -10,7 +10,7 @@ import (
 
 // scanLambdaPermissions emits one row per function with a non-empty
 // resource policy. NativeID synth: {functionArn}/policy.
-func scanLambdaPermissions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaPermissions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	for _, fn := range fns {
 		name := fn.name
@@ -19,7 +19,7 @@ func scanLambdaPermissions(ctx context.Context, client lambdaAPI, acct *account,
 			if isAccessDenied(perr) || isAPIErrorCode(perr, "ResourceNotFoundException") {
 				continue
 			}
-			return total, inserted, fmt.Errorf("lambda:GetPolicy %s: %w", name, perr)
+			return total, fmt.Errorf("lambda:GetPolicy %s: %w", name, perr)
 		}
 		if sv(out.Policy) == "" {
 			continue
@@ -39,7 +39,7 @@ func scanLambdaPermissions(ctx context.Context, client lambdaAPI, acct *account,
 // scanLambdaLayerVersionPermissions emits one row per layer-version with a
 // non-empty resource policy. Walks ListLayers → ListLayerVersions →
 // GetLayerVersionPolicy. NativeID synth: {layerVersionArn}/policy.
-func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	type lvRef struct {
 		layer   string
 		version int64
@@ -52,9 +52,9 @@ func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, ac
 		if lerr != nil {
 			if isAccessDenied(lerr) {
 				_ = skipIfAccessDenied(st, "lambda:ListLayers(perm)", acct.ID, region, lerr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("lambda:ListLayers(perm): %w", lerr)
+			return 0, fmt.Errorf("lambda:ListLayers(perm): %w", lerr)
 		}
 		for _, l := range page.Layers {
 			if l.LayerName == nil {
@@ -67,7 +67,7 @@ func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, ac
 					if isAccessDenied(verr) {
 						break
 					}
-					return 0, 0, fmt.Errorf("lambda:ListLayerVersions(perm) %s: %w", *l.LayerName, verr)
+					return 0, fmt.Errorf("lambda:ListLayerVersions(perm) %s: %w", *l.LayerName, verr)
 				}
 				for _, v := range vpage.LayerVersions {
 					refs = append(refs, lvRef{layer: *l.LayerName, version: v.Version, arn: sv(v.LayerVersionArn)})
@@ -87,7 +87,7 @@ func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, ac
 			if isAccessDenied(perr) || isAPIErrorCode(perr, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("lambda:GetLayerVersionPolicy %s:%d: %w", layer, ver, perr)
+			return 0, fmt.Errorf("lambda:GetLayerVersionPolicy %s:%d: %w", layer, ver, perr)
 		}
 		if sv(out.Policy) == "" {
 			continue
@@ -108,7 +108,7 @@ func scanLambdaLayerVersionPermissions(ctx context.Context, client lambdaAPI, ac
 // function in fns. The API answers with the qualified function ARN, which is
 // already the NativeID of the alias or version row it applies to, so the
 // config is keyed {qualifiedFunctionArn}/provisioned-concurrency.
-func scanLambdaProvisionedConcurrencyConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLambdaProvisionedConcurrencyConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (int, error) {
 	parents := make([]childParent, len(fns))
 	for i, fn := range fns {
 		parents[i] = childParent{id: fn.name, arn: fn.arn}

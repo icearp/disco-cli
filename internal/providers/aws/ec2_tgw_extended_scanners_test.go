@@ -175,7 +175,9 @@ func TestScanEC2TGWPolicyTableEntries_StoresEntriesUnderTables(t *testing.T) {
 	client := tgxClient(map[string]func(any) (any, error){
 		"GetTransitGatewayPolicyTableEntries": tgxEntriesHandler(&calls),
 	})
-	total, inserted, err := scanEC2TGWPolicyTableEntries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanEC2TGWPolicyTableEntries(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanEC2TGWPolicyTableEntries: %v", err)
 	}
@@ -183,7 +185,9 @@ func TestScanEC2TGWPolicyTableEntries_StoresEntriesUnderTables(t *testing.T) {
 		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
 	}
 	// Re-listing the unchanged rows inserts none.
-	total, inserted, err = scanEC2TGWPolicyTableEntries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanEC2TGWPolicyTableEntries(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted = upserts()
 	if err != nil || total != 3 || inserted != 0 {
 		t.Errorf("re-run total, inserted, err = %d, %d, %v; want 3, 0, nil", total, inserted, err)
 	}
@@ -217,7 +221,9 @@ func TestScanEC2TGWPrefixListReferences_StoresReferencesUnderTables(t *testing.T
 	client := tgxClient(map[string]func(any) (any, error){
 		"GetTransitGatewayPrefixListReferences": tgxRefsHandler(&calls),
 	})
-	total, inserted, err := scanEC2TGWPrefixListReferences(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanEC2TGWPrefixListReferences(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanEC2TGWPrefixListReferences: %v", err)
 	}
@@ -225,7 +231,9 @@ func TestScanEC2TGWPrefixListReferences_StoresReferencesUnderTables(t *testing.T
 		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
 	}
 	// Re-listing the unchanged rows inserts none.
-	total, inserted, err = scanEC2TGWPrefixListReferences(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanEC2TGWPrefixListReferences(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted = upserts()
 	if err != nil || total != 3 || inserted != 0 {
 		t.Errorf("re-run total, inserted, err = %d, %d, %v; want 3, 0, nil", total, inserted, err)
 	}
@@ -258,7 +266,7 @@ type tgxPhase struct {
 	name, op, sdkOp, typ, goneCode string
 	seed                           func(*testing.T, *store.Store)
 	handler                        func(*parentCalls) func(any) (any, error)
-	run                            func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run                            func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	parentID                       func(in any) string
 	// kept is a row of the second live parent, which the per-parent error
 	// cases never fail.
@@ -301,7 +309,7 @@ func TestScanEC2TGWExtended_Empty(t *testing.T) {
 	for _, ph := range tgxPhases {
 		t.Run(ph.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
+			total, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) { return nil, errTgxTest },
 			}), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != 0 {
@@ -311,7 +319,7 @@ func TestScanEC2TGWExtended_Empty(t *testing.T) {
 		t.Run(ph.name+"/no children", func(t *testing.T) {
 			st := newTestStore(t)
 			ph.seed(t, st)
-			total, _, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
+			total, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) {
 					if ph.sdkOp == "GetTransitGatewayPolicyTableEntries" {
 						return &ec2.GetTransitGatewayPolicyTableEntriesOutput{}, nil
@@ -359,7 +367,7 @@ func TestScanEC2TGWExtended_PerParentErrors(t *testing.T) {
 				}
 				var calls parentCalls
 				warnings := countOpWarnings(st, ph.op)
-				total, _, err := ph.run(context.Background(),
+				total, err := ph.run(context.Background(),
 					tgxClient(map[string]func(any) (any, error){ph.sdkOp: tgxFailAfterKept(ph, &calls, c.failErr)}),
 					newTestAccount(testAccountID), testRegion, st, testScanID)
 				if c.wantErr == nil && err != nil {
@@ -416,7 +424,7 @@ func TestScanEC2TGWExtended_OneWarningPerCode(t *testing.T) {
 			var calls parentCalls
 			inner := ph.handler(&calls)
 			warnings := countOpWarnings(st, ph.op)
-			_, _, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
+			_, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(in any) (any, error) {
 					switch ph.parentID(in) {
 					case tgxPT1, tgxRT1:
@@ -449,7 +457,7 @@ func TestScanEC2TGWExtended_RepeatedTokenStops(t *testing.T) {
 				tgxSeedParent(t, st, TypeEC2TransitGatewayRouteTable, tgxRTARN(tgxRT1), testRegion, "available", testScanID)
 			}
 			calls := 0
-			_, _, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
+			_, err := ph.run(context.Background(), tgxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) {
 					calls++
 					if calls > 3 {
@@ -540,7 +548,7 @@ func tgxScanEC2(st *store.Store, handlers map[string]func(in any) (any, error)) 
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(ctxHandlers, tgxDenied)
-	_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 	return err
 }
 
@@ -596,7 +604,7 @@ func TestScanEC2_TGWExtendedPhasesAfterOlderCategories(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfigCtx(ctxHandlers, tgxDenied)
-			_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, errTgxTest) {
 				t.Fatalf("err = %v, want the %s error", err, failed.sdkOp)
 			}

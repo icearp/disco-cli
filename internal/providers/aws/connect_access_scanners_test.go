@@ -43,7 +43,7 @@ type connectAccessCase struct {
 	wantIDs func(parentARN, parentID string) []string
 	// wantEmptyIDs is the NativeIDs stored for one parent answering empty.
 	wantEmptyIDs func(parentARN string) []string
-	run          func(context.Context, connectAccessAPI, *account, *store.Store) (int, int, error)
+	run          func(context.Context, connectAccessAPI, *account, *store.Store) (int, error)
 	check        func(t *testing.T, r store.Resource)
 }
 
@@ -68,7 +68,7 @@ func connectAccessCases() []connectAccessCase {
 			empty:        &connect.ListSecurityProfilePermissionsOutput{},
 			wantIDs:      func(arn, _ string) []string { return []string{arn + "/permission"} },
 			wantEmptyIDs: func(arn string) []string { return []string{arn + "/permission"} },
-			run: func(ctx context.Context, c connectAccessAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectAccessAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectSecurityProfilePermissions(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -106,7 +106,7 @@ func connectAccessCases() []connectAccessCase {
 				return []string{arn + "/queue/q-" + id + "/channel/VOICE", arn + "/queue/q-" + id + "/channel/CHAT"}
 			},
 			wantEmptyIDs: func(string) []string { return nil },
-			run: func(ctx context.Context, c connectAccessAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectAccessAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectRoutingProfileQueues(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -153,7 +153,9 @@ func TestConnectAccessPhases_PagesEveryParentOfThisScan(t *testing.T) {
 				}
 				return c.respond(id, token), nil
 			}})
-			total, inserted, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			counted, upserts := countUpserts(st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), counted)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -190,7 +192,7 @@ func TestConnectAccessPhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
 			client := connectStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return c.empty, nil }})
-			total, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
 			want := append(c.wantEmptyIDs(c.parentARN("p-1")), c.wantEmptyIDs(c.parentARN("p-2"))...)
 			if err != nil || total != len(want) {
 				t.Fatalf("got (%d, %v), want (%d, nil)", total, err, len(want))
@@ -213,7 +215,7 @@ func TestConnectAccessPhases_Errors(t *testing.T) {
 				}
 				return c.respond(id, token), nil
 			}})
-			total, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -228,7 +230,7 @@ func TestConnectAccessPhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
 			warns := countOpWarnings(st, "connect:"+c.op)
-			total, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
 			if err != nil || total != 0 {
 				t.Fatalf("got (%d, %v), want (0, nil)", total, err)
 			}
@@ -240,20 +242,20 @@ func TestConnectAccessPhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
 			client := connectStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return nil, connectBadParam }})
-			if _, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterException") {
+			if _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterException") {
 				t.Errorf("err = %v, want InvalidParameterException", err)
 			}
 		})
 		t.Run(c.name+"/unparsable parent is an error", func(t *testing.T) {
 			st := newTestStore(t)
 			upsertTestResource(t, st, "aws", testAccountID, c.parentType, connectTestInstanceARN+"/"+c.parentKind, testRegion, "{}")
-			if _, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st); !errors.Is(err, errConnectParentARN) {
+			if _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st); !errors.Is(err, errConnectParentARN) {
 				t.Errorf("err = %v, want errConnectParentARN", err)
 			}
 		})
 		t.Run(c.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
 			if err != nil || total != 0 {
 				t.Errorf("got (%d, %v), want (0, nil)", total, err)
 			}
@@ -271,7 +273,7 @@ func TestScanConnectSecurityProfilePermissions_OrderIsNoChange(t *testing.T) {
 		client := connectStubClient(map[string]func(any) (any, error){"ListSecurityProfilePermissions": func(any) (any, error) {
 			return &connect.ListSecurityProfilePermissionsOutput{Permissions: perms}, nil
 		}})
-		if _, _, err := scanConnectSecurityProfilePermissions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+		if _, err := scanConnectSecurityProfilePermissions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		attrs = append(attrs, rowsByNativeID(t, st, TypeConnectSecurityProfilePermission)[connectTestInstanceARN+"/security-profile/sp-1/permission"].AttributesJSON)
@@ -288,7 +290,7 @@ func TestScanConnectSecurityProfilePermissions_EmptyIsAnEmptyList(t *testing.T) 
 	client := connectStubClient(map[string]func(any) (any, error){"ListSecurityProfilePermissions": func(any) (any, error) {
 		return &connect.ListSecurityProfilePermissionsOutput{}, nil
 	}})
-	if _, _, err := scanConnectSecurityProfilePermissions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanConnectSecurityProfilePermissions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r := rowsByNativeID(t, st, TypeConnectSecurityProfilePermission)[connectTestInstanceARN+"/security-profile/sp-1/permission"]
@@ -322,7 +324,9 @@ func TestScanConnectLambdaFunctions_OneRowPerInstanceAndFunction(t *testing.T) {
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectInstance, "arn:aws:connect:eu-west-1:123456789012:instance/i-west", "eu-west-1", "{}")
 	var calls parentCalls
 	client := connectStubClient(map[string]func(any) (any, error){"ListLambdaFunctions": lambdaFunctionsHandler(&calls)})
-	total, inserted, err := scanConnectLambdaFunctions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectLambdaFunctions(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -356,7 +360,7 @@ func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
 		st := newTestStore(t)
 		seedConnectInstances(t, st, "i-1")
 		client := connectStubClient(map[string]func(any) (any, error){"ListLambdaFunctions": func(any) (any, error) { return &connect.ListLambdaFunctionsOutput{}, nil }})
-		total, _, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 {
 			t.Errorf("got (%d, %v), want (0, nil)", total, err)
 		}
@@ -373,7 +377,7 @@ func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
 			}
 			return ok(in)
 		}})
-		total, _, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 2 || *warns != 0 {
 			t.Errorf("got (%d, %v, %d warnings), want (2, nil, 0)", total, err, *warns)
 		}
@@ -382,7 +386,7 @@ func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
 		st := newTestStore(t)
 		seedConnectInstances(t, st, "i-1", "i-2")
 		warns := countOpWarnings(st, connectListLambdaFunctionsOp)
-		total, _, err := scanConnectLambdaFunctions(ctx, connectStubClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectLambdaFunctions(ctx, connectStubClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("got (%d, %v, %d warnings), want (0, nil, 1)", total, err, *warns)
 		}
@@ -391,14 +395,14 @@ func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
 		st := newTestStore(t)
 		seedConnectInstances(t, st, "i-1")
 		client := connectStubClient(map[string]func(any) (any, error){"ListLambdaFunctions": func(any) (any, error) { return nil, connectBadParam }})
-		if _, _, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
+		if _, err := scanConnectLambdaFunctions(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 			t.Errorf("err = %v, want InvalidParameterException", err)
 		}
 	})
 	t.Run("unparsable instance is an error", func(t *testing.T) {
 		st := newTestStore(t)
 		upsertTestResource(t, st, "aws", testAccountID, TypeConnectInstance, "arn:aws:connect:us-east-1:123456789012:instance/", testRegion, "{}")
-		if _, _, err := scanConnectLambdaFunctions(ctx, connectStubClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID); !errors.Is(err, errConnectParentARN) {
+		if _, err := scanConnectLambdaFunctions(ctx, connectStubClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID); !errors.Is(err, errConnectParentARN) {
 			t.Errorf("err = %v, want errConnectParentARN", err)
 		}
 	})
@@ -468,8 +472,7 @@ func connectScanWith(t *testing.T, st *store.Store, h map[string]func(any) (any,
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = connectStubConfig(h)
-	total, _, err := scanConnect(context.Background(), acct, testRegion, st, testScanID)
-	return total, err
+	return scanConnect(context.Background(), acct, testRegion, st, testScanID)
 }
 
 func TestScanConnect_AccessReadsParentsTheFamiliesStored(t *testing.T) {
@@ -585,7 +588,7 @@ func TestScanConnectAccess_TransientDoesNotMaskSiblingError(t *testing.T) {
 				hardOp = "ListRoutingProfileQueues"
 			}
 			h[hardOp] = func(any) (any, error) { return nil, connectHardErr }
-			_, _, err := scanConnectAccess(context.Background(), connectStubClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanConnectAccess(context.Background(), connectStubClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 			}
@@ -616,7 +619,7 @@ func TestScanConnectRoutingProfileQueues_IncompleteEntriesWarnOnce(t *testing.T)
 			{QueueId: ptrStr("q-2")},
 		}}, nil
 	}})
-	total, _, err := scanConnectRoutingProfileQueues(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectRoutingProfileQueues(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("got (%d, %v), want (2, nil): one complete entry per profile", total, err)
 	}
@@ -636,7 +639,7 @@ func TestScanConnectRoutingProfileQueues_CompleteEntriesDoNotWarn(t *testing.T) 
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectRoutingProfile, connectTestInstanceARN+"/routing-profile/rp-1", testRegion, "{}")
 	warns := countOpWarnings(st, connectListRoutingProfileQueuesOp)
 	client := connectStubClient(map[string]func(any) (any, error){"ListRoutingProfileQueues": connectAccessOps["ListRoutingProfileQueues"]})
-	if _, _, err := scanConnectRoutingProfileQueues(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanConnectRoutingProfileQueues(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 0 {

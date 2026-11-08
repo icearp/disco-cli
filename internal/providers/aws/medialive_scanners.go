@@ -77,7 +77,7 @@ const (
 	mediaLiveMultiplexProgramNotFoundError = "NotFoundException"
 )
 
-func scanMediaLive(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMediaLive(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := medialive.NewFromConfig(acct.cfg, func(o *medialive.Options) { o.Region = region })
 	return scanMLAll(ctx, client, acct, region, st, scanID)
 }
@@ -89,48 +89,48 @@ func scanMediaLive(ctx context.Context, acct *account, region string, st *store.
 // Every list call leaves MaxResults unset, so the service picks the page
 // size: MediaLive's model gives MaxResults no range, so there is no
 // documented cap to ask for.
-func scanMLAll(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLAll(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
-	clusterIDs, t, i, ferr := scanMLClusters(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(mediaLiveListClustersOp, t, i, ferr) {
+	clusterIDs, t, ferr := scanMLClusters(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(mediaLiveListClustersOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
-	multiplexIDs, t, i, ferr := scanMLMultiplexes(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(mediaLiveListMultiplexesOp, t, i, ferr) {
+	multiplexIDs, t, ferr := scanMLMultiplexes(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(mediaLiveListMultiplexesOp, t, ferr) {
 		return phases.result(st, acct, region)
 	}
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{mediaLiveListChannelsOp, func() (int, int, error) { return scanMLChannels(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListPlacementGroupsOp, func() (int, int, error) {
+		{mediaLiveListChannelsOp, func() (int, error) { return scanMLChannels(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListPlacementGroupsOp, func() (int, error) {
 			return scanMLChannelPlacementGroups(ctx, client, acct, region, st, scanID, clusterIDs)
 		}},
-		{mediaLiveListAlarmTemplatesOp, func() (int, int, error) { return scanMLAlarmTemplates(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListAlarmTemplateGroupsOp, func() (int, int, error) {
+		{mediaLiveListAlarmTemplatesOp, func() (int, error) { return scanMLAlarmTemplates(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListAlarmTemplateGroupsOp, func() (int, error) {
 			return scanMLAlarmTemplateGroups(ctx, client, acct, region, st, scanID)
 		}},
-		{mediaLiveListEBRuleTemplatesOp, func() (int, int, error) { return scanMLEBTemplates(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListEBRuleTemplateGroupsOp, func() (int, int, error) {
+		{mediaLiveListEBRuleTemplatesOp, func() (int, error) { return scanMLEBTemplates(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListEBRuleTemplateGroupsOp, func() (int, error) {
 			return scanMLEBTemplateGroups(ctx, client, acct, region, st, scanID)
 		}},
-		{mediaLiveListInputsOp, func() (int, int, error) { return scanMLInputs(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListInputDevicesOp, func() (int, int, error) { return scanMLInputDevices(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListInputSecurityGroupsOp, func() (int, int, error) {
+		{mediaLiveListInputsOp, func() (int, error) { return scanMLInputs(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListInputDevicesOp, func() (int, error) { return scanMLInputDevices(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListInputSecurityGroupsOp, func() (int, error) {
 			return scanMLInputSecurityGroups(ctx, client, acct, region, st, scanID)
 		}},
-		{mediaLiveListNodesOp, func() (int, int, error) { return scanMLNodes(ctx, client, acct, region, st, scanID, clusterIDs) }},
-		{mediaLiveListReservationsOp, func() (int, int, error) { return scanMLReservations(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListMultiplexProgramsOp, func() (int, int, error) {
+		{mediaLiveListNodesOp, func() (int, error) { return scanMLNodes(ctx, client, acct, region, st, scanID, clusterIDs) }},
+		{mediaLiveListReservationsOp, func() (int, error) { return scanMLReservations(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListMultiplexProgramsOp, func() (int, error) {
 			return scanMLMultiplexPrograms(ctx, client, acct, region, st, scanID, multiplexIDs)
 		}},
-		{mediaLiveListNetworksOp, func() (int, int, error) { return scanMLNetworks(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListSdiSourcesOp, func() (int, int, error) { return scanMLSdiSources(ctx, client, acct, region, st, scanID) }},
-		{mediaLiveListSignalMapsOp, func() (int, int, error) { return scanMLSignalMaps(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListNetworksOp, func() (int, error) { return scanMLNetworks(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListSdiSourcesOp, func() (int, error) { return scanMLSdiSources(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListSignalMapsOp, func() (int, error) { return scanMLSignalMaps(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, ferr := phase.fn()
-		if phases.addPhase(phase.op, t, i, ferr) {
+		t, ferr := phase.fn()
+		if phases.addPhase(phase.op, t, ferr) {
 			break
 		}
 	}
@@ -165,7 +165,7 @@ func mediaLiveSkipOpNotDeployed[Item any](list func(context.Context, *string) ([
 	}
 }
 
-func scanMLChannels(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLChannels(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListChannelsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.ChannelSummary, *string, error) {
 			out, err := client.ListChannels(ctx, &medialive.ListChannelsInput{NextToken: token})
@@ -185,12 +185,12 @@ func scanMLChannels(ctx context.Context, client mediaLiveAPI, acct *account, reg
 
 // scanMLClusters stores the clusters and returns the ids of those stored,
 // for the per-cluster phases.
-func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, mediaLiveListClustersOp,
+	t, err := storeTokenList(ctx, st, acct, region, mediaLiveListClustersOp,
 		mediaLiveSkipOpNotDeployed(func(ctx context.Context, token *string) ([]medialivetypes.DescribeClusterSummary, *string, error) {
 			out, err := client.ListClusters(ctx, &medialive.ListClustersInput{NextToken: token})
 			if err != nil {
@@ -213,10 +213,10 @@ func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, reg
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, mediaLiveListClustersOp, acct, region, &noChildID, "cluster(s)", "Id")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
-func scanMLChannelPlacementGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
+func scanMLChannelPlacementGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListPlacementGroupsOp, nil, clusterIDs,
 		func(ctx context.Context, cid string, token *string) ([]medialivetypes.DescribeChannelPlacementGroupSummary, *string, error) {
 			out, err := client.ListChannelPlacementGroups(ctx, &medialive.ListChannelPlacementGroupsInput{ClusterId: &cid, NextToken: token})
@@ -234,7 +234,7 @@ func scanMLChannelPlacementGroups(ctx context.Context, client mediaLiveAPI, acct
 		})
 }
 
-func scanMLAlarmTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLAlarmTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListAlarmTemplatesOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.CloudWatchAlarmTemplateSummary, *string, error) {
 			out, err := client.ListCloudWatchAlarmTemplates(ctx, &medialive.ListCloudWatchAlarmTemplatesInput{NextToken: token})
@@ -255,7 +255,7 @@ func scanMLAlarmTemplates(ctx context.Context, client mediaLiveAPI, acct *accoun
 		})
 }
 
-func scanMLAlarmTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLAlarmTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListAlarmTemplateGroupsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.CloudWatchAlarmTemplateGroupSummary, *string, error) {
 			out, err := client.ListCloudWatchAlarmTemplateGroups(ctx, &medialive.ListCloudWatchAlarmTemplateGroupsInput{NextToken: token})
@@ -277,7 +277,7 @@ func scanMLAlarmTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *a
 		})
 }
 
-func scanMLEBTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLEBTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListEBRuleTemplatesOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.EventBridgeRuleTemplateSummary, *string, error) {
 			out, err := client.ListEventBridgeRuleTemplates(ctx, &medialive.ListEventBridgeRuleTemplatesInput{NextToken: token})
@@ -295,7 +295,7 @@ func scanMLEBTemplates(ctx context.Context, client mediaLiveAPI, acct *account, 
 		})
 }
 
-func scanMLEBTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLEBTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListEBRuleTemplateGroupsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.EventBridgeRuleTemplateGroupSummary, *string, error) {
 			out, err := client.ListEventBridgeRuleTemplateGroups(ctx, &medialive.ListEventBridgeRuleTemplateGroupsInput{NextToken: token})
@@ -313,7 +313,7 @@ func scanMLEBTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *acco
 		})
 }
 
-func scanMLInputs(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLInputs(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListInputsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.Input, *string, error) {
 			out, err := client.ListInputs(ctx, &medialive.ListInputsInput{NextToken: token})
@@ -331,7 +331,7 @@ func scanMLInputs(ctx context.Context, client mediaLiveAPI, acct *account, regio
 		})
 }
 
-func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListInputDevicesOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.InputDeviceSummary, *string, error) {
 			out, err := client.ListInputDevices(ctx, &medialive.ListInputDevicesInput{NextToken: token})
@@ -352,7 +352,7 @@ func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account,
 // scanMLNodes lists the nodes of each cluster scanMLClusters stored
 // (ListNodes requires a ClusterId). DescribeNodeSummary carries a real
 // distinct node ARN, used directly as NativeID (edge-less).
-func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
+func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListNodesOp, nil, clusterIDs,
 		func(ctx context.Context, cid string, token *string) ([]medialivetypes.DescribeNodeSummary, *string, error) {
 			out, err := client.ListNodes(ctx, &medialive.ListNodesInput{ClusterId: &cid, NextToken: token})
@@ -370,7 +370,7 @@ func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region
 		})
 }
 
-func scanMLReservations(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLReservations(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListReservationsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.Reservation, *string, error) {
 			out, err := client.ListReservations(ctx, &medialive.ListReservationsInput{NextToken: token})
@@ -390,7 +390,7 @@ func scanMLReservations(ctx context.Context, client mediaLiveAPI, acct *account,
 		})
 }
 
-func scanMLInputSecurityGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLInputSecurityGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListInputSecurityGroupsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.InputSecurityGroup, *string, error) {
 			out, err := client.ListInputSecurityGroups(ctx, &medialive.ListInputSecurityGroupsInput{NextToken: token})
@@ -410,12 +410,12 @@ func scanMLInputSecurityGroups(ctx context.Context, client mediaLiveAPI, acct *a
 
 // scanMLMultiplexes stores the multiplexes and returns the ids of those
 // stored, for the multiplex program phase.
-func scanMLMultiplexes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMLMultiplexes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var (
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, mediaLiveListMultiplexesOp,
+	t, err := storeTokenList(ctx, st, acct, region, mediaLiveListMultiplexesOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.MultiplexSummary, *string, error) {
 			out, err := client.ListMultiplexes(ctx, &medialive.ListMultiplexesInput{NextToken: token})
 			if err != nil {
@@ -438,12 +438,12 @@ func scanMLMultiplexes(ctx context.Context, client mediaLiveAPI, acct *account, 
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, mediaLiveListMultiplexesOp, acct, region, &noChildID, "multiplex(es)", "Id")
 	}
-	return ids, t, i, err
+	return ids, t, err
 }
 
 // scanMLMultiplexPrograms — MultiplexProgramSummary has no ARN; synth from
 // (multiplexId, programName).
-func scanMLMultiplexPrograms(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, multiplexIDs []string) (int, int, error) {
+func scanMLMultiplexPrograms(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, multiplexIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListMultiplexProgramsOp, []string{mediaLiveMultiplexProgramNotFoundError}, multiplexIDs,
 		func(ctx context.Context, mid string, token *string) ([]medialivetypes.MultiplexProgramSummary, *string, error) {
 			out, err := client.ListMultiplexPrograms(ctx, &medialive.ListMultiplexProgramsInput{MultiplexId: &mid, NextToken: token})
@@ -461,7 +461,7 @@ func scanMLMultiplexPrograms(ctx context.Context, client mediaLiveAPI, acct *acc
 		})
 }
 
-func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListNetworksOp,
 		mediaLiveSkipOpNotDeployed(func(ctx context.Context, token *string) ([]medialivetypes.DescribeNetworkSummary, *string, error) {
 			out, err := client.ListNetworks(ctx, &medialive.ListNetworksInput{NextToken: token})
@@ -479,7 +479,7 @@ func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, reg
 		})
 }
 
-func scanMLSdiSources(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLSdiSources(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListSdiSourcesOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.SdiSourceSummary, *string, error) {
 			out, err := client.ListSdiSources(ctx, &medialive.ListSdiSourcesInput{NextToken: token})
@@ -497,7 +497,7 @@ func scanMLSdiSources(ctx context.Context, client mediaLiveAPI, acct *account, r
 		})
 }
 
-func scanMLSignalMaps(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLSignalMaps(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, mediaLiveListSignalMapsOp,
 		func(ctx context.Context, token *string) ([]medialivetypes.SignalMapSummary, *string, error) {
 			out, err := client.ListSignalMaps(ctx, &medialive.ListSignalMapsInput{NextToken: token})

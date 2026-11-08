@@ -58,7 +58,9 @@ func TestScanDocDBInstances_FiltersNonDocDBEngine(t *testing.T) {
 		{DBInstanceArn: &pgARN, DBInstanceIdentifier: &pgID, Engine: &pgEngine},
 	}}
 
-	total, inserted, err := scanDocDBInstances(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDocDBInstances(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDocDBInstances: %v", err)
 	}
@@ -120,7 +122,9 @@ func TestScanNeptuneInstances_FiltersNonNeptuneEngine(t *testing.T) {
 		{DBInstanceArn: &pgARN, DBInstanceIdentifier: &pgID, Engine: &pgEngine},
 	}}
 
-	total, inserted, err := scanNeptuneInstances(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanNeptuneInstances(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanNeptuneInstances: %v", err)
 	}
@@ -151,7 +155,9 @@ func TestScanNeptuneDBPGs_FiltersNonNeptuneFamily(t *testing.T) {
 		{DBParameterGroupArn: &pgARN, DBParameterGroupName: &pgName, DBParameterGroupFamily: &pgFamily},
 	}}
 
-	total, inserted, err := scanNeptuneDBPGs(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanNeptuneDBPGs(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanNeptuneDBPGs: %v", err)
 	}

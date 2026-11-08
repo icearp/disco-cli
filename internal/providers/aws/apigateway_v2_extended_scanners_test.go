@@ -324,7 +324,7 @@ func newAGV2World() *agv2World {
 	return w
 }
 
-func scanAGV2World(t *testing.T, st *store.Store, acct *account, region string, w *agv2World) (int, int, error) {
+func scanAGV2World(t *testing.T, st *store.Store, acct *account, region string, w *agv2World) (int, error) {
 	t.Helper()
 	acct.cfg = w.config()
 	return scanAPIGatewayV2(context.Background(), acct, region, st, testScanID)
@@ -341,7 +341,9 @@ func TestScanAPIGatewayV2_StoresEveryListing(t *testing.T) {
 				region = acct.Regions[0]
 			}
 			listings := agv2Listings()
-			total, inserted, err := scanAGV2World(t, st, acct, region, newAGV2World())
+			counted, upserts := countUpserts(st)
+			total, err := scanAGV2World(t, counted, acct, region, newAGV2World())
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -408,7 +410,7 @@ func TestScanAPIGatewayV2_StoresElementTags(t *testing.T) {
 	w.set("GetVpcLinks", "", agv2Page{items: []any{apigwv2types.VpcLink{VpcLinkId: sdkaws.String("v1"), Tags: tags}, apigwv2types.VpcLink{VpcLinkId: sdkaws.String("v2")}}})
 	w.set("GetStages", "a1", agv2Page{items: []any{apigwv2types.Stage{StageName: sdkaws.String("prod"), Tags: tags}, apigwv2types.Stage{StageName: sdkaws.String("dev")}}})
 	st := newTestStore(t)
-	if _, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w); err != nil {
+	if _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, c := range []struct{ typ, tagged, untagged string }{
@@ -425,8 +427,9 @@ func TestScanAPIGatewayV2_StoresElementTags(t *testing.T) {
 	}
 
 	// A rescan of the unchanged listings inserts none.
-	if total, inserted, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w); err != nil || inserted != 0 || total == 0 {
-		t.Errorf("rescan = %d, %d, %v; want >0, 0, nil", total, inserted, err)
+	counted, upserts := countUpserts(st)
+	if total, err := scanAGV2World(t, counted, newTestAccount(testAccountID), testRegion, w); err != nil || upserts() != 0 || total == 0 {
+		t.Errorf("rescan = %d, %d, %v; want >0, 0, nil", total, upserts(), err)
 	}
 }
 
@@ -478,7 +481,7 @@ func TestScanAPIGatewayV2_ListingFailures(t *testing.T) {
 				w.set(l.op, l.parent, c.pages(l)...)
 				st := newTestStore(t)
 				warns := rhWarnRecorder(st)
-				_, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+				_, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 				if !c.want.errOK(err) {
 					t.Fatalf("err = %v; want the %s outcome", err, c.name)
 				}
@@ -532,7 +535,7 @@ func TestScanAPIGatewayV2_OneParentFailureKeepsSiblingParents(t *testing.T) {
 	w.set("GetIntegrationResponses", "a1/i1", agv2Page{err: apiErr("BadRequestException", "bad")})
 	w.set("GetIntegrationResponses", "a1/i2", agv2Page{items: []any{apigwv2types.IntegrationResponse{IntegrationResponseId: sdkaws.String("x")}}})
 	st := newTestStore(t)
-	_, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+	_, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 	if !isAPIErrorCode(err, "BadRequestException") {
 		t.Fatalf("err = %v; want the BadRequestException", err)
 	}
@@ -545,7 +548,7 @@ func TestScanAPIGatewayV2_OneParentFailureKeepsSiblingParents(t *testing.T) {
 	w.set("GetIntegrationResponses", "a1/i2", agv2Page{err: apiErr("TooManyRequestsException", "slow down")})
 	st = newTestStore(t)
 	warns := rhWarnRecorder(st)
-	if _, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w); !isAPIErrorCode(err, "BadRequestException") {
+	if _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w); !isAPIErrorCode(err, "BadRequestException") {
 		t.Fatalf("err = %v; want the BadRequestException", err)
 	}
 	if got := warns(); len(got) != 0 {
@@ -571,7 +574,7 @@ func TestScanAPIGatewayV2_TransientBesideHardErrorWarnsUnderItsOp(t *testing.T) 
 			w.set("GetDeployments", "a1", agv2Page{err: apiErr("BadRequestException", "bad")})
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
-			_, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+			_, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 			if !isAPIErrorCode(err, "BadRequestException") || isAPIErrorCode(err, "TooManyRequestsException") {
 				t.Fatalf("err = %v; want the BadRequestException without the throttle", err)
 			}
@@ -592,7 +595,7 @@ func TestScanAPIGatewayV2_FamilyErrorKeepsOtherFamilies(t *testing.T) {
 	w.set("GetVpcLinks", "", agv2Page{err: apiErr("ConflictException", "boom")})
 	w.set("ListPortals", "", agv2Page{items: []any{testPortal("p")}})
 	st := newTestStore(t)
-	total, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+	total, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 	if !hasMemberCode(err, "BadRequestException") || !hasMemberCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want both errors", err)
 	}
@@ -620,7 +623,7 @@ func TestScanAPIGatewayV2_NXDOMAIN(t *testing.T) {
 		w := newAGV2World()
 		w.set("GetStages", "a1", agv2Page{err: dns})
 		st := newTestStore(t)
-		total, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+		total, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 		if err == nil || isDNSNotFound(err) {
 			t.Fatalf("err = %v; want an error not read as NXDOMAIN", err)
 		}
@@ -634,7 +637,7 @@ func TestScanAPIGatewayV2_NXDOMAIN(t *testing.T) {
 			w.set(op, "", agv2Page{err: dns})
 		}
 		st := newTestStore(t)
-		total, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+		total, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 		if !isDNSNotFound(err) || total != 0 {
 			t.Fatalf("scan = %d, %v; want 0 and an NXDOMAIN", total, err)
 		}
@@ -692,7 +695,7 @@ func TestScanAPIGatewayV2_CtxEndIsOneStop(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = w.config()
-	_, _, err := scanAPIGatewayV2(ctx, acct, testRegion, st, testScanID)
+	_, err := scanAPIGatewayV2(ctx, acct, testRegion, st, testScanID)
 	if n := countStops(err); n != 1 {
 		t.Errorf("err = %v holds %d stops; want 1", err, n)
 	}
@@ -708,7 +711,7 @@ func TestScanAPIGatewayV2_FailedWriteSendsNoWarning(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeAPIGatewayV2Stage)
-	_, _, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
+	_, err := scanAGV2World(t, st, newTestAccount(testAccountID), testRegion, w)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}

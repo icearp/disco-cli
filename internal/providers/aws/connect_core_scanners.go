@@ -33,18 +33,18 @@ type connectCoreAPI interface {
 
 // scanConnectCore runs the Core phases: instances, traffic distribution
 // groups, claimed phone numbers, and per-instance email addresses.
-func scanConnectCore(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectCore(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect instances", func() (int, int, error) {
+		connectPhase{"connect instances", func() (int, error) {
 			return scanConnectInstances(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect traffic distribution groups", func() (int, int, error) {
+		connectPhase{"connect traffic distribution groups", func() (int, error) {
 			return scanConnectTrafficDistributionGroups(ctx, client, acct, region, st, scanID)
 		}},
-		connectPhase{"connect phone numbers", func() (int, int, error) {
+		connectPhase{"connect phone numbers", func() (int, error) {
 			return scanConnectPhoneNumbers(ctx, client, acct, region, st, scanID)
 		}},
-		connectPhase{"connect email addresses", func() (int, int, error) {
+		connectPhase{"connect email addresses", func() (int, error) {
 			return scanConnectEmailAddresses(ctx, client, instances, acct, region, st, scanID)
 		}},
 	)
@@ -52,7 +52,7 @@ func scanConnectCore(ctx context.Context, client connectCoreAPI, instances []ctt
 
 // scanConnectInstances describes each instance from the pre-fetched list.
 // NativeID = Instance ARN.
-func scanConnectInstances(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectInstances(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := &connectListing[cttypes.InstanceSummary]{op: "connect:ListInstances"}
 	for _, i := range instances {
 		listed.add("", sv(i.Id), sv(i.Arn), i)
@@ -84,7 +84,7 @@ func scanConnectInstances(ctx context.Context, client connectCoreAPI, instances 
 
 // scanConnectTrafficDistributionGroups lists account-scoped TDGs then
 // describes each.
-func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := &connectListing[cttypes.TrafficDistributionGroupSummary]{op: "connect:ListTrafficDistributionGroups"}
 	err := connectReadPages(ctx, "", listed,
 		connect.NewListTrafficDistributionGroupsPaginator(client, &connect.ListTrafficDistributionGroupsInput{},
@@ -128,7 +128,7 @@ func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCor
 // scanConnectPhoneNumbers lists account-scoped phone numbers via V2 then
 // describes each. ListPhoneNumbersV2 lists across all instances + TDGs in the
 // region without an InstanceId filter.
-func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := &connectListing[cttypes.ListPhoneNumbersSummary]{op: "connect:ListPhoneNumbersV2"}
 	if err := connectReadPages(ctx, "", listed,
 		connect.NewListPhoneNumbersV2Paginator(client, &connect.ListPhoneNumbersV2Input{},
@@ -174,7 +174,7 @@ func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *a
 // requires InstanceId — and stores each search-summary entry as AttributesJSON.
 // The search summary has no tags and the scanner does not call
 // DescribeEmailAddress or ListTagsForResource, so these rows carry no tags.
-func scanConnectEmailAddresses(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectEmailAddresses(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:SearchEmailAddresses", instances,
 		func(instID string) connectPager[*connect.SearchEmailAddressesOutput] {
 			return &connectTokenPager[*connect.SearchEmailAddressesOutput]{

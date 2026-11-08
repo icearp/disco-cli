@@ -21,7 +21,7 @@ type pollyAPI interface {
 	ListLexicons(context.Context, *polly.ListLexiconsInput, ...func(*polly.Options)) (*polly.ListLexiconsOutput, error)
 }
 
-func scanPolly(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPolly(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := polly.NewFromConfig(acct.cfg, func(o *polly.Options) { o.Region = region })
 	return scanPollyLexicons(ctx, client, acct, region, st, scanID)
 }
@@ -29,16 +29,16 @@ func scanPolly(ctx context.Context, acct *account, region string, st *store.Stor
 // scanPollyLexicons discovers Polly pronunciation lexicons. ListLexicons has no
 // SDK paginator (manual NextToken); lexicons carry no ARN on the list shape, so
 // NativeID is synthesized from the name.
-func scanPollyLexicons(ctx context.Context, client pollyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPollyLexicons(ctx context.Context, client pollyAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	input := &polly.ListLexiconsInput{}
 	var batch []*store.Resource
 	for {
 		out, err := client.ListLexicons(ctx, input)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "polly:ListLexicons", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "polly:ListLexicons", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("polly:ListLexicons: %w", err)
+			return 0, fmt.Errorf("polly:ListLexicons: %w", err)
 		}
 		for _, l := range out.Lexicons {
 			name := sv(l.Name)

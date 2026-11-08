@@ -70,7 +70,7 @@ const (
 	omicsConfigurationPageCap = 10
 )
 
-func scanOmics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOmics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := omics.NewFromConfig(acct.cfg, func(o *omics.Options) { o.Region = region })
 	return scanOmicsIn(ctx, client, acct, region, st, scanID)
 }
@@ -82,7 +82,7 @@ func scanOmics(ctx context.Context, acct *account, region string, st *store.Stor
 // own bound is the bound on the tag reads in flight. A region that does not
 // offer HealthOmics is reported unavailable when a listing says so before any
 // listing answered with an item or an error (omicsGate).
-func scanOmicsIn(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOmicsIn(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		gate                                         omicsGate
 		tags                                         = omicsTags(client, acct.ID)
@@ -136,15 +136,15 @@ func scanOmicsIn(ctx context.Context, client omicsAPI, acct *account, region str
 			return scanOmicsWorkflowVersions(ctx, client, acct, region, st, scanID, workflows, workflowTypes, tags, p)
 		}),
 		phase(omicsAnalyticsHost, "omics:ListShares", func(p *phaseTotals) bool {
-			t, i, err := scanOmicsShares(ctx, client, acct, region, st, scanID, &gate)
-			return p.addPhase("omics:ListShares", t, i, err)
+			t, err := scanOmicsShares(ctx, client, acct, region, st, scanID, &gate)
+			return p.addPhase("omics:ListShares", t, err)
 		}),
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "omics", omicsWorkflowsHost, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "omics", omicsWorkflowsHost, phases)
 	if gate.err != nil {
-		return total, inserted, markServiceUnavailable(gate.err)
+		return total, markServiceUnavailable(gate.err)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // omicsGate records the answer of a region that does not offer HealthOmics
@@ -531,7 +531,7 @@ func scanOmicsWorkflowVersions(ctx context.Context, client omicsAPI, acct *accou
 // resources, inbound here (same rule as scanRAM). ShareDetails carries no ARN
 // and the Service Reference defines none, so NativeID is
 // {ResourceArn}/share/{ShareId}, and a share has no tags to read.
-func scanOmicsShares(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string, gate *omicsGate) (int, int, error) {
+func scanOmicsShares(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string, gate *omicsGate) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "omics:ListShares",
 		omicsListPage(gate, func(ctx context.Context, token *string) ([]omicstypes.ShareDetails, *string, error) {
 			out, err := client.ListShares(ctx, &omics.ListSharesInput{ResourceOwner: omicstypes.ResourceOwnerSelf, NextToken: token})

@@ -41,31 +41,31 @@ const (
 // endpoints, security configurations and job templates. Every phase runs; the
 // endpoint phase reads only the virtual clusters the first phase stored, and
 // only a store write failure stops the scan.
-func scanEMRContainers(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRContainers(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := emrcontainers.NewFromConfig(acct.cfg, func(o *emrcontainers.Options) { o.Region = region })
 	var vcs []emrcVirtualCluster
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{emrcVirtualClustersOp, func() (t, i int, err error) {
-			t, i, vcs, err = scanEMRCVirtualClusters(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{emrcVirtualClustersOp, func() (t int, err error) {
+			t, vcs, err = scanEMRCVirtualClusters(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{emrcEndpointsOp, func() (int, int, error) {
+		{emrcEndpointsOp, func() (int, error) {
 			return scanEMRCEndpoints(ctx, client, vcs, acct, region, st, scanID)
 		}},
-		{emrcSecurityConfigsOp, func() (int, int, error) {
+		{emrcSecurityConfigsOp, func() (int, error) {
 			return scanEMRCSecurityConfigs(ctx, client, acct, region, st, scanID)
 		}},
-		{emrcJobTemplatesOp, func() (int, int, error) {
+		{emrcJobTemplatesOp, func() (int, error) {
 			return scanEMRCJobTemplates(ctx, client, acct, region, st, scanID)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -95,9 +95,9 @@ type emrcVirtualCluster struct {
 // scanEMRCVirtualClusters stores every virtual cluster the unfiltered listing
 // returns, whatever its state, and also returns the stored ones that carry
 // an Id for the endpoint phase.
-func scanEMRCVirtualClusters(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []emrcVirtualCluster, error) {
+func scanEMRCVirtualClusters(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, []emrcVirtualCluster, error) {
 	states := map[string]emrctypes.VirtualClusterState{}
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, emrcVirtualClustersOp, "virtual clusters", "Id",
+	total, parents, err := storeParentList(ctx, st, acct, region, emrcVirtualClustersOp, "virtual clusters", "Id",
 		func(ctx context.Context, token *string) ([]emrctypes.VirtualCluster, *string, error) {
 			out, err := client.ListVirtualClusters(ctx, &emrcontainers.ListVirtualClustersInput{NextToken: token})
 			if err != nil {
@@ -118,7 +118,7 @@ func scanEMRCVirtualClusters(ctx context.Context, client emrContainersAPI, acct 
 	for i, p := range parents {
 		vcs[i] = emrcVirtualCluster{id: p.id, state: states[p.id]}
 	}
-	return total, inserted, vcs, err
+	return total, vcs, err
 }
 
 // scanEMRCEndpoints lists the managed endpoints of each virtual cluster
@@ -129,7 +129,7 @@ func scanEMRCVirtualClusters(ctx context.Context, client emrContainersAPI, acct 
 // the service answers for such a cluster has not been observed, and failing
 // the phase would fail it on every scan until the cluster ages out. The same
 // code for a RUNNING cluster fails the phase.
-func scanEMRCEndpoints(ctx context.Context, client emrContainersAPI, vcs []emrcVirtualCluster, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRCEndpoints(ctx context.Context, client emrContainersAPI, vcs []emrcVirtualCluster, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	ids := make([]string, len(vcs))
 	running := make(map[string]bool, len(vcs))
 	for i, vc := range vcs {
@@ -137,7 +137,7 @@ func scanEMRCEndpoints(ctx context.Context, client emrContainersAPI, vcs []emrcV
 		running[vc.id] = vc.state == emrctypes.VirtualClusterStateRunning
 	}
 	var notReady notReadyTally
-	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, emrcEndpointsOp, nil, ids,
+	total, err := storeTokenEachParentSkip(ctx, st, acct, region, emrcEndpointsOp, nil, ids,
 		func(ctx context.Context, vcID string, token *string) ([]emrctypes.Endpoint, *string, error) {
 			out, err := client.ListManagedEndpoints(ctx, &emrcontainers.ListManagedEndpointsInput{VirtualClusterId: &vcID, NextToken: token})
 			if err != nil {
@@ -154,14 +154,14 @@ func scanEMRCEndpoints(ctx context.Context, client emrContainersAPI, vcs []emrcV
 		},
 		func(vcID string, err error) bool { return !running[vcID] && notReady.drop(vcID, err) })
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	notReady.warnSkipped(st, emrcEndpointsOp, acct, region, "virtual cluster(s) not RUNNING",
 		"the service may refuse to list the endpoints of a cluster that is terminating, terminated or arrested")
-	return total, inserted, err
+	return total, err
 }
 
-func scanEMRCSecurityConfigs(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRCSecurityConfigs(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, emrcSecurityConfigsOp,
 		func(ctx context.Context, token *string) ([]emrctypes.SecurityConfiguration, *string, error) {
 			out, err := client.ListSecurityConfigurations(ctx, &emrcontainers.ListSecurityConfigurationsInput{NextToken: token})
@@ -176,7 +176,7 @@ func scanEMRCSecurityConfigs(ctx context.Context, client emrContainersAPI, acct 
 }
 
 // scanEMRCJobTemplates discovers reusable EMR-on-EKS job templates (account-wide).
-func scanEMRCJobTemplates(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRCJobTemplates(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, emrcJobTemplatesOp,
 		func(ctx context.Context, token *string) ([]emrctypes.JobTemplate, *string, error) {
 			out, err := client.ListJobTemplates(ctx, &emrcontainers.ListJobTemplatesInput{NextToken: token})

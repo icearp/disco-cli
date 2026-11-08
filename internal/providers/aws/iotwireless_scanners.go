@@ -47,7 +47,7 @@ type iotWirelessAPI interface {
 	ListTagsForResource(context.Context, *iotwireless.ListTagsForResourceInput, ...func(*iotwireless.Options)) (*iotwireless.ListTagsForResourceOutput, error)
 }
 
-func scanIoTWireless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTWireless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iotwireless.NewFromConfig(acct.cfg, func(o *iotwireless.Options) { o.Region = region })
 	return scanIoTWirelessAll(ctx, client, acct, region, st, scanID)
 }
@@ -90,7 +90,7 @@ func iwTags(client iotWirelessAPI) rowTagReader {
 // do (runHostPhases). The event-configuration phase runs last, over the
 // partner accounts, wireless devices and wireless gateways the earlier
 // phases stored.
-func scanIoTWirelessAll(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTWirelessAll(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := iwTags(client)
 	parents := iwEventParents{}
 	return runHostPhases(ctx, st, acct, region, "iotwireless", 0, []hostPhase{
@@ -127,7 +127,7 @@ func scanIoTWirelessAll(ctx context.Context, client iotWirelessAPI, acct *accoun
 		{op: "iotwireless:ListWirelessGatewayTaskDefinitions", run: func(p *phaseTotals) bool {
 			return scanIWGatewayTaskDefs(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, iwListEventConfigurationsOp, func() (int, int, error) {
+		countedPhase(0, iwListEventConfigurationsOp, func() (int, error) {
 			return scanIWEventConfigurations(ctx, client, acct, region, st, scanID, parents)
 		}),
 	})
@@ -173,7 +173,7 @@ func storeIWParentList[Item any](
 		kept   []*store.Resource
 	)
 	readTags := tags.hook(ctx, st, acct, region, &errs)
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+	total, err := storeTokenListWith(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
 		r, why, key := row(it)
 		if r != nil {
 			idents[r] = ids(it)
@@ -189,7 +189,7 @@ func storeIWParentList[Item any](
 			parents.add(in.idType, in.id, r.NativeID)
 		}
 	}
-	return errs.addPhase(p, tags.op, op, total, inserted, err)
+	return errs.addPhase(p, tags.op, op, total, err)
 }
 
 func scanIWDestinations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
@@ -428,7 +428,7 @@ func iwEventConfigNativeID(partition, region, accountID string, item iwtypes.Eve
 // the SDK's own enum value, so it means a bad request), is returned after the
 // other types' rows are stored. The warnings are sent only once the rows are
 // written.
-func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, int, error) {
+func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, error) {
 	var (
 		children  []containedChild
 		transient transientTally
@@ -461,15 +461,15 @@ func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct 
 			errs = append(errs, fmt.Errorf("%s %s: %w", iwListEventConfigurationsOp, rt, err))
 		}
 	}
-	total, inserted, err := upsertContained(st, "iotwireless event-configurations", children)
+	total, err := upsertContained(st, "iotwireless event-configurations", children)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, errors.Join(append(errs, err)...)
+		return total, errors.Join(append(errs, err)...)
 	}
 	if denied != nil {
 		_ = skipIfAccessDenied(st, iwListEventConfigurationsOp, acct.ID, region, denied)
 	}
 	transient.warnSkipped(st, iwListEventConfigurationsOp, acct, region)
-	return total, inserted, errors.Join(append(errs, err)...)
+	return total, errors.Join(append(errs, err)...)
 }
 
 // listIWEventConfigurations lists the event configurations of one resource

@@ -215,12 +215,12 @@ func rtbHandlers(c *rtbCalls) map[string]func(in any) (any, error) {
 
 // rtbScanIn runs the scan's real entry point for acct in region against
 // handlers; every op they do not answer is denied.
-func rtbScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rtbScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, rtbTestDenied)
 	return scanRTBFabric(ctx, acct, region, st, testScanID)
 }
 
-func rtbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rtbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return rtbScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers)
 }
 
@@ -289,7 +289,9 @@ func TestScanRTBFabric_StoresEveryRowWithItsTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newRTBCalls()
 
-	total, inserted, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := rtbScan(context.Background(), counted, rtbHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -392,16 +394,16 @@ func TestScanRTBFabric_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRTBFabric_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls())); err != nil {
+	if _, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls()))
+	total, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -442,7 +444,9 @@ func TestScanRTBFabric_NoGateways(t *testing.T) {
 				return &rtbfabric.ListResponderGatewaysOutput{}, nil
 			}
 
-			total, inserted, err := rtbScan(context.Background(), st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := rtbScan(context.Background(), counted, handlers)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}
@@ -496,7 +500,7 @@ func TestScanRTBFabric_TagReadFailures(t *testing.T) {
 			calls := newRTBCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+			total, err := rtbScan(context.Background(), st, rtbHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -548,7 +552,7 @@ func TestScanRTBFabric_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[arn] = rtbTestDenied
 	}
 
-	total, _, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+	total, err := rtbScan(context.Background(), st, rtbHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -570,7 +574,7 @@ func TestScanRTBFabric_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[rtbTestGatewayARN("rtb-gw-req-bare")] = rtbTestThrottle
 	calls.errs[rtbTestRuleARNs()[5]] = rtbTestBad
 
-	_, _, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+	_, err := rtbScan(context.Background(), st, rtbHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -589,7 +593,7 @@ func TestScanRTBFabric_FailedWriteStopsScan(t *testing.T) {
 	calls := newRTBCalls()
 	calls.errs[rtbTestGatewayARN("rtb-gw-resp-tagged")] = rtbTestDenied
 
-	total, _, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+	total, err := rtbScan(context.Background(), st, rtbHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -638,7 +642,7 @@ func TestScanRTBFabric_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := rtbScan(context.Background(), st, handlers)
+			total, err := rtbScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -671,7 +675,7 @@ func TestScanRTBFabric_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := rtbScan(context.Background(), st, handlers)
+	total, err := rtbScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -715,7 +719,7 @@ func TestScanRTBFabric_PerParentFailures(t *testing.T) {
 				handlers := rtbHandlers(calls)
 				failRTB(calls, handlers, c.op, c.path, e.err)
 
-				total, _, err := rtbScan(context.Background(), st, handlers)
+				total, err := rtbScan(context.Background(), st, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -789,7 +793,7 @@ func TestScanRTBFabric_ElementWithoutID(t *testing.T) {
 				return c.answer(in), nil
 			}
 
-			total, _, err := rtbScan(context.Background(), st, handlers)
+			total, err := rtbScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -840,7 +844,7 @@ func TestScanRTBFabric_PartitionARNs(t *testing.T) {
 				handlers[op] = rtbFirstPageOnly(handlers[op])
 			}
 
-			if _, _, err := rtbScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
+			if _, err := rtbScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := calls.tagARNsRTB(), []string{gatewayARN, ruleARN}; !slices.Equal(got, want) {
@@ -891,7 +895,7 @@ func TestScanRTBFabric_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := rtbScan(ctx, st, handlers)
+	_, err := rtbScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -918,7 +922,7 @@ func TestScanRTBFabric_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := rtbHandlers(newRTBCalls())
 		handlers["ListLinkRoutingRules"] = func(any) (any, error) { return nil, nx }
-		total, _, err := rtbScan(context.Background(), st, handlers)
+		total, err := rtbScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := rtbTestTotal - 16; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -928,7 +932,7 @@ func TestScanRTBFabric_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newRTBCalls()
 		calls.errs[rtbTestGatewayARN("rtb-gw-req-bare")] = nx
-		_, _, err := rtbScan(context.Background(), st, rtbHandlers(calls))
+		_, err := rtbScan(context.Background(), st, rtbHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -936,7 +940,7 @@ func TestScanRTBFabric_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanRTBFabric(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanRTBFabric(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

@@ -357,7 +357,7 @@ func ssmTaggedReadKeys() []string {
 
 // ssmScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func ssmScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func ssmScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ssmDenied)
 	return scanSSM(ctx, acct, testRegion, st, testScanID)
@@ -387,7 +387,9 @@ func TestScanSSM_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newSSMCalls()
 
-	total, inserted, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := ssmScan(context.Background(), counted, ssmHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -491,7 +493,9 @@ func TestScanSSM_EmptyListings(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := ssmScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := ssmScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -564,7 +568,7 @@ func TestScanSSM_ParametersWrittenPerPage(t *testing.T) {
 		return list(in)
 	}
 
-	if _, _, err := ssmScan(context.Background(), st, handlers); err != nil {
+	if _, err := ssmScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !stored {
@@ -573,16 +577,16 @@ func TestScanSSM_ParametersWrittenPerPage(t *testing.T) {
 	assertTagsMap(t, tags, map[string]string{"type": TypeSSMParameter})
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSSM_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls())); err != nil {
+	if _, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls()))
+	total, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls()))
 	if err != nil || total != ssmTestTotal {
 		t.Errorf("rescan = %d, %v; want %d, nil", total, err, ssmTestTotal)
 	}
@@ -621,7 +625,7 @@ func TestScanSSM_TagReadFailures(t *testing.T) {
 					lost *= 3
 				}
 
-				total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+				total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -682,7 +686,7 @@ func TestScanSSM_InvalidResourceIdDropsOnlyDocumentedIDForms(t *testing.T) {
 			l := ssmListingOf(t, c.op)
 			calls.tagErrs[ssmTagKey(l.tagType, l.tagID("x1"))] = ssmGone
 
-			_, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+			_, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 			if c.dropped {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -718,7 +722,7 @@ func TestScanSSM_EC2ManagedNodeNotTagRead(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := ssmScan(context.Background(), st, handlers); err != nil {
+	if _, err := ssmScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	var reads []string
@@ -747,7 +751,7 @@ func TestScanSSM_DescribeDocumentWithoutBody(t *testing.T) {
 	handlers := ssmHandlers(calls)
 	handlers["DescribeDocument"] = func(any) (any, error) { return &ssm.DescribeDocumentOutput{}, nil }
 
-	if _, _, err := ssmScan(context.Background(), st, handlers); err != nil {
+	if _, err := ssmScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	id := calls.arn("document/document-x1")
@@ -768,7 +772,7 @@ func TestScanSSM_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.tagErrs[ssmTagKey(l.tagType, l.tagID("x2"))] = ssmDenied
 	}
 
-	total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+	total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -790,7 +794,7 @@ func TestScanSSM_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[ssmTagKey("PatchBaseline", "pb-x1")] = ssmThrottle
 	calls.tagErrs[ssmTagKey("Association", "assoc-x2")] = ssmBadType
 
-	_, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+	_, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidResourceType")
 	if *warns != 1 {
@@ -812,7 +816,7 @@ func TestScanSSM_OpsMetadataARNWithoutID(t *testing.T) {
 		return &ssm.ListOpsMetadataOutput{OpsMetadataList: []ssmtypes.OpsMetadata{{OpsMetadataArn: &odd}}}, nil
 	}
 
-	total, _, err := ssmScan(context.Background(), st, handlers)
+	total, err := ssmScan(context.Background(), st, handlers)
 	if !errors.Is(err, errSSMNoTagID) {
 		t.Fatalf("err = %v; want errSSMNoTagID", err)
 	}
@@ -856,7 +860,7 @@ func TestScanSSM_DescribeDocumentFailures(t *testing.T) {
 			gone := c.warnOp == "" && c.outcome < 0
 			id := calls.arn("document/document-x1")
 
-			total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+			total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -907,7 +911,7 @@ func TestScanSSM_FailedWriteStopsScan(t *testing.T) {
 	calls := newSSMCalls()
 	calls.tagErrs[ssmTagKey("PatchBaseline", "pb-x1")] = ssmDenied
 
-	total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+	total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -947,7 +951,7 @@ func TestScanSSM_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers[c.op] = failOnCall(2, ssmBadType, handlers[c.op])
 			l := ssmListingOf(t, c.op)
 
-			total, _, err := ssmScan(context.Background(), st, handlers)
+			total, err := ssmScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidResourceType")
 			if total != ssmTestTotal-c.lost {
@@ -981,7 +985,7 @@ func TestScanSSM_DeniedListingWarnsAndContinues(t *testing.T) {
 				lost = 4 // and their permissions
 			}
 
-			total, _, err := ssmScan(context.Background(), st, handlers)
+			total, err := ssmScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1009,7 +1013,7 @@ func TestScanSSM_RepeatedTokenKeepsPages(t *testing.T) {
 				return l.out(calls, sdkaws.String("same"), pick(bacField[*string](in, "NextToken") == nil, "x1", "x2")), nil
 			}
 
-			total, _, err := ssmScan(context.Background(), st, handlers)
+			total, err := ssmScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1057,7 +1061,7 @@ func TestScanSSM_ElementWithoutID(t *testing.T) {
 				return c.out, nil
 			}
 
-			total, _, err := ssmScan(context.Background(), st, handlers)
+			total, err := ssmScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1101,7 +1105,7 @@ func TestScanSSM_WindowChildFailures(t *testing.T) {
 				calls := newSSMCalls()
 				calls.windowErrs[op+" mw-x1"] = c.err
 
-				total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+				total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1142,7 +1146,7 @@ func TestScanSSM_WindowChildFailures(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := ssmScan(context.Background(), st, handlers)
+			total, err := ssmScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1170,7 +1174,7 @@ func TestScanSSM_TagReadsInOtherPartitions(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(ssmHandlers(calls), ssmDenied)
 
-			if _, _, err := scanSSM(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanSSM(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := calls.readKeys(), ssmTaggedReadKeys(); !slices.Equal(got, want) {
@@ -1209,7 +1213,7 @@ func TestScanSSM_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := ssmScan(ctx, st, handlers)
+	_, err := ssmScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1242,7 +1246,7 @@ func TestScanSSM_NXDOMAIN(t *testing.T) {
 			return nil, nx
 		}
 
-		total, _, err := ssmScan(context.Background(), st, handlers)
+		total, err := ssmScan(context.Background(), st, handlers)
 		if got := classifyServiceError(err); got != outcomeUnavailable || total != 0 {
 			t.Errorf("classify = %v, total = %d; want outcomeUnavailable, 0 (err %v)", got, total, err)
 		}
@@ -1255,7 +1259,7 @@ func TestScanSSM_NXDOMAIN(t *testing.T) {
 		calls := newSSMCalls()
 		calls.tagErrs[ssmTagKey("Parameter", "/app/param-x1")] = nx
 
-		total, _, err := ssmScan(context.Background(), st, ssmHandlers(calls))
+		total, err := ssmScan(context.Background(), st, ssmHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != ssmTestTotal {
 			t.Errorf("total = %d; want %d", total, ssmTestTotal)

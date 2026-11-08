@@ -37,7 +37,7 @@ func ecrSingletonARN(partition, region, acct, kind string) string {
 // scanECRPullThroughCacheRules stores the region's pull through cache rules,
 // those read before a failed page included; a rule without an
 // EcrRepositoryPrefix is warned about and not stored.
-func scanECRPullThroughCacheRules(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRPullThroughCacheRules(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "ecr:DescribePullThroughCacheRules",
 		func(ctx context.Context, token *string) ([]ecrtypes.PullThroughCacheRule, *string, error) {
 			out, err := client.DescribePullThroughCacheRules(ctx, &ecr.DescribePullThroughCacheRulesInput{
@@ -65,7 +65,7 @@ func scanECRPullThroughCacheRules(ctx context.Context, client ecrExtAPI, acct *a
 // scanECRPullTimeUpdateExclusions stores the region's pull time update
 // exclusions, those read before a failed page included; an empty repository
 // ARN is warned about and not stored.
-func scanECRPullTimeUpdateExclusions(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRPullTimeUpdateExclusions(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "ecr:ListPullTimeUpdateExclusions",
 		func(ctx context.Context, token *string) ([]string, *string, error) {
 			out, err := client.ListPullTimeUpdateExclusions(ctx, &ecr.ListPullTimeUpdateExclusionsInput{
@@ -88,20 +88,20 @@ func scanECRPullTimeUpdateExclusions(ctx context.Context, client ecrExtAPI, acct
 		})
 }
 
-func scanECRRegistryPolicy(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRRegistryPolicy(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetRegistryPolicy(ctx, &ecr.GetRegistryPolicyInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ecr:GetRegistryPolicy", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ecr:GetRegistryPolicy", acct.ID, region, err)
 		}
 		// RegistryPolicyNotFoundException = no policy set (default state). Silent.
 		if isAPIErrorCode(err, "RegistryPolicyNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("ecr:GetRegistryPolicy: %w", err)
+		return 0, fmt.Errorf("ecr:GetRegistryPolicy: %w", err)
 	}
 	if out == nil || sv(out.PolicyText) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "registry-policy")
 	label := arn
@@ -113,14 +113,14 @@ func scanECRRegistryPolicy(ctx context.Context, client ecrExtAPI, acct *account,
 	return upsertBatch(st, batch, "ecr registry-policy")
 }
 
-func scanECRRegistryScanningConfig(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRRegistryScanningConfig(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetRegistryScanningConfiguration(ctx, &ecr.GetRegistryScanningConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
 			_ = skipIfAccessDenied(st, "ecr:GetRegistryScanningConfiguration", acct.ID, region, err)
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("ecr:GetRegistryScanningConfiguration: %w", err)
+		return 0, fmt.Errorf("ecr:GetRegistryScanningConfiguration: %w", err)
 	}
 	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "registry-scanning-configuration")
 	label := arn
@@ -133,17 +133,17 @@ func scanECRRegistryScanningConfig(ctx context.Context, client ecrExtAPI, acct *
 	return upsertBatch(st, batch, "ecr registry-scanning-configuration")
 }
 
-func scanECRReplicationConfiguration(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRReplicationConfiguration(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.DescribeRegistry(ctx, &ecr.DescribeRegistryInput{})
 	if err != nil {
 		if isAccessDenied(err) {
 			_ = skipIfAccessDenied(st, "ecr:DescribeRegistry", acct.ID, region, err)
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("ecr:DescribeRegistry: %w", err)
+		return 0, fmt.Errorf("ecr:DescribeRegistry: %w", err)
 	}
 	if out == nil || out.ReplicationConfiguration == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "replication-configuration")
 	label := arn
@@ -159,7 +159,7 @@ func scanECRReplicationConfiguration(ctx context.Context, client ecrExtAPI, acct
 // scanECRRepositoryCreationTemplates stores the region's repository creation
 // templates, those read before a failed page included; a template without a
 // Prefix is warned about and not stored.
-func scanECRRepositoryCreationTemplates(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRRepositoryCreationTemplates(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "ecr:DescribeRepositoryCreationTemplates",
 		func(ctx context.Context, token *string) ([]ecrtypes.RepositoryCreationTemplate, *string, error) {
 			out, err := client.DescribeRepositoryCreationTemplates(ctx, &ecr.DescribeRepositoryCreationTemplatesInput{
@@ -184,21 +184,21 @@ func scanECRRepositoryCreationTemplates(ctx context.Context, client ecrExtAPI, a
 		})
 }
 
-func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetSigningConfiguration(ctx, &ecr.GetSigningConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
 			_ = skipIfAccessDenied(st, "ecr:GetSigningConfiguration", acct.ID, region, err)
-			return 0, 0, nil
+			return 0, nil
 		}
 		// SigningConfigurationNotFoundException = no signing config set (default
 		// state). Regions without image signing reject with ValidationException
 		// "This feature is disabled". Both are default/availability state — no-op.
 		if isAPIErrorCode(err, "SigningConfigurationNotFoundException") ||
 			isAPIErrorWithMessage(err, "ValidationException", "feature is disabled") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("ecr:GetSigningConfiguration: %w", err)
+		return 0, fmt.Errorf("ecr:GetSigningConfiguration: %w", err)
 	}
 	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "signing-configuration")
 	label := arn
@@ -246,7 +246,7 @@ func ecrRepoScanningConfigNativeID(repoARN, name string) (string, error) {
 // that does not parse). Those three warnings are sent only after a
 // successful write; a denial is warned about once during the read
 // (fanOutErrs.keyErr). A ctx stop is returned as one error.
-func scanECRRepositoryScanningConfigs(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string, repos []childParent) (int, int, error) {
+func scanECRRepositoryScanningConfigs(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string, repos []childParent) (int, error) {
 	const op = "ecr:BatchGetRepositoryScanningConfiguration"
 	repoARN := make(map[string]string, len(repos))
 	names := make([]string, 0, len(repos))
@@ -310,9 +310,9 @@ func scanECRRepositoryScanningConfigs(ctx context.Context, client ecrExtAPI, acc
 	case interrupted:
 		batchErrs = append(batchErrs, fmt.Errorf("%s: reads cut short: %w", op, ctx.Err()))
 	}
-	total, inserted, err := upsertContained(st, op, children)
+	total, err := upsertContained(st, op, children)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, errors.Join(append(batchErrs, err)...)
+		return total, errors.Join(append(batchErrs, err)...)
 	}
 	failedRepos.warnCode(st, op, acct, region, "a failure code other than REPOSITORY_NOT_FOUND", "repository(ies)",
 		"ECR reported a per-repository failure this scanner does not recognise")
@@ -320,7 +320,7 @@ func scanECRRepositoryScanningConfigs(ctx context.Context, client ecrExtAPI, acc
 		"the row's NativeID is built from it")
 	unparented.warnCode(st, op, acct, region, "no usable repository ARN", "scanning configuration(s)",
 		"the row's NativeID is built from its repository's ARN")
-	return total, inserted, errors.Join(append(batchErrs, err)...)
+	return total, errors.Join(append(batchErrs, err)...)
 }
 
 // ecrScanningConfigRead is one batch's result: what it read, and the error
@@ -388,21 +388,21 @@ func scanECRPublic(ctx context.Context, acct *account, region string, st *store.
 		return false
 	}
 	client := ecrpublic.NewFromConfig(acct.cfg, func(o *ecrpublic.Options) { o.Region = region })
-	total, inserted, reposByRegistry, err := scanECRPublicRepositories(ctx, client, acct, region, st, scanID)
-	if p.addPhase(ecrPublicRepositoriesOp, total, inserted, err) {
+	total, reposByRegistry, err := scanECRPublicRepositories(ctx, client, acct, region, st, scanID)
+	if p.addPhase(ecrPublicRepositoriesOp, total, err) {
 		return true
 	}
-	total, inserted, err = scanECRPublicRegistries(ctx, client, acct, region, st, scanID, reposByRegistry)
-	return p.addPhase(ecrPublicRegistriesOp, total, inserted, err)
+	total, err = scanECRPublicRegistries(ctx, client, acct, region, st, scanID, reposByRegistry)
+	return p.addPhase(ecrPublicRegistriesOp, total, err)
 }
 
 // scanECRPublicRepositories stores the public repositories, those read before
 // a failed page included, and returns their ARNs keyed by RegistryId, for the
 // registry phase's contains edges. A repository without an ARN is warned
 // about and not stored.
-func scanECRPublicRepositories(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string) (int, int, map[string][]string, error) {
+func scanECRPublicRepositories(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string) (int, map[string][]string, error) {
 	reposByRegistry := map[string][]string{}
-	total, inserted, err := storeTokenList(ctx, st, acct, region, ecrPublicRepositoriesOp,
+	total, err := storeTokenList(ctx, st, acct, region, ecrPublicRepositoriesOp,
 		func(ctx context.Context, token *string) ([]ecrpublictypes.Repository, *string, error) {
 			out, err := client.DescribeRepositories(ctx, &ecrpublic.DescribeRepositoriesInput{
 				NextToken: token, MaxResults: sdkaws.Int32(ecrPageLimit),
@@ -430,7 +430,7 @@ func scanECRPublicRepositories(ctx context.Context, client ecrPublicAPI, acct *a
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			}, "", ""
 		})
-	return total, inserted, reposByRegistry, err
+	return total, reposByRegistry, err
 }
 
 const (
@@ -442,9 +442,9 @@ const (
 // the repositories the repository phase stored under the same RegistryId. A
 // failed page keeps the registries read before it; a registry without an ARN
 // is warned about and not stored.
-func scanECRPublicRegistries(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string, reposByRegistry map[string][]string) (int, int, error) {
+func scanECRPublicRegistries(ctx context.Context, client ecrPublicAPI, acct *account, region string, st *store.Store, scanID string, reposByRegistry map[string][]string) (int, error) {
 	var pairs [][2]string
-	total, inserted, err := storeTokenList(ctx, st, acct, region, ecrPublicRegistriesOp,
+	total, err := storeTokenList(ctx, st, acct, region, ecrPublicRegistriesOp,
 		func(ctx context.Context, token *string) ([]ecrpublictypes.Registry, *string, error) {
 			out, err := client.DescribeRegistries(ctx, &ecrpublic.DescribeRegistriesInput{
 				NextToken: token, MaxResults: sdkaws.Int32(ecrPageLimit),
@@ -471,12 +471,12 @@ func scanECRPublicRegistries(ctx context.Context, client ecrPublicAPI, acct *acc
 			}, "", ""
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return total, inserted, errors.Join(err, fmt.Errorf("closure ecr public-registries: %w", herr))
+		return total, errors.Join(err, fmt.Errorf("closure ecr public-registries: %w", herr))
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // ecrPublicRegistryLabel names a registry by its primary alias (the

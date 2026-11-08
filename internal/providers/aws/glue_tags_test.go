@@ -214,7 +214,7 @@ func glueHandlers(c *glueCalls) map[string]func(any) (any, error) {
 
 // glueScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func glueScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func glueScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, glueDenied)
@@ -238,7 +238,9 @@ func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newGlueCalls()
 
-	total, inserted, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := glueScan(context.Background(), t, counted, glueHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -304,17 +306,17 @@ func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGlue_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
-	if _, _, err := glueScan(context.Background(), t, st, glueHandlers(calls)); err != nil {
+	if _, err := glueScan(context.Background(), t, st, glueHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+	total, err := glueScan(context.Background(), t, st, glueHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -358,7 +360,7 @@ func glueTagReadFailures(t *testing.T, typ, nativeID, tagARN string) {
 			calls := newGlueCalls()
 			calls.errs[tagARN] = c.err
 
-			_, _, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+			_, err := glueScan(context.Background(), t, st, glueHandlers(calls))
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -405,7 +407,7 @@ func TestScanGlue_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[glueARN("job")("tagged")] = apiErr("ThrottlingException", "Rate exceeded")
 	calls.errs[glueARN("job")("bare")] = glueBadInput
 
-	_, _, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+	_, err := glueScan(context.Background(), t, st, glueHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -467,7 +469,7 @@ func TestScanGlue_FailedWriteStopsWithoutWarning(t *testing.T) {
 				tc.deny(handlers)
 			}
 
-			_, _, err := glueScan(context.Background(), t, st, handlers)
+			_, err := glueScan(context.Background(), t, st, handlers)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -493,7 +495,7 @@ func TestScanGlue_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers["ListRegistries"] = func(any) (any, error) { return nil, apiErr("InternalServiceException", "registries") }
 	handlers["GetTables"] = func(any) (any, error) { return nil, apiErr("GlueEncryptionException", "tables") }
 
-	_, _, err := glueScan(context.Background(), t, st, handlers)
+	_, err := glueScan(context.Background(), t, st, handlers)
 	for _, code := range []string{"InvalidInputException", "InternalServiceException", "GlueEncryptionException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -546,7 +548,7 @@ func TestScanGlue_WorkflowReadFailures(t *testing.T) {
 				return next(in)
 			}
 
-			_, _, err := glueScan(context.Background(), t, st, handlers)
+			_, err := glueScan(context.Background(), t, st, handlers)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -586,7 +588,7 @@ func TestScanGlue_WorkflowThrottleDemotedBesideHardError(t *testing.T) {
 		return nil, glueBadInput
 	}
 
-	_, _, err := glueScan(context.Background(), t, st, handlers)
+	_, err := glueScan(context.Background(), t, st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -605,7 +607,7 @@ func TestScanGlue_CatalogWithoutARN(t *testing.T) {
 		return &glue.GetCatalogsOutput{CatalogList: []gluetypes.Catalog{{CatalogId: sdkaws.String("id-noarn")}}}, nil
 	}
 
-	_, _, err := glueScan(context.Background(), t, st, handlers)
+	_, err := glueScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, errGlueCatalogNoARN) {
 		t.Fatalf("err = %v; want errGlueCatalogNoARN", err)
 	}
@@ -639,7 +641,7 @@ func TestScanGlue_SchemaRegistryGoneIsSkipped(t *testing.T) {
 		return next(in)
 	}
 
-	if _, _, err := glueScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := glueScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 0 {
@@ -681,7 +683,7 @@ func TestScanGlue_UnstorableItemsWarn(t *testing.T) {
 			handlers := glueHandlers(calls)
 			handlers[tc.op] = tc.answer
 
-			if _, _, err := glueScan(context.Background(), t, st, handlers); err != nil {
+			if _, err := glueScan(context.Background(), t, st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := len(rowsByNativeID(t, st, tc.typ)); got != 1 {
@@ -718,7 +720,7 @@ func TestScanGlue_RepeatedTokenKeepsPages(t *testing.T) {
 			handlers := glueHandlers(newGlueCalls())
 			handlers[tc.op] = func(any) (any, error) { return tc.out, nil }
 
-			_, _, err := glueScan(context.Background(), t, st, handlers)
+			_, err := glueScan(context.Background(), t, st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -750,7 +752,7 @@ func TestScanGlue_ContextEndStopsOnce(t *testing.T) {
 		return registries(in)
 	}
 
-	_, _, err := glueScan(ctx, t, st, handlers)
+	_, err := glueScan(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -782,7 +784,7 @@ func TestScanGlue_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := glueHandlers(newGlueCalls())
 		handlers["GetCrawlers"] = func(any) (any, error) { return nil, nx }
-		total, _, err := glueScan(context.Background(), t, st, handlers)
+		total, err := glueScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total == 0 {
 			t.Error("total = 0; want the stored rows counted")
@@ -792,7 +794,7 @@ func TestScanGlue_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGlueCalls()
 		calls.errs[glueARN("job")("tagged")] = nx
-		_, _, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+		_, err := glueScan(context.Background(), t, st, glueHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -800,7 +802,7 @@ func TestScanGlue_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanGlue(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

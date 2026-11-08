@@ -56,13 +56,13 @@ type networkfirewallAPI interface {
 // apart from err, so that beside a hard error it is demoted under the
 // Describe op that failed. listed is the ARNs the phase listed.
 type nfResult struct {
-	total, inserted int
-	err, transient  error
-	listed          []string
+	total          int
+	err, transient error
+	listed         []string
 }
 
-func nfPlain(total, inserted int, err error) nfResult {
-	return nfResult{total: total, inserted: inserted, err: err}
+func nfPlain(total int, err error) nfResult {
+	return nfResult{total: total, err: err}
 }
 
 // nfScanPhase is one independent phase of scanNetworkFirewall: op is the op
@@ -88,12 +88,12 @@ const (
 // order; proxies and container associations come last, being the newest ops.
 // A phase's error does not stop the later phases; only a failed store write
 // does, since every later write would fail too.
-func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := networkfirewall.NewFromConfig(acct.cfg, func(o *networkfirewall.Options) { o.Region = region })
 	described := func(scan func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) nfResult) func() nfResult {
 		return func() nfResult { return scan(ctx, client, acct, region, st, scanID) }
 	}
-	listed := func(scan func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) (int, int, error)) func() nfResult {
+	listed := func(scan func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) (int, error)) func() nfResult {
 		return func() nfResult { return nfPlain(scan(ctx, client, acct, region, st, scanID)) }
 	}
 	var firewalls nfResult
@@ -117,10 +117,10 @@ func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *
 	var p phaseTotals
 	for _, ph := range phases {
 		r := ph.run()
-		if p.addPhase(ph.op, r.total, r.inserted, r.err) {
+		if p.addPhase(ph.op, r.total, r.err) {
 			break
 		}
-		p.addPhase(ph.describeOp, 0, 0, r.transient)
+		p.addPhase(ph.describeOp, 0, r.transient)
 	}
 	return p.result(st, acct, region)
 }
@@ -216,7 +216,7 @@ func storeNFDescribed[Item any](ctx context.Context, st *store.Store, acct *acco
 	if t := &reads.transient; t.count > 0 {
 		r.transient = fmt.Errorf("%s: "+nfKept, p.ops.describe, t.count, p.what, t.first, t.err)
 	}
-	r.total, r.inserted, r.err = storeReadRows(st, acct, region, p.ops.list, rows, listErr, func() {
+	r.total, r.err = storeReadRows(st, acct, region, p.ops.list, rows, listErr, func() {
 		if d := &reads.denied; d.count > 0 {
 			_ = skipIfAccessDenied(st, p.ops.describe, acct.ID, region, fmt.Errorf(nfKept, d.count, p.what, d.first, d.err))
 		}

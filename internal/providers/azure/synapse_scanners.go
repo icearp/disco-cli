@@ -23,12 +23,12 @@ func init() {
 // hubs. SQL/Spark pools, integration runtimes, private endpoint connections,
 // and managed private endpoints deferred — their graph value lives in
 // workspace-level edges (default ADLS, managed VNet, CMEK).
-func scanSynapse(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSynapse(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armsynapse.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armsynapse:NewWorkspacesClient: %w", err)
+				return 0, fmt.Errorf("armsynapse:NewWorkspacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armsynapse:Workspaces.List", TypeSynapseWorkspace, sub, st, scanID,
 				client.NewListPager(nil),
@@ -37,10 +37,10 @@ func scanSynapse(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			plhClient, err := armsynapse.NewPrivateLinkHubsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armsynapse:NewPrivateLinkHubsClient: %w", err)
+				return 0, fmt.Errorf("armsynapse:NewPrivateLinkHubsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armsynapse:PrivateLinkHubs.List", TypeSynapsePrivateLinkHub, sub, st, scanID,
 				plhClient.NewListPager(nil),

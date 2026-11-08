@@ -87,7 +87,7 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 		getOp: bedrockGetKBOp, what: "knowledge base(s)", notFound: bedrockGetNotFound,
 		tags: bedrockAgentTagsAt(client, func(r *store.Resource) string { return cmp.Or(*bodyARNs[r], r.NativeID) }),
 	}
-	total, inserted, kbs, err := storeParentListWith(ctx, st, acct, region, op, "knowledge bases", "KnowledgeBaseId",
+	total, kbs, err := storeParentListWith(ctx, st, acct, region, op, "knowledge bases", "KnowledgeBaseId",
 		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]agenttypes.KnowledgeBaseSummary, *string, error) {
 			out, err := client.ListKnowledgeBases(ctx, &bedrockagent.ListKnowledgeBasesInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
 			if err != nil {
@@ -116,7 +116,7 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 			*bodyARNs[r] = sv(out.KnowledgeBase.KnowledgeBaseArn)
 			return out.KnowledgeBase, nil
 		}))
-	return kbs, d.addPhase(p, op, total, inserted, err)
+	return kbs, d.addPhase(p, op, total, err)
 }
 
 // bedrockGetNotFound is the only not-found code GetKnowledgeBase and
@@ -211,7 +211,7 @@ func scanBedrockFlowAliases(ctx context.Context, client bedrockAgentAPI, acct *a
 // admits no version), so its NativeID is that ARN and the version. A flow
 // ResourceNotFoundException says was deleted since it was listed is skipped;
 // a denial is warned about.
-func scanBedrockFlowVersions(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, flowIDs []string) (int, int, error) {
+func scanBedrockFlowVersions(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, flowIDs []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagent:ListFlowVersions", []string{"ResourceNotFoundException"}, flowIDs,
 		func(ctx context.Context, id string, token *string) ([]agenttypes.FlowVersionSummary, *string, error) {
 			out, err := client.ListFlowVersions(ctx, &bedrockagent.ListFlowVersionsInput{FlowIdentifier: &id, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
@@ -357,12 +357,12 @@ func scanBedrockDataSources(ctx context.Context, client bedrockAgentAPI, acct *a
 			}
 			return got.DataSource, nil
 		})
-	total, inserted, err := out.store(st, acct, region)
+	total, err := out.store(st, acct, region)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return p.addPhase(op, total, inserted, errors.Join(err, hard, transient))
+		return p.addPhase(op, total, errors.Join(err, hard, transient))
 	}
 	warn()
 	p.errs.add(bedrockGetDSOp, hard)
 	p.errs.add(bedrockGetDSOp, transient)
-	return p.addPhase(op, total, inserted, err)
+	return p.addPhase(op, total, err)
 }

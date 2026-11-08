@@ -53,9 +53,9 @@ func elxClient(handlers map[string]func(in any) (any, error)) ec2API {
 	return ec2.NewFromConfig(opStubConfig(handlers, elxDenied))
 }
 
-func elxRun(run func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error),
+func elxRun(run func(context.Context, ec2API, *account, string, *store.Store, string) (int, error),
 	st *store.Store, handlers map[string]func(in any) (any, error),
-) (int, int, error) {
+) (int, error) {
 	return run(context.Background(), elxClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
@@ -84,7 +84,7 @@ type elxFanPhase struct {
 	extra    func(*testing.T, *store.Store)
 	handler  func(*parentCalls) func(any) (any, error)
 	empty    any
-	run      func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run      func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	parentID func(in any) string
 	// queried are the parents the phase must call; rows the NativeIDs it
 	// stores, each under parents[i]; kept is the second live parent's row.
@@ -309,14 +309,18 @@ func TestScanEC2LateExtraFanOut_StoresRowsUnderParents(t *testing.T) {
 			ph.seed(t, st)
 			var calls parentCalls
 			h := map[string]func(any) (any, error){ph.sdkOp: ph.handler(&calls)}
-			total, inserted, err := elxRun(ph.run, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := elxRun(ph.run, counted, h)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
 			if total != 2 || inserted != 2 {
 				t.Errorf("total, inserted = %d, %d; want 2, 2", total, inserted)
 			}
-			total, inserted, err = elxRun(ph.run, st, h)
+			counted, upserts = countUpserts(st)
+			total, err = elxRun(ph.run, counted, h)
+			inserted = upserts()
 			if err != nil || total != 2 || inserted != 0 {
 				t.Errorf("re-run total, inserted, err = %d, %d, %v; want 2, 0, nil", total, inserted, err)
 			}
@@ -346,7 +350,7 @@ func TestScanEC2LateExtraFanOut_Empty(t *testing.T) {
 	for _, ph := range elxFanPhases {
 		t.Run(ph.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){
+			total, err := elxRun(ph.run, st, map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) { return nil, errElxTest },
 			})
 			if err != nil || total != 0 {
@@ -361,7 +365,7 @@ func TestScanEC2LateExtraFanOut_Empty(t *testing.T) {
 		t.Run(ph.name+"/no children", func(t *testing.T) {
 			st := newTestStore(t)
 			ph.seed(t, st)
-			total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){
+			total, err := elxRun(ph.run, st, map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) { return ph.empty, nil },
 			})
 			if err != nil || total != 0 {
@@ -422,7 +426,7 @@ func TestScanEC2LateExtraFanOut_PerParentErrors(t *testing.T) {
 				ph.extra(t, st)
 				var calls parentCalls
 				warnings := countOpWarnings(st, ph.op)
-				total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: elxFailAfterKept(ph, &calls, c.failErr)})
+				total, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: elxFailAfterKept(ph, &calls, c.failErr)})
 				if c.wantErr == nil && err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
@@ -451,7 +455,7 @@ type elxWidePhase struct {
 	seed                 func(*testing.T, *store.Store)
 	page1, page2, empty  any
 	maxResults           func(in any) (int32, *string)
-	run                  func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run                  func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	rows                 []string
 	// contained maps a row to the parent NativeID it must sit under.
 	contained map[string]string
@@ -603,7 +607,9 @@ func TestScanEC2LateExtraWide_StoresBothPages(t *testing.T) {
 			ph.seed(t, st)
 			calls := 0
 			h := map[string]func(any) (any, error){ph.sdkOp: elxWideHandler(ph, &calls, nil)}
-			total, inserted, err := elxRun(ph.run, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := elxRun(ph.run, counted, h)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -653,7 +659,7 @@ func TestScanEC2LateExtraWide_Errors(t *testing.T) {
 				warnings := countOpWarnings(st, ph.op)
 				calls := 0
 				inner := elxWideHandler(ph, &calls, c.second)
-				_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(in any) (any, error) {
+				_, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(in any) (any, error) {
 					if c.first != nil {
 						return nil, c.first
 					}
@@ -683,7 +689,7 @@ func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
 	for _, ph := range elxWidePhases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }})
+			total, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }})
 			if err != nil || total != 0 {
 				t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -692,7 +698,7 @@ func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
 			st := newTestStore(t)
 			ph.seed(t, st)
 			calls := 0
-			_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
+			_, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
 				calls++
 				if calls > 3 {
 					return nil, errElxTest
@@ -748,7 +754,7 @@ func elxTopLevelHandlers() map[string]func(in any) (any, error) {
 func elxScanEC2(st *store.Store, handlers map[string]func(in any) (any, error)) error {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, elxDenied)
-	_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 	return err
 }
 
@@ -809,7 +815,7 @@ func TestScanEC2_LateExtraPhasesAfterOlderCategories(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfigCtx(ctxHandlers, elxDenied)
-			_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, errElxTest) {
 				t.Fatalf("err = %v, want the %s error", err, failed.sdkOp)
 			}
@@ -899,7 +905,7 @@ func TestScanEC2LateExtraAttributes_PermissionOrderIgnored(t *testing.T) {
 	cases := []struct {
 		name, sdkOp, typ, nativeID string
 		seed                       func(*testing.T, *store.Store)
-		run                        func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+		run                        func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 		answer                     func(reversed bool) any
 	}{
 		{
@@ -937,7 +943,7 @@ func TestScanEC2LateExtraAttributes_PermissionOrderIgnored(t *testing.T) {
 			for i, reversed := range []bool{false, true} {
 				st := newTestStore(t)
 				c.seed(t, st)
-				if _, _, err := elxRun(c.run, st, map[string]func(any) (any, error){
+				if _, err := elxRun(c.run, st, map[string]func(any) (any, error){
 					c.sdkOp: func(any) (any, error) { return c.answer(reversed), nil },
 				}); err != nil {
 					t.Fatalf("run: %v", err)
@@ -957,14 +963,14 @@ func TestScanEC2LockedSnapshots_NoLocksReadsNoParents(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedParent(t, st, TypeEC2Snapshot, "snap-bare", testRegion, "completed", testScanID)
-	total, _, err := elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
+	total, err := elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
 		"DescribeLockedSnapshots": func(any) (any, error) { return &ec2.DescribeLockedSnapshotsOutput{}, nil },
 	})
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
 	// Once a lock is listed, the bad parent row fails the phase.
-	_, _, err = elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
+	_, err = elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
 		"DescribeLockedSnapshots": func(any) (any, error) {
 			return &ec2.DescribeLockedSnapshotsOutput{Snapshots: []ec2types.LockedSnapshotsInfo{{SnapshotId: ptrStr(elxSnap1)}}}, nil
 		},
@@ -975,7 +981,7 @@ func TestScanEC2LockedSnapshots_NoLocksReadsNoParents(t *testing.T) {
 	// A page-2 list failure is reported with the parent read failure, not
 	// lost behind it.
 	calls := 0
-	_, _, err = elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
+	_, err = elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){
 		"DescribeLockedSnapshots": func(any) (any, error) {
 			if calls++; calls == 2 {
 				return nil, errElxTest

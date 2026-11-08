@@ -31,7 +31,9 @@ func TestScanBillingViews(t *testing.T) {
 			{Arn: &arn, Name: &name, OwnerAccountId: &owner, BillingViewType: billingtypes.BillingViewTypePrimary},
 		},
 	}
-	total, inserted, err := scanBillingViews(context.Background(), stub, acct, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBillingViews(context.Background(), stub, acct, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -48,7 +50,9 @@ func TestScanBillingViewsEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubBilling{}
-	total, inserted, err := scanBillingViews(context.Background(), stub, acct, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBillingViews(context.Background(), stub, acct, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -64,7 +68,7 @@ func TestScanBillingViewsSkipsBlankARN(t *testing.T) {
 	blank := ""
 	name := "incomplete"
 	stub := &stubBilling{views: []billingtypes.BillingViewListElement{{Arn: &blank, Name: &name}}}
-	total, _, err := scanBillingViews(context.Background(), stub, acct, st, testScanID)
+	total, err := scanBillingViews(context.Background(), stub, acct, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

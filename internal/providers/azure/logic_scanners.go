@@ -24,12 +24,12 @@ func init() {
 // integration service environments. Triggers, actions, and API connections are
 // deferred: workflow-definition connection refs are name-keyed (not ARM IDs)
 // and need per-connection resolution — a follow-up.
-func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			wfClient, err := armlogic.NewWorkflowsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armlogic:NewWorkflowsClient: %w", err)
+				return 0, fmt.Errorf("armlogic:NewWorkflowsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armlogic:Workflows.ListBySubscription", TypeLogicWorkflow, sub, st, scanID,
 				wfClient.NewListBySubscriptionPager(nil),
@@ -38,10 +38,10 @@ func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			iaClient, err := armlogic.NewIntegrationAccountsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armlogic:NewIntegrationAccountsClient: %w", err)
+				return 0, fmt.Errorf("armlogic:NewIntegrationAccountsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armlogic:IntegrationAccounts.ListBySubscription", TypeLogicIntegrationAccount, sub, st, scanID,
 				iaClient.NewListBySubscriptionPager(nil),
@@ -52,10 +52,10 @@ func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			iseClient, err := armlogic.NewIntegrationServiceEnvironmentsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armlogic:NewIntegrationServiceEnvironmentsClient: %w", err)
+				return 0, fmt.Errorf("armlogic:NewIntegrationServiceEnvironmentsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armlogic:IntegrationServiceEnvironments.ListBySubscription", TypeLogicIntegrationServiceEnv, sub, st, scanID,
 				iseClient.NewListBySubscriptionPager(nil),

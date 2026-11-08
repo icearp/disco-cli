@@ -71,7 +71,7 @@ func TestScanInspector2Connectors_PaginatesAndStores(t *testing.T) {
 		"":   {Items: []i2types.Connector{i2Connector("c1"), {Name: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
 		"p2": {Items: []i2types.Connector{i2Connector("c2")}},
 	}}
-	total, _, err := scanInspector2Connectors(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanInspector2Connectors(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanInspector2Connectors: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestScanInspector2Connectors_ErrorShapes(t *testing.T) {
 				connectors: map[string]*inspector2.ListConnectorsOutput{"": {Items: []i2types.Connector{i2Connector("c1")}, NextToken: sdkaws.String("p2")}},
 				pageErrs:   map[string]error{tc.token: tc.err},
 			}
-			_, _, err := scanInspector2Connectors(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanInspector2Connectors(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantOther {
 				if !isAPIErrorCode(err, "InternalServerException") {
 					t.Fatalf("err = %v; want the InternalServerException propagated", err)
@@ -162,7 +162,7 @@ func TestScanInspector2Connectors_ErrorShapes(t *testing.T) {
 func TestScanInspector2Connectors_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanInspector2Connectors(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanInspector2Connectors(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Errorf("total=%d err=%v; want 0, nil", total, err)
 	}
@@ -204,7 +204,7 @@ func TestScanInspector2_StoresConnectorsAndDelegatedAdmins(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = inspector2ServiceStub(t, nil)
-	total, _, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanInspector2: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestScanInspector2_ConnectorErrorAfterExistingPhases(t *testing.T) {
 	acct.cfg = inspector2ServiceStub(t, map[string][]stubCall{
 		"ListConnectors": {{Err: apiErr("ValidationException", "boom")}},
 	})
-	total, _, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v; want the ListConnectors ValidationException", err)
 	}
@@ -260,7 +260,7 @@ func TestScanInspector2_ConnectorNotEnabledWarns(t *testing.T) {
 	acct.cfg = inspector2ServiceStub(t, map[string][]stubCall{
 		"ListConnectors": {{Err: apiErr("AccessDeniedException", "Invoking account is not enabled")}},
 	})
-	total, _, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanInspector2: %v; want nil", err)
 	}
@@ -299,7 +299,9 @@ func TestScanInspector2DelegatedAdmins_PaginatesAndStores(t *testing.T) {
 		},
 		adminMaxResults: &pageSizes,
 	}
-	total, inserted, err := scanInspector2DelegatedAdmins(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanInspector2DelegatedAdmins(context.Background(), fake, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanInspector2DelegatedAdmins: %v", err)
 	}
@@ -368,7 +370,7 @@ func TestScanInspector2DelegatedAdmins_ErrorShapes(t *testing.T) {
 				}},
 				adminErrs: map[string]error{"p2": tc.err},
 			}
-			total, _, err := scanInspector2DelegatedAdmins(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanInspector2DelegatedAdmins(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantOther {
 				if !isAPIErrorCode(err, "ValidationException") {
 					t.Fatalf("err = %v; want the ValidationException propagated", err)
@@ -397,7 +399,9 @@ func TestScanInspector2DelegatedAdmins_ErrorShapes(t *testing.T) {
 func TestScanInspector2DelegatedAdmins_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := scanInspector2DelegatedAdmins(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanInspector2DelegatedAdmins(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("total=%d inserted=%d err=%v; want 0, 0, nil", total, inserted, err)
 	}
@@ -413,7 +417,7 @@ func TestScanInspector2_DelegatedAdminErrorAfterExistingPhases(t *testing.T) {
 	acct.cfg = inspector2ServiceStub(t, map[string][]stubCall{
 		"ListDelegatedAdminAccounts": {{Err: apiErr("ValidationException", "boom")}},
 	})
-	total, _, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v; want the ListDelegatedAdminAccounts ValidationException", err)
 	}
@@ -485,7 +489,9 @@ func TestScanInspector2_NotEnabledSentinel(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = notEnabledInspector2Stub(t, tc.filters, tc.admins)
-			total, inserted, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := scanInspector2(context.Background(), acct, testRegion, counted, testScanID)
+			inserted := upserts()
 			if tc.wantNilErr {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -538,7 +544,7 @@ func TestScanInspector2_TransientDoesNotMaskHardError(t *testing.T) {
 			warns := countOpWarnings(st, tc.warnOp)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = inspector2ServiceStub(t, tc.override)
-			_, _, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanInspector2(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 			}

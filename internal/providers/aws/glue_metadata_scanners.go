@@ -25,53 +25,50 @@ func init() {
 // to enumerate them, it needs search text or a filter clause whose attribute
 // names the SDK does not document, and a relevance-ranked search promises no
 // complete listing.
-func scanGlueMetadata(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, err := scanGlueResourcePolicy(ctx, client, acct, region, st, scanID)
+func scanGlueMetadata(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	t, err := scanGlueResourcePolicy(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += t
-	inserted += i
 
-	t, i, err = scanGlueAssetTypes(ctx, client, acct, region, st, scanID)
+	t, err = scanGlueAssetTypes(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += t
-	inserted += i
 
-	glossaries, t, i, err := scanGlueGlossaries(ctx, client, acct, region, st, scanID)
+	glossaries, t, err := scanGlueGlossaries(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += t
-	inserted += i
 
-	t, i, err = scanGlueGlossaryTerms(ctx, client, glossaries, acct, region, st, scanID)
+	t, err = scanGlueGlossaryTerms(ctx, client, glossaries, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total + t, inserted + i, nil
+	return total + t, nil
 }
 
 // scanGlueResourcePolicy stores the Data Catalog resource policy, one per
 // region. GetResourcePolicy without a ResourceArn returns it; the account
 // creates it with PutResourcePolicy and can delete it, so it is not
 // provider-managed.
-func scanGlueResourcePolicy(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueResourcePolicy(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetResourcePolicy(ctx, &glue.GetResourcePolicyInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "glue:GetResourcePolicy", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "glue:GetResourcePolicy", acct.ID, region, err)
 		}
 		// The op's modeled code when no catalog policy has been put.
 		if isAPIErrorCode(err, "EntityNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("glue:GetResourcePolicy: %w", err)
+		return 0, fmt.Errorf("glue:GetResourcePolicy: %w", err)
 	}
 	if sv(out.PolicyInJson) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	name := "data-catalog-resource-policy"
 	r := &store.Resource{
@@ -86,16 +83,16 @@ func scanGlueResourcePolicy(ctx context.Context, client glueAPI, acct *account, 
 
 // scanGlueAssetTypes lists the asset types. They carry no ARN; NativeID is
 // built like the other ARN-less Glue types.
-func scanGlueAssetTypes(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueAssetTypes(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	pager := glue.NewListAssetTypesPaginator(client, &glue.ListAssetTypesInput{})
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "glue:ListAssetTypes", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "glue:ListAssetTypes", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("glue:ListAssetTypes: %w", err)
+			return 0, fmt.Errorf("glue:ListAssetTypes: %w", err)
 		}
 		for _, a := range out.Items {
 			id := sv(a.Id)
@@ -116,7 +113,7 @@ func scanGlueAssetTypes(ctx context.Context, client glueAPI, acct *account, regi
 
 // scanGlueGlossaries lists the business glossaries and returns them as the
 // parents of scanGlueGlossaryTerms.
-func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	var (
 		batch   []*store.Resource
 		parents []childParent
@@ -126,9 +123,9 @@ func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, regi
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "glue:ListGlossaries", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "glue:ListGlossaries", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("glue:ListGlossaries: %w", err)
+			return nil, 0, fmt.Errorf("glue:ListGlossaries: %w", err)
 		}
 		for _, g := range out.Items {
 			id := sv(g.Id)
@@ -145,11 +142,11 @@ func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, regi
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "glue glossaries")
+	total, err := upsertBatch(st, batch, "glue glossaries")
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, err
 	}
-	return parents, total, inserted, nil
+	return parents, total, nil
 }
 
 // scanGlueGlossaryTerms lists each glossary's terms under the glossary,
@@ -158,7 +155,7 @@ func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, regi
 // No error is skipped silently: ListGlossaryTerms models no not-found code,
 // and what it returns for a glossary deleted after ListGlossaries is not
 // verified live, so such an error fails this phase.
-func scanGlueGlossaryTerms(ctx context.Context, client glueAPI, glossaries []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueGlossaryTerms(ctx context.Context, client glueAPI, glossaries []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "glue:ListGlossaryTerms", glossaries,
 		func(error) bool { return false },
 		func(gctx context.Context, g childParent) ([]*store.Resource, error) {

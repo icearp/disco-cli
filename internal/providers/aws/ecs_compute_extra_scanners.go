@@ -28,39 +28,35 @@ type ecsComputeExtAPI interface {
 
 // scanECSComputeExtra discovers per-cluster container instances, running tasks,
 // and daemons, plus account-wide daemon task definitions.
-func scanECSComputeExtra(ctx context.Context, client ecsComputeExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (total, inserted int, err error) {
+func scanECSComputeExtra(ctx context.Context, client ecsComputeExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (total int, err error) {
 	for _, cl := range clusterARNs {
-		t, i, ferr := scanECSContainerInstances(ctx, client, acct, region, cl, st, scanID)
+		t, ferr := scanECSContainerInstances(ctx, client, acct, region, cl, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 
-		t, i, ferr = scanECSTasks(ctx, client, acct, region, cl, st, scanID)
+		t, ferr = scanECSTasks(ctx, client, acct, region, cl, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 
-		t, i, ferr = scanECSDaemons(ctx, client, acct, region, cl, st, scanID)
+		t, ferr = scanECSDaemons(ctx, client, acct, region, cl, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	t, i, ferr := scanECSDaemonTaskDefinitions(ctx, client, acct, region, st, scanID)
+	t, ferr := scanECSDaemonTaskDefinitions(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanECSContainerInstances(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, int, error) {
+func scanECSContainerInstances(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, error) {
 	var arns []string
 	pager := ecs.NewListContainerInstancesPaginator(client, &ecs.ListContainerInstancesInput{Cluster: &clusterARN})
 	for pager.HasMorePages() {
@@ -68,9 +64,9 @@ func scanECSContainerInstances(ctx context.Context, client ecsComputeExtAPI, acc
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "ecs:ListContainerInstances", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:ListContainerInstances: %w", perr)
+			return 0, fmt.Errorf("ecs:ListContainerInstances: %w", perr)
 		}
 		arns = append(arns, out.ContainerInstanceArns...)
 	}
@@ -80,9 +76,9 @@ func scanECSContainerInstances(ctx context.Context, client ecsComputeExtAPI, acc
 		if derr != nil {
 			if isAccessDenied(derr) {
 				_ = skipIfAccessDenied(st, "ecs:DescribeContainerInstances", acct.ID, region, derr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:DescribeContainerInstances: %w", derr)
+			return 0, fmt.Errorf("ecs:DescribeContainerInstances: %w", derr)
 		}
 		for _, ci := range out.ContainerInstances {
 			arn := sv(ci.ContainerInstanceArn)
@@ -101,7 +97,7 @@ func scanECSContainerInstances(ctx context.Context, client ecsComputeExtAPI, acc
 	return upsertBatch(st, batch, "ecs container-instances")
 }
 
-func scanECSTasks(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, int, error) {
+func scanECSTasks(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, error) {
 	var arns []string
 	pager := ecs.NewListTasksPaginator(client, &ecs.ListTasksInput{Cluster: &clusterARN})
 	for pager.HasMorePages() {
@@ -109,9 +105,9 @@ func scanECSTasks(ctx context.Context, client ecsComputeExtAPI, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "ecs:ListTasks", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:ListTasks: %w", perr)
+			return 0, fmt.Errorf("ecs:ListTasks: %w", perr)
 		}
 		arns = append(arns, out.TaskArns...)
 	}
@@ -121,9 +117,9 @@ func scanECSTasks(ctx context.Context, client ecsComputeExtAPI, acct *account, r
 		if derr != nil {
 			if isAccessDenied(derr) {
 				_ = skipIfAccessDenied(st, "ecs:DescribeTasks", acct.ID, region, derr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:DescribeTasks: %w", derr)
+			return 0, fmt.Errorf("ecs:DescribeTasks: %w", derr)
 		}
 		for _, tk := range out.Tasks {
 			arn := sv(tk.TaskArn)
@@ -143,7 +139,7 @@ func scanECSTasks(ctx context.Context, client ecsComputeExtAPI, acct *account, r
 }
 
 // scanECSDaemons — ListDaemons has no SDK paginator. Manual NextToken loop.
-func scanECSDaemons(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, int, error) {
+func scanECSDaemons(ctx context.Context, client ecsComputeExtAPI, acct *account, region, clusterARN string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -151,9 +147,9 @@ func scanECSDaemons(ctx context.Context, client ecsComputeExtAPI, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "ecs:ListDaemons", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:ListDaemons: %w", perr)
+			return 0, fmt.Errorf("ecs:ListDaemons: %w", perr)
 		}
 		for _, d := range out.DaemonSummariesList {
 			arn := sv(d.DaemonArn)
@@ -177,7 +173,7 @@ func scanECSDaemons(ctx context.Context, client ecsComputeExtAPI, acct *account,
 }
 
 // scanECSDaemonTaskDefinitions — ListDaemonTaskDefinitions has no SDK paginator.
-func scanECSDaemonTaskDefinitions(ctx context.Context, client ecsComputeExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECSDaemonTaskDefinitions(ctx context.Context, client ecsComputeExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -185,9 +181,9 @@ func scanECSDaemonTaskDefinitions(ctx context.Context, client ecsComputeExtAPI, 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "ecs:ListDaemonTaskDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ecs:ListDaemonTaskDefinitions: %w", perr)
+			return 0, fmt.Errorf("ecs:ListDaemonTaskDefinitions: %w", perr)
 		}
 		for _, td := range out.DaemonTaskDefinitions {
 			arn := sv(td.Arn)

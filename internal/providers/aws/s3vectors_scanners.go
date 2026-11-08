@@ -27,35 +27,32 @@ type s3vectorsAPI interface {
 
 // scanS3Vectors discovers S3 Vectors vector buckets, indexes, and per-bucket
 // policies. ARNs native on bucket and index; policy synth ARN = {bucketArn}/policy.
-func scanS3Vectors(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3Vectors(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := s3vectors.NewFromConfig(acct.cfg, func(o *s3vectors.Options) { o.Region = region })
 
-	bucketARNs, t, i, ferr := scanS3VVectorBuckets(ctx, client, acct, region, st, scanID)
+	bucketARNs, t, ferr := scanS3VVectorBuckets(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanS3VIndexes(ctx, client, acct, region, st, scanID, bucketARNs)
+	t, ferr = scanS3VIndexes(ctx, client, acct, region, st, scanID, bucketARNs)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, ba := range bucketARNs {
-		t, i, ferr = scanS3VBucketPolicy(ctx, client, acct, region, st, scanID, ba)
+		t, ferr = scanS3VBucketPolicy(ctx, client, acct, region, st, scanID, ba)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanS3VVectorBuckets(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanS3VVectorBuckets(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := s3vectors.NewListVectorBucketsPaginator(client, &s3vectors.ListVectorBucketsInput{})
 	var batch []*store.Resource
 	var arns []string
@@ -63,9 +60,9 @@ func scanS3VVectorBuckets(ctx context.Context, client s3vectorsAPI, acct *accoun
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3vectors:ListVectorBuckets", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "s3vectors:ListVectorBuckets", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("s3vectors:ListVectorBuckets: %w", err)
+			return nil, 0, fmt.Errorf("s3vectors:ListVectorBuckets: %w", err)
 		}
 		for _, b := range out.VectorBuckets {
 			arn := sv(b.VectorBucketArn)
@@ -81,15 +78,15 @@ func scanS3VVectorBuckets(ctx context.Context, client s3vectorsAPI, acct *accoun
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "s3vectors vector-buckets")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "s3vectors vector-buckets")
+	return arns, t, err
 }
 
 // scanS3VIndexes requires VectorBucketArn (or Name) per call. Fan-out across
 // bucket ARNs enumerated by scanS3VVectorBuckets.
-func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string, bucketARNs []string) (int, int, error) {
+func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string, bucketARNs []string) (int, error) {
 	if len(bucketARNs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, ba := range bucketARNs {
@@ -99,12 +96,12 @@ func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, reg
 			out, err := pager.NextPage(ctx)
 			if err != nil {
 				if isAccessDenied(err) {
-					return 0, 0, skipIfAccessDenied(st, "s3vectors:ListIndexes", acct.ID, region, err)
+					return 0, skipIfAccessDenied(st, "s3vectors:ListIndexes", acct.ID, region, err)
 				}
 				if isAPIErrorCode(err, "NotFoundException", "ResourceNotFoundException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("s3vectors:ListIndexes %s: %w", bucketARN, err)
+				return 0, fmt.Errorf("s3vectors:ListIndexes %s: %w", bucketARN, err)
 			}
 			for _, idx := range out.Indexes {
 				arn := sv(idx.IndexArn)
@@ -123,17 +120,17 @@ func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, reg
 	return upsertBatch(st, batch, "s3vectors indexes")
 }
 
-func scanS3VBucketPolicy(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, int, error) {
+func scanS3VBucketPolicy(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, error) {
 	ba := bucketARN
 	out, err := client.GetVectorBucketPolicy(ctx, &s3vectors.GetVectorBucketPolicyInput{VectorBucketArn: &ba})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "NotFoundException", "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("s3vectors:GetVectorBucketPolicy: %w", err)
+		return 0, fmt.Errorf("s3vectors:GetVectorBucketPolicy: %w", err)
 	}
 	if sv(out.Policy) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := ba + "/policy"
 	label := "policy"

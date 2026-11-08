@@ -530,9 +530,9 @@ func (g *graphClient) listURL(path string, fields []string) string {
 //
 // Permission failures (Directory.Read.All not granted) degrade to one scan
 // warning and a partial scan; later sub-scope scanners proceed normally.
-func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCredential, wif wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCredential, wif wifConfig, st *store.Store, scanID string) (total int, err error) {
 	if len(subs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	// graphTenant is the directory every token below names. Empty is the
 	// unfederated case — azidentity then resolves the credential's own, which
@@ -548,7 +548,7 @@ func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCreden
 	tenantID, terr := tenantIDFromCredScopeTenant(ctx, cred, graphScope, graphTenant)
 	if terr != nil {
 		reportEntra(st, tenantScopeLabel(subs), "could not resolve tenant id: "+formatAzureError(terr), true)
-		return 0, 0, nil
+		return 0, nil
 	}
 	// The env var says which directory was consented; the tid says which one
 	// actually answered. Only the second is evidence, and they can disagree
@@ -559,23 +559,19 @@ func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCreden
 	// prevent and is not correctable after the fact.
 	if graphTenant != "" && !strings.EqualFold(tenantID, graphTenant) {
 		reportEntra(st, tenantScopeLabel(subs), "refusing to store directory objects: the Graph token was issued for a different directory than the one this scan was configured for", true)
-		return 0, 0, nil
+		return 0, nil
 	}
 	g := newGraphClient(cred, graphTenant)
 
-	t, n := scanEntraUsers(ctx, g, tenantID, st, scanID)
+	t := scanEntraUsers(ctx, g, tenantID, st, scanID)
 	total += t
-	inserted += n
-	t, n = scanEntraGroups(ctx, g, tenantID, st, scanID)
+	t = scanEntraGroups(ctx, g, tenantID, st, scanID)
 	total += t
-	inserted += n
-	t, n = scanEntraServicePrincipals(ctx, g, tenantID, st, scanID)
+	t = scanEntraServicePrincipals(ctx, g, tenantID, st, scanID)
 	total += t
-	inserted += n
-	t, n = scanEntraApplications(ctx, g, tenantID, st, scanID)
+	t = scanEntraApplications(ctx, g, tenantID, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, nil
+	return total, nil
 }
 
 // userAttrs is the curated subset persisted under attributes for a Graph
@@ -591,21 +587,20 @@ type userAttrs struct {
 	UserType          string `json:"userType,omitempty"`
 }
 
-func scanEntraUsers(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+func scanEntraUsers(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total int) {
 	startURL := g.listURL("users", []string{"id", "displayName", "userPrincipalName", "mail", "accountEnabled", "userType"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "users", formatAzureError(uerr), false)
 			batch = batch[:0]
 			return
 		}
 		total += len(batch)
-		inserted += n
 		batch = batch[:0]
 	}
 	err := iterateGraph(ctx, g, startURL, func(u userAttrs) bool {
@@ -629,7 +624,7 @@ func scanEntraUsers(ctx context.Context, g *graphClient, tenantID string, st *st
 		reportEntraErr(st, "users", err)
 	}
 	flush()
-	return total, inserted
+	return total
 }
 
 type groupAttrs struct {
@@ -641,21 +636,20 @@ type groupAttrs struct {
 	GroupTypes      []string `json:"groupTypes,omitempty"`
 }
 
-func scanEntraGroups(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+func scanEntraGroups(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total int) {
 	startURL := g.listURL("groups", []string{"id", "displayName", "description", "mailEnabled", "securityEnabled", "groupTypes"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "groups", formatAzureError(uerr), false)
 			batch = batch[:0]
 			return
 		}
 		total += len(batch)
-		inserted += n
 		batch = batch[:0]
 	}
 	err := iterateGraph(ctx, g, startURL, func(gr groupAttrs) bool {
@@ -679,7 +673,7 @@ func scanEntraGroups(ctx context.Context, g *graphClient, tenantID string, st *s
 		reportEntraErr(st, "groups", err)
 	}
 	flush()
-	return total, inserted
+	return total
 }
 
 type spAttrs struct {
@@ -707,21 +701,20 @@ func isMicrosoftFirstPartySP(appOwnerTenantID string) bool {
 	return microsoftFirstPartyTenants[strings.ToLower(appOwnerTenantID)]
 }
 
-func scanEntraServicePrincipals(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+func scanEntraServicePrincipals(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total int) {
 	startURL := g.listURL("servicePrincipals", []string{"id", "appId", "displayName", "servicePrincipalType", "accountEnabled", "appOwnerOrganizationId"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "servicePrincipals", formatAzureError(uerr), false)
 			batch = batch[:0]
 			return
 		}
 		total += len(batch)
-		inserted += n
 		batch = batch[:0]
 	}
 	err := iterateGraph(ctx, g, startURL, func(sp spAttrs) bool {
@@ -746,7 +739,7 @@ func scanEntraServicePrincipals(ctx context.Context, g *graphClient, tenantID st
 		reportEntraErr(st, "servicePrincipals", err)
 	}
 	flush()
-	return total, inserted
+	return total
 }
 
 type appAttrs struct {
@@ -756,21 +749,20 @@ type appAttrs struct {
 	SignInAudience string `json:"signInAudience,omitempty"`
 }
 
-func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total int) {
 	startURL := g.listURL("applications", []string{"id", "appId", "displayName", "signInAudience"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "applications", formatAzureError(uerr), false)
 			batch = batch[:0]
 			return
 		}
 		total += len(batch)
-		inserted += n
 		batch = batch[:0]
 	}
 	err := iterateGraph(ctx, g, startURL, func(a appAttrs) bool {
@@ -794,7 +786,7 @@ func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string,
 		reportEntraErr(st, "applications", err)
 	}
 	flush()
-	return total, inserted
+	return total
 }
 
 // reportEntraErr classifies a Graph error: missing-permission paths surface

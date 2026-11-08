@@ -27,13 +27,13 @@ type connectDataTableAPI interface {
 }
 
 // scanConnectDataTable runs DataTable phases per instance.
-func scanConnectDataTable(ctx context.Context, client connectDataTableAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectDataTable(ctx context.Context, client connectDataTableAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	tables, lerr := listDataTablesByInstance(ctx, client, instances, acct, region, st)
 	if lerr != nil {
-		return 0, 0, lerr
+		return 0, lerr
 	}
 
 	tableBatch := make([]*store.Resource, 0, len(tables))
@@ -52,27 +52,24 @@ func scanConnectDataTable(ctx context.Context, client connectDataTableAPI, insta
 			DiscoveredBy:   scanID,
 		})
 	}
-	tt, ti, terr := upsertConnectBatch(st, tableBatch, "connect data tables")
+	tt, terr := upsertConnectBatch(st, tableBatch, "connect data tables")
 	if terr != nil {
-		return 0, 0, terr
+		return 0, terr
 	}
 	total += tt
-	inserted += ti
 
-	at, ai, aerr := scanConnectDataTableAttributes(ctx, client, tables, acct, region, st, scanID)
+	at, aerr := scanConnectDataTableAttributes(ctx, client, tables, acct, region, st, scanID)
 	if aerr != nil {
-		return total, inserted, aerr
+		return total, aerr
 	}
 	total += at
-	inserted += ai
 
-	rt, ri, rerr := scanConnectDataTableRecords(ctx, client, tables, acct, region, st, scanID)
+	rt, rerr := scanConnectDataTableRecords(ctx, client, tables, acct, region, st, scanID)
 	if rerr != nil {
-		return total, inserted, rerr
+		return total, rerr
 	}
 	total += rt
-	inserted += ri
-	return total, inserted, nil
+	return total, nil
 }
 
 type dataTableInfo struct {
@@ -122,7 +119,7 @@ func listDataTablesByInstance(ctx context.Context, client connectDataTableAPI, i
 	return tables, nil
 }
 
-func scanConnectDataTableAttributes(ctx context.Context, client connectDataTableAPI, tables []dataTableInfo, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectDataTableAttributes(ctx context.Context, client connectDataTableAPI, tables []dataTableInfo, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, t := range tables {
 		instID := t.instanceID
@@ -134,7 +131,7 @@ func scanConnectDataTableAttributes(ctx context.Context, client connectDataTable
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListDataTableAttributes %s/%s: %w", instID, tableID, perr)
+				return 0, fmt.Errorf("connect:ListDataTableAttributes %s/%s: %w", instID, tableID, perr)
 			}
 			for _, a := range out.Attributes {
 				if a.Name == nil {
@@ -163,7 +160,7 @@ func scanConnectDataTableAttributes(ctx context.Context, client connectDataTable
 	return upsertConnectBatch(st, batch, "connect data table attributes")
 }
 
-func scanConnectDataTableRecords(ctx context.Context, client connectDataTableAPI, tables []dataTableInfo, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectDataTableRecords(ctx context.Context, client connectDataTableAPI, tables []dataTableInfo, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, t := range tables {
 		instID := t.instanceID
@@ -175,7 +172,7 @@ func scanConnectDataTableRecords(ctx context.Context, client connectDataTableAPI
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListDataTablePrimaryValues %s/%s: %w", instID, tableID, perr)
+				return 0, fmt.Errorf("connect:ListDataTablePrimaryValues %s/%s: %w", instID, tableID, perr)
 			}
 			for _, r := range out.PrimaryValuesList {
 				if r.RecordId == nil {

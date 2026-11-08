@@ -181,7 +181,7 @@ func tnbHandlers(c *tnbCalls) map[string]func(in any) (any, error) {
 
 // tnbScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func tnbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func tnbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, tnbTestDenied)
 	return scanTnb(ctx, acct, testRegion, st, testScanID)
@@ -218,7 +218,9 @@ func TestScanTnb_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newTNBCalls()
 
-	total, inserted, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := tnbScan(context.Background(), counted, tnbHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -305,7 +307,7 @@ func TestScanTnb_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := tnbScan(context.Background(), st, handlers); err != nil {
+	if _, err := tnbScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range tnbKinds() {
@@ -330,7 +332,7 @@ func TestScanTnb_EmptyStateKeptAsStatus(t *testing.T) {
 		}
 	}
 
-	if _, _, err := tnbScan(context.Background(), st, handlers); err != nil {
+	if _, err := tnbScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range tnbKinds() {
@@ -355,7 +357,9 @@ func TestScanTnb_ServiceBlocked(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(nil, respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked."))
 
-	total, inserted, err := scanTnb(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanTnb(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	assertGlueOutcome(t, err, outcomeBlocked)
 	if total != 0 || inserted != 0 {
 		t.Errorf("total, inserted = %d, %d; want 0, 0", total, inserted)
@@ -365,16 +369,16 @@ func TestScanTnb_ServiceBlocked(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanTnb_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls())); err != nil {
+	if _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls()))
+	total, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -405,7 +409,9 @@ func TestScanTnb_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := tnbScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := tnbScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -452,7 +458,7 @@ func TestScanTnb_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.errs[arn] = c.err
 
-			total, _, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+			total, err := tnbScan(context.Background(), st, tnbHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -503,7 +509,7 @@ func TestScanTnb_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[tnbKindOf(t, "ListSolNetworkInstances").arn("tagged")] = tnbTestDenied
 	calls.errs[tnbKindOf(t, "ListSolNetworkOperations").arn("bare")] = tnbTestDenied
 
-	total, _, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+	total, err := tnbScan(context.Background(), st, tnbHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -525,7 +531,7 @@ func TestScanTnb_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[tnbKindOf(t, "ListSolFunctionInstances").arn("bare")] = tnbTestThrottle
 	calls.errs[tnbKindOf(t, "ListSolNetworkOperations").arn("tagged")] = tnbTestBad
 
-	_, _, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+	_, err := tnbScan(context.Background(), st, tnbHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -544,7 +550,7 @@ func TestScanTnb_FailedWriteStopsScan(t *testing.T) {
 	calls := newTNBCalls()
 	calls.errs[tnbKindOf(t, "ListSolNetworkPackages").arn("tagged")] = tnbTestDenied
 
-	total, _, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+	total, err := tnbScan(context.Background(), st, tnbHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -596,7 +602,7 @@ func TestScanTnb_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := tnbScan(context.Background(), st, handlers)
+			total, err := tnbScan(context.Background(), st, handlers)
 			var wantWarn []string
 			if isAccessDenied(c.err) {
 				if err != nil {
@@ -641,7 +647,7 @@ func TestScanTnb_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := tnbScan(context.Background(), st, handlers)
+	total, err := tnbScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -673,7 +679,7 @@ func TestScanTnb_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := tnbScan(context.Background(), st, handlers)
+			total, err := tnbScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -723,7 +729,7 @@ func TestScanTnb_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, tnbTestDenied)
-			if _, _, err := scanTnb(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanTnb(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, want := range []string{pkgARN, opARN} {
@@ -755,7 +761,7 @@ func TestScanTnb_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := tnbScan(ctx, st, handlers)
+	_, err := tnbScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -785,7 +791,7 @@ func TestScanTnb_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := tnbHandlers(newTNBCalls())
 		handlers["ListSolNetworkOperations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := tnbScan(context.Background(), st, handlers)
+		total, err := tnbScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := tnbTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -795,7 +801,7 @@ func TestScanTnb_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newTNBCalls()
 		calls.errs[tnbKindOf(t, "ListSolFunctionPackages").arn("tagged")] = nx
-		_, _, err := tnbScan(context.Background(), st, tnbHandlers(calls))
+		_, err := tnbScan(context.Background(), st, tnbHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -811,7 +817,7 @@ func TestScanTnb_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanTnb(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanTnb(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

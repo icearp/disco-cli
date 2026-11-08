@@ -41,92 +41,91 @@ func init() {
 // so each phase is a straight azSimpleScan. Phases run concurrently via
 // sync.WaitGroup (per "Errors never abort scan"); the orchestrator surfaces
 // only the first non-tolerated error.
-func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	aclClient, err := armmanagednetworkfabric.NewAccessControlListsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewAccessControlListsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewAccessControlListsClient: %w", err)
 	}
 	fabricClient, err := armmanagednetworkfabric.NewNetworkFabricsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkFabricsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkFabricsClient: %w", err)
 	}
 	igwRuleClient, err := armmanagednetworkfabric.NewInternetGatewayRulesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewInternetGatewayRulesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewInternetGatewayRulesClient: %w", err)
 	}
 	igwClient, err := armmanagednetworkfabric.NewInternetGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewInternetGatewaysClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewInternetGatewaysClient: %w", err)
 	}
 	ipcClient, err := armmanagednetworkfabric.NewIPCommunitiesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewIPCommunitiesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewIPCommunitiesClient: %w", err)
 	}
 	ipecClient, err := armmanagednetworkfabric.NewIPExtendedCommunitiesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewIPExtendedCommunitiesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewIPExtendedCommunitiesClient: %w", err)
 	}
 	ippClient, err := armmanagednetworkfabric.NewIPPrefixesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewIPPrefixesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewIPPrefixesClient: %w", err)
 	}
 	l2Client, err := armmanagednetworkfabric.NewL2IsolationDomainsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewL2IsolationDomainsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewL2IsolationDomainsClient: %w", err)
 	}
 	l3Client, err := armmanagednetworkfabric.NewL3IsolationDomainsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewL3IsolationDomainsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewL3IsolationDomainsClient: %w", err)
 	}
 	ngClient, err := armmanagednetworkfabric.NewNeighborGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNeighborGroupsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNeighborGroupsClient: %w", err)
 	}
 	ndClient, err := armmanagednetworkfabric.NewNetworkDevicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkDevicesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkDevicesClient: %w", err)
 	}
 	nfcClient, err := armmanagednetworkfabric.NewNetworkFabricControllersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkFabricControllersClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkFabricControllersClient: %w", err)
 	}
 	npbClient, err := armmanagednetworkfabric.NewNetworkPacketBrokersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkPacketBrokersClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkPacketBrokersClient: %w", err)
 	}
 	nrClient, err := armmanagednetworkfabric.NewNetworkRacksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkRacksClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkRacksClient: %w", err)
 	}
 	ntrClient, err := armmanagednetworkfabric.NewNetworkTapRulesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkTapRulesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkTapRulesClient: %w", err)
 	}
 	ntClient, err := armmanagednetworkfabric.NewNetworkTapsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkTapsClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewNetworkTapsClient: %w", err)
 	}
 	rpClient, err := armmanagednetworkfabric.NewRoutePoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewRoutePoliciesClient: %w", err)
+		return 0, fmt.Errorf("armmanagednetworkfabric:NewRoutePoliciesClient: %w", err)
 	}
 
 	var (
 		mu       sync.Mutex
 		firstErr error
 	)
-	addTotals := func(t, n int, e error) {
+	addTotals := func(t int, e error) {
 		mu.Lock()
 		defer mu.Unlock()
 		total += t
-		inserted += n
 		if e != nil && firstErr == nil {
 			firstErr = e
 		}
 	}
 
-	phases := []func() (int, int, error){
-		func() (int, int, error) {
+	phases := []func() (int, error){
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:AccessControlLists.ListBySubscription", TypeManagedNetworkFabricACL, sub, st, scanID,
 				aclClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.AccessControlListsClientListBySubscriptionResponse) []*armmanagednetworkfabric.AccessControlList {
@@ -136,7 +135,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkFabrics.ListBySubscription", TypeManagedNetworkFabric, sub, st, scanID,
 				fabricClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkFabricsClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkFabric {
@@ -146,7 +145,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:InternetGatewayRules.ListBySubscription", TypeManagedNetworkFabricInternetGwRule, sub, st, scanID,
 				igwRuleClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.InternetGatewayRulesClientListBySubscriptionResponse) []*armmanagednetworkfabric.InternetGatewayRule {
@@ -156,7 +155,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:InternetGateways.ListBySubscription", TypeManagedNetworkFabricInternetGateway, sub, st, scanID,
 				igwClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.InternetGatewaysClientListBySubscriptionResponse) []*armmanagednetworkfabric.InternetGateway {
@@ -166,7 +165,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:IPCommunities.ListBySubscription", TypeManagedNetworkFabricIPCommunity, sub, st, scanID,
 				ipcClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.IPCommunitiesClientListBySubscriptionResponse) []*armmanagednetworkfabric.IPCommunity {
@@ -176,7 +175,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:IPExtendedCommunities.ListBySubscription", TypeManagedNetworkFabricIPExtCommunity, sub, st, scanID,
 				ipecClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.IPExtendedCommunitiesClientListBySubscriptionResponse) []*armmanagednetworkfabric.IPExtendedCommunity {
@@ -186,7 +185,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:IPPrefixes.ListBySubscription", TypeManagedNetworkFabricIPPrefix, sub, st, scanID,
 				ippClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.IPPrefixesClientListBySubscriptionResponse) []*armmanagednetworkfabric.IPPrefix {
@@ -196,7 +195,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:L2IsolationDomains.ListBySubscription", TypeManagedNetworkFabricL2IsolationDom, sub, st, scanID,
 				l2Client.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.L2IsolationDomainsClientListBySubscriptionResponse) []*armmanagednetworkfabric.L2IsolationDomain {
@@ -206,7 +205,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:L3IsolationDomains.ListBySubscription", TypeManagedNetworkFabricL3IsolationDom, sub, st, scanID,
 				l3Client.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.L3IsolationDomainsClientListBySubscriptionResponse) []*armmanagednetworkfabric.L3IsolationDomain {
@@ -216,7 +215,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NeighborGroups.ListBySubscription", TypeManagedNetworkFabricNeighborGroup, sub, st, scanID,
 				ngClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NeighborGroupsClientListBySubscriptionResponse) []*armmanagednetworkfabric.NeighborGroup {
@@ -226,7 +225,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkDevices.ListBySubscription", TypeManagedNetworkFabricNetworkDevice, sub, st, scanID,
 				ndClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkDevicesClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkDevice {
@@ -236,7 +235,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkFabricControllers.ListBySubscription", TypeManagedNetworkFabricController, sub, st, scanID,
 				nfcClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkFabricControllersClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkFabricController {
@@ -246,7 +245,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkPacketBrokers.ListBySubscription", TypeManagedNetworkFabricPacketBroker, sub, st, scanID,
 				npbClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkPacketBrokersClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkPacketBroker {
@@ -256,7 +255,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkRacks.ListBySubscription", TypeManagedNetworkFabricRack, sub, st, scanID,
 				nrClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkRacksClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkRack {
@@ -266,7 +265,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkTapRules.ListBySubscription", TypeManagedNetworkFabricNetworkTapRule, sub, st, scanID,
 				ntrClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkTapRulesClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkTapRule {
@@ -276,7 +275,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:NetworkTaps.ListBySubscription", TypeManagedNetworkFabricNetworkTap, sub, st, scanID,
 				ntClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.NetworkTapsClientListBySubscriptionResponse) []*armmanagednetworkfabric.NetworkTap {
@@ -286,7 +285,7 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armmanagednetworkfabric:RoutePolicies.ListBySubscription", TypeManagedNetworkFabricRoutePolicy, sub, st, scanID,
 				rpClient.NewListBySubscriptionPager(nil),
 				func(p armmanagednetworkfabric.RoutePoliciesClientListBySubscriptionResponse) []*armmanagednetworkfabric.RoutePolicy {
@@ -301,10 +300,10 @@ func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcor
 	var wg sync.WaitGroup
 	for _, fn := range phases {
 		wg.Go(func() {
-			t, n, e := fn()
-			addTotals(t, n, e)
+			t, e := fn()
+			addTotals(t, e)
 		})
 	}
 	wg.Wait()
-	return total, inserted, firstErr
+	return total, firstErr
 }

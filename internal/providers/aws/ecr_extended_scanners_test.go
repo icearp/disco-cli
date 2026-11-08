@@ -132,7 +132,7 @@ func TestScanECRPublic_StoresRegistriesAndContainsEdges(t *testing.T) {
 		"DescribeRegistries":   ecrPubRegistryPages(nil),
 	}, ecrPubDenied)
 
-	total, _, err := runECRPublic(acct, "us-east-1", st)
+	total, err := runECRPublic(acct, "us-east-1", st)
 	if err != nil {
 		t.Fatalf("scanECRPublic: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestScanECRPublicRegistries_Empty(t *testing.T) {
 	client := ecrPubClient(map[string]func(in any) (any, error){
 		"DescribeRegistries": func(any) (any, error) { return &ecrpublic.DescribeRegistriesOutput{}, nil },
 	})
-	total, _, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	total, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -227,7 +227,7 @@ func TestScanECRPublicRegistries_Errors(t *testing.T) {
 			warns := countOpWarnings(st, "ecr-public:DescribeRegistries")
 			client := ecrPubClient(map[string]func(in any) (any, error){"DescribeRegistries": tc.handler})
 
-			total, _, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+			total, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
@@ -274,10 +274,10 @@ func TestScanECRPublic_RegionRouting(t *testing.T) {
 	acct.cfg = recordCallRegions(cfg, &regions)
 
 	st := newTestStore(t)
-	if total, _, err := runECRPublic(acct, "eu-west-1", st); err != nil || total != 0 || len(called) != 0 {
+	if total, err := runECRPublic(acct, "eu-west-1", st); err != nil || total != 0 || len(called) != 0 {
 		t.Fatalf("eu-west-1: total %d, err %v, calls %v; want 0, nil, none", total, err, called)
 	}
-	if _, _, err := runECRPublic(acct, "us-east-1", st); err != nil {
+	if _, err := runECRPublic(acct, "us-east-1", st); err != nil {
 		t.Fatalf("us-east-1: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"us-east-1"}) {
@@ -303,7 +303,7 @@ func TestScanECRPublic_RepositoriesDeniedStillScansRegistries(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	total, _, err := runECRPublic(acct, "us-east-1", st)
+	total, err := runECRPublic(acct, "us-east-1", st)
 	if err != nil {
 		t.Fatalf("scanECRPublic: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestScanECRPublic_RepositoryErrorStillScansRegistries(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	total, _, err := runECRPublic(acct, "us-east-1", st)
+	total, err := runECRPublic(acct, "us-east-1", st)
 	assertAPICode(t, err, "ServerException")
 	if total != 2 {
 		t.Errorf("total = %d, want 2 (repository a, registry)", total)
@@ -373,7 +373,7 @@ func TestScanECRPublic_EmptyARNsWarned(t *testing.T) {
 		"DescribeRegistries": ecrPubRegistryPages(nil),
 	}, ecrPubDenied)
 
-	if _, _, err := runECRPublic(acct, "us-east-1", st); err != nil {
+	if _, err := runECRPublic(acct, "us-east-1", st); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeECRPublicRepository)); n != 0 {
@@ -385,7 +385,7 @@ func TestScanECRPublic_EmptyARNsWarned(t *testing.T) {
 }
 
 // runECRPublic runs the public phases and returns their joined result.
-func runECRPublic(acct *account, region string, st *store.Store) (int, int, error) {
+func runECRPublic(acct *account, region string, st *store.Store) (int, error) {
 	var p phaseTotals
 	scanECRPublic(context.Background(), acct, region, st, testScanID, &p)
 	return p.result(st, acct, region)
@@ -416,7 +416,7 @@ func TestScanECR_RegistryErrorAfterExistingPhases(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	total, _, err := scanECR(context.Background(), acct, "us-east-1", st, testScanID)
+	total, err := scanECR(context.Background(), acct, "us-east-1", st, testScanID)
 	if !called {
 		t.Fatal("DescribeRegistries never called")
 	}
@@ -498,7 +498,7 @@ func (b *ecrScanCfgBatches) handler(respond func([]string) (any, error)) func(an
 	}
 }
 
-func runECRScanCfg(st *store.Store, repos []childParent, h func(any) (any, error)) (int, int, error) {
+func runECRScanCfg(st *store.Store, repos []childParent, h func(any) (any, error)) (int, error) {
 	client := ecr.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"BatchGetRepositoryScanningConfiguration": h,
 	}, ecrPubDenied))
@@ -512,7 +512,7 @@ func TestScanECRRepositoryScanningConfigs_BatchesAndStores(t *testing.T) {
 	repos := ecrSeedRepos(t, st, names)
 	var calls ecrScanCfgBatches
 
-	total, _, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
+	total, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -559,7 +559,7 @@ func TestScanECRRepositoryScanningConfigs_NoRepositories(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, nil, calls.handler(ecrScanCfgOK))
+	total, err := runECRScanCfg(st, nil, calls.handler(ecrScanCfgOK))
 	if err != nil || total != 0 || len(calls.batches) != 0 {
 		t.Errorf("total = %d, err = %v, calls = %d; want 0, nil, 0", total, err, len(calls.batches))
 	}
@@ -573,7 +573,7 @@ func TestScanECRRepositoryScanningConfigs_DeniedWarnsOnce(t *testing.T) {
 	repos := ecrSeedRepos(t, st, ecrRepoNames(30))
 	var calls ecrScanCfgBatches
 
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrPubDenied }))
+	total, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrPubDenied }))
 	if err != nil || total != 0 {
 		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
 	}
@@ -602,7 +602,7 @@ func TestScanECRRepositoryScanningConfigs_Failures(t *testing.T) {
 			warns := countOpWarnings(st, ecrScanCfgOp)
 			repos := ecrSeedRepos(t, st, []string{"kept", "gone"})
 			var calls ecrScanCfgBatches
-			total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+			total, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
 				return &ecr.BatchGetRepositoryScanningConfigurationOutput{
 					ScanningConfigurations: []ecrtypes.RepositoryScanningConfiguration{ecrScanCfg("kept")},
 					Failures: []ecrtypes.RepositoryScanningConfigurationFailure{{
@@ -636,7 +636,7 @@ func TestScanECRRepositoryScanningConfigs_BatchNotFoundRetriesSingly(t *testing.
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, ecrRepoNames(26))
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+	total, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
 		switch {
 		case len(names) == ecrScanningConfigBatchMax || names[0] == "repo-07":
 			return nil, ecrRepoNotFound
@@ -674,7 +674,7 @@ func TestScanECRRepositoryScanningConfigs_SingleNameBatchNotFound(t *testing.T) 
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a"})
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrRepoNotFound }))
+	total, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) { return nil, ecrRepoNotFound }))
 	if err != nil || total != 0 {
 		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
 	}
@@ -690,7 +690,7 @@ func TestScanECRRepositoryScanningConfigs_SingleRetryErrorFails(t *testing.T) {
 	st := newTestStore(t)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+	total, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
 		switch {
 		case len(names) > 1:
 			return nil, ecrRepoNotFound
@@ -729,7 +729,7 @@ func TestScanECRRepositoryScanningConfigs_ContextEndedMidFanOut(t *testing.T) {
 					return nil, ctx.Err()
 				},
 			}, ecrPubDenied))
-			_, _, err := scanECRRepositoryScanningConfigs(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+			_, err := scanECRRepositoryScanningConfigs(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v; want context.Canceled", err)
 			}
@@ -752,7 +752,7 @@ func TestScanECRRepositoryScanningConfigs_ContextEnded(t *testing.T) {
 			return ecrScanCfgOK(in.(*ecr.BatchGetRepositoryScanningConfigurationInput).RepositoryNames)
 		},
 	}, ecrPubDenied))
-	_, _, err := scanECRRepositoryScanningConfigs(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, repos)
+	_, err := scanECRRepositoryScanningConfigs(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, repos)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v; want context.Canceled", err)
 	}
@@ -766,7 +766,7 @@ func TestScanECRRepositoryScanningConfigs_SingleRetryDenied(t *testing.T) {
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
+	total, err := runECRScanCfg(st, repos, calls.handler(func(names []string) (any, error) {
 		if len(names) > 1 {
 			return nil, ecrRepoNotFound
 		}
@@ -788,7 +788,7 @@ func TestScanECRRepositoryScanningConfigs_UnusableParentARNSkipped(t *testing.T)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := append(ecrSeedRepos(t, st, []string{"a"}), childParent{id: "garbled", arn: "not-an-arn"})
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
+	total, err := runECRScanCfg(st, repos, calls.handler(ecrScanCfgOK))
 	if err != nil || total != 1 {
 		t.Errorf("total = %d, err = %v; want 1, nil", total, err)
 	}
@@ -823,7 +823,7 @@ func TestScanECRRepositoryScanningConfigs_OtherErrorFails(t *testing.T) {
 			st := newTestStore(t)
 			repos := ecrSeedRepos(t, st, []string{"a"})
 			var calls ecrScanCfgBatches
-			total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+			total, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
 				return nil, &smithy.GenericAPIError{Code: code, Message: "boom"}
 			}))
 			assertAPICode(t, err, code)
@@ -842,7 +842,7 @@ func TestScanECRRepositoryScanningConfigs_UnnamedElementSkipped(t *testing.T) {
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
 	var calls ecrScanCfgBatches
-	total, _, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
+	total, err := runECRScanCfg(st, repos, calls.handler(func([]string) (any, error) {
 		unnamed := ecrScanCfg("b")
 		unnamed.RepositoryName = nil
 		return &ecr.BatchGetRepositoryScanningConfigurationOutput{
@@ -888,7 +888,7 @@ func TestScanECR_StoresRepositoryScanningConfigs(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	if _, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanECR(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	for _, name := range []string{"a", "team/app"} {
@@ -920,7 +920,7 @@ func TestScanECR_ScanningConfigErrorAfterExistingPhases(t *testing.T) {
 		},
 	}, ecrPubDenied)
 
-	total, _, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanECR(context.Background(), acct, testRegion, st, testScanID)
 	if !called {
 		t.Fatal("BatchGetRepositoryScanningConfiguration never called")
 	}
@@ -948,7 +948,7 @@ func TestScanECRPublicRegistries_FailedWriteRecordsNoPairs(t *testing.T) {
 	warns := countWarnings(st)
 	client := ecrPubClient(map[string]func(in any) (any, error){"DescribeRegistries": ecrPubRegistryPages(nil)})
 
-	_, _, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, "no-such-scan",
+	_, err := scanECRPublicRegistries(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, "no-such-scan",
 		map[string][]string{testAccountID: {ecrPubRepoA}})
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
@@ -985,7 +985,7 @@ func TestScanECRRepositoryScanningConfigs_FailedBatchKeepsOthers(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, ecrScanCfgOp)
 		repos := ecrSeedRepos(t, st, names)
-		total, _, err := runECRScanCfg(st, repos, handler)
+		total, err := runECRScanCfg(st, repos, handler)
 		assertAPICode(t, err, "ServerException")
 		if want := ecrScanningConfigBatchMax - 1; total != want || len(rowsByNativeID(t, st, TypeECRRepositoryScanningConfig)) != want {
 			t.Errorf("total = %d; want %d (the good batch less its failure entry)", total, want)
@@ -999,7 +999,7 @@ func TestScanECRRepositoryScanningConfigs_FailedBatchKeepsOthers(t *testing.T) {
 		warns := countWarnings(st)
 		repos := ecrSeedRepos(t, st, names)
 		closeStore()
-		_, _, err := runECRScanCfg(st, repos, handler)
+		_, err := runECRScanCfg(st, repos, handler)
 		if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, ecrPubServerErr) {
 			t.Errorf("err = %v; want store.ErrStoreWrite with the batch error", err)
 		}

@@ -32,7 +32,9 @@ func TestScanComputeInstanceGroups_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeInstanceGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeInstanceGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeInstanceGroups: %v", err)
 	}
@@ -72,7 +74,9 @@ func TestScanComputeInstanceGroupManagers_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeInstanceGroupManagers: %v", err)
 	}
@@ -102,7 +106,9 @@ func TestScanComputeInstanceGroupManagers_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeInstanceGroupManagers (denied): expected nil error, got %v", err)
 	}
@@ -119,7 +125,7 @@ func TestScanComputeInstanceGroupManagers_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeInstanceGroupManagers(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeInstanceGroupManagers: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -146,7 +152,9 @@ func TestScanComputeInstanceTemplates_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeInstanceTemplates(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeInstanceTemplates(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeInstanceTemplates: %v", err)
 	}

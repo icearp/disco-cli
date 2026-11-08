@@ -43,11 +43,11 @@ type galleryProfileEntry struct {
 //  1. Galleries (subscription-wide list)
 //  2. Gallery images, applications, and inVMAccessControlProfiles (per gallery, fanned out)
 //  3. Gallery image versions, application versions, and inVMACP versions (per child, fanned out)
-func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	// Phase A: list all galleries in the subscription.
 	galleriesClient, err := armcompute.NewGalleriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewGalleriesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewGalleriesClient: %w", err)
 	}
 
 	var (
@@ -60,9 +60,9 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:Galleries.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:Galleries.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:Galleries.List: %w", err)
+			return 0, fmt.Errorf("armcompute:Galleries.List: %w", err)
 		}
 		for _, g := range page.Value {
 			if g.ID == nil {
@@ -95,27 +95,26 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		}
 	}
 	if len(galBatch) > 0 {
-		n, err := st.UpsertResources(galBatch)
+		_, err := st.UpsertResources(galBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure galleries: %w", err)
+			return 0, fmt.Errorf("upsert Azure galleries: %w", err)
 		}
 		total += len(galBatch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(galPairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure galleries: %w", err)
+			return 0, fmt.Errorf("closure Azure galleries: %w", err)
 		}
 	}
 	if len(galleries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase B: for each gallery, scan images, applications, and inVMACPs.
 	var (
-		bMu               sync.Mutex
-		bTotal, bInserted int
-		imgEntries        []galleryChildEntry
-		appEntries        []galleryChildEntry
-		profileEntries    []galleryProfileEntry
+		bMu            sync.Mutex
+		bTotal         int
+		imgEntries     []galleryChildEntry
+		appEntries     []galleryChildEntry
+		profileEntries []galleryProfileEntry
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	gB, gBCtx := errgroup.WithContext(ctx)
@@ -127,22 +126,21 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 			}
 			defer sem.Release(1)
 
-			imgT, imgN, imgs, imgErr := scanGalleryImages(gBCtx, sub, cred, st, scanID, g)
+			imgT, imgs, imgErr := scanGalleryImages(gBCtx, sub, cred, st, scanID, g)
 			if imgErr != nil {
 				return imgErr
 			}
-			appT, appN, apps, appErr := scanGalleryApplications(gBCtx, sub, cred, st, scanID, g)
+			appT, apps, appErr := scanGalleryApplications(gBCtx, sub, cred, st, scanID, g)
 			if appErr != nil {
 				return appErr
 			}
-			profT, profN, profs, profErr := scanGalleryInVMACPs(gBCtx, sub, cred, st, scanID, g)
+			profT, profs, profErr := scanGalleryInVMACPs(gBCtx, sub, cred, st, scanID, g)
 			if profErr != nil {
 				return profErr
 			}
 
 			bMu.Lock()
 			bTotal += imgT + appT + profT
-			bInserted += imgN + appN + profN
 			imgEntries = append(imgEntries, imgs...)
 			appEntries = append(appEntries, apps...)
 			profileEntries = append(profileEntries, profs...)
@@ -151,15 +149,14 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		})
 	}
 	if err := gB.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	total += bTotal
-	inserted += bInserted
 
 	// Phase C: fan out version scans for images, applications, and inVMACPs in parallel.
 	var (
-		cMu               sync.Mutex
-		cTotal, cInserted int
+		cMu    sync.Mutex
+		cTotal int
 	)
 	sem2 := semaphore.NewWeighted(maxConcurrentFanout)
 	gC, gCCtx := errgroup.WithContext(ctx)
@@ -171,13 +168,12 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				return err
 			}
 			defer sem2.Release(1)
-			t, n, err := scanGalleryImageVersions(gCCtx, sub, cred, st, scanID, e)
+			t, err := scanGalleryImageVersions(gCCtx, sub, cred, st, scanID, e)
 			if err != nil {
 				return err
 			}
 			cMu.Lock()
 			cTotal += t
-			cInserted += n
 			cMu.Unlock()
 			return nil
 		})
@@ -189,13 +185,12 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				return err
 			}
 			defer sem2.Release(1)
-			t, n, err := scanGalleryApplicationVersions(gCCtx, sub, cred, st, scanID, e)
+			t, err := scanGalleryApplicationVersions(gCCtx, sub, cred, st, scanID, e)
 			if err != nil {
 				return err
 			}
 			cMu.Lock()
 			cTotal += t
-			cInserted += n
 			cMu.Unlock()
 			return nil
 		})
@@ -207,30 +202,28 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				return err
 			}
 			defer sem2.Release(1)
-			t, n, err := scanGalleryInVMACPVersions(gCCtx, sub, cred, st, scanID, e)
+			t, err := scanGalleryInVMACPVersions(gCCtx, sub, cred, st, scanID, e)
 			if err != nil {
 				return err
 			}
 			cMu.Lock()
 			cTotal += t
-			cInserted += n
 			cMu.Unlock()
 			return nil
 		})
 	}
 	if err := gC.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	total += cTotal
-	inserted += cInserted
 
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
+func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total int, entries []galleryChildEntry, err error) {
 	client, err := armcompute.NewGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryImagesClient: %w", err)
+		return 0, nil, fmt.Errorf("armcompute:NewGalleryImagesClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -240,9 +233,9 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.Token
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryImages.ListByGallery", sub.ID, err)
+				return 0, nil, skipIfAccessDenied(st, "armcompute:GalleryImages.ListByGallery", sub.ID, err)
 			}
-			return 0, 0, nil, fmt.Errorf("armcompute:GalleryImages.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
+			return 0, nil, fmt.Errorf("armcompute:GalleryImages.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
 		for _, img := range page.Value {
 			if img.ID == nil {
@@ -276,23 +269,22 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.Token
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert Azure gallery images %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("upsert Azure gallery images %s: %w", gal.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, nil, fmt.Errorf("closure Azure gallery images %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("closure Azure gallery images %s: %w", gal.name, err)
 		}
 	}
-	return total, inserted, entries, nil
+	return total, entries, nil
 }
 
-func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
+func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total int, entries []galleryChildEntry, err error) {
 	client, err := armcompute.NewGalleryApplicationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryApplicationsClient: %w", err)
+		return 0, nil, fmt.Errorf("armcompute:NewGalleryApplicationsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -302,9 +294,9 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryApplications.ListByGallery", sub.ID, err)
+				return 0, nil, skipIfAccessDenied(st, "armcompute:GalleryApplications.ListByGallery", sub.ID, err)
 			}
-			return 0, 0, nil, fmt.Errorf("armcompute:GalleryApplications.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
+			return 0, nil, fmt.Errorf("armcompute:GalleryApplications.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
 		for _, app := range page.Value {
 			if app.ID == nil {
@@ -338,23 +330,22 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert Azure gallery applications %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("upsert Azure gallery applications %s: %w", gal.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, nil, fmt.Errorf("closure Azure gallery applications %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("closure Azure gallery applications %s: %w", gal.name, err)
 		}
 	}
-	return total, inserted, entries, nil
+	return total, entries, nil
 }
 
-func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryProfileEntry, err error) {
+func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total int, entries []galleryProfileEntry, err error) {
 	client, err := armcompute.NewGalleryInVMAccessControlProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfilesClient: %w", err)
+		return 0, nil, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfilesClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -364,9 +355,9 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.Tok
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryInVMAccessControlProfiles.ListByGallery", sub.ID, err)
+				return 0, nil, skipIfAccessDenied(st, "armcompute:GalleryInVMAccessControlProfiles.ListByGallery", sub.ID, err)
 			}
-			return 0, 0, nil, fmt.Errorf("armcompute:GalleryInVMAccessControlProfiles.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
+			return 0, nil, fmt.Errorf("armcompute:GalleryInVMAccessControlProfiles.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
 		for _, prof := range page.Value {
 			if prof.ID == nil {
@@ -400,23 +391,22 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.Tok
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert Azure gallery inVMACPs %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("upsert Azure gallery inVMACPs %s: %w", gal.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, nil, fmt.Errorf("closure Azure gallery inVMACPs %s: %w", gal.name, err)
+			return 0, nil, fmt.Errorf("closure Azure gallery inVMACPs %s: %w", gal.name, err)
 		}
 	}
-	return total, inserted, entries, nil
+	return total, entries, nil
 }
 
-func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, img galleryChildEntry) (total, inserted int, err error) {
+func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, img galleryChildEntry) (total int, err error) {
 	client, err := armcompute.NewGalleryImageVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewGalleryImageVersionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewGalleryImageVersionsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -426,9 +416,9 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcor
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryImageVersions.ListByGalleryImage", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:GalleryImageVersions.ListByGalleryImage", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:GalleryImageVersions.ListByGalleryImage %s/%s/%s: %w", img.rg, img.galleryName, img.childName, err)
+			return 0, fmt.Errorf("armcompute:GalleryImageVersions.ListByGalleryImage %s/%s/%s: %w", img.rg, img.galleryName, img.childName, err)
 		}
 		for _, v := range page.Value {
 			if v.ID == nil {
@@ -455,23 +445,22 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcor
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure gallery image versions %s: %w", img.childName, err)
+			return 0, fmt.Errorf("upsert Azure gallery image versions %s: %w", img.childName, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure gallery image versions %s: %w", img.childName, err)
+			return 0, fmt.Errorf("closure Azure gallery image versions %s: %w", img.childName, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, app galleryChildEntry) (total, inserted int, err error) {
+func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, app galleryChildEntry) (total int, err error) {
 	client, err := armcompute.NewGalleryApplicationVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewGalleryApplicationVersionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewGalleryApplicationVersionsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -481,9 +470,9 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryApplicationVersions.ListByGalleryApplication", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:GalleryApplicationVersions.ListByGalleryApplication", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:GalleryApplicationVersions.ListByGalleryApplication %s/%s/%s: %w", app.rg, app.galleryName, app.childName, err)
+			return 0, fmt.Errorf("armcompute:GalleryApplicationVersions.ListByGalleryApplication %s/%s/%s: %w", app.rg, app.galleryName, app.childName, err)
 		}
 		for _, v := range page.Value {
 			if v.ID == nil {
@@ -510,23 +499,22 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure gallery application versions %s: %w", app.childName, err)
+			return 0, fmt.Errorf("upsert Azure gallery application versions %s: %w", app.childName, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure gallery application versions %s: %w", app.childName, err)
+			return 0, fmt.Errorf("closure Azure gallery application versions %s: %w", app.childName, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, prof galleryProfileEntry) (total, inserted int, err error) {
+func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, prof galleryProfileEntry) (total int, err error) {
 	client, err := armcompute.NewGalleryInVMAccessControlProfileVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfileVersionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfileVersionsClient: %w", err)
 	}
 
 	var batch []*store.Resource
@@ -536,9 +524,9 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryInVMAccessControlProfileVersions.ListByGalleryInVMAccessControlProfile", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:GalleryInVMAccessControlProfileVersions.ListByGalleryInVMAccessControlProfile", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:GalleryInVMAccessControlProfileVersions.ListByGalleryInVMAccessControlProfile %s/%s/%s: %w", prof.rg, prof.galleryName, prof.profileName, err)
+			return 0, fmt.Errorf("armcompute:GalleryInVMAccessControlProfileVersions.ListByGalleryInVMAccessControlProfile %s/%s/%s: %w", prof.rg, prof.galleryName, prof.profileName, err)
 		}
 		for _, v := range page.Value {
 			if v.ID == nil {
@@ -565,15 +553,14 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azc
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure gallery inVMACP versions %s: %w", prof.profileName, err)
+			return 0, fmt.Errorf("upsert Azure gallery inVMACP versions %s: %w", prof.profileName, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure gallery inVMACP versions %s: %w", prof.profileName, err)
+			return 0, fmt.Errorf("closure Azure gallery inVMACP versions %s: %w", prof.profileName, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

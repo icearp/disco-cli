@@ -32,31 +32,30 @@ func init() {
 // listing ended incomplete has stored what it read; the later phases still
 // run and its error is returned with theirs. Any other error, a failed store
 // write joined to an incomplete listing included, stops the scan.
-func scanAPIGatewayV2Portals(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayV2Portals(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var errs []error
 	// add counts a phase and records its error; it reports whether the
 	// error stops the scan, which an incomplete listing does not unless it
 	// carries a store write failure.
-	add := func(t, n int, phaseErr error) bool {
+	add := func(t int, phaseErr error) bool {
 		total += t
-		inserted += n
 		if phaseErr != nil {
 			errs = append(errs, phaseErr)
 		}
 		return phaseErr != nil && !continuesPastIncomplete(phaseErr)
 	}
 	if add(scanAPIGatewayV2PortalList(ctx, client, acct, region, st, scanID)) {
-		return total, inserted, errors.Join(errs...)
+		return total, errors.Join(errs...)
 	}
-	t, n, products, phaseErr := scanAPIGatewayV2PortalProducts(ctx, client, acct, region, st, scanID)
-	if add(t, n, phaseErr) {
-		return total, inserted, errors.Join(errs...)
+	t, products, phaseErr := scanAPIGatewayV2PortalProducts(ctx, client, acct, region, st, scanID)
+	if add(t, phaseErr) {
+		return total, errors.Join(errs...)
 	}
 	if add(scanAPIGatewayV2ProductPages(ctx, client, acct, region, st, scanID, products)) {
-		return total, inserted, errors.Join(errs...)
+		return total, errors.Join(errs...)
 	}
 	add(scanAPIGatewayV2ProductRestEndpointPages(ctx, client, acct, region, st, scanID, products))
-	return total, inserted, errors.Join(errs...)
+	return total, errors.Join(errs...)
 }
 
 // skipPortalListError reports whether a region-wide portal list error is
@@ -74,7 +73,7 @@ func skipPortalListError(st *store.Store, op, accountID, region string, err erro
 	return true
 }
 
-func scanAPIGatewayV2PortalList(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAPIGatewayV2PortalList(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "apigatewayv2:ListPortals"
 	input := &apigatewayv2.ListPortalsInput{}
 	var batch []*store.Resource
@@ -82,7 +81,7 @@ func scanAPIGatewayV2PortalList(ctx context.Context, client apigatewayv2PortalAP
 		page, err := client.ListPortals(ctx, input)
 		if err != nil {
 			if !skipPortalListError(st, op, acct.ID, region, err) {
-				return 0, 0, fmt.Errorf("%s: %w", op, err)
+				return 0, fmt.Errorf("%s: %w", op, err)
 			}
 			break
 		}
@@ -114,7 +113,7 @@ func scanAPIGatewayV2PortalList(ctx context.Context, client apigatewayv2PortalAP
 // owns and returns them as parents for the page phases. A product another
 // account shares here is part of its owner's inventory, so a product whose
 // ARN names a different account is not stored.
-func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	const op = "apigatewayv2:ListPortalProducts"
 	input := &apigatewayv2.ListPortalProductsInput{}
 	var (
@@ -126,7 +125,7 @@ func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2Port
 		page, err := client.ListPortalProducts(ctx, input)
 		if err != nil {
 			if !skipPortalListError(st, op, acct.ID, region, err) {
-				return 0, 0, nil, fmt.Errorf("%s: %w", op, err)
+				return 0, nil, fmt.Errorf("%s: %w", op, err)
 			}
 			break
 		}
@@ -137,10 +136,10 @@ func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2Port
 			}
 			parsed, err := arn.Parse(productARN)
 			if err != nil {
-				return 0, 0, nil, fmt.Errorf("%s: PortalProductArn %q: %w", op, productARN, err)
+				return 0, nil, fmt.Errorf("%s: PortalProductArn %q: %w", op, productARN, err)
 			}
 			if parsed.AccountID == "" {
-				return 0, 0, nil, fmt.Errorf("%s: PortalProductArn %q names no account", op, productARN)
+				return 0, nil, fmt.Errorf("%s: PortalProductArn %q names no account", op, productARN)
 			}
 			if parsed.AccountID != acct.ID {
 				continue
@@ -159,8 +158,8 @@ func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2Port
 		}
 		input.NextToken = page.NextToken
 	}
-	total, inserted, err := upsertListed(st, batch, op, pageErr)
-	return total, inserted, products, err
+	total, err := upsertListed(st, batch, op, pageErr)
+	return total, products, err
 }
 
 // isPortalProductGone matches a product deleted between ListPortalProducts
@@ -171,7 +170,7 @@ func isPortalProductGone(err error) bool {
 
 // scanAPIGatewayV2ProductPages stores each product's documentation pages. The
 // list returns summaries without the page body, so no page content is stored.
-func scanAPIGatewayV2ProductPages(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string, products []childParent) (int, int, error) {
+func scanAPIGatewayV2ProductPages(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string, products []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "apigatewayv2:ListProductPages", products, isPortalProductGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			input := &apigatewayv2.ListProductPagesInput{PortalProductId: &p.id}
@@ -203,7 +202,7 @@ func scanAPIGatewayV2ProductPages(ctx context.Context, client apigatewayv2Portal
 
 // scanAPIGatewayV2ProductRestEndpointPages stores each product's REST
 // endpoint pages from the body-less list summaries.
-func scanAPIGatewayV2ProductRestEndpointPages(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string, products []childParent) (int, int, error) {
+func scanAPIGatewayV2ProductRestEndpointPages(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string, products []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "apigatewayv2:ListProductRestEndpointPages", products, isPortalProductGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			input := &apigatewayv2.ListProductRestEndpointPagesInput{PortalProductId: &p.id}

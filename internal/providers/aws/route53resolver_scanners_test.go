@@ -131,7 +131,7 @@ func scanR53RTestRules(t *testing.T, st *store.Store, handler func(in any) (any,
 	t.Helper()
 	parents := r53rTestParents(t, st, TypeRoute53ResolverFirewallRuleGroup, r53rTestPrefix+"firewall-rule-group/", ids...)
 	client := r53rTestClient(map[string]func(any) (any, error){"ListFirewallRules": handler})
-	total, _, err := scanR53RFirewallRules(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanR53RFirewallRules(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err
 }
 
@@ -301,7 +301,7 @@ func scanR53RTestIPs(t *testing.T, st *store.Store, handler func(in any) (any, e
 	t.Helper()
 	parents := r53rTestParents(t, st, TypeRoute53ResolverResolverEndpoint, r53rTestPrefix+"resolver-endpoint/", ids...)
 	client := r53rTestClient(map[string]func(any) (any, error){"ListResolverEndpointIpAddresses": handler})
-	total, _, err := scanR53RResolverEndpointIPAddresses(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanR53RResolverEndpointIPAddresses(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err
 }
 
@@ -602,7 +602,7 @@ func r53rHandlers(c *r53rCalls) map[string]func(in any) (any, error) {
 
 // r53rScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func r53rScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func r53rScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, r53rDenied)
 	return scanRoute53Resolver(ctx, acct, testRegion, st, testScanID)
@@ -625,7 +625,9 @@ func TestScanRoute53Resolver_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newR53RCalls()
 
-	total, inserted, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := r53rScan(context.Background(), counted, r53rHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -678,16 +680,16 @@ func TestScanRoute53Resolver_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsEdgesDeclared(t, st)
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRoute53Resolver_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls())); err != nil {
+	if _, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls()))
+	total, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -708,7 +710,7 @@ func TestScanRoute53Resolver_TagPages(t *testing.T) {
 		calls := newR53RCalls()
 		calls.tags[arn] = map[string]string{"env": "prod", "team": "dns"}
 		calls.twoPages[arn] = true
-		if _, _, err := r53rScan(context.Background(), st, r53rHandlers(calls)); err != nil {
+		if _, err := r53rScan(context.Background(), st, r53rHandlers(calls)); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		assertTagsMap(t, rowsByNativeID(t, st, k.typ)[arn].TagsJSON, map[string]string{"env": "prod", "team": "dns"})
@@ -723,7 +725,7 @@ func TestScanRoute53Resolver_TagPages(t *testing.T) {
 			}
 			return calls.listTags(in)
 		}
-		total, _, err := r53rScan(context.Background(), st, handlers)
+		total, err := r53rScan(context.Background(), st, handlers)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -773,7 +775,7 @@ func TestScanRoute53Resolver_TagReadFailures(t *testing.T) {
 					calls := newR53RCalls()
 					calls.errs[arn] = c.err
 
-					total, _, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+					total, err := r53rScan(context.Background(), st, r53rHandlers(calls))
 					if c.outcome < 0 {
 						if err != nil {
 							t.Fatalf("err = %v; want nil", err)
@@ -837,7 +839,7 @@ func TestScanRoute53Resolver_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[arn] = r53rDenied
 	}
 
-	total, _, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+	total, err := r53rScan(context.Background(), st, r53rHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -869,7 +871,7 @@ func TestScanRoute53Resolver_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[r53rKindOf(t, "ListOutpostResolvers").arn("a")] = r53rThrottle
 	calls.errs[r53rKindOf(t, "ListResolverQueryLogConfigs").arn("b")] = r53rBadInput
 
-	_, _, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+	_, err := r53rScan(context.Background(), st, r53rHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -901,7 +903,7 @@ func TestScanRoute53Resolver_ManagedRowsNotTagRead(t *testing.T) {
 		}}}, nil
 	}
 
-	if _, _, err := r53rScan(context.Background(), st, handlers); err != nil {
+	if _, err := r53rScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for typ, arn := range map[string]string{TypeRoute53ResolverFirewallDomainList: list, TypeRoute53ResolverResolverRule: rule} {
@@ -953,7 +955,7 @@ func TestScanRoute53Resolver_SharedRowsKeptUntagged(t *testing.T) {
 				}}}, nil
 			}
 
-			if _, _, err := r53rScan(context.Background(), st, handlers); err != nil {
+			if _, err := r53rScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if *warns != 0 {
@@ -988,7 +990,7 @@ func TestScanRoute53Resolver_OtherPartitionARNs(t *testing.T) {
 	}
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(handlers, r53rDenied)
-	if _, _, err := scanRoute53Resolver(context.Background(), acct, acct.Regions[0], newTestStore(t), testScanID); err != nil {
+	if _, err := scanRoute53Resolver(context.Background(), acct, acct.Regions[0], newTestStore(t), testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !slices.Contains(calls.sentTagARNs(), gov) {
@@ -1015,7 +1017,7 @@ func TestScanRoute53Resolver_LargeListingsWrittenPageByPage(t *testing.T) {
 			return next(in)
 		}
 	}
-	if _, _, err := r53rScan(context.Background(), st, handlers); err != nil {
+	if _, err := r53rScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range ops {
@@ -1035,7 +1037,7 @@ func TestScanRoute53Resolver_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newR53RCalls()
 	calls.errs[r53rKindOf(t, "ListFirewallDomainLists").arn("a")] = r53rDenied
 
-	_, _, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+	_, err := r53rScan(context.Background(), st, r53rHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1068,7 +1070,7 @@ func TestScanRoute53Resolver_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T
 			k := r53rKindOf(t, c.op)
 			handlers[c.op] = failOnCall(2, r53rBadInput, handlers[c.op])
 
-			total, _, err := r53rScan(context.Background(), st, handlers)
+			total, err := r53rScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			if total != r53rTotalCount-c.lost {
@@ -1098,7 +1100,7 @@ func TestScanRoute53Resolver_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(k, k.id(page), sdkaws.String("same")), nil
 	}
 
-	total, _, err := r53rScan(context.Background(), st, handlers)
+	total, err := r53rScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1127,7 +1129,7 @@ func TestScanRoute53Resolver_ElementWithoutKeyWarns(t *testing.T) {
 			handlers := r53rHandlers(newR53RCalls())
 			handlers[c.op] = func(any) (any, error) { return c.page, nil }
 
-			total, _, err := r53rScan(context.Background(), st, handlers)
+			total, err := r53rScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1163,7 +1165,7 @@ func TestScanRoute53Resolver_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := r53rHandlers(newR53RCalls())
 			handlers[c.op] = failOnCall(c.call, r53rDenied, handlers[c.op])
 
-			total, _, err := r53rScan(context.Background(), st, handlers)
+			total, err := r53rScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1195,7 +1197,7 @@ func TestScanRoute53Resolver_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := r53rScan(ctx, st, handlers)
+	_, err := r53rScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1224,7 +1226,7 @@ func TestScanRoute53Resolver_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := r53rHandlers(newR53RCalls())
 		handlers["ListResolverRules"] = func(any) (any, error) { return nil, nx }
-		total, _, err := r53rScan(context.Background(), st, handlers)
+		total, err := r53rScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != r53rTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, r53rTotalCount-2)
@@ -1234,7 +1236,7 @@ func TestScanRoute53Resolver_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newR53RCalls()
 		calls.errs[r53rKindOf(t, "ListFirewallDomainLists").arn("b")] = nx
-		_, _, err := r53rScan(context.Background(), st, r53rHandlers(calls))
+		_, err := r53rScan(context.Background(), st, r53rHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1242,7 +1244,7 @@ func TestScanRoute53Resolver_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanRoute53Resolver(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanRoute53Resolver(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -1263,7 +1265,7 @@ func TestScanRoute53Resolver_ChildPhaseErrorKeepsOtherRows(t *testing.T) {
 			st := newTestStore(t)
 			handlers := r53rHandlers(newR53RCalls())
 			handlers[c.op] = func(any) (any, error) { return nil, r53rBadInput }
-			total, _, err := r53rScan(context.Background(), st, handlers)
+			total, err := r53rScan(context.Background(), st, handlers)
 			assertAPICode(t, err, "InvalidRequestException")
 			for _, typ := range []string{TypeRoute53ResolverFirewallRule, TypeRoute53ResolverResolverEndpointIPAddress} {
 				want := 2
@@ -1293,7 +1295,7 @@ func TestScanRoute53Resolver_TransientDoesNotMaskHardError(t *testing.T) {
 			handlers := r53rHandlers(newR53RCalls())
 			handlers["ListFirewallConfigs"] = func(any) (any, error) { return nil, r53rThrottle }
 			handlers[failed] = func(any) (any, error) { return nil, r53rBadInput }
-			_, _, err := r53rScan(context.Background(), st, handlers)
+			_, err := r53rScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			if *warns != 1 {

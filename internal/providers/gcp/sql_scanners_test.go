@@ -52,7 +52,9 @@ func TestScanCloudSQLInstanceChildren_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSQLService(t, srv)
 
-	total, inserted, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, instName, instID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, instName, instID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudSQLInstanceChildren: %v", err)
 	}
@@ -93,7 +95,9 @@ func TestScanCloudSQLInstanceChildren_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeSQLService(t, srv)
 
-	total, inserted, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, "inst1", instID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, "inst1", instID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudSQLInstanceChildren (denied): expected nil error, got %v", err)
 	}
@@ -140,7 +144,9 @@ func TestScanCloudSQLInstanceChildren_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeSQLService(t, srv)
 
-	total, inserted, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, instName, instID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudSQLInstanceChildren(t.Context(), svc, p, instName, instID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudSQLInstanceChildren: %v", err)
 	}

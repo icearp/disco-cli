@@ -34,30 +34,30 @@ type connectRoutingAPI interface {
 }
 
 // scanConnectRouting runs the five Routing-family phases per instance.
-func scanConnectRouting(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectRouting(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect queues", func() (int, int, error) {
+		connectPhase{"connect queues", func() (int, error) {
 			return scanConnectQueues(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect routing profiles", func() (int, int, error) {
+		connectPhase{"connect routing profiles", func() (int, error) {
 			return scanConnectRoutingProfiles(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect hours of operations", func() (int, int, error) {
+		connectPhase{"connect hours of operations", func() (int, error) {
 			return scanConnectHoursOfOperations(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect agent statuses", func() (int, int, error) {
+		connectPhase{"connect agent statuses", func() (int, error) {
 			return scanConnectAgentStatuses(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect quick connects", func() (int, int, error) {
+		connectPhase{"connect quick connects", func() (int, error) {
 			return scanConnectQuickConnects(ctx, client, instances, acct, region, st, scanID)
 		}},
 	)
 }
 
-func scanConnectQueues(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectQueues(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListQueues", instances,
 		func(instID string) connectPager[*connect.ListQueuesOutput] {
 			return connect.NewListQueuesPaginator(client, &connect.ListQueuesInput{InstanceId: &instID},
@@ -90,7 +90,7 @@ func scanConnectQueues(ctx context.Context, client connectRoutingAPI, instances 
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectRoutingProfiles(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectRoutingProfiles(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListRoutingProfiles", instances,
 		func(instID string) connectPager[*connect.ListRoutingProfilesOutput] {
 			return connect.NewListRoutingProfilesPaginator(client, &connect.ListRoutingProfilesInput{InstanceId: &instID},
@@ -125,7 +125,7 @@ func scanConnectRoutingProfiles(ctx context.Context, client connectRoutingAPI, i
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectHoursOfOperations(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectHoursOfOperations(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListHoursOfOperations", instances,
 		func(instID string) connectPager[*connect.ListHoursOfOperationsOutput] {
 			return connect.NewListHoursOfOperationsPaginator(client, &connect.ListHoursOfOperationsInput{InstanceId: &instID},
@@ -160,7 +160,7 @@ func scanConnectHoursOfOperations(ctx context.Context, client connectRoutingAPI,
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectAgentStatuses(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAgentStatuses(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListAgentStatuses", instances,
 		func(instID string) connectPager[*connect.ListAgentStatusesOutput] {
 			return connect.NewListAgentStatusesPaginator(client, &connect.ListAgentStatusesInput{InstanceId: &instID},
@@ -193,7 +193,7 @@ func scanConnectAgentStatuses(ctx context.Context, client connectRoutingAPI, ins
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectQuickConnects(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectQuickConnects(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListQuickConnects", instances,
 		func(instID string) connectPager[*connect.ListQuickConnectsOutput] {
 			return connect.NewListQuickConnectsPaginator(client, &connect.ListQuickConnectsInput{InstanceId: &instID},

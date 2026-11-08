@@ -53,7 +53,7 @@ func (k cwKind) arn(suffix string) string { return k.arnPrefix + k.name(suffix) 
 func (k cwKind) global() bool { return k.typ == TypeCloudWatchDashboard }
 
 // scan runs the real entry point that stores k's rows against handlers.
-func (k cwKind) scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func (k cwKind) scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	if k.global() {
 		return cwDashboardScan(ctx, st, handlers)
 	}
@@ -320,7 +320,7 @@ func cwHandlers(c *cwCalls) map[string]func(in any) (any, error) {
 
 // cwScan runs the regional scan's real entry point against handlers; every
 // op they do not answer is denied.
-func cwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func cwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cwDenied)
 	return scanCloudWatch(ctx, acct, testRegion, st, testScanID)
@@ -328,7 +328,7 @@ func cwScan(ctx context.Context, st *store.Store, handlers map[string]func(in an
 
 // cwDashboardScan runs the dashboards' real entry point against handlers;
 // every op they do not answer is denied.
-func cwDashboardScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func cwDashboardScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cwDenied)
 	return scanCloudWatchDashboards(ctx, acct, st, testScanID)
@@ -372,7 +372,9 @@ func TestScanCloudWatch_StoresTagsOfEveryType(t *testing.T) {
 	calls := newCWCalls()
 	handlers := cwHandlers(calls)
 
-	total, inserted, err := cwScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := cwScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("regional scan: %v", err)
 	}
@@ -384,7 +386,9 @@ func TestScanCloudWatch_StoresTagsOfEveryType(t *testing.T) {
 			t.Errorf("regional scan called %s %d times; want 0", op, n)
 		}
 	}
-	total, inserted, err = cwDashboardScan(context.Background(), st, handlers)
+	counted, upserts = countUpserts(st)
+	total, err = cwDashboardScan(context.Background(), counted, handlers)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("dashboards scan: %v", err)
 	}
@@ -460,11 +464,15 @@ func TestScanCloudWatch_EmptyListings(t *testing.T) {
 	for _, k := range cwKinds() {
 		handlers[k.op] = func(any) (any, error) { return cwListOutput(k.op, nil, nil), nil }
 	}
-	total, inserted, err := cwScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := cwScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 1 || inserted != 1 {
 		t.Errorf("regional total, inserted, err = %d, %d, %v; want 1, 1, nil", total, inserted, err)
 	}
-	total, inserted, err = cwDashboardScan(context.Background(), st, handlers)
+	counted, upserts = countUpserts(st)
+	total, err = cwDashboardScan(context.Background(), counted, handlers)
+	inserted = upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("dashboards total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -478,18 +486,18 @@ func TestScanCloudWatch_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCloudWatch_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	for _, k := range []cwKind{cwKindOf(t, TypeCloudWatchAlarm), cwKindOf(t, TypeCloudWatchDashboard)} {
 		t.Run(k.typ, func(t *testing.T) {
 			st := newTestStore(t)
-			if _, _, err := k.scan(context.Background(), st, cwHandlers(newCWCalls())); err != nil {
+			if _, err := k.scan(context.Background(), st, cwHandlers(newCWCalls())); err != nil {
 				t.Fatalf("first scan: %v", err)
 			}
-			total, _, err := k.scan(context.Background(), st, cwHandlers(newCWCalls()))
+			total, err := k.scan(context.Background(), st, cwHandlers(newCWCalls()))
 			if err != nil {
 				t.Fatalf("rescan: %v", err)
 			}
@@ -533,7 +541,7 @@ func TestScanCloudWatch_TagReadFailures(t *testing.T) {
 			calls.errs[c.arn] = c.err
 			k := cwKindOf(t, c.typ)
 
-			total, _, err := k.scan(context.Background(), st, cwHandlers(calls))
+			total, err := k.scan(context.Background(), st, cwHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -579,7 +587,7 @@ func TestScanCloudWatch_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = cwDenied
 	}
 
-	total, _, err := cwScan(context.Background(), st, cwHandlers(calls))
+	total, err := cwScan(context.Background(), st, cwHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -610,7 +618,7 @@ func TestScanCloudWatch_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[cwKindOf(t, TypeCloudWatchAlarm).arn("tagged")] = cwThrottle
 	calls.errs[cwKindOf(t, TypeCloudWatchMetricStream).arn("bare")] = cwInvalid
 
-	_, _, err := cwScan(context.Background(), st, cwHandlers(calls))
+	_, err := cwScan(context.Background(), st, cwHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValue")
 	if *warns != 1 {
@@ -628,7 +636,7 @@ func TestScanCloudWatch_ListThrottleDemotedBesideLaterHardError(t *testing.T) {
 	handlers["DescribeAlarms"] = func(any) (any, error) { return nil, cwThrottle }
 	handlers["ListMetricStreams"] = func(any) (any, error) { return nil, cwInvalid }
 
-	total, _, err := cwScan(context.Background(), st, handlers)
+	total, err := cwScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValue")
 	if *warns != 1 {
@@ -667,7 +675,7 @@ func TestScanCloudWatch_FailedWriteStopsScan(t *testing.T) {
 			k := cwKindOf(t, c.typ)
 			calls.errs[k.arn("tagged")] = cwDenied
 
-			total, _, err := k.scan(context.Background(), st, cwHandlers(calls))
+			total, err := k.scan(context.Background(), st, cwHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -707,7 +715,7 @@ func TestScanCloudWatch_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := cwKindOf(t, c.typ)
 			handlers[k.op] = failOnCall(2, cwInvalid, handlers[k.op])
 
-			total, _, err := k.scan(context.Background(), st, handlers)
+			total, err := k.scan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterValue")
 			if want := k.scanTotal() - c.lost; total != want {
@@ -736,7 +744,7 @@ func TestScanCloudWatch_RepeatedTokenKeepsPages(t *testing.T) {
 		}
 		return cwListOutput(k.op, []any{k.elem("", k.name(suffix), false)}, sdkaws.String("same")), nil
 	}
-	total, _, err := cwScan(context.Background(), st, handlers)
+	total, err := cwScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -769,7 +777,7 @@ func TestScanCloudWatch_ElementWithoutIdentifierWarns(t *testing.T) {
 			k := cwKindOf(t, c.typ)
 			handlers[k.op] = func(any) (any, error) { return cwListOutput(k.op, []any{c.elem}, nil), nil }
 
-			total, _, err := k.scan(context.Background(), st, handlers)
+			total, err := k.scan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -831,10 +839,10 @@ func TestScanCloudWatch_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, cwDenied)
-			if _, _, err := scanCloudWatch(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanCloudWatch(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("regional scan: %v", err)
 			}
-			if _, _, err := scanCloudWatchDashboards(context.Background(), acct, st, testScanID); err != nil {
+			if _, err := scanCloudWatchDashboards(context.Background(), acct, st, testScanID); err != nil {
 				t.Fatalf("dashboards scan: %v", err)
 			}
 			for _, arn := range []string{alarm, rule, dashboard} {
@@ -861,7 +869,7 @@ func TestScanCloudWatch_NXDOMAIN(t *testing.T) {
 		calls := newCWCalls()
 		handlers := cwHandlers(calls)
 		handlers["DescribeAlarms"] = func(any) (any, error) { return nil, nx }
-		total, _, err := cwScan(context.Background(), st, handlers)
+		total, err := cwScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -877,7 +885,7 @@ func TestScanCloudWatch_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := cwHandlers(newCWCalls())
 		handlers["ListMetricStreams"] = func(any) (any, error) { return nil, nx }
-		total, _, err := cwScan(context.Background(), st, handlers)
+		total, err := cwScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != cwTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, cwTestTotal-2)
@@ -936,7 +944,7 @@ func TestScanCloudWatch_DetailFailures(t *testing.T) {
 					return next(in)
 				}
 
-				total, _, err := k.scan(context.Background(), st, handlers)
+				total, err := k.scan(context.Background(), st, handlers)
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1006,7 +1014,7 @@ func TestScanCloudWatch_OneDetailFailureCancelsNoSibling(t *testing.T) {
 		return calls.getMetricStream(in)
 	}
 
-	_, _, err := cwScan(context.Background(), st, handlers)
+	_, err := cwScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterCombination")
 	if errors.Is(err, context.Canceled) {

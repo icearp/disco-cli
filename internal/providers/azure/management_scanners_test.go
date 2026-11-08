@@ -38,7 +38,9 @@ func TestScanManagementInto_StoresUnderTenant(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 
-	total, inserted, err := scanManagementInto(t.Context(), tenantID, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanManagementInto(t.Context(), tenantID, counted, testScanID, client)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanManagementInto: %v", err)
 	}

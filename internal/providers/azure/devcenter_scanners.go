@@ -21,21 +21,21 @@ func init() {
 }
 
 // scanDevCenter discovers Dev Centers, projects, and network connections.
-func scanDevCenter(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevCenter(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	centers, err := armdevcenter.NewDevCentersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdevcenter:NewDevCentersClient: %w", err)
+		return 0, fmt.Errorf("armdevcenter:NewDevCentersClient: %w", err)
 	}
 	projects, err := armdevcenter.NewProjectsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdevcenter:NewProjectsClient: %w", err)
+		return 0, fmt.Errorf("armdevcenter:NewProjectsClient: %w", err)
 	}
 	conns, err := armdevcenter.NewNetworkConnectionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdevcenter:NewNetworkConnectionsClient: %w", err)
+		return 0, fmt.Errorf("armdevcenter:NewNetworkConnectionsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdevcenter:DevCenters.ListBySubscription", TypeDevCenter, sub, st, scanID,
 				centers.NewListBySubscriptionPager(nil),
 				func(p armdevcenter.DevCentersClientListBySubscriptionResponse) []*armdevcenter.DevCenter {
@@ -45,7 +45,7 @@ func scanDevCenter(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdevcenter:Projects.ListBySubscription", TypeDevCenterProject, sub, st, scanID,
 				projects.NewListBySubscriptionPager(nil),
 				func(p armdevcenter.ProjectsClientListBySubscriptionResponse) []*armdevcenter.Project { return p.Value },
@@ -53,7 +53,7 @@ func scanDevCenter(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdevcenter:NetworkConnections.ListBySubscription", TypeDevCenterNetworkConnection, sub, st, scanID,
 				conns.NewListBySubscriptionPager(nil),
 				func(p armdevcenter.NetworkConnectionsClientListBySubscriptionResponse) []*armdevcenter.NetworkConnection {

@@ -32,18 +32,18 @@ const maxConcurrentCloudRunJobFanout = 10
 // scanCloudRunJobs discovers Cloud Run v2 Jobs (sibling to Cloud Run Services
 // from R4.10) via the locations/- wildcard parent, then fans out per Job for
 // Executions.
-func scanCloudRunJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudRunJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := run.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("run client: %w", err)
+		return 0, fmt.Errorf("run client: %w", err)
 	}
 	return scanCloudRunJobsWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanCloudRunJobsWithClient is the test seam for scanCloudRunJobs — takes
 // the pre-built client directly so tests can point it at a fake server.
-func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: Jobs — capture (name, resourceID) pairs for the per-Job
 	// Executions fan-out below.
 	type jobRef struct {
@@ -52,9 +52,9 @@ func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *projec
 	}
 	var jobRefs []jobRef
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	t, n, err := runPaginated(ctx, st, p, "run:jobs.list",
+	t, err := runPaginated(ctx, st, p, "run:jobs.list",
 		svc.Projects.Locations.Jobs.List(parent),
-		func(page *run.GoogleCloudRunV2ListJobsResponse) (int, int, error) {
+		func(page *run.GoogleCloudRunV2ListJobsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Jobs))
 			for _, j := range page.Jobs {
 				if j == nil || j.Name == "" {
@@ -82,9 +82,8 @@ func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *projec
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 2: per-Job fan-out — Executions. Nested under a fan-out that only
@@ -115,9 +114,8 @@ func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *projec
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			et, en, eerr := upsertWithParent(st, batch, j.id)
+			et, eerr := upsertWithParent(st, batch, j.id)
 			total += et
-			inserted += en
 			return eerr
 		})
 		if eerr != nil {
@@ -130,24 +128,24 @@ func scanCloudRunJobsWithClient(ctx context.Context, svc *run.Service, p *projec
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBatchJobs discovers Cloud Batch jobs via the locations/- wildcard
 // (like Cloud Run Jobs). Task groups + per-task data deferred — task objects
 // are runtime artifacts, not graph-meaningful.
-func scanBatchJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBatchJobs(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := batch.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("batch client: %w", err)
+		return 0, fmt.Errorf("batch client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
 	return runPaginated(ctx, st, p, "batch:jobs.list",
 		svc.Projects.Locations.Jobs.List(parent),
-		func(page *batch.ListJobsResponse) (int, int, error) {
+		func(page *batch.ListJobsResponse) (int, error) {
 			bbatch := make([]*store.Resource, 0, len(page.Jobs))
 			for _, j := range page.Jobs {
 				name := lastSegment(j.Name)

@@ -114,7 +114,9 @@ func testScanSageMakerInference(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, epARN, cfgARN, mARN, icARN, expARN)
-	total, inserted, err := scanSageMakerInference(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerInference(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
@@ -138,7 +140,9 @@ func TestScanSageMakerInferenceEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerInference{}
-	total, inserted, err := scanSageMakerInference(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerInference(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

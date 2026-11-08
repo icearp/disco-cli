@@ -427,7 +427,7 @@ func runGlobalDenied(t *testing.T, svc serviceEntry, partition, cfgRegion string
 	cfg := opStubConfig(nil, apiErr("AccessDeniedException", "denied"))
 	cfg.Region = cfgRegion
 	acct.cfg = recordCallRegions(cfg, &regions)
-	_, _, err := svc.fn(context.Background(), acct, "", newTestStore(t), testScanID)
+	_, err := svc.fn(context.Background(), acct, "", newTestStore(t), testScanID)
 	return regions.distinct(), err
 }
 

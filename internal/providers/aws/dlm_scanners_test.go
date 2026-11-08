@@ -24,7 +24,9 @@ func TestScanDLM_ReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, inserted, err := scanDLM(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDLM(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDLM: %v", err)
 	}

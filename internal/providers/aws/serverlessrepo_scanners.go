@@ -39,7 +39,7 @@ type serverlessRepoAPI interface {
 	GetApplicationPolicy(context.Context, *serverlessapplicationrepository.GetApplicationPolicyInput, ...func(*serverlessapplicationrepository.Options)) (*serverlessapplicationrepository.GetApplicationPolicyOutput, error)
 }
 
-func scanServerlessRepo(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanServerlessRepo(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := serverlessapplicationrepository.NewFromConfig(acct.cfg, func(o *serverlessapplicationrepository.Options) { o.Region = region })
 	return scanServerlessRepoAll(ctx, client, acct, region, st, scanID)
 }
@@ -52,11 +52,11 @@ func scanServerlessRepo(ctx context.Context, acct *account, region string, st *s
 // error instead of reported under its op. The child phases need no demotion:
 // each skips a parent whose call still fails transiently, with a warning, and
 // never returns a transient error.
-func scanServerlessRepoAll(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, apps, err := scanServerlessRepoApplications(ctx, client, acct, region, st, scanID)
-	vTotal, vInserted, verr := scanServerlessRepoApplicationVersions(ctx, client, acct, region, st, scanID, apps)
-	pTotal, pInserted, perr := scanServerlessRepoApplicationPolicies(ctx, client, acct, region, st, scanID, apps)
-	return total + vTotal + pTotal, inserted + vInserted + pInserted,
+func scanServerlessRepoAll(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, apps, err := scanServerlessRepoApplications(ctx, client, acct, region, st, scanID)
+	vTotal, verr := scanServerlessRepoApplicationVersions(ctx, client, acct, region, st, scanID, apps)
+	pTotal, perr := scanServerlessRepoApplicationPolicies(ctx, client, acct, region, st, scanID, apps)
+	return total + vTotal + pTotal,
 		demoteBeside(st, sarListApplicationsOp, acct, region, err, verr, perr)
 }
 
@@ -69,14 +69,14 @@ func scanServerlessRepoAll(ctx context.Context, client serverlessRepoAPI, acct *
 // earlier, stored pages are returned with it (a denial is warned and
 // dropped). A failed write may have left its page unstored, so then no
 // parents are returned at all, though earlier pages stay stored.
-func scanServerlessRepoApplications(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanServerlessRepoApplications(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var apps []childParent
 	p := serverlessapplicationrepository.NewListApplicationsPaginator(client, &serverlessapplicationrepository.ListApplicationsInput{},
 		func(o *serverlessapplicationrepository.ListApplicationsPaginatorOptions) {
 			o.Limit = sarPageLimit
 			o.StopOnDuplicateToken = true
 		})
-	total, inserted, err := pageScan(ctx, sarListApplicationsOp, acct, region, st,
+	total, err := pageScan(ctx, sarListApplicationsOp, acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*serverlessapplicationrepository.ListApplicationsOutput, error) {
 			return p.NextPage(c)
@@ -99,9 +99,9 @@ func scanServerlessRepoApplications(ctx context.Context, client serverlessRepoAP
 			}
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, apps, err
+	return total, apps, err
 }
 
 // isSARApplicationGone reports whether err says the application no longer
@@ -128,7 +128,7 @@ func sarApplicationPolicyNativeID(appARN string) string { return appARN + "/poli
 // (deleted since listing) is skipped silently, a denial warns once, a
 // transient error after the SDK's retries is skipped with one warning for all
 // such applications, and anything else fails the phase.
-func scanServerlessRepoApplicationVersions(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanServerlessRepoApplicationVersions(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, sarListApplicationVersionsOp, apps, isSARApplicationGone, byParentARN,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			pager := serverlessapplicationrepository.NewListApplicationVersionsPaginator(client,
@@ -165,7 +165,7 @@ func scanServerlessRepoApplicationVersions(ctx context.Context, client serverles
 // its application. An application whose policy has no statements gets no
 // row. Per-application errors are handled as in
 // scanServerlessRepoApplicationVersions.
-func scanServerlessRepoApplicationPolicies(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanServerlessRepoApplicationPolicies(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, sarGetApplicationPolicyOp, apps, isSARApplicationGone, byParentARN,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			out, err := client.GetApplicationPolicy(ctx, &serverlessapplicationrepository.GetApplicationPolicyInput{ApplicationId: &app.id})

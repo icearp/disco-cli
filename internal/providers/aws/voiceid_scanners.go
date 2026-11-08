@@ -25,7 +25,7 @@ func init() {
 }
 
 // scanVoiceID discovers Voice ID domains.
-func scanVoiceID(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVoiceID(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := voiceid.NewFromConfig(acct.cfg, func(o *voiceid.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -34,12 +34,12 @@ func scanVoiceID(ctx context.Context, acct *account, region string, st *store.St
 		out, err := client.ListDomains(ctx, &voiceid.ListDomainsInput{NextToken: nextToken})
 		if err != nil {
 			if isVoiceIDNotEnabled(err) {
-				return 0, 0, markServiceNotEntitled(err)
+				return 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "voice-id:ListDomains", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "voice-id:ListDomains", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("voice-id:ListDomains: %w", err)
+			return 0, fmt.Errorf("voice-id:ListDomains: %w", err)
 		}
 		for _, d := range out.DomainSummaries {
 			arn := sv(d.Arn)

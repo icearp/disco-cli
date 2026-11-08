@@ -30,27 +30,27 @@ const maxConcurrentSecretVersionFanout = 10
 // so only version metadata (state, timestamps, replication) is stored.
 // Rotation queries can still pivot off the parent secret's `topics` and
 // `rotation` attributes.
-func scanSecrets(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecrets(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := secretmanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("secretmanager client: %w", err)
+		return 0, fmt.Errorf("secretmanager client: %w", err)
 	}
 	return scanSecretsWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanSecretsWithClient is the test seam for scanSecrets — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	type secretRef struct {
 		name string
 		id   string
 	}
 	var secretRefs []secretRef
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	t, n, err := runPaginated(ctx, st, p, "secretmanager:secrets.list",
+	t, err := runPaginated(ctx, st, p, "secretmanager:secrets.list",
 		svc.Projects.Secrets.List(parent),
-		func(page *secretmanager.ListSecretsResponse) (int, int, error) {
+		func(page *secretmanager.ListSecretsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Secrets))
 			for _, s := range page.Secrets {
 				if s == nil || s.Name == "" {
@@ -81,9 +81,8 @@ func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *p
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Per-Secret fan-out — Versions. Nested under a fan-out that only runs
@@ -114,9 +113,8 @@ func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *p
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			vt, vn, verr := upsertWithParent(st, batch, s.id)
+			vt, verr := upsertWithParent(st, batch, s.id)
 			total += vt
-			inserted += vn
 			return verr
 		})
 		if verr != nil {
@@ -129,7 +127,7 @@ func scanSecretsWithClient(ctx context.Context, svc *secretmanager.Service, p *p
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

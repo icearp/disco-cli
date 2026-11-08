@@ -47,11 +47,11 @@ const maxConcurrentArtifactFanout = 10
 // addressable, and a cache-warming performance feature, not a security- or
 // architecture-relevant resource. File (raw blob content, same cardinality
 // class as S3 objects — never scanned for the same reason).
-func scanArtifactRegistry(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanArtifactRegistry(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := artifactregistry.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("artifactregistry client: %w", err)
+		return 0, fmt.Errorf("artifactregistry client: %w", err)
 	}
 	return scanArtifactRegistryWithClient(ctx, svc, p, st, scanID)
 }
@@ -59,7 +59,7 @@ func scanArtifactRegistry(ctx context.Context, p *project, st *store.Store, scan
 // scanArtifactRegistryWithClient is the test seam for scanArtifactRegistry —
 // takes the pre-built client directly so tests can point it at a fake
 // server.
-func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: repositories — capture (name, resourceID) pairs for the
 	// per-repository fan-out below.
 	type repoRef struct {
@@ -68,9 +68,9 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 	}
 	var repoRefs []repoRef
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	t, n, err := runPaginated(ctx, st, p, "artifactregistry:repositories.list",
+	t, err := runPaginated(ctx, st, p, "artifactregistry:repositories.list",
 		svc.Projects.Locations.Repositories.List(parent),
-		func(page *artifactregistry.ListRepositoriesResponse) (int, int, error) {
+		func(page *artifactregistry.ListRepositoriesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Repositories))
 			for _, r := range page.Repositories {
 				if r == nil || r.Name == "" {
@@ -98,9 +98,8 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 2: per-repository fan-out — Packages (capturing refs for the
@@ -139,9 +138,8 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			pt, pn, perr := upsertWithParent(st, batch, repo.id)
+			pt, perr := upsertWithParent(st, batch, repo.id)
 			total += pt
-			inserted += pn
 			return perr
 		})
 		if perr != nil {
@@ -183,9 +181,8 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			rt, rn, rerr := upsertWithParent(st, batch, repo.id)
+			rt, rerr := upsertWithParent(st, batch, repo.id)
 			total += rt
-			inserted += rn
 			return rerr
 		})
 		if rerr != nil {
@@ -218,9 +215,8 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			at, an, aerr := upsertWithParent(st, batch, repo.id)
+			at, aerr := upsertWithParent(st, batch, repo.id)
 			total += at
-			inserted += an
 			return aerr
 		})
 		if aerr != nil {
@@ -233,7 +229,7 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 3: per-package fan-out — Tags.
@@ -259,9 +255,8 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			tt, tn, terr := upsertWithParent(st, batch, pkg.id)
+			tt, terr := upsertWithParent(st, batch, pkg.id)
 			total += tt
-			inserted += tn
 			return terr
 		})
 		if terr != nil {
@@ -274,7 +269,7 @@ func scanArtifactRegistryWithClient(ctx context.Context, svc *artifactregistry.S
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

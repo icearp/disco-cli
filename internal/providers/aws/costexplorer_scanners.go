@@ -39,10 +39,10 @@ const (
 // scanCostExplorer discovers anomaly monitors, anomaly subscriptions, and
 // cost category definitions. CE is global, called in its home region
 // (homeRegion; us-east-1 for aws).
-func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("costexplorer")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
 	return scanCostExplorerAll(ctx, client, acct, region, st, scanID)
@@ -65,7 +65,7 @@ func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.St
 // stored and no phase failed, so the sentinel never discards rows or hides
 // an error. The same refusal of a later page is warned about as a denial
 // under its listing, with the pages before it kept.
-func scanCostExplorerAll(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCostExplorerAll(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	// The phases run one at a time, so the gate is never called concurrently.
 	var notEnabled error
 	gate := func(err error) bool {
@@ -78,7 +78,7 @@ func scanCostExplorerAll(ctx context.Context, client costExplorerAPI, acct *acco
 		return true
 	}
 	tags := ceTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "ce", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "ce", 0, []hostPhase{
 		{op: "ce:GetAnomalyMonitors", run: func(p *phaseTotals) bool {
 			return scanCEAnomalyMonitors(ctx, client, acct, region, st, scanID, gate, tags, p)
 		}},
@@ -91,9 +91,9 @@ func scanCostExplorerAll(ctx context.Context, client costExplorerAPI, acct *acco
 	})
 	tags.warnDenials(st, acct, region)
 	if notEnabled != nil && total == 0 && err == nil {
-		return 0, 0, markServiceDisabled(notEnabled)
+		return 0, markServiceDisabled(notEnabled)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // ceTags reads a row's tags with ListTagsForResource, sent the row's

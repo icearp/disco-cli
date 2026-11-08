@@ -98,7 +98,9 @@ func TestScanWorkSpaces_StoresConnectionAliasPermissions(t *testing.T) {
 	var addInCalls, permCalls parentCalls
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(wsAliasHandlers(&addInCalls, &permCalls), wsDenied)
-	total, inserted, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWorkSpaces(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanWorkSpaces: %v", err)
 	}
@@ -143,7 +145,7 @@ func TestScanWorkSpaces_UnsharedAliasStoresEmptyList(t *testing.T) {
 	var addInCalls, permCalls parentCalls
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(wsAliasHandlers(&addInCalls, &permCalls), wsDenied)
-	if _, _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanWorkSpaces: %v", err)
 	}
 	var raw map[string]json.RawMessage
@@ -394,7 +396,7 @@ func TestScanWorkSpaces_RepeatedAliasPermissionTokenKeepsRowWithoutGrants(t *tes
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wsDenied)
-	if _, _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errRepeatedNextToken) {
+	if _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	perms := rowsByNativeID(t, st, TypeWorkSpacesConnectionAliasPermission)

@@ -81,13 +81,13 @@ func TestRHFanOuts_RequestDraftAtPageCap(t *testing.T) {
 	stub := &rhV2Stub{}
 	acct := newTestAccount(testAccountID)
 	st := newTestStore(t)
-	if _, _, err := scanRHAppInputSources(context.Background(), rhV1Stub{rhV2Stub: stub}, acct, testRegion, st, testScanID, []string{appARN}); err != nil {
+	if _, err := scanRHAppInputSources(context.Background(), rhV1Stub{rhV2Stub: stub}, acct, testRegion, st, testScanID, []string{appARN}); err != nil {
 		t.Fatalf("scanRHAppInputSources: %v", err)
 	}
-	if _, _, err := scanRHServiceFunctions(context.Background(), stub, acct, testRegion, st, testScanID, []string{serviceARN}); err != nil {
+	if _, err := scanRHServiceFunctions(context.Background(), stub, acct, testRegion, st, testScanID, []string{serviceARN}); err != nil {
 		t.Fatalf("scanRHServiceFunctions: %v", err)
 	}
-	if _, _, err := scanRHInputSources(context.Background(), stub, acct, testRegion, st, testScanID, []string{serviceARN}); err != nil {
+	if _, err := scanRHInputSources(context.Background(), stub, acct, testRegion, st, testScanID, []string{serviceARN}); err != nil {
 		t.Fatalf("scanRHInputSources: %v", err)
 	}
 	if len(stub.inputs) != 3 {
@@ -148,7 +148,7 @@ func TestScanRHApps_NoParentsWhenUpsertFails(t *testing.T) {
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = testRegion })
 	var p phaseTotals
 	parents, failed := scanRHApps(context.Background(), client, acct, testRegion, st, testScanID, rhTags(client), &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	if !failed || !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("failed = %v, err = %v; want true and store.ErrStoreWrite", failed, err)
 	}
@@ -165,7 +165,7 @@ func TestScanRHApps_NoParentsWhenUpsertFails(t *testing.T) {
 func TestScanResilienceHub_NoInputSourcesWhenAppUpsertFails(t *testing.T) {
 	t.Parallel()
 	st, acct, inputSourceCalls := rhClosingStoreAccount(t)
-	_, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -273,7 +273,7 @@ func (c *rhCalls) handlers() map[string]func(in any) (any, error) {
 
 // rhScan runs the scan's real entry point for acct in its first region
 // against handlers.
-func rhScan(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rhScan(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, errRHNotQueued)
 	return scanResilienceHub(ctx, acct, acct.Regions[0], st, testScanID)
 }
@@ -381,7 +381,9 @@ func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, inserted, err := rhScan(context.Background(), st, newTestAccount(testAccountID), c.handlers())
+			counted, upserts := countUpserts(st)
+			total, err := rhScan(context.Background(), counted, newTestAccount(testAccountID), c.handlers())
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scanResilienceHub: %v", err)
 			}
@@ -428,18 +430,18 @@ func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanResilienceHub_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	queues, want := rhFixture(rhCommercial, false)
-	if _, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers()); err != nil {
+	if _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	queues, _ = rhFixture(rhCommercial, false)
-	total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
+	total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -468,7 +470,7 @@ func TestScanResilienceHub_Empty(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	c := newRHCalls(t, emptyRHQueues(), false)
-	total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), c.handlers())
+	total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), c.handlers())
 	if err != nil || total != 0 {
 		t.Fatalf("total = %d, err = %v; want 0, nil", total, err)
 	}
@@ -534,7 +536,7 @@ func TestScanResilienceHub_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+			total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -591,7 +593,7 @@ func TestScanResilienceHub_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+	total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -614,7 +616,7 @@ func TestScanResilienceHub_TagThrottleDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rhTagsOp)
 
-	_, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+	_, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -653,7 +655,7 @@ func TestScanResilienceHub_ListingEndKeepsPagesAndLaterPhases(t *testing.T) {
 				calls := newRHCalls(t, queues, false)
 				st := newTestStore(t)
 
-				total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+				total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 				if end.wantRepl {
 					if !errors.Is(err, errRepeatedNextToken) {
 						t.Errorf("err = %v; want errRepeatedNextToken", err)
@@ -715,7 +717,7 @@ func TestScanResilienceHub_ElementsWithoutARNWarn(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+	total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -747,7 +749,7 @@ func TestScanResilienceHub_TagReadsKeepPartitionARNs(t *testing.T) {
 			calls := newRHCalls(t, queues, false)
 			st := newTestStore(t)
 
-			total, _, err := rhScan(context.Background(), st, partitionAccount(pf.partition), calls.handlers())
+			total, err := rhScan(context.Background(), st, partitionAccount(pf.partition), calls.handlers())
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -815,7 +817,7 @@ func TestScanResilienceHub_PerAssessmentTemplateFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, rhListRecommendationTemplatesOp)
 
-			total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), handlers)
+			total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), handlers)
 			if c.warn {
 				if err != nil {
 					t.Errorf("err = %v; want nil", err)
@@ -869,7 +871,7 @@ func TestScanResilienceHub_ContextEndReportedOnce(t *testing.T) {
 			}
 			st := newTestStore(t)
 
-			_, _, err := rhScan(ctx, st, newTestAccount(testAccountID), handlers)
+			_, err := rhScan(ctx, st, newTestAccount(testAccountID), handlers)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v; want context.Canceled", err)
 			}
@@ -906,7 +908,7 @@ func TestScanResilienceHub_NXDOMAIN(t *testing.T) {
 		queues["ListSystems"] = []stubCall{{Err: nx}}
 		delete(queues, "ListUserJourneys")
 		st := newTestStore(t)
-		total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
+		total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if wantTotal := len(want) - 2; total != wantTotal {
 			t.Errorf("total = %d; want the %d other rows counted", total, wantTotal)
@@ -916,14 +918,14 @@ func TestScanResilienceHub_NXDOMAIN(t *testing.T) {
 		queues, want := rhFixture(rhCommercial, false)
 		calls := newRHCalls(t, queues, false)
 		calls.tagErrs[rhWantID(t, want, TypeResilienceHubPolicy)] = nx
-		_, _, err := rhScan(context.Background(), newTestStore(t), newTestAccount(testAccountID), calls.handlers())
+		_, err := rhScan(context.Background(), newTestStore(t), newTestAccount(testAccountID), calls.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
 		calls := newRHCalls(t, map[string][]stubCall{"ListApps": {{Err: nx}}}, false)
-		_, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
+		_, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers())
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -997,7 +999,7 @@ func TestScanResilienceHub_PhaseErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, tc.warnOp)
 
-			_, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
+			_, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
 			assertAPICode(t, err, "ConflictException")
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError = %v; want outcomeError", got)
@@ -1043,7 +1045,7 @@ func TestScanResilienceHub_V2ErrorKeepsOtherRows(t *testing.T) {
 	queues["ListPolicies"] = []stubCall{{Err: boom}}
 	st := newTestStore(t)
 
-	_, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
+	_, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
 	if !errors.Is(err, boom) {
 		t.Fatalf("want the ListPolicies error to propagate, got %v", err)
 	}
@@ -1073,7 +1075,7 @@ func TestScanResilienceHub_V2NotDeployedKeepsV1Rows(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			calls := newRHCalls(t, queues, false)
 
-			if _, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers()); err != nil {
+			if _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), calls.handlers()); err != nil {
 				t.Fatalf("scanResilienceHub: %v; want nil (a v2 gap is not a failure)", err)
 			}
 			assertV1RHRows(t, st, want)

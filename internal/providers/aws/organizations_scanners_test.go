@@ -218,7 +218,7 @@ func (c *orgCalls) fullHandlers() map[string]func(in any) (any, error) {
 	return h
 }
 
-func orgScanWith(st *store.Store, h map[string]func(in any) (any, error)) (int, int, error) {
+func orgScanWith(st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, orgTestDenied)
 	return scanOrganizations(context.Background(), acct, "", st, testScanID)
@@ -231,7 +231,7 @@ func orgScanWith(st *store.Store, h map[string]func(in any) (any, error)) (int, 
 func TestScanOrganizations_RootStoredOnceTypedRoot(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := orgScanWith(st, orgTreeHandlers())
+	total, err := orgScanWith(st, orgTreeHandlers())
 	if err != nil {
 		t.Fatalf("scanOrganizations: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
 		warns[w.Provider+"/"+w.Service]++
 		mu.Unlock()
 	}
-	if _, _, err := orgScanWith(st, orgTreeHandlers()); err != nil {
+	if _, err := orgScanWith(st, orgTreeHandlers()); err != nil {
 		t.Fatalf("scanOrganizations: %v", err)
 	}
 	if n := warns["aws/organizations:ListRoots"]; n != 1 {
@@ -346,7 +346,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 		h["ListParents"] = func(any) (any, error) {
 			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:ListParents"}
 		}
-		if _, _, err := orgScanWith(st, h); err != nil {
+		if _, err := orgScanWith(st, h); err != nil {
 			t.Fatalf("scanOrganizations: %v", err)
 		}
 		if *warns != 1 {
@@ -378,7 +378,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 			}
 			return parents(in)
 		}
-		total, _, err := orgScanWith(st, h)
+		total, err := orgScanWith(st, h)
 		if err != nil || *warns != 2 || total != 8 {
 			t.Fatalf("total = %d, warnings = %d, err = %v; want 8 rows, 2 warnings (gone account, ARN-less root's account), nil", total, *warns, err)
 		}
@@ -425,7 +425,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "organizations:ListParents")
-			_, _, err := orgScanWith(st, oneFails(tc.err))
+			_, err := orgScanWith(st, oneFails(tc.err))
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 			} else if err != nil {
@@ -462,7 +462,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 		h["ListParents"] = func(any) (any, error) {
 			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:ListParents"}
 		}
-		_, _, err := orgScanWith(st, h)
+		_, err := orgScanWith(st, h)
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Errorf("err = %v, want the store write failure", err)
 		}
@@ -480,7 +480,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 			closeStore()
 			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:ListParents"}
 		}
-		_, _, err := orgScanWith(st, h)
+		_, err := orgScanWith(st, h)
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Errorf("err = %v, want the store write failure", err)
 		}
@@ -511,7 +511,7 @@ func TestScanOrganizations_DescribeResourcePolicyErrors(t *testing.T) {
 			warns := countOpWarnings(st, "organizations:DescribeResourcePolicy")
 			h := orgTreeHandlers()
 			h["DescribeResourcePolicy"] = func(any) (any, error) { return nil, tc.err }
-			_, _, err := orgScanWith(st, h)
+			_, err := orgScanWith(st, h)
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 			} else if err != nil {
@@ -547,7 +547,7 @@ func TestScanOrganizations_PhaseFailureKeepsOtherPhases(t *testing.T) {
 			h["ListInboundResponsibilityTransfers"] = func(any) (any, error) {
 				return &organizations.ListInboundResponsibilityTransfersOutput{ResponsibilityTransfers: []organizationstypes.ResponsibilityTransfer{orgTestTransfer("rt-1")}}, nil
 			}
-			_, _, err := orgScanWith(st, h)
+			_, err := orgScanWith(st, h)
 			assertAPICode(t, err, "InvalidInputException")
 			if n := len(rowsByNativeID(t, st, TypeOrganizationsResponsibilityTransfer)); n != 1 {
 				t.Errorf("responsibility transfer rows = %d; want 1 despite %s failing", n, op)
@@ -567,7 +567,7 @@ func orgTestTransferScan(t *testing.T, st *store.Store, h map[string]func(in any
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanOrgResponsibilityTransfers(context.Background(), newOrgScan(organizations.NewFromConfig(opStubConfig(h, orgTestDenied)), acct, st, testScanID, orgTestOrgARN), &p)
-	total, _, err := p.result(st, acct, "")
+	total, err := p.result(st, acct, "")
 	return total, err
 }
 
@@ -723,7 +723,7 @@ func TestScanOrganizations_TransferListThrottleDemotedUnderItsOp(t *testing.T) {
 		return nil, apiErr("TooManyRequestsException", "slow down")
 	}
 	h["ListPolicies"] = func(any) (any, error) { return nil, apiErr("InvalidInputException", "bad") }
-	_, _, err := orgScanWith(st, h)
+	_, err := orgScanWith(st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -751,7 +751,9 @@ func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
 		return out, err
 	}
 
-	total, inserted, err := orgScanWith(st, h)
+	counted, upserts := countUpserts(st)
+	total, err := orgScanWith(counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -874,16 +876,16 @@ func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanOrganizations_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := orgScanWith(st, newOrgCalls().fullHandlers()); err != nil {
+	if _, err := orgScanWith(st, newOrgCalls().fullHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := orgScanWith(st, newOrgCalls().fullHandlers())
+	total, err := orgScanWith(st, newOrgCalls().fullHandlers())
 	if err != nil || total != orgTestFullTotal {
 		t.Errorf("rescan = %d, %v; want %d, nil", total, err, orgTestFullTotal)
 	}
@@ -928,7 +930,7 @@ func TestScanOrganizations_TagReadFailures(t *testing.T) {
 			calls := newOrgCalls()
 			calls.tagErrs[c.id] = c.err
 
-			total, _, err := orgScanWith(st, calls.fullHandlers())
+			total, err := orgScanWith(st, calls.fullHandlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -987,7 +989,7 @@ func TestScanOrganizations_TagPages(t *testing.T) {
 				}
 				return pageOf(c.second, "b", "2"), nil
 			}
-			total, _, err := orgScanWith(st, h)
+			total, err := orgScanWith(st, h)
 			if total != orgTestFullTotal {
 				t.Errorf("total = %d; want %d", total, orgTestFullTotal)
 			}
@@ -1019,7 +1021,7 @@ func TestScanOrganizations_TagDenialsWarnOncePerScan(t *testing.T) {
 	for _, id := range []string{"r-ab12", "ou-ab12-33333333", "222222222222", "p-custom111", "rt-out11111"} {
 		calls.tagErrs[id] = orgTestDenied
 	}
-	total, _, err := orgScanWith(st, calls.fullHandlers())
+	total, err := orgScanWith(st, calls.fullHandlers())
 	if err != nil || total != orgTestFullTotal {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, orgTestFullTotal)
 	}
@@ -1038,7 +1040,7 @@ func TestScanOrganizations_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs["ou-ab12-11111111"] = apiErr("TooManyRequestsException", "slow down")
 	calls.tagErrs["p-custom111"] = apiErr("InvalidInputException", "bad")
 
-	_, _, err := orgScanWith(st, calls.fullHandlers())
+	_, err := orgScanWith(st, calls.fullHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -1067,7 +1069,7 @@ func TestScanOrganizations_FailedWriteStopsScan(t *testing.T) {
 		}
 		return calls.listTags(in)
 	}
-	_, _, err := orgScanWith(st, h)
+	_, err := orgScanWith(st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want the store write failure", err)
 	}
@@ -1112,7 +1114,7 @@ func TestScanOrganizations_DescribePolicyFailures(t *testing.T) {
 				}
 				return nil, c.err
 			}
-			total, _, err := orgScanWith(st, h)
+			total, err := orgScanWith(st, h)
 			if c.wantCode != "" {
 				assertAPICode(t, err, c.wantCode)
 			} else if err != nil {
@@ -1180,7 +1182,7 @@ func TestScanOrganizations_OUWalkParentFailures(t *testing.T) {
 				}
 				return nil, c.err
 			}
-			_, _, err := orgScanWith(st, h)
+			_, err := orgScanWith(st, h)
 			if c.wantCode != "" {
 				assertAPICode(t, err, c.wantCode)
 			} else if err != nil {
@@ -1234,7 +1236,7 @@ func TestScanOrganizations_AccountPages(t *testing.T) {
 				page.Accounts, page.NextToken = page.Accounts[:2], sdkaws.String("t2")
 				return page, err
 			}
-			total, _, err := orgScanWith(st, h)
+			total, err := orgScanWith(st, h)
 			c.wantErr(t, err)
 			// organization + root + two OUs + the first page's two accounts.
 			if total != 6 {
@@ -1320,7 +1322,7 @@ func TestScanOrganizations_ElementsWithoutID(t *testing.T) {
 	rootWarns := countOpWarnings(st, "organizations:ListRoots")
 	calls := newOrgCalls()
 	var sent []string
-	total, _, err := orgScanWith(st, calls.noIDHandlers(&sent))
+	total, err := orgScanWith(st, calls.noIDHandlers(&sent))
 	// org + root + three OUs + five accounts + the SCP.
 	if err != nil || total != 11 {
 		t.Fatalf("scan = %d, %v; want 11, nil", total, err)
@@ -1367,7 +1369,7 @@ func TestScanOrganizations_ElementsWithoutIDFailedWriteWarnsNothing(t *testing.T
 		closeStore()
 		return accounts(in)
 	}
-	_, _, err := orgScanWith(st, h)
+	_, err := orgScanWith(st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want the store write failure", err)
 	}
@@ -1414,7 +1416,7 @@ func TestScanOrganizations_GovCloud(t *testing.T) {
 	}
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, orgTestDenied)
-	total, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+	total, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
 	if err != nil || total != 4 {
 		t.Fatalf("scan = %d, %v; want 4, nil", total, err)
 	}
@@ -1446,7 +1448,7 @@ func TestScanOrganizations_LateNXDOMAIN(t *testing.T) {
 	h["ListRoots"] = func(any) (any, error) {
 		return nil, &net.DNSError{Err: "no such host", Name: "organizations.us-east-1.amazonaws.com", IsNotFound: true}
 	}
-	total, _, err := orgScanWith(st, h)
+	total, err := orgScanWith(st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	// organization + the four accounts, stored unlinked.
 	if total != 5 {
@@ -1466,7 +1468,7 @@ func TestScanOrganizations_MemberAccountStoresOrgOnly(t *testing.T) {
 			Id: sdkaws.String("o-abc"), Arn: sdkaws.String(orgTestOrgARN), MasterAccountId: sdkaws.String("999999999999"),
 		}}, nil
 	}
-	total, _, err := orgScanWith(st, h)
+	total, err := orgScanWith(st, h)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d, %v; want 1, nil", total, err)
 	}
@@ -1494,7 +1496,7 @@ func TestScanOrganizations_UnstoredParentIsNotLinked(t *testing.T) {
 				BEGIN SELECT RAISE(ABORT, 'test: parent write refused'); END`); err != nil {
 				t.Fatalf("create trigger: %v", err)
 			}
-			_, _, err := orgScanWith(st, orgTreeHandlers())
+			_, err := orgScanWith(st, orgTreeHandlers())
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Errorf("err = %v; want the parent write failure", err)
 			}
@@ -1530,7 +1532,7 @@ func TestScanOrganizations_OUWalkDenialsWarnOnce(t *testing.T) {
 		}
 		return ous(in)
 	}
-	if _, _, err := orgScanWith(st, h); err != nil {
+	if _, err := orgScanWith(st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -1559,7 +1561,7 @@ func TestScanOrganizations_OUWalkDenialFailedWriteWarnsNothing(t *testing.T) {
 		}
 		return ous(in)
 	}
-	_, _, err := orgScanWith(st, h)
+	_, err := orgScanWith(st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want the store write failure", err)
 	}
@@ -1582,7 +1584,7 @@ func TestScanOrganizations_ARNlessResourcePolicyNotStored(t *testing.T) {
 			Content:               sdkaws.String(`{"Version":"2012-10-17"}`),
 		}}, nil
 	}
-	if _, _, err := orgScanWith(st, h); err != nil {
+	if _, err := orgScanWith(st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if rows := rowsByNativeID(t, st, TypeOrganizationsResourcePolicy); len(rows) != 0 {
@@ -1612,7 +1614,7 @@ func TestScanOrganizations_StopAfterOrganizationCountsIt(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, orgTestDenied)
-	total, _, err := scanOrganizations(ctx, acct, "", st, testScanID)
+	total, err := scanOrganizations(ctx, acct, "", st, testScanID)
 	if !errors.Is(err, context.Canceled) || total != 1 {
 		t.Fatalf("scan = %d, %v; want 1, context.Canceled", total, err)
 	}
@@ -1638,7 +1640,7 @@ func TestScanOrganizations_OtherAccountOutboundTransferKeptUntagged(t *testing.T
 					Id: sdkaws.String("rt-out11111"), Arn: sdkaws.String(otherOut), Name: sdkaws.String("outbound"),
 				}}}, nil
 			}
-			total, _, err := orgScanWith(st, h)
+			total, err := orgScanWith(st, h)
 			if err != nil || total != orgTestFullTotal {
 				t.Fatalf("scan = %d, %v; want %d, nil", total, err, orgTestFullTotal)
 			}

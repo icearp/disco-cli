@@ -28,37 +28,34 @@ type route53ProfilesAPI interface {
 // scanRoute53Profiles discovers Route53 Profiles, profile associations, and
 // per-profile resource associations. Profile carries native ARN; associations
 // synthesize ARN from parent profile path.
-func scanRoute53Profiles(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53Profiles(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := route53profiles.NewFromConfig(acct.cfg, func(o *route53profiles.Options) { o.Region = region })
 
-	profiles, t, i, ferr := scanR53PProfiles(ctx, client, acct, region, st, scanID)
+	profiles, t, ferr := scanR53PProfiles(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanR53PProfileAssociations(ctx, client, acct, region, st, scanID)
+	t, ferr = scanR53PProfileAssociations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, p := range profiles {
-		t, i, ferr = scanR53PProfileResourceAssociations(ctx, client, acct, region, st, scanID, p.id, p.arn)
+		t, ferr = scanR53PProfileResourceAssociations(ctx, client, acct, region, st, scanID, p.id, p.arn)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 type r53pProfile struct{ id, arn string }
 
-func scanR53PProfiles(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string) ([]r53pProfile, int, int, error) {
+func scanR53PProfiles(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string) ([]r53pProfile, int, error) {
 	pager := route53profiles.NewListProfilesPaginator(client, &route53profiles.ListProfilesInput{})
 	var batch []*store.Resource
 	var profs []r53pProfile
@@ -66,9 +63,9 @@ func scanR53PProfiles(ctx context.Context, client route53ProfilesAPI, acct *acco
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "route53profiles:ListProfiles", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "route53profiles:ListProfiles", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("route53profiles:ListProfiles: %w", err)
+			return nil, 0, fmt.Errorf("route53profiles:ListProfiles: %w", err)
 		}
 		for _, p := range out.ProfileSummaries {
 			arn := sv(p.Arn)
@@ -85,20 +82,20 @@ func scanR53PProfiles(ctx context.Context, client route53ProfilesAPI, acct *acco
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "route53profiles profiles")
-	return profs, t, i, err
+	t, err := upsertBatch(st, batch, "route53profiles profiles")
+	return profs, t, err
 }
 
-func scanR53PProfileAssociations(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53PProfileAssociations(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := route53profiles.NewListProfileAssociationsPaginator(client, &route53profiles.ListProfileAssociationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53profiles:ListProfileAssociations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "route53profiles:ListProfileAssociations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("route53profiles:ListProfileAssociations: %w", err)
+			return 0, fmt.Errorf("route53profiles:ListProfileAssociations: %w", err)
 		}
 		for _, a := range out.ProfileAssociations {
 			id := sv(a.Id)
@@ -117,7 +114,7 @@ func scanR53PProfileAssociations(ctx context.Context, client route53ProfilesAPI,
 	return upsertBatch(st, batch, "route53profiles profile-associations")
 }
 
-func scanR53PProfileResourceAssociations(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string, profileID, profileARN string) (int, int, error) {
+func scanR53PProfileResourceAssociations(ctx context.Context, client route53ProfilesAPI, acct *account, region string, st *store.Store, scanID string, profileID, profileARN string) (int, error) {
 	pid := profileID
 	pager := route53profiles.NewListProfileResourceAssociationsPaginator(client, &route53profiles.ListProfileResourceAssociationsInput{ProfileId: &pid})
 	var batch []*store.Resource
@@ -125,9 +122,9 @@ func scanR53PProfileResourceAssociations(ctx context.Context, client route53Prof
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53profiles:ListProfileResourceAssociations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "route53profiles:ListProfileResourceAssociations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("route53profiles:ListProfileResourceAssociations: %w", err)
+			return 0, fmt.Errorf("route53profiles:ListProfileResourceAssociations: %w", err)
 		}
 		for _, a := range out.ProfileResourceAssociations {
 			id := sv(a.Id)

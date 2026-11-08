@@ -125,7 +125,7 @@ func scanEKSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, eksDenied)
-	_, _, err := scanEKS(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanEKS(context.Background(), acct, testRegion, st, testScanID)
 	return err
 }
 
@@ -389,7 +389,9 @@ func TestScanEKS_TotalsCountEveryPhase(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	var policyCalls, caCalls parentCalls
 	acct.cfg = opStubConfig(eksTopLevelHandlers(&policyCalls, &caCalls), eksDenied)
-	total, inserted, err := scanEKS(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanEKS(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanEKS: %v", err)
 	}
@@ -437,7 +439,7 @@ func TestScanEKS_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanEKS(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanEKS(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanEKS: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {

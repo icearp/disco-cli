@@ -42,7 +42,9 @@ func TestScanGKE_ClusterNodePoolChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeGKEService(t, srv)
 
-	total, inserted, err := scanGKEWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanGKEWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGKEWithClient: %v", err)
 	}
@@ -91,7 +93,9 @@ func TestScanGKE_NodePoolsAPINotEnabledShapeDoesNotDisableWholeService(t *testin
 	t.Cleanup(srv.Close)
 	svc := fakeGKEService(t, srv)
 
-	total, inserted, err := scanGKEWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanGKEWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGKEWithClient: %v (NodePools' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -110,7 +114,9 @@ func TestScanGKE_EmptyProjectNoClusters(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeGKEService(t, srv)
 
-	total, inserted, err := scanGKEWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanGKEWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGKEWithClient: %v", err)
 	}

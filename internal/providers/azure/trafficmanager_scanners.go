@@ -18,10 +18,10 @@ func init() {
 // embedded in properties.endpoints[] (full body from ListBySubscription), so
 // no separate endpoint scan is needed. Heatmap, geographic-hierarchy, and
 // user-metric-keys APIs deferred — config surfaces, not edge sources.
-func scanTrafficManager(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrafficManager(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armtrafficmanager.NewProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armtrafficmanager:NewProfilesClient: %w", err)
+		return 0, fmt.Errorf("armtrafficmanager:NewProfilesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armtrafficmanager:Profiles.ListBySubscription", TypeNetworkTrafficManagerProfile, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

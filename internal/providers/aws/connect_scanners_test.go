@@ -48,7 +48,7 @@ type connectTagCase struct {
 	// return none.
 	listsIn  func(in any) bool
 	describe func(in any) any
-	run      func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error)
+	run      func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error)
 }
 
 func connectTestChildARN(kind string) func(string) string {
@@ -69,7 +69,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeInstanceInput).InstanceId)
 			return &connect.DescribeInstanceOutput{Instance: &cttypes.Instance{Id: &id, InstanceAlias: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			instances := []cttypes.InstanceSummary{
 				{Id: ptrStr("i-1"), Arn: ptrStr(connectTestAccountARN("instance")("i-1")), InstanceAlias: ptrStr(connectListedName)},
 				{Id: ptrStr("i-2"), Arn: ptrStr(connectTestAccountARN("instance")("i-2")), InstanceAlias: ptrStr(connectListedName)},
@@ -91,7 +91,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeTrafficDistributionGroupInput).TrafficDistributionGroupId)
 			return &connect.DescribeTrafficDistributionGroupOutput{TrafficDistributionGroup: &cttypes.TrafficDistributionGroup{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectTrafficDistributionGroups(ctx, c, acct, testRegion, st, testScanID)
 		},
 	},
@@ -115,7 +115,7 @@ var connectTagCases = []connectTagCase{
 			id := arn[strings.LastIndex(arn, "/")+1:]
 			return &connect.DescribePhoneNumberOutput{ClaimedPhoneNumberSummary: &cttypes.ClaimedPhoneNumberSummary{PhoneNumberId: &id, PhoneNumber: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectPhoneNumbers(ctx, c, acct, testRegion, st, testScanID)
 		},
 	},
@@ -133,7 +133,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeQueueInput).QueueId)
 			return &connect.DescribeQueueOutput{Queue: &cttypes.Queue{QueueId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectQueues(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -151,7 +151,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeRoutingProfileInput).RoutingProfileId)
 			return &connect.DescribeRoutingProfileOutput{RoutingProfile: &cttypes.RoutingProfile{RoutingProfileId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectRoutingProfiles(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -169,7 +169,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeHoursOfOperationInput).HoursOfOperationId)
 			return &connect.DescribeHoursOfOperationOutput{HoursOfOperation: &cttypes.HoursOfOperation{HoursOfOperationId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectHoursOfOperations(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -187,7 +187,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeAgentStatusInput).AgentStatusId)
 			return &connect.DescribeAgentStatusOutput{AgentStatus: &cttypes.AgentStatus{AgentStatusId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectAgentStatuses(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -205,7 +205,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeQuickConnectInput).QuickConnectId)
 			return &connect.DescribeQuickConnectOutput{QuickConnect: &cttypes.QuickConnect{QuickConnectId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectQuickConnects(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -223,7 +223,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeUserInput).UserId)
 			return &connect.DescribeUserOutput{User: &cttypes.User{Id: &id, Username: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectUserList(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -241,7 +241,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeUserHierarchyGroupInput).HierarchyGroupId)
 			return &connect.DescribeUserHierarchyGroupOutput{HierarchyGroup: &cttypes.HierarchyGroup{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectUserHierarchyGroups(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -259,7 +259,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeSecurityProfileInput).SecurityProfileId)
 			return &connect.DescribeSecurityProfileOutput{SecurityProfile: &cttypes.SecurityProfile{Id: &id, SecurityProfileName: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectSecurityProfiles(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -277,7 +277,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeContactFlowInput).ContactFlowId)
 			return &connect.DescribeContactFlowOutput{ContactFlow: &cttypes.ContactFlow{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectFlowsFamilyOnly(ctx, c, st, acct, TypeConnectContactFlow)
 		},
 	},
@@ -295,7 +295,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeContactFlowModuleInput).ContactFlowModuleId)
 			return &connect.DescribeContactFlowModuleOutput{ContactFlowModule: &cttypes.ContactFlowModule{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectFlowsFamilyOnly(ctx, c, st, acct, TypeConnectContactFlowModule)
 		},
 	},
@@ -317,7 +317,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeRuleInput).RuleId)
 			return &connect.DescribeRuleOutput{Rule: &cttypes.Rule{RuleId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectRules(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -335,7 +335,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeEvaluationFormInput).EvaluationFormId)
 			return &connect.DescribeEvaluationFormOutput{EvaluationForm: &cttypes.EvaluationForm{EvaluationFormId: &id, Title: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectEvaluationForms(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -353,7 +353,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeViewInput).ViewId)
 			return &connect.DescribeViewOutput{View: &cttypes.View{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectWorkspaceFamilyOnly(ctx, c, st, acct, TypeConnectView)
 		},
 	},
@@ -371,7 +371,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribeWorkspaceInput).WorkspaceId)
 			return &connect.DescribeWorkspaceOutput{Workspace: &cttypes.Workspace{Id: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectWorkspaces(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -389,7 +389,7 @@ var connectTagCases = []connectTagCase{
 			id := sv(in.(*connect.DescribePromptInput).PromptId)
 			return &connect.DescribePromptOutput{Prompt: &cttypes.Prompt{PromptId: &id, Name: ptrStr(connectDescribedName), Tags: connectTestTags(id)}}
 		},
-		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, int, error) {
+		run: func(ctx context.Context, c *connect.Client, st *store.Store, acct *account) (int, error) {
 			return scanConnectPrompts(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 		},
 	},
@@ -397,18 +397,18 @@ var connectTagCases = []connectTagCase{
 
 // scanConnectFlowsFamilyOnly runs the whole flows family, so the shared
 // listings are wired as in production, and reports only typ's rows.
-func scanConnectFlowsFamilyOnly(ctx context.Context, c *connect.Client, st *store.Store, acct *account, typ string) (int, int, error) {
-	_, _, err := scanConnectFlows(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
+func scanConnectFlowsFamilyOnly(ctx context.Context, c *connect.Client, st *store.Store, acct *account, typ string) (int, error) {
+	_, err := scanConnectFlows(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 	n, nerr := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, Types: []string{typ}})
-	return len(n), len(n), errors.Join(err, nerr)
+	return len(n), errors.Join(err, nerr)
 }
 
 // scanConnectWorkspaceFamilyOnly is scanConnectFlowsFamilyOnly for the
 // workspace family (views share their listing with view versions).
-func scanConnectWorkspaceFamilyOnly(ctx context.Context, c *connect.Client, st *store.Store, acct *account, typ string) (int, int, error) {
-	_, _, err := scanConnectWorkspace(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
+func scanConnectWorkspaceFamilyOnly(ctx context.Context, c *connect.Client, st *store.Store, acct *account, typ string) (int, error) {
+	_, err := scanConnectWorkspace(ctx, c, connectTestInstanceList, acct, testRegion, st, testScanID)
 	n, nerr := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, Types: []string{typ}})
-	return len(n), len(n), errors.Join(err, nerr)
+	return len(n), errors.Join(err, nerr)
 }
 
 // handlers answers the case's list op with x-1 and x-2 and, when describe is
@@ -447,7 +447,7 @@ func TestConnectDescribedTypes_StoreTags(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			client := connect.NewFromConfig(connectStubConfig(c.handlers(true)))
-			total, _, err := c.run(context.Background(), client, st, acct)
+			total, err := c.run(context.Background(), client, st, acct)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -485,7 +485,7 @@ func TestConnectDescribedTypes_DeniedDescribeKeepsSummary(t *testing.T) {
 			warned := countOpWarnings(st, "connect:"+c.describeOp)
 			acct := newTestAccount(testAccountID)
 			client := connect.NewFromConfig(connectStubConfig(c.handlers(false)))
-			if _, _, err := c.run(context.Background(), client, st, acct); err != nil {
+			if _, err := c.run(context.Background(), client, st, acct); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			rows := rowsByNativeID(t, st, c.typ)
@@ -527,7 +527,7 @@ func runQueues(t *testing.T, st *store.Store, fail error) (int, error) {
 		}
 		return c.describe(in), nil
 	}
-	total, _, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -585,7 +585,7 @@ func TestConnectDescribe_OtherErrorKeepsSummaryAndReturns(t *testing.T) {
 					}
 					return c.describe(in), nil
 				}
-				total, _, err = scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+				total, err = scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if !errors.Is(err, errConnectNoBody) {
 					t.Errorf("err = %v, want errConnectNoBody", err)
 				}
@@ -617,7 +617,7 @@ func TestConnectListing_NoARNWarnsNotStored(t *testing.T) {
 			{Id: ptrStr("x-2")},
 		}}, nil
 	}
-	total, _, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("total = %d, err = %v; want 1, nil", total, err)
 	}
@@ -644,7 +644,7 @@ func TestConnectListing_FailedInstanceKeepsTheOthers(t *testing.T) {
 	instances := connectInstances("i-1", "i-2", "i-3")
 	t.Run("hard error", func(t *testing.T) {
 		st := newTestStore(t)
-		total, _, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(byInstance(connectHardErr))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(byInstance(connectHardErr))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
 		assertAPICode(t, err, "UnrecognizedFailureException")
 		if _, ok := rowsByNativeID(t, st, TypeConnectQueue)[c.arn("x-1")]; !ok || total != 1 {
 			t.Errorf("total = %d; want x-1 stored", total)
@@ -653,7 +653,7 @@ func TestConnectListing_FailedInstanceKeepsTheOthers(t *testing.T) {
 	t.Run("denied", func(t *testing.T) {
 		st := newTestStore(t)
 		warned := countOpWarnings(st, "connect:ListQueues")
-		total, _, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(byInstance(connectDenied))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectQueues(context.Background(), connect.NewFromConfig(connectStubConfig(byInstance(connectDenied))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 1 {
 			t.Errorf("total = %d, err = %v; want 1, nil", total, err)
 		}
@@ -674,7 +674,7 @@ func TestConnectTrafficDistributionGroups_ResourcePolicyDenySilent(t *testing.T)
 			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "with an explicit deny in a resource-based policy"}
 		},
 	}
-	total, _, err := scanConnectTrafficDistributionGroups(context.Background(), connect.NewFromConfig(connectStubConfig(h)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectTrafficDistributionGroups(context.Background(), connect.NewFromConfig(connectStubConfig(h)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 || *warned != 0 {
 		t.Errorf("total = %d, err = %v, warnings = %d; want 0, nil, 0", total, err, *warned)
 	}
@@ -688,21 +688,21 @@ func TestConnectRunPhases(t *testing.T) {
 	t.Run("hard error", func(t *testing.T) {
 		st := newTestStore(t)
 		ran := false
-		total, inserted, err := connectRunPhases(st, acct, testRegion,
-			connectPhase{"first", func() (int, int, error) { return 1, 1, connectHardErr }},
-			connectPhase{"second", func() (int, int, error) { ran = true; return 2, 2, nil }},
+		total, err := connectRunPhases(st, acct, testRegion,
+			connectPhase{"first", func() (int, error) { return 1, connectHardErr }},
+			connectPhase{"second", func() (int, error) { ran = true; return 2, nil }},
 		)
 		assertAPICode(t, err, "UnrecognizedFailureException")
-		if !ran || total != 3 || inserted != 3 {
-			t.Errorf("second ran = %v, total = %d, inserted = %d; want true, 3, 3", ran, total, inserted)
+		if !ran || total != 3 {
+			t.Errorf("second ran = %v, total = %d; want true, 3", ran, total)
 		}
 	})
 	t.Run("store write", func(t *testing.T) {
 		st := newTestStore(t)
 		ran := false
-		_, _, err := connectRunPhases(st, acct, testRegion,
-			connectPhase{"first", func() (int, int, error) { return 0, 0, fmt.Errorf("upsert: %w", store.ErrStoreWrite) }},
-			connectPhase{"second", func() (int, int, error) { ran = true; return 0, 0, nil }},
+		_, err := connectRunPhases(st, acct, testRegion,
+			connectPhase{"first", func() (int, error) { return 0, fmt.Errorf("upsert: %w", store.ErrStoreWrite) }},
+			connectPhase{"second", func() (int, error) { ran = true; return 0, nil }},
 		)
 		if !errors.Is(err, store.ErrStoreWrite) || ran {
 			t.Errorf("err = %v, second ran = %v; want ErrStoreWrite and false", err, ran)
@@ -723,7 +723,7 @@ func TestScanConnectNotifications_Tags(t *testing.T) {
 			}}, nil
 		},
 	}
-	total, _, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total = %d, err = %v; want 2, nil", total, err)
 	}
@@ -763,7 +763,7 @@ func TestScanConnectNotifications_ListingErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
 			warned := countOpWarnings(st, "connect:ListNotifications")
-			total, _, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(handlers(tc.fail))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(handlers(tc.fail))), instances, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Errorf("err = %v, want nil", err)
@@ -805,7 +805,7 @@ func TestConnectContactFlow_NotPublishedKeepsSummaryAndWarnsOnce(t *testing.T) {
 	h["DescribeContactFlow"] = func(any) (any, error) {
 		return nil, &smithy.GenericAPIError{Code: "ContactFlowNotPublishedException", Message: "not published"}
 	}
-	total, _, err := c.run(context.Background(), connect.NewFromConfig(connectStubConfig(h)), st, newTestAccount(testAccountID))
+	total, err := c.run(context.Background(), connect.NewFromConfig(connectStubConfig(h)), st, newTestAccount(testAccountID))
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -854,7 +854,7 @@ func TestConnectFlows_DeniedChildListingsWarnOncePerOp(t *testing.T) {
 	for i, op := range ops {
 		warned[i] = countOpWarnings(st, op)
 	}
-	_, _, err := scanConnectFlows(context.Background(), connect.NewFromConfig(connectStubConfig(connectFlowsHandlers(nil))), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanConnectFlows(context.Background(), connect.NewFromConfig(connectStubConfig(connectFlowsHandlers(nil))), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -882,7 +882,9 @@ func TestConnectFlowModuleVersions_InsertedIsTheStoreCount(t *testing.T) {
 	modules := []connectListed[cttypes.ContactFlowModuleSummary]{{instanceID: "i-1", id: "m-1", arn: connectTestInstanceARN + "/flow-module/m-1"}}
 	acct := newTestAccount(testAccountID)
 	for run, want := range []int{2, 0} {
-		total, inserted, err := scanConnectContactFlowModuleVersions(context.Background(), client, modules, acct, testRegion, st, testScanID)
+		counted, upserts := countUpserts(st)
+		total, err := scanConnectContactFlowModuleVersions(context.Background(), client, modules, acct, testRegion, counted, testScanID)
+		inserted := upserts()
 		if err != nil || total != 2 || inserted != want {
 			t.Errorf("run %d: total = %d, inserted = %d, err = %v; want 2, %d, nil", run, total, inserted, err, want)
 		}
@@ -904,7 +906,7 @@ func TestConnectFlowModuleAliases_DeniedDescribeKeepsSummary(t *testing.T) {
 			}}, nil
 		},
 	})
-	_, _, err := scanConnectFlows(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanConnectFlows(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -929,7 +931,7 @@ func TestConnectPredefinedAttributes_DeniedDescribeKeepsSummary(t *testing.T) {
 			}}, nil
 		},
 	}
-	total, _, err := scanConnectPredefinedAttributes(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectPredefinedAttributes(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total = %d, err = %v; want 2, nil", total, err)
 	}
@@ -958,7 +960,7 @@ func TestConnectEmailAddresses_DeniedSearchWarnsOnce(t *testing.T) {
 			}}, nil
 		},
 	}
-	total, _, err := scanConnectEmailAddresses(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectInstances("i-1", "i-2", "i-3"), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectEmailAddresses(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectInstances("i-1", "i-2", "i-3"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("total = %d, err = %v; want 1, nil", total, err)
 	}
@@ -987,7 +989,7 @@ func TestConnectTokenPager_RepeatedTokenKeepsRows(t *testing.T) {
 			}, nil
 		},
 	}
-	total, _, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectNotifications(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -1052,7 +1054,7 @@ func TestScanConnectFamilies_FailedFamilyDoesNotCancelOthers(t *testing.T) {
 		},
 	}
 	st := newTestStore(t)
-	_, _, err := scanConnectFamilies(context.Background(), connect.NewFromConfig(opStubConfigCtx(h, connectDenied)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanConnectFamilies(context.Background(), connect.NewFromConfig(opStubConfigCtx(h, connectDenied)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID)
 	assertAPICode(t, err, "UnrecognizedFailureException")
 	if _, ok := rowsByNativeID(t, st, TypeConnectUser)[users.arn("x-1")]; !ok {
 		t.Error("users family lost its user after the routing family failed")
@@ -1090,7 +1092,7 @@ func TestScanConnectFamilies_ListingsAskForThePageCap(t *testing.T) {
 		}
 	}
 	st := newTestStore(t)
-	if _, _, err := scanConnectFamilies(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanConnectFamilies(context.Background(), connect.NewFromConfig(connectStubConfig(h)), connectTestInstanceList, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	for op, pageCap := range want {
@@ -1113,7 +1115,7 @@ func TestScanConnect_ListInstancesErrorReturned(t *testing.T) {
 			return &connect.ListInstancesOutput{InstanceSummaryList: connectInstances("i-1"), NextToken: ptrStr("t")}, nil
 		},
 	})
-	_, _, err := scanConnect(context.Background(), acct, testRegion, newTestStore(t), testScanID)
+	_, err := scanConnect(context.Background(), acct, testRegion, newTestStore(t), testScanID)
 	assertAPICode(t, err, "UnrecognizedFailureException")
 }
 
@@ -1128,7 +1130,7 @@ func TestConnectDescribe_CancelledStartsNoDescribe(t *testing.T) {
 	for _, id := range []string{"x-1", "x-2"} {
 		listed.items = append(listed.items, connectListed[cttypes.QueueSummary]{instanceID: "i-1", id: id, arn: connectTestInstanceARN + "/queue/" + id})
 	}
-	_, _, err := connectDescribe[cttypes.QueueSummary]{
+	_, err := connectDescribe[cttypes.QueueSummary]{
 		rtype: TypeConnectQueue, op: "connect:DescribeQueue", label: "connect queues",
 		describe: func(context.Context, connectListed[cttypes.QueueSummary], *store.Resource) error {
 			calls.Add(1)

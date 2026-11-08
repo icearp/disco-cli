@@ -58,7 +58,7 @@ const inspector2PageLimit = 100
 type inspector2Phase struct {
 	op          string
 	enabledOnly bool
-	run         func(context.Context, inspector2API, *account, string, *store.Store, string) (int, int, error)
+	run         func(context.Context, inspector2API, *account, string, *store.Store, string) (int, error)
 }
 
 // scanInspector2 discovers Inspector v2 resources and the organization's
@@ -78,7 +78,7 @@ type inspector2Phase struct {
 // itself. The not-enabled sentinel is returned only when no phase stored a
 // row and no phase failed: the dispatcher discards every count on a sentinel
 // and would hide that failure behind "(account: disabled)".
-func scanInspector2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := inspector2.NewFromConfig(acct.cfg, func(o *inspector2.Options) { o.Region = region })
 	phases := []inspector2Phase{
 		{op: inspector2FiltersOp, run: scanInspector2Filters},
@@ -97,20 +97,20 @@ func scanInspector2(ctx context.Context, acct *account, region string, st *store
 		if ph.enabledOnly && notEnabled != nil {
 			continue
 		}
-		t, i, err := ph.run(ctx, client, acct, region, st, scanID)
+		t, err := ph.run(ctx, client, acct, region, st, scanID)
 		if errors.Is(err, errServiceDisabled) {
 			notEnabled = err
 			continue
 		}
-		if p.addPhase(ph.op, t, i, err) {
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
-	total, inserted, err := p.result(st, acct, region)
+	total, err := p.result(st, acct, region)
 	if notEnabled != nil && total == 0 && err == nil {
-		return 0, 0, notEnabled
+		return 0, notEnabled
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // inspector2MemberNativeID synthesises an identifier for a member-account
@@ -124,7 +124,7 @@ func inspector2MemberNativeID(partition, region, adminAccountID, memberAccountID
 
 // scanInspector2Filters stores the finding filters ListFilters returns,
 // those read before a failed page included.
-func scanInspector2Filters(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2Filters(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, inspector2FiltersOp,
 		func(ctx context.Context, token *string) ([]i2types.Filter, *string, error) {
 			out, err := client.ListFilters(ctx, &inspector2.ListFiltersInput{NextToken: token, MaxResults: sdkaws.Int32(inspector2PageLimit)})
@@ -145,7 +145,7 @@ func scanInspector2Filters(ctx context.Context, client inspector2API, acct *acco
 		})
 }
 
-func scanInspector2Members(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInspector2Members(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := inspector2.NewListMembersPaginator(client, &inspector2.ListMembersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -153,9 +153,9 @@ func scanInspector2Members(ctx context.Context, client inspector2API, acct *acco
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, inspector2MembersOp, acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListMembers: %w", perr)
+			return 0, fmt.Errorf("inspector2:ListMembers: %w", perr)
 		}
 		for _, m := range out.Members {
 			memberAcct := sv(m.AccountId)
@@ -178,11 +178,11 @@ func scanInspector2Members(ctx context.Context, client inspector2API, acct *acco
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert inspector2 members: %w", uerr)
+		return 0, fmt.Errorf("upsert inspector2 members: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

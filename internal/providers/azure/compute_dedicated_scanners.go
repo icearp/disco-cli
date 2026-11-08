@@ -32,16 +32,15 @@ type crgEntry struct {
 
 // scanDedicated discovers Azure dedicated infrastructure: host groups, dedicated hosts,
 // capacity reservation groups, and capacity reservations. Both chains scan in parallel.
-func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	var (
 		mu      sync.Mutex
 		hgErrs  = make(chan error, 1)
 		crgErrs = make(chan error, 1)
 	)
-	addTotals := func(t, n int) {
+	addTotals := func(t int) {
 		mu.Lock()
 		total += t
-		inserted += n
 		mu.Unlock()
 	}
 
@@ -50,8 +49,8 @@ func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCred
 
 	go func() {
 		defer wg.Done()
-		t, n, e := scanHostGroupChain(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanHostGroupChain(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			hgErrs <- e
 		}
@@ -59,8 +58,8 @@ func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCred
 
 	go func() {
 		defer wg.Done()
-		t, n, e := scanCRGChain(ctx, sub, cred, st, scanID)
-		addTotals(t, n)
+		t, e := scanCRGChain(ctx, sub, cred, st, scanID)
+		addTotals(t)
 		if e != nil {
 			crgErrs <- e
 		}
@@ -70,22 +69,22 @@ func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCred
 
 	select {
 	case err := <-hgErrs:
-		return 0, 0, err
+		return 0, err
 	default:
 	}
 	select {
 	case err := <-crgErrs:
-		return 0, 0, err
+		return 0, err
 	default:
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanHostGroupChain scans host groups then fans out dedicated host scans per group.
-func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	hgClient, err := armcompute.NewDedicatedHostGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewDedicatedHostGroupsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewDedicatedHostGroupsClient: %w", err)
 	}
 
 	var (
@@ -98,9 +97,9 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:DedicatedHostGroups.ListBySubscription", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:DedicatedHostGroups.ListBySubscription", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:DedicatedHostGroups.ListBySubscription: %w", err)
+			return 0, fmt.Errorf("armcompute:DedicatedHostGroups.ListBySubscription: %w", err)
 		}
 		for _, hg := range page.Value {
 			if hg.ID == nil {
@@ -133,29 +132,28 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 		}
 	}
 	if len(hgBatch) > 0 {
-		n, err := st.UpsertResources(hgBatch)
+		_, err := st.UpsertResources(hgBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure host groups: %w", err)
+			return 0, fmt.Errorf("upsert Azure host groups: %w", err)
 		}
 		total += len(hgBatch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(hgPairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure host groups: %w", err)
+			return 0, fmt.Errorf("closure Azure host groups: %w", err)
 		}
 	}
 	if len(hgEntries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out dedicated host scans per host group.
 	hostClient, err := armcompute.NewDedicatedHostsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewDedicatedHostsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewDedicatedHostsClient: %w", err)
 	}
 
 	var (
-		mu                sync.Mutex
-		hTotal, hInserted int
+		mu     sync.Mutex
+		hTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -166,24 +164,23 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 				return err
 			}
 			defer sem.Release(1)
-			t, n, e := scanDedicatedHosts(gCtx, sub, hostClient, st, scanID, entry)
+			t, e := scanDedicatedHosts(gCtx, sub, hostClient, st, scanID, entry)
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			hTotal += t
-			hInserted += n
 			mu.Unlock()
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + hTotal, inserted + hInserted, nil
+	return total + hTotal, nil
 }
 
-func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompute.DedicatedHostsClient, st *store.Store, scanID string, hg hostGroupEntry) (total, inserted int, err error) {
+func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompute.DedicatedHostsClient, st *store.Store, scanID string, hg hostGroupEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	pager := client.NewListByHostGroupPager(hg.rg, hg.name, nil)
@@ -191,9 +188,9 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:DedicatedHosts.ListByHostGroup", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:DedicatedHosts.ListByHostGroup", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:DedicatedHosts.ListByHostGroup %s/%s: %w", hg.rg, hg.name, err)
+			return 0, fmt.Errorf("armcompute:DedicatedHosts.ListByHostGroup %s/%s: %w", hg.rg, hg.name, err)
 		}
 		for _, h := range page.Value {
 			if h.ID == nil {
@@ -220,24 +217,23 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure dedicated hosts %s: %w", hg.name, err)
+			return 0, fmt.Errorf("upsert Azure dedicated hosts %s: %w", hg.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure dedicated hosts %s: %w", hg.name, err)
+			return 0, fmt.Errorf("closure Azure dedicated hosts %s: %w", hg.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCRGChain scans capacity reservation groups then fans out capacity reservation scans.
-func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	crgClient, err := armcompute.NewCapacityReservationGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewCapacityReservationGroupsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewCapacityReservationGroupsClient: %w", err)
 	}
 
 	var (
@@ -250,9 +246,9 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservationGroups.ListBySubscription", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:CapacityReservationGroups.ListBySubscription", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CapacityReservationGroups.ListBySubscription: %w", err)
+			return 0, fmt.Errorf("armcompute:CapacityReservationGroups.ListBySubscription: %w", err)
 		}
 		for _, crg := range page.Value {
 			if crg.ID == nil {
@@ -285,29 +281,28 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 		}
 	}
 	if len(crgBatch) > 0 {
-		n, err := st.UpsertResources(crgBatch)
+		_, err := st.UpsertResources(crgBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure capacity reservation groups: %w", err)
+			return 0, fmt.Errorf("upsert Azure capacity reservation groups: %w", err)
 		}
 		total += len(crgBatch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(crgPairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure capacity reservation groups: %w", err)
+			return 0, fmt.Errorf("closure Azure capacity reservation groups: %w", err)
 		}
 	}
 	if len(crgEntries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out capacity reservation scans per CRG.
 	crClient, err := armcompute.NewCapacityReservationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewCapacityReservationsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewCapacityReservationsClient: %w", err)
 	}
 
 	var (
-		mu                sync.Mutex
-		cTotal, cInserted int
+		mu     sync.Mutex
+		cTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -318,24 +313,23 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 				return err
 			}
 			defer sem.Release(1)
-			t, n, e := scanCapacityReservations(gCtx, sub, crClient, st, scanID, entry)
+			t, e := scanCapacityReservations(gCtx, sub, crClient, st, scanID, entry)
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			cTotal += t
-			cInserted += n
 			mu.Unlock()
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + cTotal, inserted + cInserted, nil
+	return total + cTotal, nil
 }
 
-func scanCapacityReservations(ctx context.Context, sub *subscription, client *armcompute.CapacityReservationsClient, st *store.Store, scanID string, crg crgEntry) (total, inserted int, err error) {
+func scanCapacityReservations(ctx context.Context, sub *subscription, client *armcompute.CapacityReservationsClient, st *store.Store, scanID string, crg crgEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	pager := client.NewListByCapacityReservationGroupPager(crg.rg, crg.name, nil)
@@ -343,9 +337,9 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservations.ListByCapacityReservationGroup", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:CapacityReservations.ListByCapacityReservationGroup", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CapacityReservations.ListByCapacityReservationGroup %s/%s: %w", crg.rg, crg.name, err)
+			return 0, fmt.Errorf("armcompute:CapacityReservations.ListByCapacityReservationGroup %s/%s: %w", crg.rg, crg.name, err)
 		}
 		for _, cr := range page.Value {
 			if cr.ID == nil {
@@ -372,15 +366,14 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure capacity reservations %s: %w", crg.name, err)
+			return 0, fmt.Errorf("upsert Azure capacity reservations %s: %w", crg.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure capacity reservations %s: %w", crg.name, err)
+			return 0, fmt.Errorf("closure Azure capacity reservations %s: %w", crg.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

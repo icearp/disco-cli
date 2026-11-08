@@ -128,7 +128,9 @@ func TestScanLightsail_StoresListedTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsTaggedStub(t)
-	total, inserted, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanLightsail(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
@@ -160,7 +162,7 @@ func TestScanLightsail_StatusOnlyWhenListed(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsTaggedStub(t)
-	if _, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
 	for rtype, want := range map[string]string{
@@ -238,7 +240,7 @@ func TestScanLightsail_ListErrors(t *testing.T) {
 			warns := countOpWarnings(st, lsGetAlarmsOp)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = lsServiceStub(t, map[string][]stubCall{"GetAlarms": tc.pages})
-			total, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
 			switch {
 			case tc.wantCode != "":
 				assertAPICode(t, err, tc.wantCode)
@@ -284,7 +286,7 @@ func TestScanLightsail_CertificatesReadEveryPage(t *testing.T) {
 		{Output: &lightsail.GetCertificatesOutput{Certificates: []lightsailtypes.CertificateSummary{cert("c1")}, NextPageToken: sdkaws.String("p2")}},
 		{Output: &lightsail.GetCertificatesOutput{Certificates: []lightsailtypes.CertificateSummary{cert("c2")}}},
 	}})
-	if _, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeLightsailCertificate)
@@ -318,7 +320,7 @@ func TestScanLightsail_StoreWriteStopsLaterPhases(t *testing.T) {
 	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	fake := &lsStoreFailFake{closeStore: closeStore}
-	_, _, err := scanLightsailWith(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanLightsailWith(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want ErrStoreWrite", err)
 	}
@@ -405,7 +407,7 @@ func TestScanLightsail_ForwardsPageToken(t *testing.T) {
 	// Ops without a handler (the non-paginated ones and the fan-outs) are denied
 	// and only warn.
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: lightsail:Get"))
-	if _, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
 	for _, p := range lsPagedOps {
@@ -437,7 +439,7 @@ func TestScanLightsail_DistributionsAndDomainsOnlyInUSEast1(t *testing.T) {
 			return &lightsail.GetDisksOutput{Disks: []lightsailtypes.Disk{{Arn: sdkaws.String(diskARN), Name: sdkaws.String("d1")}}}, nil
 		},
 	}, apiErr("AccessDeniedException", "User: x is not authorized to perform: lightsail:Get"))
-	if _, _, err := scanLightsail(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanLightsail(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
 	for _, rtype := range []string{TypeLightsailDistribution, TypeLightsailDomain} {

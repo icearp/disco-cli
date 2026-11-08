@@ -85,10 +85,10 @@ func scanBACConsentPortals(ctx context.Context, client bedrockAgentCoreAPI, acct
 // also be read by scanBACAll's resultLateNXDOMAIN as the control plane's.
 // One after a page was read is a plain error (lateNXDOMAIN): that page
 // proves the host resolved.
-func scanBACABTests(ctx context.Context, client bedrockAgentCoreDataAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBACABTests(ctx context.Context, client bedrockAgentCoreDataAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "bedrockagentcore:ListABTests"
 	var unauthorized bacUnauthorized
-	total, inserted, err := storeTokenList(ctx, st, acct, region, op,
+	total, err := storeTokenList(ctx, st, acct, region, op,
 		bacStopUnauthorized(&unauthorized, bacPages(isBACRegionGap, func(ctx context.Context, token *string) ([]bacdatatypes.ABTestSummary, *string, error) {
 			out, err := client.ListABTests(ctx, &bacdata.ListABTestsInput{NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			switch {
@@ -109,7 +109,7 @@ func scanBACABTests(ctx context.Context, client bedrockAgentCoreDataAPI, acct *a
 			return r, why, key
 		})
 	unauthorized.warn(st, op, acct, region, errors.Is(err, store.ErrStoreWrite))
-	return total, inserted, err
+	return total, err
 }
 
 // bacGatewayARNs maps each gateway's id to its NativeID, which the NativeIDs
@@ -128,7 +128,7 @@ func bacGatewayARNs(gateways []childParent) map[string]string {
 // was deleted since it was listed is skipped (storeTokenEachParent); a first
 // page refused with a region-gap code (isBACRegionGap) means the op is not
 // deployed in this region.
-func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
+func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, error) {
 	arns := bacGatewayARNs(gateways)
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRules", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(isBACRegionGap, func(ctx context.Context, gateway string, token *string) ([]bactypes.GatewayRuleDetail, *string, error) {
@@ -153,7 +153,7 @@ func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *
 // scanBACGatewayRateLimits lists the rate limits of each gateway, as
 // scanBACGatewayRules lists its rules; NativeID is
 // `{gatewayNativeID}/rate-limit/{rateLimitId}`.
-func scanBACGatewayRateLimits(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
+func scanBACGatewayRateLimits(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, error) {
 	arns := bacGatewayARNs(gateways)
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRateLimits", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(isBACRegionGap, func(ctx context.Context, gateway string, token *string) ([]bactypes.GatewayRateLimitDetail, *string, error) {

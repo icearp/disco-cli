@@ -36,32 +36,31 @@ const (
 // owns that ListOutposts returned. A ListSites or ListOutposts error returns
 // before the asset phase. A ListAssets error keeps the site and outpost rows
 // already stored.
-func scanOutposts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOutposts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := outposts.NewFromConfig(acct.cfg, func(o *outposts.Options) { o.Region = region })
-	total, inserted, err := scanOutpostsSites(ctx, client, acct, region, st, scanID)
+	total, err := scanOutpostsSites(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	parents, t, i, err := scanOutpostsOutposts(ctx, client, acct, region, st, scanID)
+	parents, t, err := scanOutpostsOutposts(ctx, client, acct, region, st, scanID)
 	total += t
-	inserted += i
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err = scanOutpostsAssets(ctx, client, acct, region, st, scanID, parents)
-	return total + t, inserted + i, err
+	t, err = scanOutpostsAssets(ctx, client, acct, region, st, scanID, parents)
+	return total + t, err
 }
 
-func scanOutpostsSites(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOutpostsSites(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := outposts.NewListSitesPaginator(client, &outposts.ListSitesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "outposts:ListSites", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "outposts:ListSites", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("outposts:ListSites: %w", err)
+			return 0, fmt.Errorf("outposts:ListSites: %w", err)
 		}
 		for _, s := range out.Sites {
 			arn := sv(s.SiteArn)
@@ -79,7 +78,7 @@ func scanOutpostsSites(ctx context.Context, client outpostsAPI, acct *account, r
 	return upsertBatch(st, batch, "outposts sites")
 }
 
-func scanOutpostsOutposts(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanOutpostsOutposts(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	pager := outposts.NewListOutpostsPaginator(client, &outposts.ListOutpostsInput{})
 	var (
 		batch   []*store.Resource
@@ -89,9 +88,9 @@ func scanOutpostsOutposts(ctx context.Context, client outpostsAPI, acct *account
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "outposts:ListOutposts", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "outposts:ListOutposts", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("outposts:ListOutposts: %w", err)
+			return nil, 0, fmt.Errorf("outposts:ListOutposts: %w", err)
 		}
 		for _, o := range out.Outposts {
 			arn := sv(o.OutpostArn)
@@ -113,8 +112,8 @@ func scanOutpostsOutposts(ctx context.Context, client outpostsAPI, acct *account
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "outposts outpost resources")
-	return parents, t, i, err
+	t, err := upsertBatch(st, batch, "outposts outpost resources")
+	return parents, t, err
 }
 
 // outpostsAssetNativeID builds the NativeID of a hardware asset. ListAssets
@@ -132,7 +131,7 @@ func outpostsAssetNativeID(outpostARN, assetID string) string {
 // An outpost deleted since it was listed (NotFoundException) is skipped; one
 // whose call still fails transiently after the SDK's retries is skipped,
 // keeping its siblings' rows, with one summary warning.
-func scanOutpostsAssets(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string, outpostList []childParent) (int, int, error) {
+func scanOutpostsAssets(ctx context.Context, client outpostsAPI, acct *account, region string, st *store.Store, scanID string, outpostList []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "NotFoundException") }
 	return childFanOutSkipTransient(ctx, st, acct, region, outpostsListAssetsOp, outpostList, isGone, byParentARN,
 		func(ctx context.Context, outpost childParent) ([]*store.Resource, error) {

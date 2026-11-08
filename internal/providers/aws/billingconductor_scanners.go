@@ -28,10 +28,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:billingconductor",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			region, err := acct.homeRegion("billingconductor")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := billingconductor.NewFromConfig(acct.cfg, func(o *billingconductor.Options) { o.Region = region })
 			return scanBillingConductor(ctx, client, acct, region, st, scanID)
@@ -67,10 +67,10 @@ const (
 // page while the scan has stored no row reports the account not entitled,
 // and no later listing runs (notEntitledGate). An earlier listing's denial is
 // still warned about.
-func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	payerOnly := &notEntitledGate{is: isBillingConductorPayerOnly}
 	tags := bcTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "billingconductor", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "billingconductor", 0, []hostPhase{
 		payerOnly.gatedPhase("billingconductor:ListBillingGroups", func(p *phaseTotals) bool {
 			return scanBillingConductorBillingGroups(ctx, client, acct, region, st, scanID, payerOnly, tags, p)
 		}),
@@ -85,10 +85,10 @@ func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct 
 		}),
 	})
 	if notEntitled := payerOnly.notEntitledErr(st, acct, region, err); notEntitled != nil {
-		return total, inserted, notEntitled
+		return total, notEntitled
 	}
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // bcTags reads a row's tags with ListTagsForResource, sent the row's

@@ -39,51 +39,49 @@ func ossARN(partition, region, acct, kind, key string) string {
 	return arnFor(partition, "aoss", region, acct, kind+"/"+key)
 }
 
-func scanOpenSearchServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOpenSearchServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := opensearchserverless.NewFromConfig(acct.cfg, func(o *opensearchserverless.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanOSSCollections(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanOSSCollectionGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanOSSVpcEndpoints(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanOSSCollections(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanOSSCollectionGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanOSSVpcEndpoints(ctx, client, acct, region, st, scanID) },
+		func() (int, error) {
 			return scanOSSAccessPolicies(ctx, client, acct, region, st, scanID, types.AccessPolicyTypeData)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanOSSLifecyclePolicies(ctx, client, acct, region, st, scanID, types.LifecyclePolicyTypeRetention)
 		},
-		func() (int, int, error) {
-			t1, i1, e := scanOSSSecurityPolicies(ctx, client, acct, region, st, scanID, types.SecurityPolicyTypeEncryption)
+		func() (int, error) {
+			t1, e := scanOSSSecurityPolicies(ctx, client, acct, region, st, scanID, types.SecurityPolicyTypeEncryption)
 			if e != nil {
-				return t1, i1, e
+				return t1, e
 			}
-			t2, i2, e := scanOSSSecurityPolicies(ctx, client, acct, region, st, scanID, types.SecurityPolicyTypeNetwork)
-			return t1 + t2, i1 + i2, e
+			t2, e := scanOSSSecurityPolicies(ctx, client, acct, region, st, scanID, types.SecurityPolicyTypeNetwork)
+			return t1 + t2, e
 		},
-		func() (int, int, error) {
-			var t, i int
+		func() (int, error) {
+			var t int
 			for _, sct := range types.SecurityConfigType("").Values() {
-				tt, ii, e := scanOSSSecurityConfigs(ctx, client, acct, region, st, scanID, sct)
+				tt, e := scanOSSSecurityConfigs(ctx, client, acct, region, st, scanID, sct)
 				if e != nil {
-					return t, i, e
+					return t, e
 				}
 				t += tt
-				i += ii
 			}
-			return t, i, nil
+			return t, nil
 		},
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanOSSCollections(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSSCollections(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := opensearchserverless.NewListCollectionsPaginator(client, &opensearchserverless.ListCollectionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -91,9 +89,9 @@ func scanOSSCollections(ctx context.Context, client ossAPI, acct *account, regio
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListCollections", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListCollections: %w", perr)
+			return 0, fmt.Errorf("aoss:ListCollections: %w", perr)
 		}
 		for _, c := range out.CollectionSummaries {
 			arn := sv(c.Arn)
@@ -114,7 +112,7 @@ func scanOSSCollections(ctx context.Context, client ossAPI, acct *account, regio
 	return upsertBatch(st, batch, "aoss collections")
 }
 
-func scanOSSCollectionGroups(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSSCollectionGroups(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := opensearchserverless.NewListCollectionGroupsPaginator(client, &opensearchserverless.ListCollectionGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -122,9 +120,9 @@ func scanOSSCollectionGroups(ctx context.Context, client ossAPI, acct *account, 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListCollectionGroups", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListCollectionGroups: %w", perr)
+			return 0, fmt.Errorf("aoss:ListCollectionGroups: %w", perr)
 		}
 		for _, g := range out.CollectionGroupSummaries {
 			arn := sv(g.Arn)
@@ -145,7 +143,7 @@ func scanOSSCollectionGroups(ctx context.Context, client ossAPI, acct *account, 
 	return upsertBatch(st, batch, "aoss collection-groups")
 }
 
-func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := opensearchserverless.NewListVpcEndpointsPaginator(client, &opensearchserverless.ListVpcEndpointsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -153,9 +151,9 @@ func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, regi
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListVpcEndpoints", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListVpcEndpoints: %w", perr)
+			return 0, fmt.Errorf("aoss:ListVpcEndpoints: %w", perr)
 		}
 		// Collect IDs first then BatchGetVpcEndpoint (chunks of 5 — AWS limit)
 		// to expose VpcId/SubnetIds/SecurityGroupIds for the resolver.
@@ -203,7 +201,7 @@ func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, regi
 	return upsertBatch(st, batch, "aoss vpc-endpoints")
 }
 
-func scanOSSAccessPolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.AccessPolicyType) (int, int, error) {
+func scanOSSAccessPolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.AccessPolicyType) (int, error) {
 	pager := opensearchserverless.NewListAccessPoliciesPaginator(client, &opensearchserverless.ListAccessPoliciesInput{Type: ptype})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -211,9 +209,9 @@ func scanOSSAccessPolicies(ctx context.Context, client ossAPI, acct *account, re
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListAccessPolicies", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListAccessPolicies: %w", perr)
+			return 0, fmt.Errorf("aoss:ListAccessPolicies: %w", perr)
 		}
 		for _, p := range out.AccessPolicySummaries {
 			name := sv(p.Name)
@@ -232,7 +230,7 @@ func scanOSSAccessPolicies(ctx context.Context, client ossAPI, acct *account, re
 	return upsertBatch(st, batch, "aoss access-policies")
 }
 
-func scanOSSLifecyclePolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.LifecyclePolicyType) (int, int, error) {
+func scanOSSLifecyclePolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.LifecyclePolicyType) (int, error) {
 	pager := opensearchserverless.NewListLifecyclePoliciesPaginator(client, &opensearchserverless.ListLifecyclePoliciesInput{Type: ptype})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -240,9 +238,9 @@ func scanOSSLifecyclePolicies(ctx context.Context, client ossAPI, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListLifecyclePolicies", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListLifecyclePolicies: %w", perr)
+			return 0, fmt.Errorf("aoss:ListLifecyclePolicies: %w", perr)
 		}
 		for _, p := range out.LifecyclePolicySummaries {
 			name := sv(p.Name)
@@ -261,7 +259,7 @@ func scanOSSLifecyclePolicies(ctx context.Context, client ossAPI, acct *account,
 	return upsertBatch(st, batch, "aoss lifecycle-policies")
 }
 
-func scanOSSSecurityPolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.SecurityPolicyType) (int, int, error) {
+func scanOSSSecurityPolicies(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ptype types.SecurityPolicyType) (int, error) {
 	pager := opensearchserverless.NewListSecurityPoliciesPaginator(client, &opensearchserverless.ListSecurityPoliciesInput{Type: ptype})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -269,9 +267,9 @@ func scanOSSSecurityPolicies(ctx context.Context, client ossAPI, acct *account, 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListSecurityPolicies", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListSecurityPolicies: %w", perr)
+			return 0, fmt.Errorf("aoss:ListSecurityPolicies: %w", perr)
 		}
 		for _, p := range out.SecurityPolicySummaries {
 			name := sv(p.Name)
@@ -290,7 +288,7 @@ func scanOSSSecurityPolicies(ctx context.Context, client ossAPI, acct *account, 
 	return upsertBatch(st, batch, "aoss security-policies")
 }
 
-func scanOSSSecurityConfigs(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ctype types.SecurityConfigType) (int, int, error) {
+func scanOSSSecurityConfigs(ctx context.Context, client ossAPI, acct *account, region string, st *store.Store, scanID string, ctype types.SecurityConfigType) (int, error) {
 	pager := opensearchserverless.NewListSecurityConfigsPaginator(client, &opensearchserverless.ListSecurityConfigsInput{Type: ctype})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -298,9 +296,9 @@ func scanOSSSecurityConfigs(ctx context.Context, client ossAPI, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "aoss:ListSecurityConfigs", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("aoss:ListSecurityConfigs: %w", perr)
+			return 0, fmt.Errorf("aoss:ListSecurityConfigs: %w", perr)
 		}
 		for _, c := range out.SecurityConfigSummaries {
 			id := sv(c.Id)

@@ -29,10 +29,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:bcmdashboards",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			region, err := acct.homeRegion("bcmdashboards")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := bcmdashboards.NewFromConfig(acct.cfg, func(o *bcmdashboards.Options) { o.Region = region })
 			return scanBCMDashboards(ctx, client, acct, st, scanID)
@@ -55,10 +55,10 @@ type bcmDashboardsAPI interface {
 // listing is written a page at a time, and the tag reads' denials are one
 // warning for the whole scan. The tag reads go through the same client, so
 // they reach the listings' endpoint.
-func scanBCMDashboards(ctx context.Context, client bcmDashboardsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanBCMDashboards(ctx context.Context, client bcmDashboardsAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	region := bcmDashboardsRegion
 	tags := bcmDashboardsTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "bcmdashboards", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "bcmdashboards", 0, []hostPhase{
 		{op: bcmdListDashboardsOp, run: func(p *phaseTotals) bool {
 			return scanBCMDashboardsDashboards(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -67,7 +67,7 @@ func scanBCMDashboards(ctx context.Context, client bcmDashboardsAPI, acct *accou
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // bcmDashboardsTags reads a dashboard's or scheduled report's tags with

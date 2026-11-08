@@ -133,7 +133,7 @@ func recordOps(log *opLog) func(*smithymw.Stack) error {
 }
 
 // scanSESTopLevel runs scanSES with every op handlers lacks denied.
-func scanSESTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, int, error) {
+func scanSESTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, sesDenied)
@@ -141,7 +141,7 @@ func scanSESTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	return scanSES(context.Background(), acct, testRegion, st, testScanID)
 }
 
-func scanSESCerts(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error), identities []sesIdentity) (int, int, error) {
+func scanSESCerts(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error), identities []sesIdentity) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	client := sesv2.NewFromConfig(opStubConfig(handlers, sesDenied))
@@ -156,7 +156,9 @@ func TestScanSES_StoresCertificatesOfEveryIdentityLast(t *testing.T) {
 	warns := countOpWarnings(st, sesCertificateOp)
 	var calls parentCalls
 	var log opLog
-	total, inserted, err := scanSESTopLevel(t, st, sesCertHandlers(&calls, noSESCertErr), &log)
+	counted, upserts := countUpserts(st)
+	total, err := scanSESTopLevel(t, counted, sesCertHandlers(&calls, noSESCertErr), &log)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSES: %v", err)
 	}
@@ -209,7 +211,7 @@ func TestScanSES_CertificateErrorKeepsOlderPhases(t *testing.T) {
 	var calls parentCalls
 	var log opLog
 	h := sesCertHandlers(&calls, func(string) error { return sesBadInput })
-	total, _, err := scanSESTopLevel(t, st, h, &log)
+	total, err := scanSESTopLevel(t, st, h, &log)
 	assertAPICode(t, err, "BadRequestException")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
@@ -253,7 +255,7 @@ func TestScanSESEmailIdentityCertificates_ErrorLadder(t *testing.T) {
 				}
 				return nil
 			})
-			total, _, err := scanSESCerts(t, st, h, sesTestIdentities)
+			total, err := scanSESCerts(t, st, h, sesTestIdentities)
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 				if isTransientNetworkError(err) {
@@ -302,7 +304,9 @@ func TestScanSESEmailIdentityCertificates_Empty(t *testing.T) {
 					return &sesv2.ListEmailIdentityCertificatesOutput{}, nil
 				},
 			}
-			total, inserted, err := scanSESCerts(t, st, h, tc.identities)
+			counted, upserts := countUpserts(st)
+			total, err := scanSESCerts(t, counted, h, tc.identities)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}
@@ -331,7 +335,7 @@ func TestScanSESEmailIdentityCertificates_StopsOnRepeatedToken(t *testing.T) {
 			}}, nil
 		},
 	}
-	total, _, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
+	total, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -375,7 +379,9 @@ func TestScanSESEmailIdentityCertificates_ReplacementBeatsDeprovisioning(t *test
 					return out, nil
 				},
 			}
-			total, inserted, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
+			counted, upserts := countUpserts(st)
+			total, err := scanSESCerts(t, counted, h, sesTestIdentities[:1])
+			inserted := upserts()
 			if err != nil || total != 1 || inserted != 1 {
 				t.Fatalf("total, inserted, err = %d, %d, %v; want 1, 1, nil", total, inserted, err)
 			}
@@ -420,7 +426,7 @@ func TestScanSESEmailIdentityCertificates_MissingFromAddress(t *testing.T) {
 					}}, nil
 				},
 			}
-			total, _, err := scanSESCerts(t, st, h, []sesIdentity{tc.identity})
+			total, err := scanSESCerts(t, st, h, []sesIdentity{tc.identity})
 			if err != nil || total != len(tc.wantRows) {
 				t.Fatalf("total, err = %d, %v; want %d, nil", total, err, len(tc.wantRows))
 			}
@@ -455,7 +461,7 @@ func TestScanSESEmailIdentityCertificates_FailedIdentityTalliesNothing(t *testin
 			}}, nil
 		},
 	}
-	total, _, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
+	total, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -479,7 +485,9 @@ func TestScanSESEmailIdentityCertificates_UndocumentedDuplicateWarns(t *testing.
 			}}, nil
 		},
 	}
-	total, inserted, err := scanSESCerts(t, st, h, sesTestIdentities[:1])
+	counted, upserts := countUpserts(st)
+	total, err := scanSESCerts(t, counted, h, sesTestIdentities[:1])
+	inserted := upserts()
 	if err != nil || total != 1 || inserted != 1 {
 		t.Fatalf("total, inserted, err = %d, %d, %v; want 1, 1, nil", total, inserted, err)
 	}
@@ -594,7 +602,9 @@ func TestScanSESEmailIdentityCertificates_NotDeployed(t *testing.T) {
 				return listPage(in)
 			}
 			identities := append(slices.Clone(sesTestIdentities), sesTestThird)
-			total, inserted, err := scanSESCerts(t, st, h, identities)
+			counted, upserts := countUpserts(st)
+			total, err := scanSESCerts(t, counted, h, identities)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}

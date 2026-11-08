@@ -236,7 +236,7 @@ func vltHandlers(c *vltCalls) map[string]func(any) (any, error) {
 
 // vltScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func vltScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func vltScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, vlDenied)
@@ -261,7 +261,9 @@ func TestScanVpcLattice_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newVLTCalls()
 
-	total, inserted, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := vltScan(context.Background(), t, counted, vltHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -344,17 +346,17 @@ func TestScanVpcLattice_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanVpcLattice_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newVLTCalls()
-	if _, _, err := vltScan(context.Background(), t, st, vltHandlers(calls)); err != nil {
+	if _, err := vltScan(context.Background(), t, st, vltHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+	total, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -393,7 +395,7 @@ func TestScanVpcLattice_TagReadFailures(t *testing.T) {
 					calls := newVLTCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+					_, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -440,7 +442,7 @@ func TestScanVpcLattice_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[vltARN("resourcegateway/rgw-t")] = vlThrottle
 	calls.errs[vltARN("servicenetworkresourceassociation/snra-t")] = vlBadInput
 
-	_, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+	_, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -474,7 +476,7 @@ func TestScanVpcLattice_GetServiceFailures(t *testing.T) {
 			calls := newVLTCalls()
 			calls.getErrs[svc] = c.err
 
-			_, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+			_, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -511,7 +513,7 @@ func TestScanVpcLattice_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newVLTCalls()
 	calls.errs[vltListener(vltARN("service/svc-t"))] = vlDenied
 
-	_, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+	_, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -542,7 +544,7 @@ func TestScanVpcLattice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return reas(in)
 	}
 
-	_, _, err := vltScan(context.Background(), t, st, handlers)
+	_, err := vltScan(context.Background(), t, st, handlers)
 	for _, code := range []string{"ConflictException", "ValidationException", "ResourceNotFoundException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -587,7 +589,7 @@ func TestScanVpcLattice_DeletedParentSkipped(t *testing.T) {
 	}
 	handlers["ListRules"] = func(any) (any, error) { return nil, vlGone }
 
-	total, _, err := vltScan(context.Background(), t, st, handlers)
+	total, err := vltScan(context.Background(), t, st, handlers)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -614,7 +616,7 @@ func TestScanVpcLattice_UnstorableItemsWarn(t *testing.T) {
 		return &vpclattice.ListTargetGroupsOutput{Items: []vltypes.TargetGroupSummary{{}, {}}}, nil
 	}
 
-	if _, _, err := vltScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := vltScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, "(a target group with no name)") {
@@ -631,7 +633,7 @@ func TestScanVpcLattice_RepeatedTokenKeepsPages(t *testing.T) {
 		return &vpclattice.ListResourceGatewaysOutput{Items: []vltypes.ResourceGatewaySummary{{Arn: sdkaws.String(vltARN("resourcegateway/rgw-t"))}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := vltScan(context.Background(), t, st, handlers)
+	_, err := vltScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -659,7 +661,7 @@ func TestScanVpcLattice_ContextEndStopsOnce(t *testing.T) {
 		return tgs(in)
 	}
 
-	_, _, err := vltScan(ctx, t, st, handlers)
+	_, err := vltScan(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -691,7 +693,7 @@ func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newVLTCalls()
 		calls.errs[vltARN("targetgroup/tg-t")] = nx
-		total, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+		total, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 33 {
 			t.Errorf("total = %d; want 33", total)
@@ -701,7 +703,7 @@ func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := vltHandlers(newVLTCalls())
 		handlers["ListResourceGateways"] = func(any) (any, error) { return nil, nx }
-		total, _, err := vltScan(context.Background(), t, st, handlers)
+		total, err := vltScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 30 {
 			t.Errorf("total = %d; want the 30 other rows counted", total)
@@ -717,7 +719,7 @@ func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanVpcLattice(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanVpcLattice(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -799,7 +801,7 @@ func TestScanVpcLattice_SharedResourceDenialSilent(t *testing.T) {
 			h := vltHandlers(calls)
 			c.deny(calls, h)
 
-			if _, _, err := vltScan(context.Background(), t, st, h); err != nil {
+			if _, err := vltScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if *warns != c.warns || *opWarns != c.warns {

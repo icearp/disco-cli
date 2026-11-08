@@ -72,34 +72,34 @@ const (
 // whatever the tree phases stored. Every type but the organization has its
 // tags read per row (orgScan.tagsFor), and the tag denials of the whole scan
 // are one warning.
-func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	client := organizations.NewFromConfig(acct.cfg)
-	org, orgTotal, orgInserted, err := scanOrgRoot(ctx, client, acct, st, scanID)
+	org, orgTotal, err := scanOrgRoot(ctx, client, acct, st, scanID)
 	if err != nil || org == nil {
-		return orgTotal, orgInserted, err
+		return orgTotal, err
 	}
 	// Member account: org row persisted; management-only phases skipped.
 	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
-		return orgTotal, orgInserted, nil
+		return orgTotal, nil
 	}
 	// runHostPhases would count the organization row's phase as not run.
 	if err := ctx.Err(); err != nil {
-		return orgTotal, orgInserted, fmt.Errorf("organizations: %w", err)
+		return orgTotal, fmt.Errorf("organizations: %w", err)
 	}
 	s := newOrgScan(client, acct, st, scanID, sv(org.Arn))
-	total, inserted, err := runHostPhases(ctx, st, acct, s.region, "organizations", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, s.region, "organizations", 0, []hostPhase{
 		// Counted as the first phase: the host answered DescribeOrganization,
 		// so an NXDOMAIN from a later phase is a failure of this scan, not a
 		// missing endpoint (runHostPhases).
-		countedPhase(0, "organizations:DescribeOrganization", func() (int, int, error) { return orgTotal, orgInserted, nil }),
+		countedPhase(0, "organizations:DescribeOrganization", func() (int, error) { return orgTotal, nil }),
 		{op: "organizations:ListRoots", run: func(p *phaseTotals) bool { return scanOrgRoots(ctx, s, p) }},
 		{op: orgListOUsOp, run: func(p *phaseTotals) bool { return scanOrgOUTree(ctx, s, p) }},
 		{op: "organizations:ListAccounts", run: func(p *phaseTotals) bool { return scanOrgAccounts(ctx, s, p) }},
-		countedPhase(0, "organizations hierarchy closure", func() (int, int, error) {
+		countedPhase(0, "organizations hierarchy closure", func() (int, error) {
 			if err := st.RecordHierarchyBatch(s.tree.pairs); err != nil {
-				return 0, 0, fmt.Errorf("org hierarchy closure: %w", err)
+				return 0, fmt.Errorf("org hierarchy closure: %w", err)
 			}
-			return 0, 0, nil
+			return 0, nil
 		}),
 		{op: "organizations:ListPolicies", run: func(p *phaseTotals) bool { return scanOrgSCPs(ctx, s, p) }},
 		{op: "organizations:DescribeResourcePolicy", run: func(p *phaseTotals) bool { return scanOrganizationsResourcePolicy(ctx, s, p) }},
@@ -117,7 +117,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 		}
 		warnNoChildID(st, orgListOUsOp, acct, s.region, &s.tree.noID, "roots or organizational units", "Id")
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // orgScan is what the phases of one management-account scan share.
@@ -348,22 +348,22 @@ func scanOrgResponsibilityTransfers(ctx context.Context, s *orgScan, p *phaseTot
 // returns the SDK struct so the caller can route on MasterAccountId. Returns
 // (nil, ...) if the account isn't in an org or the call is service-disabled /
 // access-denied.
-func scanOrgRoot(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (*types.Organization, int, int, error) {
+func scanOrgRoot(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (*types.Organization, int, error) {
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
 		// Standalone account — never joined an Organization. Default state,
 		// not a fault. Surface "(account: disabled)" with no warning.
 		if isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
-			return nil, 0, 0, markServiceDisabled(err)
+			return nil, 0, markServiceDisabled(err)
 		}
 		if isAccessDenied(err) {
-			return nil, 0, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
+			return nil, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
 		}
-		return nil, 0, 0, fmt.Errorf("organizations:DescribeOrganization: %w", err)
+		return nil, 0, fmt.Errorf("organizations:DescribeOrganization: %w", err)
 	}
 	org := descOrg.Organization
 	if org == nil {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
 	orgRes := &store.Resource{
 		Provider:       "aws",
@@ -376,11 +376,11 @@ func scanOrgRoot(ctx context.Context, client organizationsAPI, acct *account, st
 		AttributesJSON: mustJSON(org),
 		DiscoveredBy:   scanID,
 	}
-	n, err := st.UpsertResources([]*store.Resource{orgRes})
+	_, err = st.UpsertResources([]*store.Resource{orgRes})
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("upsert organization: %w", err)
+		return nil, 0, fmt.Errorf("upsert organization: %w", err)
 	}
-	return org, 1, n, nil
+	return org, 1, nil
 }
 
 // scanOrgRoots stores each org root once, typed aws:organizations:root, a

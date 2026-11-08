@@ -22,7 +22,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:cloudwatch-dashboards",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			return scanCloudWatchDashboards(ctx, acct, st, scanID)
 		},
 	})
@@ -41,10 +41,10 @@ var cwDashboardNotFound = []string{"ResourceNotFound", "DashboardNotFoundError"}
 
 // scanCloudWatchDashboards stores the account's dashboards, read in
 // CloudWatch's once-region and stored under the global region.
-func scanCloudWatchDashboards(ctx context.Context, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanCloudWatchDashboards(ctx context.Context, acct *account, st *store.Store, scanID string) (int, error) {
 	region, err := acct.onceRegion("cloudwatch")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
 	return runHostPhases(ctx, st, acct, sv(regionGlobal), "cloudwatch", 0, []hostPhase{

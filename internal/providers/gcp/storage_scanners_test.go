@@ -62,7 +62,9 @@ func TestScanStorage_BucketsHmacKeysAndPerBucketSecondaryChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeStorageService(t, srv)
 
-	total, inserted, err := scanStorageWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanStorageWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanStorageWithClient: %v", err)
 	}
@@ -149,7 +151,9 @@ func TestScanStorage_ManagedFolderNotApplicableContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeStorageService(t, srv)
 
-	total, inserted, err := scanStorageWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanStorageWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanStorageWithClient: %v", err)
 	}
@@ -190,7 +194,9 @@ func TestScanStorage_BucketAccessControlsPermissionDenied(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeStorageService(t, srv)
 
-	total, inserted, err := scanStorageWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanStorageWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanStorageWithClient: %v", err)
 	}
@@ -211,7 +217,9 @@ func TestScanStorage_EmptyProjectNoBuckets(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeStorageService(t, srv)
 
-	total, inserted, err := scanStorageWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanStorageWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanStorageWithClient: %v", err)
 	}

@@ -39,40 +39,37 @@ type docdbAPI interface {
 // Per-phase AccessDenied tolerated. Cluster snapshots, parameter groups,
 // subnet groups, and global clusters deferred — same scope rationale as
 // Redshift.
-func scanDocDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := docdb.NewFromConfig(acct.cfg, func(o *docdb.Options) { o.Region = region })
 
 	{
-		t, i, ferr := scanDocDBClusters(ctx, client, acct, region, st, scanID)
+		t, ferr := scanDocDBClusters(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	{
-		t, i, ferr := scanDocDBInstances(ctx, client, acct, region, st, scanID)
+		t, ferr := scanDocDBInstances(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	{
-		t, i, ferr := scanDocDBExtended(ctx, client, acct, region, st, scanID)
+		t, ferr := scanDocDBExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := docdb.NewDescribeDBClustersPaginator(client, &docdb.DescribeDBClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -80,9 +77,9 @@ func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, regi
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "docdb:DescribeDBClusters", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("docdb:DescribeDBClusters: %w", perr)
+			return 0, fmt.Errorf("docdb:DescribeDBClusters: %w", perr)
 		}
 		for _, c := range out.DBClusters {
 			arn := sv(c.DBClusterArn)
@@ -106,16 +103,16 @@ func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, regi
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert docdb clusters: %w", uerr)
+		return 0, fmt.Errorf("upsert docdb clusters: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := docdb.NewDescribeDBInstancesPaginator(client, &docdb.DescribeDBInstancesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -123,9 +120,9 @@ func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, reg
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "docdb:DescribeDBInstances", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("docdb:DescribeDBInstances: %w", perr)
+			return 0, fmt.Errorf("docdb:DescribeDBInstances: %w", perr)
 		}
 		for _, i := range out.DBInstances {
 			// DescribeDBInstances on the DocDB endpoint returns every RDS-family
@@ -157,11 +154,11 @@ func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, reg
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert docdb instances: %w", uerr)
+		return 0, fmt.Errorf("upsert docdb instances: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

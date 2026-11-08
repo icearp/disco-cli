@@ -13,7 +13,7 @@ import (
 // it fans out over the names the domain phase listed (none when that listing
 // failed); DataSourceDetails carries no ARN, so NativeID is synthesized as
 // `{domainARN}/data-source/{name}`.
-func scanOpenSearchDataSources(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, domainNames []string) (total, inserted int, err error) {
+func scanOpenSearchDataSources(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, domainNames []string) (total int, err error) {
 	var batch []*store.Resource
 	for _, name := range domainNames {
 		out, derr := client.ListDataSources(ctx, &opensearch.ListDataSourcesInput{DomainName: &name})
@@ -22,7 +22,7 @@ func scanOpenSearchDataSources(ctx context.Context, client opensearchAPI, acct *
 				_ = skipIfAccessDenied(st, "opensearch:ListDataSources", acct.ID, region, derr)
 				continue
 			}
-			return 0, 0, fmt.Errorf("opensearch:ListDataSources %s: %w", name, derr)
+			return 0, fmt.Errorf("opensearch:ListDataSources %s: %w", name, derr)
 		}
 		domainARN := openSearchARN(acct.partition(), region, acct.ID, "domain/"+name)
 		for _, ds := range out.DataSources {

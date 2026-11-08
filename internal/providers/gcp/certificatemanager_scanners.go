@@ -28,11 +28,11 @@ func init() {
 // trust configs. Per-location fan-out for regional cert resources is
 // deferred — global dominates deployment and the regional surface is narrow
 // today.
-func scanCertificateManager(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCertificateManager(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := certificatemanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("certificatemanager client: %w", err)
+		return 0, fmt.Errorf("certificatemanager client: %w", err)
 	}
 	return scanCertificateManagerWithClient(ctx, svc, p, st, scanID)
 }
@@ -40,13 +40,13 @@ func scanCertificateManager(ctx context.Context, p *project, st *store.Store, sc
 // scanCertificateManagerWithClient is the test seam for
 // scanCertificateManager — takes the pre-built client directly so tests can
 // point it at a fake server.
-func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanager.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanager.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/global", p.ID)
 
 	// Certificates.
-	t, n, err := runPaginated(ctx, st, p, "certificatemanager:certificates.list",
+	t, err := runPaginated(ctx, st, p, "certificatemanager:certificates.list",
 		svc.Projects.Locations.Certificates.List(parent),
-		func(page *certificatemanager.ListCertificatesResponse) (int, int, error) {
+		func(page *certificatemanager.ListCertificatesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Certificates))
 			for _, c := range page.Certificates {
 				name := lastSegment(c.Name)
@@ -65,9 +65,8 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Certificate maps + per-map entries. Nested after Certificates (above)
@@ -96,16 +95,15 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 				DiscoveredBy:   scanID,
 			})
 		}
-		pt, pn, perr := upsertWithProjClosure(p, st, batch)
+		pt, perr := upsertWithProjClosure(p, st, batch)
 		total += pt
-		inserted += pn
 		return perr
 	})
 	if cmerr != nil {
 		if isPermissionDenied(cmerr) {
 			_ = skipIfDenied(st, "certificatemanager:certificateMaps.list", p.ID, cmerr)
 		} else {
-			return total, inserted, cmerr
+			return total, cmerr
 		}
 	} else {
 		// Per-map entries — sequential because map counts per project are small.
@@ -129,16 +127,15 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 						DiscoveredBy:   scanID,
 					})
 				}
-				et, en, eerr := upsertWithParent(st, ebatch, store.ResourceID("gcp", p.ID, mn))
+				et, eerr := upsertWithParent(st, ebatch, store.ResourceID("gcp", p.ID, mn))
 				total += et
-				inserted += en
 				return eerr
 			})
 			if eerr != nil {
 				if isPermissionDenied(eerr) {
 					_ = skipIfDenied(st, "certificatemanager:certificateMapEntries.list", p.ID, eerr)
 				} else {
-					return total, inserted, eerr
+					return total, eerr
 				}
 			}
 		}
@@ -164,16 +161,15 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 				DiscoveredBy:   scanID,
 			})
 		}
-		dt, dn, derr := upsertWithProjClosure(p, st, batch)
+		dt, derr := upsertWithProjClosure(p, st, batch)
 		total += dt
-		inserted += dn
 		return derr
 	})
 	if daerr != nil {
 		if isPermissionDenied(daerr) {
 			_ = skipIfDenied(st, "certificatemanager:dnsAuthorizations.list", p.ID, daerr)
 		} else {
-			return total, inserted, daerr
+			return total, daerr
 		}
 	}
 
@@ -197,16 +193,15 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 				DiscoveredBy:   scanID,
 			})
 		}
-		it, in, ierr := upsertWithProjClosure(p, st, batch)
+		it, ierr := upsertWithProjClosure(p, st, batch)
 		total += it
-		inserted += in
 		return ierr
 	})
 	if icerr != nil {
 		if isPermissionDenied(icerr) {
 			_ = skipIfDenied(st, "certificatemanager:certificateIssuanceConfigs.list", p.ID, icerr)
 		} else {
-			return total, inserted, icerr
+			return total, icerr
 		}
 	}
 
@@ -230,17 +225,16 @@ func scanCertificateManagerWithClient(ctx context.Context, svc *certificatemanag
 				DiscoveredBy:   scanID,
 			})
 		}
-		tt, tn, terr := upsertWithProjClosure(p, st, batch)
+		tt, terr := upsertWithProjClosure(p, st, batch)
 		total += tt
-		inserted += tn
 		return terr
 	})
 	if tcerr != nil {
 		if isPermissionDenied(tcerr) {
 			_ = skipIfDenied(st, "certificatemanager:trustConfigs.list", p.ID, tcerr)
 		} else {
-			return total, inserted, tcerr
+			return total, tcerr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

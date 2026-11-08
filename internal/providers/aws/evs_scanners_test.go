@@ -214,13 +214,13 @@ func evsHandlers(calls map[string]*parentCalls) map[string]func(in any) (any, er
 
 func scanEVSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := evsScan(context.Background(), st, handlers)
+	total, err := evsScan(context.Background(), st, handlers)
 	return total, err
 }
 
 // evsScan runs the service scan in the test account and region; an op
 // without a handler is denied.
-func evsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func evsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, evsDenied)
 	return scanEVS(ctx, acct, testRegion, st, testScanID)
@@ -659,7 +659,9 @@ func TestScanEVS_NoEnvironments(t *testing.T) {
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
 	h["ListEnvironments"] = func(any) (any, error) { return &evs.ListEnvironmentsOutput{}, nil }
-	total, inserted, err := evsScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := evsScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -670,16 +672,16 @@ func TestScanEVS_NoEnvironments(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanEVS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{})); err != nil {
+	if _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{})); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
+	total, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
 	if err != nil || total != evsTestTotal {
 		t.Errorf("rescan = %d, %v; want %d, nil", total, err, evsTestTotal)
 	}
@@ -719,7 +721,7 @@ func TestScanEVS_EnvironmentTagReadFailures(t *testing.T) {
 			h := evsHandlers(calls)
 			evsFailTags(h, tc.fail)
 
-			total, _, err := evsScan(context.Background(), st, h)
+			total, err := evsScan(context.Background(), st, h)
 			if tc.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
@@ -771,7 +773,7 @@ func TestScanEVS_TagThrottleDemotedBesideHardError(t *testing.T) {
 		return hosts(in)
 	}
 
-	_, _, err := evsScan(context.Background(), st, h)
+	_, err := evsScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if *warns != 1 {
@@ -796,7 +798,7 @@ func TestScanEVS_FailedEnvironmentWriteStopsScan(t *testing.T) {
 		return list(in)
 	}
 
-	total, _, err := evsScan(context.Background(), st, h)
+	total, err := evsScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
 	}
@@ -822,7 +824,7 @@ func TestScanEVS_EnvironmentListFailureKeepsPage(t *testing.T) {
 	h := evsHandlers(calls)
 	h["ListEnvironments"] = failOnCall(2, evsBadInput, h["ListEnvironments"])
 
-	total, _, err := evsScan(context.Background(), st, h)
+	total, err := evsScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if want := 2 + evsTestEnvAChildren; total != want {
@@ -852,7 +854,7 @@ func TestScanEVS_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, nil
 	}
 
-	total, _, err := evsScan(context.Background(), st, h)
+	total, err := evsScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -888,7 +890,7 @@ func TestScanEVS_EnvironmentWithoutIdentifiers(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := evsScan(context.Background(), st, h)
+	total, err := evsScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -925,7 +927,7 @@ func TestScanEVS_DeletedEnvironmentWithoutIDNotWarned(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := evsScan(context.Background(), st, h)
+	total, err := evsScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -955,7 +957,7 @@ func TestScanEVS_GovCloudARNReachesTagOp(t *testing.T) {
 	acct.Partition = "aws-us-gov"
 	acct.cfg = opStubConfig(h, evsDenied)
 
-	if _, _, err := scanEVS(context.Background(), acct, "us-gov-west-1", st, testScanID); err != nil {
+	if _, err := scanEVS(context.Background(), acct, "us-gov-west-1", st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := calls["ListTagsForResource"].ids; !slices.Equal(got, []string{gov}) {
@@ -985,7 +987,7 @@ func TestScanEVS_ContextEndReportedOnce(t *testing.T) {
 		return tags(in)
 	}
 
-	_, _, err := evsScan(ctx, st, h)
+	_, err := evsScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -1016,7 +1018,7 @@ func TestScanEVS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := evsHandlers(map[string]*parentCalls{})
 		evsFailTags(h, map[string]error{evsTestEnvA: nx})
-		total, _, err := evsScan(context.Background(), st, h)
+		total, err := evsScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != evsTestTotal {
 			t.Errorf("total = %d, want %d", total, evsTestTotal)
@@ -1026,7 +1028,7 @@ func TestScanEVS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := evsHandlers(map[string]*parentCalls{})
 		h["ListEnvironments"] = failOnCall(2, nx, h["ListEnvironments"])
-		total, _, err := evsScan(context.Background(), st, h)
+		total, err := evsScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := 2 + evsTestEnvAChildren; total != want {
 			t.Errorf("total = %d, want %d", total, want)
@@ -1037,7 +1039,7 @@ func TestScanEVS_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanEVS(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanEVS(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v, want none", w)

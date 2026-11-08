@@ -234,7 +234,7 @@ func ggv2Handlers(c *ggv2Calls) map[string]func(in any) (any, error) {
 
 // ggv2Scan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func ggv2Scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func ggv2Scan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ggv2TestDenied)
 	return scanGreengrassV2(ctx, acct, testRegion, st, testScanID)
@@ -283,7 +283,7 @@ func TestScanGreengrassV2_GatesOnSDKTable(t *testing.T) {
 				acct = testAccountIn("aws")
 			}
 			acct.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &regions)
-			if _, _, err := scanGreengrassV2(context.Background(), acct, region, newTestStore(t), testScanID); err != nil {
+			if _, err := scanGreengrassV2(context.Background(), acct, region, newTestStore(t), testScanID); err != nil {
 				t.Fatalf("scanGreengrassV2(%s): %v", region, err)
 			}
 			if got := len(regions.distinct()) > 0; got != wantCalls {
@@ -307,7 +307,9 @@ func TestScanGreengrassV2_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newGGV2Calls()
 
-	total, inserted, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := ggv2Scan(context.Background(), counted, ggv2Handlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -410,16 +412,16 @@ func TestScanGreengrassV2_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGreengrassV2_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(newGGV2Calls())); err != nil {
+	if _, err := ggv2Scan(context.Background(), st, ggv2Handlers(newGGV2Calls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(newGGV2Calls()))
+	total, err := ggv2Scan(context.Background(), st, ggv2Handlers(newGGV2Calls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -449,7 +451,9 @@ func TestScanGreengrassV2_Empty(t *testing.T) {
 		return &greengrassv2.ListDeploymentsOutput{}, nil
 	}
 
-	total, inserted, err := ggv2Scan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := ggv2Scan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -506,7 +510,7 @@ func TestScanGreengrassV2_TagReadFailures(t *testing.T) {
 			calls := newGGV2Calls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+			total, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -553,7 +557,7 @@ func TestScanGreengrassV2_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[ggv2TestVersionARN("comp-tagged", "2.0.0")] = ggv2TestDenied
 	calls.errs[ggv2KindOf(t, "ListDeployments").ggv2RowARN("tagged")] = ggv2TestDenied
 
-	total, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+	total, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -575,7 +579,7 @@ func TestScanGreengrassV2_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[ggv2KindOf(t, "ListCoreDevices").ggv2RowARN("bare")] = ggv2TestThrottle
 	calls.errs[ggv2TestVersionARN("comp-bare", "2.0.0")] = ggv2TestBad
 
-	_, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+	_, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -594,7 +598,7 @@ func TestScanGreengrassV2_FailedWriteStopsScan(t *testing.T) {
 	calls := newGGV2Calls()
 	calls.errs[ggv2KindOf(t, "ListCoreDevices").ggv2RowARN("tagged")] = ggv2TestDenied
 
-	total, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+	total, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -640,7 +644,7 @@ func TestScanGreengrassV2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := ggv2Scan(context.Background(), st, handlers)
+			total, err := ggv2Scan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -674,7 +678,7 @@ func TestScanGreengrassV2_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := ggv2Scan(context.Background(), st, handlers)
+	total, err := ggv2Scan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -720,7 +724,7 @@ func TestScanGreengrassV2_PerComponentVersionFailures(t *testing.T) {
 				return calls.ggv2Versions(in)
 			}
 
-			total, _, err := ggv2Scan(context.Background(), st, handlers)
+			total, err := ggv2Scan(context.Background(), st, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -800,7 +804,7 @@ func TestScanGreengrassV2_ElementsWithoutIDs(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := ggv2Scan(context.Background(), st, handlers)
+			total, err := ggv2Scan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -866,7 +870,7 @@ func TestScanGreengrassV2_TagReadsKeepPartitionARNs(t *testing.T) {
 			}
 			acct := testAccountIn(c.partition)
 			acct.cfg = opStubConfig(handlers, ggv2TestDenied)
-			if _, _, err := scanGreengrassV2(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanGreengrassV2(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := slices.Sorted(slices.Values([]string{componentARN, versionARN, deviceARN, deploymentARN}))
@@ -901,7 +905,7 @@ func TestScanGreengrassV2_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := ggv2Scan(ctx, st, handlers)
+	_, err := ggv2Scan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -931,7 +935,7 @@ func TestScanGreengrassV2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := ggv2Handlers(newGGV2Calls())
 		handlers["ListDeployments"] = func(any) (any, error) { return nil, nx }
-		total, _, err := ggv2Scan(context.Background(), st, handlers)
+		total, err := ggv2Scan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := ggv2TestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -941,7 +945,7 @@ func TestScanGreengrassV2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGGV2Calls()
 		calls.errs[ggv2KindOf(t, "ListComponents").ggv2RowARN("tagged")] = nx
-		_, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
+		_, err := ggv2Scan(context.Background(), st, ggv2Handlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -957,7 +961,7 @@ func TestScanGreengrassV2_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanGreengrassV2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanGreengrassV2(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

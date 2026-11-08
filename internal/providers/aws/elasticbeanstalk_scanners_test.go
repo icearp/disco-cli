@@ -108,7 +108,7 @@ func (c *ebTagCalls) handlers() map[string]func(in any) (any, error) {
 	return h
 }
 
-func ebScan(st *store.Store, h map[string]func(in any) (any, error)) (int, int, error) {
+func ebScan(st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, ebDenied)
 	return scanElasticBeanstalk(context.Background(), acct, testRegion, st, testScanID)
@@ -125,7 +125,9 @@ func TestScanElasticBeanstalk_StoresTagsOfEveryType(t *testing.T) {
 	tagWarns := bacWarnings(st, beanstalkTagsOp)
 	c := newEBTagCalls()
 
-	total, inserted, err := ebScan(st, c.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := ebScan(counted, c.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -191,7 +193,7 @@ func TestScanElasticBeanstalk_EmptyListings(t *testing.T) {
 	h["DescribeApplicationVersions"] = func(any) (any, error) { return &elasticbeanstalk.DescribeApplicationVersionsOutput{}, nil }
 	h["ListPlatformVersions"] = func(any) (any, error) { return &elasticbeanstalk.ListPlatformVersionsOutput{}, nil }
 
-	total, _, err := ebScan(st, h)
+	total, err := ebScan(st, h)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -239,7 +241,7 @@ func TestScanElasticBeanstalk_TagReadFailures(t *testing.T) {
 			c := newEBTagCalls()
 			c.errs[tc.arn] = tc.err
 
-			total, _, err := ebScan(st, c.handlers())
+			total, err := ebScan(st, c.handlers())
 			if tc.outcome == noErr {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -282,7 +284,7 @@ func TestScanElasticBeanstalk_TagDenialsWarnOncePerScan(t *testing.T) {
 		c.errs[arn] = ebDenied
 	}
 
-	total, _, err := ebScan(st, c.handlers())
+	total, err := ebScan(st, c.handlers())
 	if err != nil || total != ebFixtureTotal {
 		t.Fatalf("total, err = %d, %v; want %d, nil", total, err, ebFixtureTotal)
 	}
@@ -306,7 +308,7 @@ func TestScanElasticBeanstalk_TagThrottleDemotedBesideHardError(t *testing.T) {
 	c.errs[ebTestEnv] = ebThrottle
 	c.errs[ebTestVersion] = ebUnsupported
 
-	_, _, err := ebScan(st, c.handlers())
+	_, err := ebScan(st, c.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ResourceTypeNotSupportedException")
 	if *warns != 1 {
@@ -324,7 +326,7 @@ func TestScanElasticBeanstalk_FailedWriteStopsScan(t *testing.T) {
 	c := newEBTagCalls()
 	c.errs[ebTestEnv] = ebDenied
 
-	total, _, err := ebScan(st, c.handlers())
+	total, err := ebScan(st, c.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -383,7 +385,7 @@ func TestScanElasticBeanstalk_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 				}
 				return page(sdkaws.String("t2")), nil
 			}
-			total, _, err := ebScan(st, h)
+			total, err := ebScan(st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "TooManyBucketsException")
 			if total != ebFixtureTotal {
@@ -406,7 +408,7 @@ func TestScanElasticBeanstalk_RepeatedTokenKeepsPages(t *testing.T) {
 			st := newTestStore(t)
 			h := newEBTagCalls().handlers()
 			h[op] = func(any) (any, error) { return page(sdkaws.String("same")), nil }
-			total, _, err := ebScan(st, h)
+			total, err := ebScan(st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -454,7 +456,7 @@ func TestScanElasticBeanstalk_ElementWithoutARNWarns(t *testing.T) {
 			h := c.handlers()
 			h[tc.op] = func(any) (any, error) { return tc.answer, nil }
 
-			total, _, err := ebScan(st, h)
+			total, err := ebScan(st, h)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -487,7 +489,7 @@ func TestScanElasticBeanstalk_ApplicationWithoutNameWarns(t *testing.T) {
 			{ApplicationArn: sdkaws.String(ebTestAppWeb), ConfigurationTemplates: []string{"base"}},
 		}}, nil
 	}
-	if _, _, err := ebScan(st, h); err != nil {
+	if _, err := ebScan(st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeBeanstalkApplication)[ebTestAppWeb]; !ok {
@@ -522,7 +524,7 @@ func TestScanElasticBeanstalk_DeletedRowsNotRead(t *testing.T) {
 			{PlatformArn: sdkaws.String(oldPlatform), PlatformStatus: ebtypes.PlatformStatusDeleted},
 		}}, nil
 	}
-	if _, _, err := ebScan(st, h); err != nil {
+	if _, err := ebScan(st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	sent := c.sent()
@@ -570,7 +572,7 @@ func TestScanElasticBeanstalk_TagReadsKeepPartitionARNs(t *testing.T) {
 			}
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, ebDenied)
-			if _, _, err := scanElasticBeanstalk(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanElasticBeanstalk(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := []string{app, tpl, env, version, platform}
@@ -595,7 +597,7 @@ func TestScanElasticBeanstalk_PlatformListingInsufficientPrivileges(t *testing.T
 		return nil, apiErr("InsufficientPrivilegesException", "no")
 	}
 
-	total, _, err := ebScan(st, h)
+	total, err := ebScan(st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -635,7 +637,7 @@ func TestScanElasticBeanstalk_FailedTemplateWriteSendsNoWarning(t *testing.T) {
 		return next(in)
 	}
 
-	_, _, err := ebScan(st, h)
+	_, err := ebScan(st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -658,7 +660,7 @@ func TestScanElasticBeanstalk_NXDOMAIN(t *testing.T) {
 		c := newEBTagCalls()
 		h := c.handlers()
 		h["DescribeApplications"] = func(any) (any, error) { return nil, nx }
-		_, _, err := ebScan(st, h)
+		_, err := ebScan(st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -673,7 +675,7 @@ func TestScanElasticBeanstalk_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := newEBTagCalls().handlers()
 		h["DescribeEnvironments"] = func(any) (any, error) { return nil, nx }
-		total, _, err := ebScan(st, h)
+		total, err := ebScan(st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != ebFixtureTotal-1 {
 			t.Errorf("total = %d; want %d, every row but the environment", total, ebFixtureTotal-1)
@@ -683,7 +685,7 @@ func TestScanElasticBeanstalk_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		c := newEBTagCalls()
 		c.errs[ebTestEnv] = nx
-		total, _, err := ebScan(st, c.handlers())
+		total, err := ebScan(st, c.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if total != ebFixtureTotal {
 			t.Errorf("total = %d; want %d, the environment kept untagged", total, ebFixtureTotal)
@@ -730,7 +732,7 @@ func TestScanElasticBeanstalk_TemplateTalliesNameSmallestARN(t *testing.T) {
 				return tc.answer(sv(in.(*elasticbeanstalk.DescribeConfigurationSettingsInput).ApplicationName))
 			}
 
-			_, _, err := ebScan(st, h)
+			_, err := ebScan(st, h)
 			if tc.transient {
 				assertGlueOutcome(t, err, outcomeTransient)
 				if !strings.Contains(err.Error(), smallest) {

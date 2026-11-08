@@ -27,7 +27,7 @@ import (
 // Subscriptions are read-only here — never mutate.
 type tenantServiceEntry struct {
 	name string
-	fn   func(ctx context.Context, subs []subscription, cred azcore.TokenCredential, wif wifConfig, st *store.Store, scanID string) (total, inserted int, err error)
+	fn   func(ctx context.Context, subs []subscription, cred azcore.TokenCredential, wif wifConfig, st *store.Store, scanID string) (total int, err error)
 	// dedupOnly marks a tenant phase that READS NO DIRECTORY: it fetches data
 	// identical in every directory (Microsoft-shipped built-ins) once instead
 	// of once per subscription, and the per-sub scanners store their own copy
@@ -166,7 +166,7 @@ func runTenantServices(ctx context.Context, subs []subscription, cred azcore.Tok
 		func() {
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			total, _, err = svc.fn(svcCtx, subs, cred, wif, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
+			total, err = svc.fn(svcCtx, subs, cred, wif, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 		}()
 		if err != nil {
 			st.ReportError(store.ScanError{

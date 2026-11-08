@@ -96,7 +96,7 @@ func scanGlueDataQualityRulesets(ctx context.Context, client glueAPI, acct *acco
 // scanGlueIntegrations stores the zero-ETL integrations, each with the Tags
 // its element carries. The model documents no MaxRecords range, so none is
 // sent and the service's default page size applies.
-func scanGlueIntegrations(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueIntegrations(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "glue:DescribeIntegrations",
 		func(ctx context.Context, marker *string) ([]gluetypes.Integration, *string, error) {
 			out, err := client.DescribeIntegrations(ctx, &glue.DescribeIntegrationsInput{Marker: marker})
@@ -155,13 +155,13 @@ func scanGlueUsageProfiles(ctx context.Context, client glueAPI, acct *account, r
 }
 
 // scanGlueDataCatalogEncryption emits one row per region — singleton config.
-func scanGlueDataCatalogEncryption(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueDataCatalogEncryption(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetDataCatalogEncryptionSettings(ctx, &glue.GetDataCatalogEncryptionSettingsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "glue:GetDataCatalogEncryptionSettings", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "glue:GetDataCatalogEncryptionSettings", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("glue:GetDataCatalogEncryptionSettings: %w", err)
+		return 0, fmt.Errorf("glue:GetDataCatalogEncryptionSettings: %w", err)
 	}
 	arn := arnFor(acct.partition(), "glue", region, acct.ID, "data-catalog-encryption-settings")
 	name := "data-catalog-encryption-settings"
@@ -176,25 +176,25 @@ func scanGlueDataCatalogEncryption(ctx context.Context, client glueAPI, acct *ac
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue data-catalog-encryption: %w", uerr)
+		return 0, fmt.Errorf("upsert glue data-catalog-encryption: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // scanGlueIdentityCenter emits one row per region (singleton). Returns
 // nothing if Identity Center is not configured (EntityNotFoundException).
-func scanGlueIdentityCenter(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueIdentityCenter(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetGlueIdentityCenterConfiguration(ctx, &glue.GetGlueIdentityCenterConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "glue:GetGlueIdentityCenterConfiguration", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "glue:GetGlueIdentityCenterConfiguration", acct.ID, region, err)
 		}
 		if isAPIErrorCode(err, "EntityNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("glue:GetGlueIdentityCenterConfiguration: %w", err)
+		return 0, fmt.Errorf("glue:GetGlueIdentityCenterConfiguration: %w", err)
 	}
 	arn := arnFor(acct.partition(), "glue", region, acct.ID, "identity-center-configuration")
 	name := "identity-center-configuration"
@@ -209,14 +209,14 @@ func scanGlueIdentityCenter(ctx context.Context, client glueAPI, acct *account, 
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue identity-center: %w", uerr)
+		return 0, fmt.Errorf("upsert glue identity-center: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
-func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := glue.NewGetSecurityConfigurationsPaginator(client, &glue.GetSecurityConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -224,9 +224,9 @@ func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "glue:GetSecurityConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("glue:GetSecurityConfigurations: %w", perr)
+			return 0, fmt.Errorf("glue:GetSecurityConfigurations: %w", perr)
 		}
 		for _, s := range out.SecurityConfigurations {
 			name := sv(s.Name)
@@ -248,11 +248,11 @@ func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *a
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue security-configurations: %w", uerr)
+		return 0, fmt.Errorf("upsert glue security-configurations: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

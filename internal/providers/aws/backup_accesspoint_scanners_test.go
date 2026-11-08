@@ -21,7 +21,7 @@ func bkClient(handlers map[string]func(in any) (any, error)) *backup.Client {
 func TestScanBackup_AccessPointFields(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := bkScan(context.Background(), st, bkHandlers(newBKCalls())); err != nil {
+	if _, err := bkScan(context.Background(), st, bkHandlers(newBKCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	k := bkKindOf(t, "ListBackupAccessPoints")
@@ -73,7 +73,7 @@ func bkAirGapped(names ...string) []childParent {
 func scanBkRestore(t *testing.T, st *store.Store, calls *parentCalls, fail map[string]error, parents []childParent) (int, error) {
 	t.Helper()
 	client := bkClient(map[string]func(any) (any, error){"ListRestoreAccessBackupVaults": bkRestoreHandler(calls, fail)})
-	total, _, err := scanBackupRestoreAccessVaults(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanBackupRestoreAccessVaults(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err
 }
 
@@ -189,7 +189,7 @@ func TestScanBackup_RestoreAccessVaultKeepsIdentityApartFromVaultRow(t *testing.
 		return &backup.ListRestoreAccessBackupVaultsOutput{RestoreAccessBackupVaults: []backuptypes.RestoreAccessBackupVaultListMember{{RestoreAccessBackupVaultArn: &ra}}}, nil
 	}
 
-	if _, _, err := bkScan(context.Background(), st, h); err != nil {
+	if _, err := bkScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanBackup: %v", err)
 	}
 	vault, ok := bkRowOf(t, st, TypeBackupVault, ra)

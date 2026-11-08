@@ -57,7 +57,7 @@ type licenseManagerUserSubscriptionsAPI interface {
 	ListTagsForResource(context.Context, *licensemanagerusersubscriptions.ListTagsForResourceInput, ...func(*licensemanagerusersubscriptions.Options)) (*licensemanagerusersubscriptions.ListTagsForResourceOutput, error)
 }
 
-func scanLicenseManagerUserSubscriptions(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLicenseManagerUserSubscriptions(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := licensemanagerusersubscriptions.NewFromConfig(acct.cfg, func(o *licensemanagerusersubscriptions.Options) { o.Region = region })
 	return scanLicenseManagerUserSubscriptionsEntities(ctx, client, acct, region, st, scanID)
 }
@@ -75,7 +75,7 @@ func scanLicenseManagerUserSubscriptions(ctx context.Context, acct *account, reg
 // Subscriptions: every op fails the same way, so when the first page of
 // ListIdentityProviders is refused so, no later phase runs and the scan is
 // reported disabled (self-enableable by registering an identity provider).
-func scanLicenseManagerUserSubscriptionsEntities(ctx context.Context, client licenseManagerUserSubscriptionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLicenseManagerUserSubscriptionsEntities(ctx context.Context, client licenseManagerUserSubscriptionsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := lmusTags(client).untaggedIfOtherAccount(acct.ID).sharingDenials()
 	var (
 		notSetUp             error
@@ -91,7 +91,7 @@ func scanLicenseManagerUserSubscriptionsEntities(ctx context.Context, client lic
 		}
 		return ph
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "license-manager-user-subscriptions", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "license-manager-user-subscriptions", 0, []hostPhase{
 		{op: lmusListIdentityProvidersOp, run: func(p *phaseTotals) bool {
 			return scanLMUSIdentityProviders(ctx, client, acct, region, st, scanID, &notSetUp, &providers, tags, p)
 		}},
@@ -114,9 +114,9 @@ func scanLicenseManagerUserSubscriptionsEntities(ctx context.Context, client lic
 	// nothing was stored; err is then ctx's end, if anything, which is
 	// reported instead.
 	if notSetUp != nil && err == nil {
-		return 0, 0, markServiceDisabled(notSetUp)
+		return 0, markServiceDisabled(notSetUp)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // lmusTags reads a row's tags with ListTagsForResource, sent the row's
@@ -335,7 +335,7 @@ func listLMUSInstances(ctx context.Context, client licenseManagerUserSubscriptio
 		return
 	}
 	if err != nil {
-		p.addPhase(lmusListInstancesOp, 0, 0, fmt.Errorf("%s: %w", lmusListInstancesOp, err))
+		p.addPhase(lmusListInstancesOp, 0, fmt.Errorf("%s: %w", lmusListInstancesOp, err))
 	}
 }
 

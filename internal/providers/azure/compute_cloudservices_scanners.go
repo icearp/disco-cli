@@ -26,15 +26,15 @@ type cloudServiceEntry struct {
 
 // scanCloudServices discovers Azure Cloud Services (legacy PaaS): cloud services,
 // cloud service roles, and cloud service role instances.
-func scanCloudServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return scanCloudServiceChain(ctx, sub, cred, st, scanID)
 }
 
 // scanCloudServiceChain scans cloud services then fans out role and role instance scans.
-func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	csClient, err := armcompute.NewCloudServicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewCloudServicesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewCloudServicesClient: %w", err)
 	}
 
 	var (
@@ -47,9 +47,9 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServices.ListAll", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:CloudServices.ListAll", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CloudServices.ListAll: %w", err)
+			return 0, fmt.Errorf("armcompute:CloudServices.ListAll: %w", err)
 		}
 		for _, cs := range page.Value {
 			if cs.ID == nil {
@@ -82,33 +82,32 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 		}
 	}
 	if len(csBatch) > 0 {
-		n, err := st.UpsertResources(csBatch)
+		_, err := st.UpsertResources(csBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure cloud services: %w", err)
+			return 0, fmt.Errorf("upsert Azure cloud services: %w", err)
 		}
 		total += len(csBatch)
-		inserted += n
 		if err := st.RecordHierarchyBatch(csPairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure cloud services: %w", err)
+			return 0, fmt.Errorf("closure Azure cloud services: %w", err)
 		}
 	}
 	if len(csEntries) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Fan out role and role instance scans per cloud service.
 	roleClient, err := armcompute.NewCloudServiceRolesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewCloudServiceRolesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewCloudServiceRolesClient: %w", err)
 	}
 	riClient, err := armcompute.NewCloudServiceRoleInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewCloudServiceRoleInstancesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewCloudServiceRoleInstancesClient: %w", err)
 	}
 
 	var (
-		mu                sync.Mutex
-		cTotal, cInserted int
+		mu     sync.Mutex
+		cTotal int
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gCtx := errgroup.WithContext(ctx)
@@ -120,28 +119,27 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 			}
 			defer sem.Release(1)
 
-			rT, rN, rErr := scanCloudServiceRoles(gCtx, sub, roleClient, st, scanID, entry)
+			rT, rErr := scanCloudServiceRoles(gCtx, sub, roleClient, st, scanID, entry)
 			if rErr != nil {
 				return rErr
 			}
-			riT, riN, riErr := scanCloudServiceRoleInstances(gCtx, sub, riClient, st, scanID, entry)
+			riT, riErr := scanCloudServiceRoleInstances(gCtx, sub, riClient, st, scanID, entry)
 			if riErr != nil {
 				return riErr
 			}
 			mu.Lock()
 			cTotal += rT + riT
-			cInserted += rN + riN
 			mu.Unlock()
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return total + cTotal, inserted + cInserted, nil
+	return total + cTotal, nil
 }
 
-func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armcompute.CloudServiceRolesClient, st *store.Store, scanID string, cs cloudServiceEntry) (total, inserted int, err error) {
+func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armcompute.CloudServiceRolesClient, st *store.Store, scanID string, cs cloudServiceEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	pager := client.NewListPager(cs.rg, cs.name, nil)
@@ -149,9 +147,9 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoles.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoles.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CloudServiceRoles.List %s/%s: %w", cs.rg, cs.name, err)
+			return 0, fmt.Errorf("armcompute:CloudServiceRoles.List %s/%s: %w", cs.rg, cs.name, err)
 		}
 		for _, role := range page.Value {
 			if role.ID == nil {
@@ -175,20 +173,19 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure cloud service roles %s: %w", cs.name, err)
+			return 0, fmt.Errorf("upsert Azure cloud service roles %s: %w", cs.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure cloud service roles %s: %w", cs.name, err)
+			return 0, fmt.Errorf("closure Azure cloud service roles %s: %w", cs.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, client *armcompute.CloudServiceRoleInstancesClient, st *store.Store, scanID string, cs cloudServiceEntry) (total, inserted int, err error) {
+func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, client *armcompute.CloudServiceRoleInstancesClient, st *store.Store, scanID string, cs cloudServiceEntry) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	pager := client.NewListPager(cs.rg, cs.name, nil)
@@ -196,9 +193,9 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSkippableScanError(err) {
-				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoleInstances.List", sub.ID, err)
+				return 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoleInstances.List", sub.ID, err)
 			}
-			return 0, 0, fmt.Errorf("armcompute:CloudServiceRoleInstances.List %s/%s: %w", cs.rg, cs.name, err)
+			return 0, fmt.Errorf("armcompute:CloudServiceRoleInstances.List %s/%s: %w", cs.rg, cs.name, err)
 		}
 		for _, ri := range page.Value {
 			if ri.ID == nil {
@@ -222,15 +219,14 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure cloud service role instances %s: %w", cs.name, err)
+			return 0, fmt.Errorf("upsert Azure cloud service role instances %s: %w", cs.name, err)
 		}
 		total = len(batch)
-		inserted = n
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure cloud service role instances %s: %w", cs.name, err)
+			return 0, fmt.Errorf("closure Azure cloud service role instances %s: %w", cs.name, err)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

@@ -50,10 +50,10 @@ type elementalInferenceAPI interface {
 // nothing and fails only with NXDOMAIN (runHostPhases). Each listing is
 // written a page at a time, and the tag reads' denials are one warning for
 // the whole scan.
-func scanElementalInference(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanElementalInference(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := elementalinference.NewFromConfig(acct.cfg, eiClientOptions(region))
 	tags := eiTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "elemental-inference", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "elemental-inference", 0, []hostPhase{
 		{op: eiListFeedsOp, run: func(p *phaseTotals) bool {
 			return scanEIFeeds(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -62,7 +62,7 @@ func scanElementalInference(ctx context.Context, acct *account, region string, s
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // eiClientOptions pins the region and retries eiThrottleCode, which would

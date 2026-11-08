@@ -106,7 +106,7 @@ func backupTags(client backupAPI, acctID string) rowTagReader {
 	}
 }
 
-func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
 	return scanBackupAll(ctx, client, acct, region, st, scanID)
 }
@@ -122,7 +122,7 @@ func scanBackup(ctx context.Context, acct *account, region string, st *store.Sto
 // point listings plus fanoutMed ListTags calls in the recovery point phase,
 // which tag-reads each vault's pages while other vaults are listed
 // (storeEachParentPagesTags).
-func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := backupTags(client, acct.ID)
 	var vaults, airGapped, plans, testingPlans []childParent
 	return runHostPhases(ctx, st, acct, region, "backup", 0, []hostPhase{
@@ -134,7 +134,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			plans, failed = scanBackupPlans(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "backup:ListBackupSelections", func() (int, int, error) {
+		countedPhase(0, "backup:ListBackupSelections", func() (int, error) {
 			return scanBackupSelections(ctx, client, acct, region, st, scanID, plans)
 		}),
 		{op: "backup:ListFrameworks", run: func(p *phaseTotals) bool {
@@ -147,7 +147,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			testingPlans, failed = scanBackupRestoreTestingPlans(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "backup:ListRestoreTestingSelections", func() (int, int, error) {
+		countedPhase(0, "backup:ListRestoreTestingSelections", func() (int, error) {
 			return scanBackupRestoreTestingSelections(ctx, client, acct, region, st, scanID, testingPlans)
 		}),
 		{op: "backup:ListTieringConfigurations", run: func(p *phaseTotals) bool {
@@ -162,7 +162,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 		{op: "backup:ListBackupAccessPoints", run: func(p *phaseTotals) bool {
 			return scanBackupAccessPoints(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "backup:ListRestoreAccessBackupVaults", func() (int, int, error) {
+		countedPhase(0, "backup:ListRestoreAccessBackupVaults", func() (int, error) {
 			return scanBackupRestoreAccessVaults(ctx, client, acct, region, st, scanID, airGapped)
 		}),
 	})
@@ -227,7 +227,7 @@ func scanBackupPlans(ctx context.Context, client backupAPI, acct *account, regio
 	const op = "backup:ListBackupPlans"
 	ids := map[*store.Resource]string{}
 	d := detailedRows{getOp: "backup:GetBackupPlan", what: "backup plan(s)", notFound: backupNotFound, tags: tags}
-	total, inserted, plans, err := storeParentListWith(ctx, st, acct, region, op, "backup plans", "BackupPlanId",
+	total, plans, err := storeParentListWith(ctx, st, acct, region, op, "backup plans", "BackupPlanId",
 		func(ctx context.Context, token *string) ([]backuptypes.BackupPlansListMember, *string, error) {
 			out, err := client.ListBackupPlans(ctx, &backup.ListBackupPlansInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
 			if err != nil {
@@ -249,7 +249,7 @@ func scanBackupPlans(ctx context.Context, client backupAPI, acct *account, regio
 		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
 			return client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{BackupPlanId: sdkaws.String(ids[r])})
 		}))
-	if d.addPhase(p, op, total, inserted, err) {
+	if d.addPhase(p, op, total, err) {
 		return nil, true
 	}
 	return plans, false
@@ -260,7 +260,7 @@ func scanBackupPlans(ctx context.Context, client backupAPI, acct *account, regio
 // phase read it; its row stays stored. The NativeID is synthetic, since a
 // selection has no ARN: {planARN}/selection/{SelectionId}, with the plan ARN
 // rebuilt in the backup-plan: form the resolvers trim it back to.
-func scanBackupSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, int, error) {
+func scanBackupSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, "backup:ListBackupSelections", backupNotFound, plans, nil, nil,
 		func(ctx context.Context, plan childParent, token *string) ([]backuptypes.BackupSelectionsListMember, *string, error) {
 			out, err := client.ListBackupSelections(ctx, &backup.ListBackupSelectionsInput{

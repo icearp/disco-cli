@@ -90,7 +90,7 @@ func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account
 // element carries no ARN: the Service Reference's ARN format names the
 // endpoint by EndpointName, while the NativeID here is built from
 // EndpointId, so the ARN the op would need is unsettled.
-func scanSESMultiRegionEndpoints(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSESMultiRegionEndpoints(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "sesv2:ListMultiRegionEndpoints",
 		func(ctx context.Context, token *string) ([]sesv2types.MultiRegionEndpoint, *string, error) {
 			out, err := client.ListMultiRegionEndpoints(ctx, &sesv2.ListMultiRegionEndpointsInput{NextToken: token, PageSize: sdkaws.Int32(sesMultiRegionPageCap)})
@@ -139,16 +139,16 @@ func scanSESTenants(ctx context.Context, client sesv2API, acct *account, region 
 
 // scanSESVdmAttributes — singleton per region. GetAccount returns the
 // VdmAttributes block among other account-level fields; emit one row.
-func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetAccount(ctx, &sesv2.GetAccountInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "sesv2:GetAccount", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "sesv2:GetAccount", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("sesv2:GetAccount: %w", err)
+		return 0, fmt.Errorf("sesv2:GetAccount: %w", err)
 	}
 	if out.VdmAttributes == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "ses", region, acct.ID, "vdm-attributes")
 	name := "vdm-attributes"
@@ -157,11 +157,11 @@ func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, r
 		Type: TypeSESVdmAttributes, NativeID: arn,
 		Name: &name, Region: &region, AttributesJSON: mustJSON(out.VdmAttributes), DiscoveredBy: scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses vdm-attributes: %w", uerr)
+		return 0, fmt.Errorf("upsert ses vdm-attributes: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // scanSESEventDestinations stores the event destinations of every
@@ -169,7 +169,7 @@ func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, r
 // destination), the sets read concurrently. A set deleted since it was
 // listed is skipped; the op answers with every destination at once (no page
 // token).
-func scanSESEventDestinations(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, sets []string) (int, int, error) {
+func scanSESEventDestinations(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, sets []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, sesEventDestinationsOp, sesNotFound, sets,
 		func(ctx context.Context, set string, _ *string) ([]sesv2types.EventDestination, *string, error) {
 			out, err := client.GetConfigurationSetEventDestinations(ctx, &sesv2.GetConfigurationSetEventDestinationsInput{ConfigurationSetName: &set})

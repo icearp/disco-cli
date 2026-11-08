@@ -12,33 +12,31 @@ import (
 // AWS::SNS::TopicInlinePolicy is skip-logged: it's the same runtime Policy
 // attribute as AWS::SNS::TopicPolicy, just with inline lifecycle semantics
 // and no distinct API surface.
-func scanSNSExtended(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanSNSSubscriptions(ctx, client, acct, region, st, scanID)
+func scanSNSExtended(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	t, ferr := scanSNSSubscriptions(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSNSTopicPolicies(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSNSTopicPolicies(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := sns.NewListSubscriptionsPaginator(client, &sns.ListSubscriptionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSNSDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "sns:ListSubscriptions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "sns:ListSubscriptions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("sns:ListSubscriptions: %w", err)
+			return 0, fmt.Errorf("sns:ListSubscriptions: %w", err)
 		}
 		for _, s := range out.Subscriptions {
 			arn := sv(s.SubscriptionArn)
@@ -64,7 +62,7 @@ func scanSNSSubscriptions(ctx context.Context, client snsAPI, acct *account, reg
 // attribute. Source: ListTopics → GetTopicAttributes per topic. Synth ARN:
 // {topicARN}/policy. A denied GetTopicAttributes drops that topic's policy and
 // warns once for the phase.
-func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
 	var batch []*store.Resource
 	warnedDenied := false
@@ -72,9 +70,9 @@ func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, reg
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isSNSDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "sns:ListTopics(policies)", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "sns:ListTopics(policies)", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("sns:ListTopics(policies): %w", err)
+			return 0, fmt.Errorf("sns:ListTopics(policies): %w", err)
 		}
 		for _, t := range out.Topics {
 			arn := sv(t.TopicArn)
@@ -90,7 +88,7 @@ func scanSNSTopicPolicies(ctx context.Context, client snsAPI, acct *account, reg
 					}
 					continue
 				}
-				return 0, 0, fmt.Errorf("sns:GetTopicAttributes(policy): %w", derr)
+				return 0, fmt.Errorf("sns:GetTopicAttributes(policy): %w", derr)
 			}
 			policy := ta.Attributes["Policy"]
 			if policy == "" {

@@ -42,7 +42,9 @@ func TestScanDisks_FakeTransport(t *testing.T) {
 		t.Fatalf("NewDisksClient: %v", err)
 	}
 
-	total, inserted, err := scanDisksWithClient(t.Context(), sub, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanDisksWithClient(t.Context(), sub, counted, testScanID, client)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDisksWithClient: %v", err)
 	}
@@ -92,7 +94,9 @@ func TestScanDisks_FakeTransport_Pagination(t *testing.T) {
 		t.Fatalf("NewDisksClient: %v", err)
 	}
 
-	total, inserted, err := scanDisksWithClient(t.Context(), sub, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanDisksWithClient(t.Context(), sub, counted, testScanID, client)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDisksWithClient: %v", err)
 	}
@@ -102,7 +106,7 @@ func TestScanDisks_FakeTransport_Pagination(t *testing.T) {
 }
 
 // TestScanDisks_FakeTransport_AccessDenied verifies the scanner tolerates a 403
-// by returning (0, 0, nil) and reporting a scan error instead of propagating it.
+// by returning (0, nil) and reporting a scan error instead of propagating it.
 func TestScanDisks_FakeTransport_AccessDenied(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -120,7 +124,9 @@ func TestScanDisks_FakeTransport_AccessDenied(t *testing.T) {
 		t.Fatalf("NewDisksClient: %v", err)
 	}
 
-	total, inserted, err := scanDisksWithClient(t.Context(), sub, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanDisksWithClient(t.Context(), sub, counted, testScanID, client)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDisksWithClient (denied): expected nil error, got %v", err)
 	}
@@ -151,7 +157,9 @@ func TestScanDisks_FakeTransport_SubscriptionNotRegistered(t *testing.T) {
 		t.Fatalf("NewDisksClient: %v", err)
 	}
 
-	total, inserted, err := scanDisksWithClient(t.Context(), sub, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanDisksWithClient(t.Context(), sub, counted, testScanID, client)
+	inserted := upserts()
 	if !errors.Is(err, errServiceNotRegistered) {
 		t.Fatalf("scanDisksWithClient (not registered): got err=%v, want errServiceNotRegistered", err)
 	}

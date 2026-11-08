@@ -72,7 +72,7 @@ const (
 	iotFWSignalKind           = "signal"
 )
 
-func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iotfleetwise.NewFromConfig(acct.cfg, func(o *iotfleetwise.Options) { o.Region = region })
 	return scanIoTFleetWiseAll(ctx, client, acct, region, st, scanID)
 }
@@ -112,14 +112,14 @@ func iotFWTags(client iotFWAPI) rowTagReader {
 // warning, because the dispatcher discards a sentinel's counts and ranks it
 // above a hard error, which would hide both the rows and another phase's
 // failure. After a failed write it sends nothing.
-func scanIoTFleetWiseAll(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTFleetWiseAll(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if ferr := gateIoTFleetWise(ctx, client); ferr != nil {
-		return 0, 0, ferr
+		return 0, ferr
 	}
 	tags := iotFWTags(client)
 	var manifests []childParent
 	gated := listDenial{isDenied: isIoTFleetWiseFeatureNotAuthorized, unread: "state templates on later pages"}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "iotfleetwise", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "iotfleetwise", 0, []hostPhase{
 		{op: iotFWListCampaignsOp, run: func(p *phaseTotals) bool {
 			return scanIoTFWCampaigns(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -142,23 +142,23 @@ func scanIoTFleetWiseAll(ctx context.Context, client iotFWAPI, acct *account, re
 		{op: iotFWListVehiclesOp, run: func(p *phaseTotals) bool {
 			return scanIoTFWVehicles(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, iotFWListDecoderManifestSignalsOp, func() (int, int, error) {
+		countedPhase(0, iotFWListDecoderManifestSignalsOp, func() (int, error) {
 			return scanIoTFWDecoderManifestSignals(ctx, client, acct, region, st, scanID, manifests)
 		}),
-		countedPhase(0, iotFWListDecoderManifestNetworkInterfacesOp, func() (int, int, error) {
+		countedPhase(0, iotFWListDecoderManifestNetworkInterfacesOp, func() (int, error) {
 			return scanIoTFWDecoderManifestNetworkInterfaces(ctx, client, acct, region, st, scanID, manifests)
 		}),
 	})
 	if gated.err != nil && !errors.Is(err, store.ErrStoreWrite) {
 		if total == 0 && err == nil {
-			return 0, 0, markServiceDisabled(gated.err)
+			return 0, markServiceDisabled(gated.err)
 		}
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: iotFWListStateTemplatesOp, Scope: acct.ID + "/" + region,
 			Message: "state templates not listed: " + gated.err.Error(),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // gateIoTFleetWise probes the cheapest list op once. An empty-message
@@ -334,14 +334,14 @@ func isIoTFWManifestChildSkip(err error) bool {
 // or INVALID manifest has not been observed; if it is ValidationException,
 // failing the phase would fail it on every scan and cancel the sibling
 // manifests, while skipping silently would hide a real input error.
-func iotFWManifestChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, manifests []childParent, storeChildren func(context.Context, childParent) (int, int, error)) (int, int, error) {
+func iotFWManifestChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, manifests []childParent, storeChildren func(context.Context, childParent) (int, error)) (int, error) {
 	return childFanOutStoredSkipNotReady(ctx, st, acct, region, op, manifests, isIoTFWManifestChildSkip, byParentARN,
 		"decoder manifest(s)", "the manifest may not be in a listable state", []string{"ValidationException"}, storeChildren)
 }
 
 // upsertIoTFWManifestChildren stores one page of a manifest's children and
 // links each under the manifest.
-func upsertIoTFWManifestChildren(st *store.Store, acct *account, op string, manifest childParent, rows []*store.Resource) (int, int, error) {
+func upsertIoTFWManifestChildren(st *store.Store, acct *account, op string, manifest childParent, rows []*store.Resource) (int, error) {
 	parentID := store.ResourceID("aws", acct.ID, manifest.arn)
 	children := make([]containedChild, len(rows))
 	for i, r := range rows {
@@ -352,10 +352,10 @@ func upsertIoTFWManifestChildren(st *store.Store, acct *account, op string, mani
 
 // scanIoTFWDecoderManifestSignals stores each decoder manifest's signal
 // decoders, keyed by fully qualified name.
-func scanIoTFWDecoderManifestSignals(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string, manifests []childParent) (int, int, error) {
+func scanIoTFWDecoderManifestSignals(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string, manifests []childParent) (int, error) {
 	op := iotFWListDecoderManifestSignalsOp
-	return iotFWManifestChildFanOut(ctx, st, acct, region, op, manifests, func(ctx context.Context, m childParent) (int, int, error) {
-		var total, inserted int
+	return iotFWManifestChildFanOut(ctx, st, acct, region, op, manifests, func(ctx context.Context, m childParent) (int, error) {
+		var total int
 		err := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]iotfwtypes.SignalDecoder, *string, error) {
 			out, err := client.ListDecoderManifestSignals(ctx, &iotfleetwise.ListDecoderManifestSignalsInput{
 				Name: sdkaws.String(m.id), MaxResults: sdkaws.Int32(iotFWPageLimit), NextToken: token,
@@ -377,21 +377,20 @@ func scanIoTFWDecoderManifestSignals(ctx context.Context, client iotFWAPI, acct 
 					Name: &name, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 				})
 			}
-			t, i, err := upsertIoTFWManifestChildren(st, acct, op, m, rows)
+			t, err := upsertIoTFWManifestChildren(st, acct, op, m, rows)
 			total += t
-			inserted += i
 			return err
 		})
-		return total, inserted, err
+		return total, err
 	})
 }
 
 // scanIoTFWDecoderManifestNetworkInterfaces stores each decoder manifest's
 // network interfaces, keyed by interface id.
-func scanIoTFWDecoderManifestNetworkInterfaces(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string, manifests []childParent) (int, int, error) {
+func scanIoTFWDecoderManifestNetworkInterfaces(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string, manifests []childParent) (int, error) {
 	op := iotFWListDecoderManifestNetworkInterfacesOp
-	return iotFWManifestChildFanOut(ctx, st, acct, region, op, manifests, func(ctx context.Context, m childParent) (int, int, error) {
-		var total, inserted int
+	return iotFWManifestChildFanOut(ctx, st, acct, region, op, manifests, func(ctx context.Context, m childParent) (int, error) {
+		var total int
 		err := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]iotfwtypes.NetworkInterface, *string, error) {
 			out, err := client.ListDecoderManifestNetworkInterfaces(ctx, &iotfleetwise.ListDecoderManifestNetworkInterfacesInput{
 				Name: sdkaws.String(m.id), MaxResults: sdkaws.Int32(iotFWPageLimit), NextToken: token,
@@ -413,11 +412,10 @@ func scanIoTFWDecoderManifestNetworkInterfaces(ctx context.Context, client iotFW
 					Name: &id, Region: &region, AttributesJSON: mustJSON(ni), DiscoveredBy: scanID,
 				})
 			}
-			t, i, err := upsertIoTFWManifestChildren(st, acct, op, m, rows)
+			t, err := upsertIoTFWManifestChildren(st, acct, op, m, rows)
 			total += t
-			inserted += i
 			return err
 		})
-		return total, inserted, err
+		return total, err
 	})
 }

@@ -24,29 +24,29 @@ func init() {
 // scanS3Outposts discovers S3 Outposts endpoints, regional buckets, access
 // points, and bucket policies. ListOutpostsWithS3 short-circuits on empty
 // (no Outposts), so cross-SDK fan-out costs nothing in non-Outposts accounts.
-func scanS3Outposts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3Outposts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := s3outposts.NewFromConfig(acct.cfg, func(o *s3outposts.Options) { o.Region = region })
-	t1, i1, err := scanS3OutpostsEndpoints(ctx, client, acct, region, st, scanID)
+	t1, err := scanS3OutpostsEndpoints(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return t1, i1, err
+		return t1, err
 	}
-	t2, i2, err := scanS3OutpostsBucketTree(ctx, client, acct, region, st, scanID)
+	t2, err := scanS3OutpostsBucketTree(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return t1 + t2, i1 + i2, err
+		return t1 + t2, err
 	}
-	return t1 + t2, i1 + i2, nil
+	return t1 + t2, nil
 }
 
-func scanS3OutpostsEndpoints(ctx context.Context, client *s3outposts.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3OutpostsEndpoints(ctx context.Context, client *s3outposts.Client, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := s3outposts.NewListEndpointsPaginator(client, &s3outposts.ListEndpointsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3outposts:ListEndpoints", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "s3outposts:ListEndpoints", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("s3outposts:ListEndpoints: %w", err)
+			return 0, fmt.Errorf("s3outposts:ListEndpoints: %w", err)
 		}
 		for _, e := range out.Endpoints {
 			arn := sv(e.EndpointArn)
@@ -69,7 +69,7 @@ func scanS3OutpostsEndpoints(ctx context.Context, client *s3outposts.Client, acc
 // then per-Outpost regional buckets via s3control.ListRegionalBuckets, then
 // per-bucket access points (s3control.ListAccessPoints, Bucket=outpost-bucket-arn)
 // and policy (s3control.GetBucketPolicy).
-func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	// Cheap pre-check: zero outposts means nothing else to do.
 	var outpostIDs []string
 	var nextToken *string
@@ -77,9 +77,9 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 		out, lerr := oclient.ListOutpostsWithS3(ctx, &s3outposts.ListOutpostsWithS3Input{NextToken: nextToken})
 		if lerr != nil {
 			if isAccessDenied(lerr) {
-				return 0, 0, skipIfAccessDenied(st, "s3outposts:ListOutpostsWithS3", acct.ID, region, lerr)
+				return 0, skipIfAccessDenied(st, "s3outposts:ListOutpostsWithS3", acct.ID, region, lerr)
 			}
-			return 0, 0, fmt.Errorf("s3outposts:ListOutpostsWithS3: %w", lerr)
+			return 0, fmt.Errorf("s3outposts:ListOutpostsWithS3: %w", lerr)
 		}
 		for _, o := range out.Outposts {
 			if id := sv(o.OutpostId); id != "" {
@@ -92,7 +92,7 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 		nextToken = out.NextToken
 	}
 	if len(outpostIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	cclient := newS3ControlClient(acct.cfg, region)
@@ -111,9 +111,9 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 			})
 			if berr != nil {
 				if isAccessDenied(berr) {
-					return 0, 0, skipIfAccessDenied(st, "s3control:ListRegionalBuckets", acct.ID, region, berr)
+					return 0, skipIfAccessDenied(st, "s3control:ListRegionalBuckets", acct.ID, region, berr)
 				}
-				return 0, 0, fmt.Errorf("s3control:ListRegionalBuckets: %w", berr)
+				return 0, fmt.Errorf("s3control:ListRegionalBuckets: %w", berr)
 			}
 			for _, b := range bout.RegionalBucketList {
 				bArn := sv(b.BucketArn)
@@ -139,7 +139,7 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 							_ = skipIfAccessDenied(st, "s3control:ListAccessPoints", acct.ID, region, aperr)
 							break
 						}
-						return 0, 0, fmt.Errorf("s3control:ListAccessPoints: %w", aperr)
+						return 0, fmt.Errorf("s3control:ListAccessPoints: %w", aperr)
 					}
 					for _, ap := range apout.AccessPointList {
 						apArn := sv(ap.AccessPointArn)
@@ -167,7 +167,7 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 					if isAccessDenied(perr) || isAPIErrorCode(perr, "NoSuchBucketPolicy") {
 						continue
 					}
-					return 0, 0, fmt.Errorf("s3control:GetBucketPolicy: %w", perr)
+					return 0, fmt.Errorf("s3control:GetBucketPolicy: %w", perr)
 				}
 				polArn := bArn + "/policy"
 				polLabel := polArn
@@ -184,14 +184,14 @@ func scanS3OutpostsBucketTree(ctx context.Context, oclient *s3outposts.Client, a
 			btoken = bout.NextToken
 		}
 	}
-	tb, ib, err := upsertBatch(st, buckets, "s3outposts buckets")
+	tb, err := upsertBatch(st, buckets, "s3outposts buckets")
 	if err != nil {
-		return tb, ib, err
+		return tb, err
 	}
-	ta, ia, err := upsertBatch(st, aps, "s3outposts access-points")
+	ta, err := upsertBatch(st, aps, "s3outposts access-points")
 	if err != nil {
-		return tb + ta, ib + ia, err
+		return tb + ta, err
 	}
-	tp, ip, err := upsertBatch(st, pols, "s3outposts bucket-policies")
-	return tb + ta + tp, ib + ia + ip, err
+	tp, err := upsertBatch(st, pols, "s3outposts bucket-policies")
+	return tb + ta + tp, err
 }

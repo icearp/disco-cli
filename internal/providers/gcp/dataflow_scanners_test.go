@@ -40,7 +40,9 @@ func TestScanDataflow_JobsAndSnapshotsChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeDataflowService(t, srv)
 
-	total, inserted, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1", "us-east1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1", "us-east1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataflowWithClient: %v", err)
 	}
@@ -83,7 +85,9 @@ func TestScanDataflow_SnapshotsAPINotEnabledShapeDoesNotDisableWholeService(t *t
 	t.Cleanup(srv.Close)
 	svc := fakeDataflowService(t, srv)
 
-	total, inserted, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataflowWithClient: %v (Snapshots' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -103,7 +107,9 @@ func TestScanDataflow_EmptyProjectNoJobsNoSnapshots(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeDataflowService(t, srv)
 
-	total, inserted, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDataflowWithClient(t.Context(), svc, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataflowWithClient: %v", err)
 	}

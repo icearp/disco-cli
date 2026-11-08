@@ -63,7 +63,7 @@ func TestScanSSMActivations_PaginatesAndStores(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, _, err := scanSSMActivations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSSMActivations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSSMActivations: %v", err)
 	}

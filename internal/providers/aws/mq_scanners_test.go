@@ -84,7 +84,7 @@ func mqSharedHandler(calls *parentCalls, pages map[string][][]mqtypes.SharedReso
 func runMQSharedResources(t *testing.T, st *store.Store, h func(any) (any, error), brokers []childParent) (int, error) {
 	t.Helper()
 	client := newMQTestClient(map[string]func(any) (any, error){"DescribeSharedResources": h})
-	total, _, err := scanMQSharedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, brokers)
+	total, err := scanMQSharedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, brokers)
 	return total, err
 }
 
@@ -262,7 +262,7 @@ func mqTopLevelHandlers(calls *parentCalls) map[string]func(any) (any, error) {
 
 func runScanMQ(st *store.Store, h map[string]func(any) (any, error)) (int, error) {
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, mqDenied)}
-	total, _, err := scanMQ(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMQ(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -487,7 +487,9 @@ func TestScanMQBrokers_DescribeBrokerFailure(t *testing.T) {
 				return out, err
 			}
 			client := newMQTestClient(h)
-			total, inserted, brokers, assocs, err := scanMQBrokers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, brokers, assocs, err := scanMQBrokers(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+			inserted := upserts()
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 			} else if err != nil {
@@ -546,7 +548,7 @@ func TestScanMQBrokers_MissingIDWarns(t *testing.T) {
 				tc.strip(&b2)
 				return &mq.ListBrokersOutput{BrokerSummaries: []mqtypes.BrokerSummary{mqBrokerSummary("b-1"), b2}}, nil
 			}
-			total, _, _, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, _, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -580,7 +582,7 @@ func TestScanMQBrokers_LaterListPageFails(t *testing.T) {
 				}
 				return nil, tc.err
 			}
-			total, _, brokers, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, brokers, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 			} else if err != nil {

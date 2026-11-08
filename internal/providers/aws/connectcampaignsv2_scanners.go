@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanConnectCampaignsV2 discovers Connect Campaigns v2 campaigns.
-func scanConnectCampaignsV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectCampaignsV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := connectcampaignsv2.NewFromConfig(acct.cfg, func(o *connectcampaignsv2.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,12 +27,12 @@ func scanConnectCampaignsV2(ctx context.Context, acct *account, region string, s
 		out, err := client.ListCampaigns(ctx, &connectcampaignsv2.ListCampaignsInput{NextToken: nextToken})
 		if err != nil {
 			if connectCampaignsNotProvisioned(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "connect-campaigns-v2:ListCampaigns", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "connect-campaigns-v2:ListCampaigns", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("connect-campaigns-v2:ListCampaigns: %w", err)
+			return 0, fmt.Errorf("connect-campaigns-v2:ListCampaigns: %w", err)
 		}
 		for _, c := range out.CampaignSummaryList {
 			arn := sv(c.Arn)

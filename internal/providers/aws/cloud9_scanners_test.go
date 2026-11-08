@@ -97,7 +97,7 @@ func TestScanCloud9Memberships_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1", "env2", "env3"))
+	total, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1", "env2", "env3"))
 	if err != nil {
 		t.Fatalf("scanCloud9Memberships: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestScanCloud9Memberships_Empty(t *testing.T) {
 	client := newCloud9TestClient(map[string]func(any) (any, error){
 		"DescribeEnvironmentMemberships": cloud9MembersHandler(&calls, nil, nil),
 	})
-	total, _, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
+	total, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -180,7 +180,7 @@ func TestScanCloud9Memberships_PerEnvironmentErrors(t *testing.T) {
 					"env3": {{cloud9Member("env3", "alice", cloud9types.PermissionsOwner)}},
 				}, map[string]error{"env1": tc.err, "env2": tc.err}),
 			})
-			total, _, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1", "env2", "env3"))
+			total, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1", "env2", "env3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -211,7 +211,7 @@ func TestScanCloud9Memberships_SkipKeepsEarlierPages(t *testing.T) {
 			"env1": {{cloud9Member("env1", "alice", cloud9types.PermissionsOwner)}, {cloud9Member("env1", "bob", cloud9types.PermissionsReadOnly)}},
 		}, map[string]error{"env1/p2": apiErr("BadRequestException", "x")}),
 	})
-	total, _, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
+	total, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
 	if err != nil || total != 1 {
 		t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -234,7 +234,7 @@ func TestScanCloud9Memberships_RepeatedTokenStops(t *testing.T) {
 			return &cloud9.DescribeEnvironmentMembershipsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
+	_, err := scanCloud9Memberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, cloud9Envs(t, st, "env1"))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -273,7 +273,7 @@ func TestScanCloud9_MembershipsOfStoredEnvironments(t *testing.T) {
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(cloud9TopLevelHandlers(st, &calls), cloud9Denied)}
 
-	total, _, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanCloud9: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestScanCloud9_MembershipErrorPropagates(t *testing.T) {
 	h["DescribeEnvironmentMemberships"] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, cloud9Denied)}
 
-	_, _, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ConflictException") || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v; want a hard ConflictException", err)
 	}
@@ -316,7 +316,7 @@ func TestScanCloud9_EnvironmentErrorPropagates(t *testing.T) {
 	h["DescribeEnvironments"] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, cloud9Denied)}
 
-	_, _, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Errorf("err = %v; want the DescribeEnvironments ConflictException", err)
 	}
@@ -338,7 +338,7 @@ func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
-	_, _, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, errServiceNotEntitled) {
 		t.Fatalf("scanCloud9: got %v; want errServiceNotEntitled", err)
 	}
@@ -362,7 +362,9 @@ func TestScanCloud9_RealIAMDenialStillWarns(t *testing.T) {
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
-	total, inserted, err := scanCloud9(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloud9(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloud9: %v", err)
 	}

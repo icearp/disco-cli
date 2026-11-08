@@ -24,13 +24,13 @@ func sesReceiptRuleSetARN(partition, region, acct, name string) string {
 	return sesARN(partition, region, acct, "receipt-rule-set", name)
 }
 
-func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.ListReceiptFilters(ctx, &sesv1.ListReceiptFiltersInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ses:ListReceiptFilters", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ses:ListReceiptFilters", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("ses:ListReceiptFilters: %w", err)
+		return 0, fmt.Errorf("ses:ListReceiptFilters: %w", err)
 	}
 	var batch []*store.Resource
 	for _, f := range out.Filters {
@@ -47,19 +47,19 @@ func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, 
 		})
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses receipt-filters: %w", uerr)
+		return 0, fmt.Errorf("upsert ses receipt-filters: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanSESReceiptRuleSets enumerates rule sets (manual NextToken loop) and
 // fans out DescribeReceiptRuleSet per-set for embedded rules. Each rule
 // emits its own row; rule set is the parent.
-func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var setNames []string
 	var rsBatch []*store.Resource
 	var token *string
@@ -67,9 +67,9 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 		out, err := client.ListReceiptRuleSets(ctx, &sesv1.ListReceiptRuleSetsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ses:ListReceiptRuleSets", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "ses:ListReceiptRuleSets", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("ses:ListReceiptRuleSets: %w", err)
+			return 0, fmt.Errorf("ses:ListReceiptRuleSets: %w", err)
 		}
 		for _, s := range out.RuleSets {
 			name := sv(s.Name)
@@ -90,17 +90,15 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 		token = out.NextToken
 	}
 	total := 0
-	inserted := 0
 	if len(rsBatch) > 0 {
-		n, uerr := st.UpsertResources(rsBatch)
+		_, uerr := st.UpsertResources(rsBatch)
 		if uerr != nil {
-			return 0, 0, fmt.Errorf("upsert ses receipt-rule-sets: %w", uerr)
+			return 0, fmt.Errorf("upsert ses receipt-rule-sets: %w", uerr)
 		}
 		total += len(rsBatch)
-		inserted += n
 	}
 	if len(setNames) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 	var rules []*store.Resource
 	for _, sname := range setNames {
@@ -110,7 +108,7 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 			if isAccessDenied(derr) {
 				continue
 			}
-			return total, inserted, fmt.Errorf("ses:DescribeReceiptRuleSet %s: %w", sname, derr)
+			return total, fmt.Errorf("ses:DescribeReceiptRuleSet %s: %w", sname, derr)
 		}
 		for _, r := range out.Rules {
 			rname := sv(r.Name)
@@ -127,12 +125,11 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 		}
 	}
 	if len(rules) > 0 {
-		n, uerr := st.UpsertResources(rules)
+		_, uerr := st.UpsertResources(rules)
 		if uerr != nil {
-			return total, inserted, fmt.Errorf("upsert ses receipt-rules: %w", uerr)
+			return total, fmt.Errorf("upsert ses receipt-rules: %w", uerr)
 		}
 		total += len(rules)
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }

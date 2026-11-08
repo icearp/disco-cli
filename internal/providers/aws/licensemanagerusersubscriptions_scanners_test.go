@@ -236,7 +236,7 @@ func lmusHandlers(calls *lmusCalls) map[string]func(in any) (any, error) {
 
 // lmusScan runs the service scan entry point against handlers; an op without
 // a handler is denied.
-func lmusScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func lmusScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lmusDenied)
 	return scanLicenseManagerUserSubscriptions(ctx, acct, testRegion, st, testScanID)
@@ -288,7 +288,9 @@ func TestScanLMUS_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls lmusCalls
-	total, inserted, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := lmusScan(context.Background(), counted, lmusHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -391,17 +393,17 @@ func TestScanLMUS_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanLMUS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls lmusCalls
-	if _, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls)); err != nil {
+	if _, err := lmusScan(context.Background(), st, lmusHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+	total, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -423,7 +425,9 @@ func TestScanLMUS_Empty(t *testing.T) {
 		return &licensemanagerusersubscriptions.ListLicenseServerEndpointsOutput{}, nil
 	}
 	h["ListInstances"] = func(any) (any, error) { return &licensemanagerusersubscriptions.ListInstancesOutput{}, nil }
-	total, inserted, err := lmusScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := lmusScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -470,7 +474,7 @@ func TestScanLMUS_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := lmusCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+			total, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -537,7 +541,7 @@ func TestScanLMUS_OtherAccountKeptUntagged(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := lmusCalls{tagErrs: c.errs}
-			_, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+			_, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -573,7 +577,7 @@ func TestScanLMUS_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := lmusCalls{tagErrs: map[string]error{lmusTestIdpA: lmusDenied, lmusTestLSE1: lmusDenied, lmusTestPS2: lmusDenied, lmusTestIU2: lmusDenied}}
-	total, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+	total, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -608,7 +612,7 @@ func TestScanLMUS_ThrottleDemotedBesideHardError(t *testing.T) {
 			if c.throttled != "" {
 				h[c.throttled] = func(any) (any, error) { return nil, lmusThrottle }
 			}
-			_, _, err := lmusScan(context.Background(), st, h)
+			_, err := lmusScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if got := amWarnings(warns()); !slices.Equal(got, []string{c.warn}) {
@@ -634,7 +638,9 @@ func TestScanLMUS_ServiceLinkedRoleMissing(t *testing.T) {
 			calls.listed("ListIdentityProviders", in)
 			return nil, lmusNoSLR
 		}
-		total, inserted, err := lmusScan(context.Background(), st, h)
+		counted, upserts := countUpserts(st)
+		total, err := lmusScan(context.Background(), counted, h)
+		inserted := upserts()
 		if !errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want errServiceDisabled", err)
 		}
@@ -661,7 +667,7 @@ func TestScanLMUS_ServiceLinkedRoleMissing(t *testing.T) {
 			cancel()
 			return nil, lmusNoSLR
 		}
-		_, _, err := lmusScan(ctx, st, h)
+		_, err := lmusScan(ctx, st, h)
 		if !errors.Is(err, context.Canceled) || errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want context.Canceled, not errServiceDisabled", err)
 		}
@@ -679,7 +685,7 @@ func TestScanLMUS_ServiceLinkedRoleMissing(t *testing.T) {
 			}
 			return list(in)
 		}
-		total, _, err := lmusScan(context.Background(), st, h)
+		total, err := lmusScan(context.Background(), st, h)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -721,7 +727,7 @@ func TestScanLMUS_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := lmusScan(context.Background(), st, h)
+			total, err := lmusScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			want := lmusWithout(tc.lost...)
@@ -762,7 +768,7 @@ func TestScanLMUS_ListDeniedWarnsAndContinues(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := lmusScan(context.Background(), st, h); err != nil {
+			if _, err := lmusScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := lmusStored(t, st), lmusWithout(tc.lost...); !slices.Equal(got, want) {
@@ -812,7 +818,7 @@ func TestScanLMUS_PerParentListingErrors(t *testing.T) {
 				warns := rhWarnRecorder(st)
 				var calls lmusCalls
 				l.set(&calls, c.errs)
-				total, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+				total, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -854,7 +860,7 @@ func TestScanLMUS_PerParentListingErrors(t *testing.T) {
 				}
 				return list(in)
 			}
-			_, _, err := lmusScan(context.Background(), st, h)
+			_, err := lmusScan(context.Background(), st, h)
 			assertAPICode(t, err, "ValidationException")
 			if got, want := lmusStored(t, st), lmusWithout(l.rowsA[1]); !slices.Equal(got, want) {
 				t.Errorf("stored = %v; want %v", got, want)
@@ -898,7 +904,7 @@ func TestScanLMUS_FailedWriteStopsScan(t *testing.T) {
 					return out, err
 				}
 			}
-			total, _, err := lmusScan(context.Background(), st, h)
+			total, err := lmusScan(context.Background(), st, h)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -939,7 +945,7 @@ func TestScanLMUS_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := lmusScan(context.Background(), st, h); err != nil {
+	if _, err := lmusScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -994,7 +1000,7 @@ func TestScanLMUS_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := lmusScan(context.Background(), st, h)
+			total, err := lmusScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1055,7 +1061,7 @@ func TestScanLMUS_ElementWithoutIdentifier(t *testing.T) {
 		}
 		return out, err
 	}
-	if _, _, err := lmusScan(context.Background(), st, h); err != nil {
+	if _, err := lmusScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := lmusSorted(lmusTestIdpA, lmusTestIdpC, lmusTestLSE1, lmusTestPS1, lmusTestPS2, lmusTestPS3, lmusTestIU3)
@@ -1105,7 +1111,7 @@ func TestScanLMUS_InstanceListedPerIdentityProvider(t *testing.T) {
 			{InstanceUserArn: sdkaws.String(lmusTestARN("instance-user/" + input)), Username: sdkaws.String("u")},
 		}}, nil
 	}
-	if _, _, err := lmusScan(context.Background(), st, h); err != nil {
+	if _, err := lmusScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	inputs := []string{lmusTestInst1 + "/" + lmusTestDir1, lmusTestInst2 + "/" + lmusTestDir1, lmusTestInst2 + "/" + lmusTestDir2}
@@ -1159,7 +1165,7 @@ func TestScanLMUS_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, lmusDenied)
-			if _, _, err := scanLicenseManagerUserSubscriptions(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanLicenseManagerUserSubscriptions(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := calls.tagARNs.distinct(), lmusSorted(idp, lse, ps, iu); !slices.Equal(got, want) {
@@ -1194,7 +1200,7 @@ func TestScanLMUS_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := lmusScan(ctx, st, h)
+	_, err := lmusScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1225,7 +1231,7 @@ func TestScanLMUS_NXDOMAIN(t *testing.T) {
 		var calls lmusCalls
 		h := lmusHandlers(&calls)
 		h["ListLicenseServerEndpoints"] = func(any) (any, error) { return nil, nx }
-		total, _, err := lmusScan(context.Background(), st, h)
+		total, err := lmusScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := lmusTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1235,7 +1241,7 @@ func TestScanLMUS_NXDOMAIN(t *testing.T) {
 		t.Parallel()
 		st := newTestStore(t)
 		calls := lmusCalls{tagErrs: map[string]error{lmusTestIU3: nx}}
-		_, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+		_, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1244,7 +1250,7 @@ func TestScanLMUS_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanLicenseManagerUserSubscriptions(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanLicenseManagerUserSubscriptions(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

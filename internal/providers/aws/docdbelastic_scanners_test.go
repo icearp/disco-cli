@@ -141,7 +141,7 @@ func (s *debStub) debHandlers() map[string]func(any) (any, error) {
 	}
 }
 
-func debScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func debScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, debDenied)
 	return scanDocDBElastic(ctx, acct, testRegion, st, testScanID)
@@ -177,7 +177,9 @@ func TestScanDocDBElastic_StoresTagsOfEachType(t *testing.T) {
 	st := newTestStore(t)
 	stub := newDebStub()
 
-	total, inserted, err := debScan(context.Background(), st, stub.debHandlers())
+	counted, upserts := countUpserts(st)
+	total, err := debScan(context.Background(), counted, stub.debHandlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -257,16 +259,16 @@ func TestScanDocDBElastic_StoresTagsOfEachType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanDocDBElastic_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := debScan(context.Background(), st, newDebStub().debHandlers()); err != nil {
+	if _, err := debScan(context.Background(), st, newDebStub().debHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := debScan(context.Background(), st, newDebStub().debHandlers())
+	total, err := debScan(context.Background(), st, newDebStub().debHandlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -283,7 +285,9 @@ func TestScanDocDBElastic_NoResources(t *testing.T) {
 	handlers["ListClusters"] = func(any) (any, error) { return &docdbelastic.ListClustersOutput{}, nil }
 	handlers["ListClusterSnapshots"] = func(any) (any, error) { return &docdbelastic.ListClusterSnapshotsOutput{}, nil }
 
-	total, inserted, err := debScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := debScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -323,7 +327,7 @@ func TestScanDocDBElastic_TagReadFailures(t *testing.T) {
 				stub := newDebStub()
 				stub.tagErrs[arn] = c.err
 
-				total, _, err := debScan(context.Background(), st, stub.debHandlers())
+				total, err := debScan(context.Background(), st, stub.debHandlers())
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("scan: %v", err)
@@ -371,7 +375,7 @@ func TestScanDocDBElastic_TagDenialsWarnOncePerScan(t *testing.T) {
 	stub.tagErrs[debCluster2] = debDenied
 	stub.tagErrs[debSnapshot1] = debDenied
 
-	if _, _, err := debScan(context.Background(), st, stub.debHandlers()); err != nil {
+	if _, err := debScan(context.Background(), st, stub.debHandlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -389,7 +393,7 @@ func TestScanDocDBElastic_TagThrottleDemotedBesideHardError(t *testing.T) {
 	stub.tagErrs[debCluster1] = debThrottle
 	stub.tagErrs[debSnapshot2] = debValidation
 
-	_, _, err := debScan(context.Background(), st, stub.debHandlers())
+	_, err := debScan(context.Background(), st, stub.debHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -443,7 +447,7 @@ func TestScanDocDBElastic_GetFailures(t *testing.T) {
 					stub.getErrs[k.arn] = c.err
 				}
 
-				_, _, err := debScan(context.Background(), st, handlers)
+				_, err := debScan(context.Background(), st, handlers)
 				switch {
 				case c.sentinel != nil:
 					assertGlueOutcome(t, err, c.outcome)
@@ -507,7 +511,7 @@ func TestScanDocDBElastic_ListPageTwoFailureKeepsPagesAndOtherPhase(t *testing.T
 				return list(in)
 			}
 
-			total, _, err := debScan(context.Background(), st, handlers)
+			total, err := debScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != debTotal-1 {
@@ -541,7 +545,7 @@ func TestScanDocDBElastic_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := debScan(context.Background(), st, handlers)
+	total, err := debScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -576,7 +580,7 @@ func TestScanDocDBElastic_ElementWithoutARN(t *testing.T) {
 		return o, err
 	}
 
-	total, _, err := debScan(context.Background(), st, handlers)
+	total, err := debScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -605,7 +609,7 @@ func TestScanDocDBElastic_ListDenied(t *testing.T) {
 	handlers := newDebStub().debHandlers()
 	delete(handlers, "ListClusters")
 
-	total, _, err := debScan(context.Background(), st, handlers)
+	total, err := debScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -627,7 +631,7 @@ func TestScanDocDBElastic_FailedWriteStopsScan(t *testing.T) {
 	stub := newDebStub()
 	stub.tagErrs[debCluster1] = debDenied
 
-	_, _, err := debScan(context.Background(), st, stub.debHandlers())
+	_, err := debScan(context.Background(), st, stub.debHandlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -660,7 +664,7 @@ func TestScanDocDBElastic_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := debScan(ctx, st, handlers)
+	_, err := debScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -690,7 +694,7 @@ func TestScanDocDBElastic_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newDebStub().debHandlers()
 		handlers["ListClusterSnapshots"] = func(any) (any, error) { return nil, debNXDOMAIN }
-		total, _, err := debScan(context.Background(), st, handlers)
+		total, err := debScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 2 {
 			t.Errorf("total = %d; want the 2 clusters counted", total)
@@ -701,7 +705,7 @@ func TestScanDocDBElastic_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		stub := newDebStub()
 		stub.tagErrs[debSnapshot2] = debNXDOMAIN
-		_, _, err := debScan(context.Background(), st, stub.debHandlers())
+		_, err := debScan(context.Background(), st, stub.debHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -710,7 +714,7 @@ func TestScanDocDBElastic_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, debNXDOMAIN)
-		_, _, err := scanDocDBElastic(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanDocDBElastic(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -744,7 +748,7 @@ func TestScanDocDBElastic_PartitionARNsReachTagOp(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, debDenied)
 
-			if _, _, err := scanDocDBElastic(context.Background(), acct, region, st, testScanID); err != nil {
+			if _, err := scanDocDBElastic(context.Background(), acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			wantTagARNs := []string{arn, snapARN}

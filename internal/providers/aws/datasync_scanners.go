@@ -88,7 +88,7 @@ func dataSyncTags(client dataSyncAPI) rowTagReader {
 	}
 }
 
-func scanDataSync(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataSync(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := datasync.NewFromConfig(acct.cfg, func(o *datasync.Options) { o.Region = region })
 	return scanDataSyncAll(ctx, client, acct, region, st, scanID)
 }
@@ -101,7 +101,7 @@ func scanDataSync(ctx context.Context, acct *account, region string, st *store.S
 // in flight. Every op calls the one DataSync endpoint, so an NXDOMAIN after
 // rows were stored is a failure of this scan, not a region gap
 // (resultLateNXDOMAIN).
-func scanDataSyncAll(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataSyncAll(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p    phaseTotals
 		tags = dataSyncTags(client)
@@ -139,7 +139,7 @@ func dataSyncRow(acct *account, region, scanID, typ, arn, name string, item any)
 func scanDSAgents(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "datasync:ListAgents"
 	d := &detailedRows{getOp: "datasync:DescribeAgent", what: "agent(s)", tags: tags}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		func(ctx context.Context, token *string) ([]types.AgentListEntry, *string, error) {
 			out, err := client.ListAgents(ctx, &datasync.ListAgentsInput{NextToken: token, MaxResults: sdkaws.Int32(dataSyncPageCap)})
 			if err != nil {
@@ -157,7 +157,7 @@ func scanDSAgents(ctx context.Context, client dataSyncAPI, acct *account, region
 		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
 			return client.DescribeAgent(ctx, &datasync.DescribeAgentInput{AgentArn: sdkaws.String(r.NativeID)})
 		}))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // scanDSTasks stores the region's tasks, each as its DescribeTask body with
@@ -166,7 +166,7 @@ func scanDSAgents(ctx context.Context, client dataSyncAPI, acct *account, region
 func scanDSTasks(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "datasync:ListTasks"
 	d := &detailedRows{getOp: "datasync:DescribeTask", what: "task(s)", tags: tags}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		func(ctx context.Context, token *string) ([]types.TaskListEntry, *string, error) {
 			out, err := client.ListTasks(ctx, &datasync.ListTasksInput{NextToken: token, MaxResults: sdkaws.Int32(dataSyncPageCap)})
 			if err != nil {
@@ -184,7 +184,7 @@ func scanDSTasks(ctx context.Context, client dataSyncAPI, acct *account, region 
 		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
 			return client.DescribeTask(ctx, &datasync.DescribeTaskInput{TaskArn: sdkaws.String(r.NativeID)})
 		}))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // dsLocationKind is one kind of DataSync location: its type and the
@@ -308,7 +308,7 @@ func (d *dsLocationReads) before(ctx context.Context, st *store.Store, acct *acc
 // addPhase adds the listing's counts and err to p under op, and the reads'
 // errors under their ops, as detailedRows.addPhase does. It reports whether
 // the write failed, after which the scanner must stop.
-func (d *dsLocationReads) addPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+func (d *dsLocationReads) addPhase(p *phaseTotals, op string, total int, err error) (storeWriteFailed bool) {
 	for _, det := range d.details {
 		if errors.Is(err, store.ErrStoreWrite) {
 			err = errors.Join(err, det.errs.hard, det.errs.transient)
@@ -317,7 +317,7 @@ func (d *dsLocationReads) addPhase(p *phaseTotals, op string, total, inserted in
 		p.errs.add(det.op, det.errs.hard)
 		p.errs.add(det.op, det.errs.transient)
 	}
-	return d.tagErrs.addPhase(p, d.tags.op, op, total, inserted, err)
+	return d.tagErrs.addPhase(p, d.tags.op, op, total, err)
 }
 
 // scanDSLocations stores the region's locations, each typed by its URI
@@ -327,7 +327,7 @@ func (d *dsLocationReads) addPhase(p *phaseTotals, op string, total, inserted in
 func scanDSLocations(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "datasync:ListLocations"
 	d := &dsLocationReads{kinds: map[*store.Resource]dsLocationKind{}, tags: tags}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		func(ctx context.Context, token *string) ([]types.LocationListEntry, *string, error) {
 			out, err := client.ListLocations(ctx, &datasync.ListLocationsInput{NextToken: token, MaxResults: sdkaws.Int32(dataSyncPageCap)})
 			if err != nil {
@@ -349,5 +349,5 @@ func scanDSLocations(ctx context.Context, client dataSyncAPI, acct *account, reg
 			return r, "", ""
 		},
 		d.before(ctx, st, acct, region))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }

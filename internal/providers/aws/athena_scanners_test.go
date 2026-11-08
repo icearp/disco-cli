@@ -120,7 +120,7 @@ func scanAthenaTopLevel(t *testing.T, st *store.Store, handlers map[string]func(
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, athenaDenied)
-	total, _, err := scanAthena(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAthena(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -622,7 +622,7 @@ func athenaTagHandlers(c *athenaTagCalls) map[string]func(any) (any, error) {
 
 // athenaTagScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func athenaTagScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func athenaTagScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, athenaDenied)
@@ -661,7 +661,9 @@ func TestScanAthena_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newAthenaTagCalls("aws", testRegion)
 
-	total, inserted, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := athenaTagScan(context.Background(), t, counted, athenaTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -745,7 +747,7 @@ func TestScanAthena_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(athenaTagHandlers(calls), athenaDenied)
 
-	total, _, err := scanAthena(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanAthena(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 7 {
 		t.Fatalf("scan = %d, %v; want 7, nil", total, err)
 	}
@@ -788,7 +790,9 @@ func TestScanAthena_EmptyListings(t *testing.T) {
 	h["ListDataCatalogs"] = calls.answer("ListDataCatalogs", func(any) any { return &athena.ListDataCatalogsOutput{} })
 	h["ListCapacityReservations"] = calls.answer("ListCapacityReservations", func(any) any { return &athena.ListCapacityReservationsOutput{} })
 
-	total, inserted, err := athenaTagScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := athenaTagScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -798,17 +802,17 @@ func TestScanAthena_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAthena_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
-	if _, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
+	if _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+	total, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
 	if err != nil || total != 7 {
 		t.Errorf("rescan = %d, %v; want 7, nil", total, err)
 	}
@@ -841,7 +845,7 @@ func TestScanAthena_TagReadFailures(t *testing.T) {
 					calls := newAthenaTagCalls("aws", testRegion)
 					calls.errs[arn] = c.err
 
-					total, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+					total, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -888,7 +892,7 @@ func TestScanAthena_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[athenaTagARN("workgroup", "wg-t")] = athenaDenied
 	calls.errs[athenaTagARN("capacity-reservation", "cr-b")] = athenaDenied
 
-	if _, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
+	if _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 {
@@ -906,7 +910,7 @@ func TestScanAthena_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[athenaTagARN("workgroup", "wg-t")] = apiErr("TooManyRequestsException", "slow down")
 	calls.errs[athenaTagARN("datacatalog", "cat-b")] = apiErr("InvalidRequestException", "refused")
 
-	_, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+	_, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -953,7 +957,7 @@ func TestScanAthena_BodyReadFailureKeepsSummary(t *testing.T) {
 						return get(in)
 					}
 
-					total, _, err := athenaTagScan(context.Background(), t, st, h)
+					total, err := athenaTagScan(context.Background(), t, st, h)
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -1007,7 +1011,7 @@ func TestScanAthena_EmptyBodyKeepsSummary(t *testing.T) {
 				return get(in)
 			}
 
-			total, _, err := athenaTagScan(context.Background(), t, st, h)
+			total, err := athenaTagScan(context.Background(), t, st, h)
 			if err != nil || total != 7 || *warns != 0 {
 				t.Fatalf("scan = %d, %v, %d warnings; want 7, nil, 0", total, err, *warns)
 			}
@@ -1050,7 +1054,7 @@ func TestScanAthena_DeletedAfterListingDropsRow(t *testing.T) {
 				return get(in)
 			}
 
-			total, _, err := athenaTagScan(context.Background(), t, st, h)
+			total, err := athenaTagScan(context.Background(), t, st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			if _, ok := athenaTagRowOf(t, st, target.row.typ, arn); ok || total != 6 {
@@ -1107,7 +1111,7 @@ func TestScanAthena_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	h["ListWorkGroups"] = failOnCall(2, apiErr("InvalidRequestException", "page 2"), h["ListWorkGroups"])
 	h["ListDataCatalogs"] = func(any) (any, error) { return nil, athenaBadInput }
 
-	total, _, err := athenaTagScan(context.Background(), t, st, h)
+	total, err := athenaTagScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	if got := ecsErrCodes(err); !slices.Equal(got, []string{"InvalidRequestException", "ValidationException"}) {
 		t.Errorf("error codes = %v; want the workgroup page's and the catalog listing's", got)
@@ -1137,7 +1141,7 @@ func TestScanAthena_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := athenaTagScan(context.Background(), t, st, h)
+	total, err := athenaTagScan(context.Background(), t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1160,7 +1164,7 @@ func TestScanAthena_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := athenaTagHandlers(calls)
 			h[op] = func(any) (any, error) { return nil, athenaDenied }
 
-			total, _, err := athenaTagScan(context.Background(), t, st, h)
+			total, err := athenaTagScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1191,7 +1195,7 @@ func TestScanAthena_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newAthenaTagCalls("aws", testRegion)
 	calls.errs[athenaTagARN("workgroup", "wg-t")] = athenaDenied
 
-	_, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+	_, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1229,7 +1233,7 @@ func TestScanAthena_NamelessElementsWarn(t *testing.T) {
 		warns[op] = countOpWarnings(st, op)
 	}
 
-	total, _, err := athenaTagScan(context.Background(), t, st, h)
+	total, err := athenaTagScan(context.Background(), t, st, h)
 	if err != nil || total != 3 {
 		t.Fatalf("scan = %d, %v; want 3, nil", total, err)
 	}
@@ -1261,7 +1265,7 @@ func TestScanAthena_ContextEndStopsOnce(t *testing.T) {
 		return catalogs(in)
 	}
 
-	_, _, err := athenaTagScan(ctx, t, st, h)
+	_, err := athenaTagScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1293,7 +1297,7 @@ func TestScanAthena_Unreachable(t *testing.T) {
 		calls := newAthenaTagCalls("aws", testRegion)
 		h := athenaTagHandlers(calls)
 		h["ListWorkGroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := athenaTagScan(context.Background(), t, st, h)
+		total, err := athenaTagScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListDataCatalogs") != 0 || calls.count("ListCapacityReservations") != 0 {
 			t.Errorf("total, ListDataCatalogs, ListCapacityReservations calls = %d, %d, %d; want 0, 0, 0",
@@ -1304,7 +1308,7 @@ func TestScanAthena_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newAthenaTagCalls("aws", testRegion)
 		calls.errs[athenaTagARN("capacity-reservation", "cr-t")] = nx
-		total, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+		total, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 7 {
 			t.Errorf("total = %d; want 7", total)

@@ -32,7 +32,9 @@ func TestScanComputeAutoscalers_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeAutoscalers(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeAutoscalers(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeAutoscalers: %v", err)
 	}
@@ -69,7 +71,9 @@ func TestScanComputeAutoscalers_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeAutoscalers(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeAutoscalers(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeAutoscalers (denied): expected nil error, got %v", err)
 	}
@@ -86,7 +90,7 @@ func TestScanComputeAutoscalers_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeAutoscalers(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeAutoscalers(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeAutoscalers: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -125,7 +129,9 @@ func TestScanComputeReservations_NestedFanout(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeReservations(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeReservations(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeReservations: %v", err)
 	}
@@ -173,7 +179,9 @@ func TestScanComputeReservations_NoRefsSkipsFanout(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeReservations(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeReservations(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeReservations: %v", err)
 	}
@@ -200,7 +208,9 @@ func TestScanComputeFutureReservations_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeFutureReservations(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeFutureReservations(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeFutureReservations: %v", err)
 	}
@@ -231,7 +241,9 @@ func TestScanComputeRegionCommitments_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionCommitments(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionCommitments(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionCommitments: %v", err)
 	}
@@ -262,7 +274,9 @@ func TestScanComputeResourcePolicies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeResourcePolicies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeResourcePolicies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeResourcePolicies: %v", err)
 	}

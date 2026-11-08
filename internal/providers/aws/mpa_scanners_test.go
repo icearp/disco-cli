@@ -74,7 +74,7 @@ func scanMPAPolicies(t *testing.T, st *store.Store, handler func(in any) (any, e
 		t.Fatalf("seed teams: %v", err)
 	}
 	client := mpa.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListResourcePolicies": handler}, mpaDenied))
-	total, _, err := scanMPAResourcePolicies(context.Background(), client, acct, testRegion, st, testScanID, teams)
+	total, err := scanMPAResourcePolicies(context.Background(), client, acct, testRegion, st, testScanID, teams)
 	return total, err
 }
 
@@ -197,7 +197,7 @@ func TestScanMPA_StoresPoliciesOfListedTeams(t *testing.T) {
 	var policyCalls parentCalls
 	acct.cfg = opStubConfig(mpaTopLevelHandlers(&policyCalls), mpaDenied)
 
-	total, _, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanMPA: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestScanMPA_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanMPA(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanMPA(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanMPA: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -260,7 +260,7 @@ func TestScanMPA_PolicyErrorAfterExistingPhases(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, mpaDenied)
 
-			total, _, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
 			if !failed.Load() {
 				t.Fatal("ListResourcePolicies never called")
 			}
@@ -299,7 +299,7 @@ func TestScanMPA_DeniedTeamsKeepIdentitySources(t *testing.T) {
 	delete(handlers, "ListApprovalTeams")
 	acct.cfg = opStubConfig(handlers, mpaDenied)
 
-	total, _, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMPA(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || total != 1 || *warns != 1 || len(policyCalls.distinct()) != 0 {
 		t.Errorf("total = %d, err = %v, warnings = %d, policy calls = %v; want 1, nil, 1, none", total, err, *warns, policyCalls.distinct())
 	}

@@ -165,7 +165,7 @@ func scanEBTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in a
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ebDenied)
-	total, _, err := scanElasticBeanstalk(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanElasticBeanstalk(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

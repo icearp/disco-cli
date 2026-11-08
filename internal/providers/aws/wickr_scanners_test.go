@@ -215,7 +215,7 @@ func scanWickrTopLevel(t *testing.T, st *store.Store, handlers map[string]func(i
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wkDenied)
-	total, _, err := scanWickr(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanWickr(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

@@ -53,7 +53,7 @@ func TestScanKinesisAnalyticsV2_OneVersionPerScan(t *testing.T) {
 	}
 	var newC, changedC atomic.Int64
 	for _, scanID := range []string{testScanID, second} {
-		if _, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st.WithUpsertCounters(&newC, &changedC), scanID); err != nil {
+		if _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st.WithUpsertCounters(&newC, &changedC), scanID); err != nil {
 			t.Fatalf("scan %s: %v", scanID, err)
 		}
 	}
@@ -95,7 +95,9 @@ func TestScanKinesisAnalyticsV2_DeniedDetailKeepsSummary(t *testing.T) {
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
-	total, inserted, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -136,7 +138,7 @@ func TestScanKinesisAnalyticsV2_FailedDetailStillStoresEveryApplication(t *testi
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testRegion)}
 
-	total, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") {
 		t.Errorf("err = %v, want the DescribeApplication InvalidRequestException", err)
 	}
@@ -228,7 +230,7 @@ func TestScanKAV2ApplicationSnapshots_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2", "app3"))
+	total, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2", "app3"))
 	if err != nil {
 		t.Fatalf("scanKAV2ApplicationSnapshots: %v", err)
 	}
@@ -277,7 +279,7 @@ func TestScanKAV2ApplicationSnapshots_Empty(t *testing.T) {
 	client := newKAV2TestClient(map[string]func(any) (any, error){
 		"ListApplicationSnapshots": kav2SnapshotsHandler(&calls, nil, nil),
 	})
-	total, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
+	total, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -312,7 +314,7 @@ func TestScanKAV2ApplicationSnapshots_PerApplicationErrors(t *testing.T) {
 					"app3": {{kav2Snapshot("snap-3")}},
 				}, map[string]error{"app1": tc.err, "app2": tc.err}),
 			})
-			total, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2", "app3"))
+			total, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2", "app3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -344,7 +346,7 @@ func TestScanKAV2ApplicationSnapshots_OneWarningPerSkippedCode(t *testing.T) {
 			"app2": apiErr("InvalidArgumentException", "y"),
 		}),
 	})
-	_, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2"))
+	_, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1", "app2"))
 	if err != nil || *warns != 2 {
 		t.Errorf("err, warnings = %v, %d; want nil, 2", err, *warns)
 	}
@@ -360,7 +362,7 @@ func TestScanKAV2ApplicationSnapshots_SkipKeepsEarlierPages(t *testing.T) {
 			"app1": {{kav2Snapshot("snap-1")}, {kav2Snapshot("snap-2")}},
 		}, map[string]error{"app1/p2": apiErr("UnsupportedOperationException", "x")}),
 	})
-	total, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
+	total, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
 	if err != nil || total != 1 {
 		t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -383,7 +385,7 @@ func TestScanKAV2ApplicationSnapshots_RepeatedTokenStops(t *testing.T) {
 			return &kinesisanalyticsv2.ListApplicationSnapshotsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
+	_, err := scanKAV2ApplicationSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, kav2Apps(t, st, "app1"))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -431,7 +433,7 @@ func TestScanKinesisAnalyticsV2_SnapshotsOfStoredApplications(t *testing.T) {
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(kav2TopLevelHandlers(st, &calls), kav2Denied)}
 
-	total, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -464,7 +466,7 @@ func TestScanKinesisAnalyticsV2_ApplicationGoneBeforeDetailSkipped(t *testing.T)
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, kav2Denied)}
 
-	total, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || *warns != 0 {
 		t.Fatalf("err, warnings = %v, %d; want nil, 0", err, *warns)
 	}
@@ -493,7 +495,7 @@ func TestScanKinesisAnalyticsV2_ApplicationTransientDoesNotMaskSnapshotError(t *
 	h["ListApplicationSnapshots"] = func(any) (any, error) { return nil, apiErr("InvalidRequestException", "bad") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, kav2Denied)}
 
-	_, _, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanKinesisAnalyticsV2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") {
 		t.Errorf("err = %v; want the snapshot phase's InvalidRequestException", err)
 	}

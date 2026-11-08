@@ -347,8 +347,8 @@ func TestRegisterTenantService_DuplicatePanics(t *testing.T) {
 				t.Fatal("registerTenantService accepted duplicate name without panicking")
 			}
 		}()
-		noop := func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
-			return 0, 0, nil
+		noop := func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, error) {
+			return 0, nil
 		}
 		registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
 		registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
@@ -413,7 +413,7 @@ func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
 	t.Cleanup(func() { registeredTenantServices = saved })
 	registeredTenantServices = []tenantServiceEntry{{
 		name: "azure:panic-test",
-		fn: func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, int, error) {
+		fn: func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ wifConfig, _ *store.Store, _ string) (int, error) {
 			panic("boom in tenant phase")
 		},
 	}}
@@ -664,11 +664,11 @@ func TestRunSubscriptionService_ReportsQuotasApart(t *testing.T) {
 				t.Fatalf("seed quotas: %v", err)
 			}
 			got := recordReports(st)
-			svc := serviceEntry{name: "azure:test", fn: func(_ context.Context, sub *subscription, _ azcore.TokenCredential, st *store.Store, _ string) (int, int, error) {
+			svc := serviceEntry{name: "azure:test", fn: func(_ context.Context, sub *subscription, _ azcore.TokenCredential, st *store.Store, _ string) (int, error) {
 				if _, err := st.UpsertQuotas(testQuotas("azure", sub.ID, 2, "N1", "N2", "C1", "C2", "C3")); err != nil {
-					return 0, 0, err
+					return 0, err
 				}
-				return 5, 5, c.err
+				return 5, c.err
 			}}
 			runSubscriptionService(context.Background(), svc, sub, nil, st, testScanID)
 			if !slices.Equal(got.calls, c.want) {
@@ -680,8 +680,8 @@ func TestRunSubscriptionService_ReportsQuotasApart(t *testing.T) {
 		t.Parallel()
 		st := newTestStore(t)
 		got := recordReports(st)
-		svc := serviceEntry{name: "azure:test", fn: func(context.Context, *subscription, azcore.TokenCredential, *store.Store, string) (int, int, error) {
-			return 0, 0, errServiceNotRegistered
+		svc := serviceEntry{name: "azure:test", fn: func(context.Context, *subscription, azcore.TokenCredential, *store.Store, string) (int, error) {
+			return 0, errServiceNotRegistered
 		}}
 		runSubscriptionService(context.Background(), svc, sub, nil, st, testScanID)
 		want := []string{"service azure:test prod total=0 new=0 changed=0 errs=0 status=" + fmt.Sprint(store.ServiceDisabled)}

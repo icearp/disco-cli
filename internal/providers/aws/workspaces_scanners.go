@@ -64,11 +64,11 @@ const wsTagsOp = "workspaces:DescribeTags"
 // connection aliases, pools, directories, bundles, images and IP groups have
 // their tags read per row (wsTags), each such listing written a page at a
 // time, and the tag denials of the whole scan are one warning.
-func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
 	tags := wsTags(client).sharingDenials()
 	var directories, aliases []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "workspaces", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "workspaces", 0, []hostPhase{
 		{op: "workspaces:DescribeWorkspaces", run: func(p *phaseTotals) bool {
 			return scanWSWorkspaces(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -92,21 +92,21 @@ func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store
 		{op: "workspaces:DescribeIpGroups", run: func(p *phaseTotals) bool {
 			return scanWSIpGroups(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "workspaces:DescribeApplications", func() (int, int, error) {
+		countedPhase(0, "workspaces:DescribeApplications", func() (int, error) {
 			return scanWSApplications(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "workspaces:ListAccountLinks", func() (int, int, error) {
+		countedPhase(0, "workspaces:ListAccountLinks", func() (int, error) {
 			return scanWSAccountLinks(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "workspaces:DescribeConnectClientAddIns", func() (int, int, error) {
+		countedPhase(0, "workspaces:DescribeConnectClientAddIns", func() (int, error) {
 			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, directories)
 		}),
-		countedPhase(0, wsDescribeAliasPermissionsOp, func() (int, int, error) {
+		countedPhase(0, wsDescribeAliasPermissionsOp, func() (int, error) {
 			return scanWSConnectionAliasPermissions(ctx, client, acct, region, st, scanID, aliases)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // wsTags reads a row's tags with DescribeTags, which takes the resource's id,
@@ -367,16 +367,16 @@ func scanWSIpGroups(ctx context.Context, client workSpacesAPI, acct *account, re
 // scanWSApplications lists WorkSpace applications available to the account.
 // AMAZON-owned (AWS-published) applications are flagged ManagedByProvider so
 // they hide from the default resource view.
-func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := workspaces.NewDescribeApplicationsPaginator(client, &workspaces.DescribeApplicationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeApplications", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "workspaces:DescribeApplications", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeApplications: %w", err)
+			return 0, fmt.Errorf("workspaces:DescribeApplications: %w", err)
 		}
 		for _, a := range out.Applications {
 			id := sv(a.ApplicationId)
@@ -410,7 +410,7 @@ func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account
 // and keeps the links already listed. Account linking is not offered in every
 // region (AWS GovCloud has none), so a first page the endpoint does not serve
 // is a silent gap.
-func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "workspaces:ListAccountLinks"
 	pager := workspaces.NewListAccountLinksPaginator(client, &workspaces.ListAccountLinksInput{},
 		func(o *workspaces.ListAccountLinksPaginatorOptions) { o.Limit = wsPageLimit })
@@ -419,10 +419,10 @@ func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if firstPage && isOpNotDeployed(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if !isAccessDenied(err) {
-				return 0, 0, fmt.Errorf("%s: %w", op, err)
+				return 0, fmt.Errorf("%s: %w", op, err)
 			}
 			_ = skipIfAccessDenied(st, op, acct.ID, region, err)
 			break
@@ -455,7 +455,7 @@ func isWSDirectoryGone(err error) bool { return isAPIErrorCode(err, "ResourceNot
 // links each under its directory. A directory whose call still fails
 // transiently after the SDK's retries is skipped, keeping its siblings' rows,
 // and the skips are reported in one warning.
-func scanWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, directories []childParent) (int, int, error) {
+func scanWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, directories []childParent) (int, error) {
 	const op = "workspaces:DescribeConnectClientAddIns"
 	return childFanOutSkipTransient(ctx, st, acct, region, op, directories, isWSDirectoryGone, byParentID,
 		func(ctx context.Context, dir childParent) ([]*store.Resource, error) {

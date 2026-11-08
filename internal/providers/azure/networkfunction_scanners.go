@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanNetworkFunction discovers Azure Traffic Collectors.
-func scanNetworkFunction(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFunction(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnetworkfunction.NewAzureTrafficCollectorsBySubscriptionClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnetworkfunction:NewAzureTrafficCollectorsBySubscriptionClient: %w", err)
+		return 0, fmt.Errorf("armnetworkfunction:NewAzureTrafficCollectorsBySubscriptionClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armnetworkfunction:AzureTrafficCollectorsBySubscription.List", TypeNetworkFunctionTrafficCollector, sub, st, scanID,
 		client.NewListPager(nil),

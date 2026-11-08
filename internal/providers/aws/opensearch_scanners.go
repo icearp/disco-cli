@@ -65,7 +65,7 @@ const (
 // fail the same way. Once that listing has reached the endpoint, a later
 // NXDOMAIN is a plain error (lateNXDOMAIN). The errors are joined by
 // phaseErrs, so a lone or all-transient failure marks the scan partial.
-func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
 	tags := openSearchTags(client).sharingDenials()
 	var (
@@ -81,28 +81,28 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 			apps, failed = scanOpenSearchApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "opensearch:ListDataSources", func() (int, int, error) {
+		countedPhase(0, "opensearch:ListDataSources", func() (int, error) {
 			return scanOpenSearchDataSources(ctx, client, acct, region, st, scanID, domainNames)
 		}),
-		countedPhase(0, "opensearch:ListDirectQueryDataSources", func() (int, int, error) {
+		countedPhase(0, "opensearch:ListDirectQueryDataSources", func() (int, error) {
 			return scanOpenSearchDirectQueryDataSources(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "opensearch:ListDataSourceAttachments", func() (int, int, error) {
+		countedPhase(0, "opensearch:ListDataSourceAttachments", func() (int, error) {
 			return scanOpenSearchDataSourceAttachments(ctx, client, acct, region, st, scanID, apps)
 		}),
-		countedPhase(0, "opensearch:ListVpcEndpoints", func() (int, int, error) {
+		countedPhase(0, "opensearch:ListVpcEndpoints", func() (int, error) {
 			return scanOpenSearchVpcEndpoints(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "opensearch:DescribePackages", func() (int, int, error) {
+		countedPhase(0, "opensearch:DescribePackages", func() (int, error) {
 			return scanOpenSearchPackages(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "opensearch:DescribeReservedInstances", func() (int, int, error) {
+		countedPhase(0, "opensearch:DescribeReservedInstances", func() (int, error) {
 			return scanOpenSearchReservedInstances(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "opensearch:DescribeOutboundConnections", func() (int, int, error) {
+		countedPhase(0, "opensearch:DescribeOutboundConnections", func() (int, error) {
 			return scanOpenSearchOutboundConnections(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "opensearch:DescribeInboundConnections", func() (int, int, error) {
+		countedPhase(0, "opensearch:DescribeInboundConnections", func() (int, error) {
 			return scanOpenSearchInboundConnections(ctx, client, acct, region, st, scanID)
 		}),
 	}

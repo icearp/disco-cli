@@ -85,7 +85,7 @@ var errMCNoFlowBody = errors.New("DescribeFlow answered without a flow, so its e
 // and the read is returned as an error instead of dropping the row.
 var errMCVpcInterfaceNotFound = errors.New("MediaConnect did not find the VPC interface by the ARN its tags were read with, so it was stored without tags; it may have been removed during the scan: rescan, and report it if it recurs")
 
-func scanMediaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMediaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := mediaconnect.NewFromConfig(acct.cfg, func(o *mediaconnect.Options) { o.Region = region })
 	return scanMediaConnectAll(ctx, client, acct, region, st, scanID)
 }
@@ -102,36 +102,36 @@ func scanMediaConnect(ctx context.Context, acct *account, region string, st *sto
 // one warning for the whole scan. Bridges and their outputs and sources,
 // gateways, gateway instances and reservations have no tags read: the Service
 // Reference lists no way to tag them.
-func scanMediaConnectAll(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMediaConnectAll(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := mcTags(client).sharingDenials()
 	globalTags := mcGlobalTags(client).sharingDenials()
 	var (
 		bridgeArns, gatewayArns []string
 		flows                   []childParent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "mediaconnect", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "mediaconnect", 0, []hostPhase{
 		{op: mcListBridgesOp, run: func(p *phaseTotals) bool {
-			var t, i int
+			var t int
 			var err error
-			bridgeArns, t, i, err = scanMCBridges(ctx, client, acct, region, st, scanID)
-			return p.addPhase(mcListBridgesOp, t, i, err)
+			bridgeArns, t, err = scanMCBridges(ctx, client, acct, region, st, scanID)
+			return p.addPhase(mcListBridgesOp, t, err)
 		}},
 		{op: mcListFlowsOp, run: func(p *phaseTotals) bool {
 			var failed bool
 			flows, failed = scanMCFlows(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, mcDescribeBridgeOp, func() (int, int, error) {
+		countedPhase(0, mcDescribeBridgeOp, func() (int, error) {
 			return scanMCBridgeChildren(ctx, client, acct, region, st, scanID, bridgeArns)
 		}),
 		{op: mcDescribeFlowOp, run: func(p *phaseTotals) bool {
 			return scanMCFlowChildren(ctx, client, acct, region, st, scanID, flows, tags, p)
 		}},
 		{op: mcListGatewaysOp, run: func(p *phaseTotals) bool {
-			var t, i int
+			var t int
 			var err error
-			gatewayArns, t, i, err = scanMCGateways(ctx, client, acct, region, st, scanID)
-			return p.addPhase(mcListGatewaysOp, t, i, err)
+			gatewayArns, t, err = scanMCGateways(ctx, client, acct, region, st, scanID)
+			return p.addPhase(mcListGatewaysOp, t, err)
 		}},
 		{op: mcListRouterInputsOp, run: func(p *phaseTotals) bool {
 			return scanMCRouterInputs(ctx, client, acct, region, st, scanID, globalTags, p)
@@ -142,16 +142,16 @@ func scanMediaConnectAll(ctx context.Context, client mediaConnectAPI, acct *acco
 		{op: mcListRouterOutputsOp, run: func(p *phaseTotals) bool {
 			return scanMCRouterOutputs(ctx, client, acct, region, st, scanID, globalTags, p)
 		}},
-		countedPhase(0, mcListReservationsOp, func() (int, int, error) {
+		countedPhase(0, mcListReservationsOp, func() (int, error) {
 			return scanMCReservations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, mcListGatewayInstancesOp, func() (int, int, error) {
+		countedPhase(0, mcListGatewayInstancesOp, func() (int, error) {
 			return scanMCGatewayInstances(ctx, client, acct, region, st, scanID, gatewayArns)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
 	globalTags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // mcTags reads a row's tags with ListTagsForResource, sent the row's
@@ -208,7 +208,7 @@ func mcGlobalTags(client mediaConnectAPI) rowTagReader {
 	}
 }
 
-func scanMCBridges(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMCBridges(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := mediaconnect.NewListBridgesPaginator(client, &mediaconnect.ListBridgesInput{})
 	var arns []string
 	var batch []*store.Resource
@@ -217,9 +217,9 @@ func scanMCBridges(ctx context.Context, client mediaConnectAPI, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "mediaconnect:ListBridges", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("mediaconnect:ListBridges: %w", perr)
+			return nil, 0, fmt.Errorf("mediaconnect:ListBridges: %w", perr)
 		}
 		for _, b := range out.Bridges {
 			arn := sv(b.BridgeArn)
@@ -238,16 +238,16 @@ func scanMCBridges(ctx context.Context, client mediaConnectAPI, acct *account, r
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "mediaconnect bridges")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "mediaconnect bridges")
+	return arns, t, err
 }
 
 // scanMCBridgeChildren — DescribeBridge per bridge, embedded Outputs +
 // Sources arrays each emit own row. Output/Source variants are
 // tagged-union (Flow / Network); resolve name from non-nil branch.
-func scanMCBridgeChildren(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string, bridgeArns []string) (int, int, error) {
+func scanMCBridgeChildren(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string, bridgeArns []string) (int, error) {
 	if len(bridgeArns) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, ba := range bridgeArns {
@@ -257,7 +257,7 @@ func scanMCBridgeChildren(ctx context.Context, client mediaConnectAPI, acct *acc
 			if isAccessDenied(err) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("mediaconnect:DescribeBridge %s: %w", ba, err)
+			return 0, fmt.Errorf("mediaconnect:DescribeBridge %s: %w", ba, err)
 		}
 		if out.Bridge == nil {
 			continue
@@ -442,7 +442,7 @@ func scanMCFlowChildren(ctx context.Context, client mediaConnectAPI, acct *accou
 	return failed
 }
 
-func scanMCGateways(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMCGateways(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := mediaconnect.NewListGatewaysPaginator(client, &mediaconnect.ListGatewaysInput{})
 	var arns []string
 	var batch []*store.Resource
@@ -451,9 +451,9 @@ func scanMCGateways(ctx context.Context, client mediaConnectAPI, acct *account, 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "mediaconnect:ListGateways", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("mediaconnect:ListGateways: %w", perr)
+			return nil, 0, fmt.Errorf("mediaconnect:ListGateways: %w", perr)
 		}
 		for _, g := range out.Gateways {
 			arn := sv(g.GatewayArn)
@@ -472,15 +472,15 @@ func scanMCGateways(ctx context.Context, client mediaConnectAPI, acct *account, 
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "mediaconnect gateways")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "mediaconnect gateways")
+	return arns, t, err
 }
 
 // scanMCGatewayInstances lists every gateway instance in the region with one
 // unfiltered call (FilterArn is optional) instead of one call per gateway. The
 // contains edge is recorded only for gateways stored by this scan, so a denied
 // ListGateways does not raise a missing-parent warning per instance.
-func scanMCGatewayInstances(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string, gatewayArns []string) (int, int, error) {
+func scanMCGatewayInstances(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string, gatewayArns []string) (int, error) {
 	listed := make(map[string]bool, len(gatewayArns))
 	for _, a := range gatewayArns {
 		listed[a] = true
@@ -495,7 +495,7 @@ func scanMCGatewayInstances(ctx context.Context, client mediaConnectAPI, acct *a
 				_ = skipIfAccessDenied(st, "mediaconnect:ListGatewayInstances", acct.ID, region, perr)
 				break
 			}
-			return 0, 0, fmt.Errorf("mediaconnect:ListGatewayInstances: %w", perr)
+			return 0, fmt.Errorf("mediaconnect:ListGatewayInstances: %w", perr)
 		}
 		for _, gi := range out.Instances {
 			arn := sv(gi.GatewayInstanceArn)
@@ -517,14 +517,14 @@ func scanMCGatewayInstances(ctx context.Context, client mediaConnectAPI, acct *a
 			}
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "mediaconnect gateway-instances")
+	t, err := upsertBatch(st, batch, "mediaconnect gateway-instances")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("record gateway→gateway-instance hierarchy: %w", err)
+		return 0, fmt.Errorf("record gateway→gateway-instance hierarchy: %w", err)
 	}
-	return t, i, nil
+	return t, nil
 }
 
 // scanMCRouterInputs stores the router inputs, each page written as soon as
@@ -573,7 +573,7 @@ func scanMCRouterNetworkInterfaces(ctx context.Context, client mediaConnectAPI, 
 		tags, p)
 }
 
-func scanMCReservations(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMCReservations(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := mediaconnect.NewListReservationsPaginator(client, &mediaconnect.ListReservationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -581,9 +581,9 @@ func scanMCReservations(ctx context.Context, client mediaConnectAPI, acct *accou
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "mediaconnect:ListReservations", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("mediaconnect:ListReservations: %w", perr)
+			return 0, fmt.Errorf("mediaconnect:ListReservations: %w", perr)
 		}
 		for _, r := range out.Reservations {
 			arn := sv(r.ReservationArn)

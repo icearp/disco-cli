@@ -19,7 +19,7 @@ func init() {
 
 // scanIoTDeviceAdvisor discovers IoT Core Device Advisor suite definitions.
 // Synth ARN: arn:{p}:iotdeviceadvisor:{r}:{a}:suitedefinition/{id}.
-func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := iotdeviceadvisor.NewFromConfig(acct.cfg, func(o *iotdeviceadvisor.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -28,9 +28,9 @@ func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st 
 		out, err := client.ListSuiteDefinitions(ctx, &iotdeviceadvisor.ListSuiteDefinitionsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "iotdeviceadvisor:ListSuiteDefinitions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "iotdeviceadvisor:ListSuiteDefinitions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("iotdeviceadvisor:ListSuiteDefinitions: %w", err)
+			return 0, fmt.Errorf("iotdeviceadvisor:ListSuiteDefinitions: %w", err)
 		}
 		for _, s := range out.SuiteDefinitionInformationList {
 			id := sv(s.SuiteDefinitionId)

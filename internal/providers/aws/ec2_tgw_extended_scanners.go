@@ -56,10 +56,10 @@ func tgwPrefixListReferenceNativeID(routeTableARN, prefixListID string) string {
 // scanEC2TGWPolicyTableEntries stores, under each policy table this scan
 // stored in region, the entries the table returns. Deleted entries are
 // dropped.
-func scanEC2TGWPolicyTableEntries(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2TGWPolicyTableEntries(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tables, err := ec2StoredParents(st, acct, region, scanID, TypeEC2TransitGatewayPolicyTable, "transit-gateway-policy-table", ec2TGWParentDeleted)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return scanEC2Children(ctx, st, acct, region, ec2TGWPolicyTableEntriesOp, tables, "policy table(s)", tgwPolicyTableSkipCodes,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -106,10 +106,10 @@ func listTGWPolicyTableEntries(ctx context.Context, client ec2API, acct *account
 // table this scan stored in region, the prefix list references the table
 // returns. The model has no deleted state for a reference, so none is
 // dropped.
-func scanEC2TGWPrefixListReferences(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2TGWPrefixListReferences(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tables, err := ec2StoredParents(st, acct, region, scanID, TypeEC2TransitGatewayRouteTable, "transit-gateway-route-table", ec2TGWParentDeleted)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return scanEC2Children(ctx, st, acct, region, ec2TGWPrefixListReferencesOp, tables, "route table(s)", tgwRouteTableSkipCodes,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {

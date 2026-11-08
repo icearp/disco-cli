@@ -72,7 +72,7 @@ type qappsAPI interface {
 // failure costs the others nothing; the counts are summed and the errors
 // joined. Each phase skips a transient instance itself, so no joined error is
 // transient.
-func scanQApps(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQApps(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	qbClient := qbusiness.NewFromConfig(acct.cfg, func(o *qbusiness.Options) { o.Region = region })
 	pager := qbusiness.NewListApplicationsPaginator(qbClient, &qbusiness.ListApplicationsInput{})
 	var instanceIDs []string
@@ -80,9 +80,9 @@ func scanQApps(ctx context.Context, acct *account, region string, st *store.Stor
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "qapps:ListApplications", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "qapps:ListApplications", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("qapps:ListApplications: %w", perr)
+			return 0, fmt.Errorf("qapps:ListApplications: %w", perr)
 		}
 		for _, a := range out.Applications {
 			if id := sv(a.ApplicationId); id != "" {
@@ -93,10 +93,10 @@ func scanQApps(ctx context.Context, acct *account, region string, st *store.Stor
 
 	client := qapps.NewFromConfig(acct.cfg, func(o *qapps.Options) { o.Region = region })
 	instances := qappsInstances(acct.partition(), region, acct.ID, instanceIDs)
-	qt, qi, qerr := scanQAppsQApps(ctx, client, acct, region, st, scanID, instances)
-	ct, ci, cerr := scanQAppsCategories(ctx, client, acct, region, st, scanID, instances)
-	lt, li, lerr := scanQAppsLibraryItems(ctx, client, acct, region, st, scanID, instances)
-	return qt + ct + lt, qi + ci + li, errors.Join(qerr, cerr, lerr)
+	qt, qerr := scanQAppsQApps(ctx, client, acct, region, st, scanID, instances)
+	ct, cerr := scanQAppsCategories(ctx, client, acct, region, st, scanID, instances)
+	lt, lerr := scanQAppsLibraryItems(ctx, client, acct, region, st, scanID, instances)
+	return qt + ct + lt, errors.Join(qerr, cerr, lerr)
 }
 
 // scanQAppsInstances runs storeChildren for each instance with the shared
@@ -106,23 +106,23 @@ func scanQApps(ctx context.Context, acct *account, region string, st *store.Stor
 // with one warning per code, and anything else fails the phase. Rows an
 // instance stored before its error stay and are counted.
 func scanQAppsInstances(ctx context.Context, acct *account, region string, st *store.Store, op string, instances []childParent,
-	storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	return childFanOutStoredSkipCodes(ctx, st, acct, region, op, instances, isQAppsInstanceGone, byParentID,
 		qappsInstanceSkipWhat, qappsInstanceSkipCodes, storeChildren)
 }
 
 // scanQAppsQApps stores the Q Apps ListQApps returns for each instance, a
 // page at a time.
-func scanQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, int, error) {
+func scanQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, error) {
 	return scanQAppsInstances(ctx, acct, region, st, qappsListQAppsOp, instances,
-		func(ctx context.Context, inst childParent) (int, int, error) {
+		func(ctx context.Context, inst childParent) (int, error) {
 			return storeQAppsQApps(ctx, client, acct, region, st, scanID, inst)
 		})
 }
 
 // storeQAppsQApps stores one instance's Q Apps a page at a time.
-func storeQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (total, inserted int, err error) {
+func storeQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (total int, err error) {
 	pager := qapps.NewListQAppsPaginator(client,
 		&qapps.ListQAppsInput{InstanceId: &inst.id},
 		func(o *qapps.ListQAppsPaginatorOptions) {
@@ -132,7 +132,7 @@ func storeQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var batch []*store.Resource
 		for _, a := range out.Apps {
@@ -150,14 +150,13 @@ func storeQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
-		t, i, err := upsertBatch(st, batch, qappsListQAppsOp)
+		t, err := upsertBatch(st, batch, qappsListQAppsOp)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // qappsInstanceARN is the prefix the Service Reference's qapp ARN format
@@ -200,19 +199,19 @@ func isQAppsInstanceGone(err error) bool {
 //
 // AppCount, the number of published apps filed under a category, is kept:
 // it changes only when the library does.
-func scanQAppsCategories(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, int, error) {
+func scanQAppsCategories(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, error) {
 	return scanQAppsInstances(ctx, acct, region, st, qappsListCategoriesOp, instances,
-		func(ctx context.Context, inst childParent) (int, int, error) {
+		func(ctx context.Context, inst childParent) (int, error) {
 			return storeQAppsCategories(ctx, client, acct, region, st, scanID, inst)
 		})
 }
 
 // storeQAppsCategories stores one instance's categories; ListCategories is
 // not paginated.
-func storeQAppsCategories(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (int, int, error) {
+func storeQAppsCategories(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (int, error) {
 	out, err := client.ListCategories(ctx, &qapps.ListCategoriesInput{InstanceId: &inst.id})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	var batch []*store.Resource
 	for _, c := range out.Categories {
@@ -233,15 +232,15 @@ func storeQAppsCategories(ctx context.Context, client qappsAPI, acct *account, r
 // published to its library), a page at a time, with scanQAppsInstances'
 // error handling. RatingCount and UserCount are kept: they change on real
 // activity.
-func scanQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, int, error) {
+func scanQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, error) {
 	return scanQAppsInstances(ctx, acct, region, st, qappsListLibraryItemsOp, instances,
-		func(ctx context.Context, inst childParent) (int, int, error) {
+		func(ctx context.Context, inst childParent) (int, error) {
 			return storeQAppsLibraryItems(ctx, client, acct, region, st, scanID, inst)
 		})
 }
 
 // storeQAppsLibraryItems stores one instance's library items a page at a time.
-func storeQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (total, inserted int, err error) {
+func storeQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account, region string, st *store.Store, scanID string, inst childParent) (total int, err error) {
 	pager := qapps.NewListLibraryItemsPaginator(client,
 		&qapps.ListLibraryItemsInput{InstanceId: &inst.id},
 		func(o *qapps.ListLibraryItemsPaginatorOptions) {
@@ -251,7 +250,7 @@ func storeQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account,
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var batch []*store.Resource
 		for _, li := range out.LibraryItems {
@@ -270,12 +269,11 @@ func storeQAppsLibraryItems(ctx context.Context, client qappsAPI, acct *account,
 				AttributesJSON: mustJSON(li), DiscoveredBy: scanID,
 			})
 		}
-		t, i, err := upsertBatch(st, batch, qappsListLibraryItemsOp)
+		t, err := upsertBatch(st, batch, qappsListLibraryItemsOp)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }

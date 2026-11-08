@@ -95,7 +95,7 @@ func runTransferAccesses(t *testing.T, st *store.Store, handlers map[string]func
 	t.Helper()
 	seedTransferServers(t, st, servers)
 	client := transfer.NewFromConfig(opStubConfig(handlers, transferDenied))
-	total, _, err := scanTransferAccesses(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
+	total, err := scanTransferAccesses(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, servers)
 	return total, err
 }
 

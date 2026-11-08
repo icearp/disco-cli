@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanPlaywrightTesting discovers Azure Playwright Testing (workspaces) accounts.
-func scanPlaywrightTesting(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPlaywrightTesting(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armplaywrighttesting.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armplaywrighttesting:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armplaywrighttesting:NewAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armplaywrighttesting:Accounts.ListBySubscription", TypePlaywrightAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

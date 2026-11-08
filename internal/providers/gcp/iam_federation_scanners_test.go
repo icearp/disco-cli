@@ -53,7 +53,9 @@ func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeIAMService(t, srv)
 
-	total, inserted, poolIDs, err := scanIAMWorkforcePools(t.Context(), svc, sc, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, poolIDs, err := scanIAMWorkforcePools(t.Context(), svc, sc, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkforcePools: %v", err)
 	}
@@ -61,7 +63,9 @@ func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 		t.Fatalf("pools: got total=%d inserted=%d poolIDs=%v, want 1/1/[%s]", total, inserted, poolIDs, poolName)
 	}
 
-	total, inserted, providerIDs, err := scanIAMWorkforceProviders(t.Context(), svc, sc, poolIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, providerIDs, err := scanIAMWorkforceProviders(t.Context(), svc, sc, poolIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkforceProviders: %v", err)
 	}
@@ -69,7 +73,9 @@ func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 		t.Fatalf("providers: got total=%d inserted=%d providerIDs=%v, want 1/1/[%s]", total, inserted, providerIDs, providerName)
 	}
 
-	total, inserted, err = scanIAMWorkforceScimTenants(t.Context(), svc, sc, providerIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMWorkforceScimTenants(t.Context(), svc, sc, providerIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkforceScimTenants: %v", err)
 	}
@@ -77,7 +83,9 @@ func TestScanIAMWorkforceTree_FullFanout(t *testing.T) {
 		t.Fatalf("scim tenants: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanIAMOrgRoles(t.Context(), svc, sc, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMOrgRoles(t.Context(), svc, sc, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMOrgRoles: %v", err)
 	}
@@ -134,7 +142,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeIAMService(t, srv)
 
-	total, inserted, poolIDs, err := scanIAMWorkloadIdentityPools(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, poolIDs, err := scanIAMWorkloadIdentityPools(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkloadIdentityPools: %v", err)
 	}
@@ -142,7 +152,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("pools: got total=%d inserted=%d poolIDs=%v, want 1/1/[%s]", total, inserted, poolIDs, poolName)
 	}
 
-	total, inserted, err = scanIAMWorkloadIdentityProviders(t.Context(), svc, p, poolIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMWorkloadIdentityProviders(t.Context(), svc, p, poolIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkloadIdentityProviders: %v", err)
 	}
@@ -150,7 +162,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("providers: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, nsIDs, err := scanIAMWorkloadIdentityNamespaces(t.Context(), svc, p, poolIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, nsIDs, err := scanIAMWorkloadIdentityNamespaces(t.Context(), svc, p, poolIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkloadIdentityNamespaces: %v", err)
 	}
@@ -158,7 +172,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("namespaces: got total=%d inserted=%d nsIDs=%v, want 1/1/[%s]", total, inserted, nsIDs, nsName)
 	}
 
-	total, inserted, err = scanIAMWorkloadIdentityManagedIdentities(t.Context(), svc, p, nsIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMWorkloadIdentityManagedIdentities(t.Context(), svc, p, nsIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkloadIdentityManagedIdentities: %v", err)
 	}
@@ -166,7 +182,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("managed identities: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, clientIDs, err := scanIAMOauthClients(t.Context(), svc, p, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, clientIDs, err := scanIAMOauthClients(t.Context(), svc, p, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMOauthClients: %v", err)
 	}
@@ -174,7 +192,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("oauth clients: got total=%d inserted=%d clientIDs=%v, want 1/1/[%s]", total, inserted, clientIDs, oauthClientName)
 	}
 
-	total, inserted, err = scanIAMOauthClientCredentials(t.Context(), svc, p, clientIDs, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMOauthClientCredentials(t.Context(), svc, p, clientIDs, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMOauthClientCredentials: %v", err)
 	}
@@ -182,7 +202,9 @@ func TestScanIAMWorkloadTree_FullFanout(t *testing.T) {
 		t.Fatalf("oauth client credentials: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanIAMProjectRoles(t.Context(), svc, p, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanIAMProjectRoles(t.Context(), svc, p, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanIAMProjectRoles: %v", err)
 	}
@@ -244,7 +266,9 @@ func TestScanIAMWorkforceProviders_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeIAMService(t, srv)
 
-	total, inserted, providerIDs, err := scanIAMWorkforceProviders(t.Context(), svc, sc, []string{pool1, pool2}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, providerIDs, err := scanIAMWorkforceProviders(t.Context(), svc, sc, []string{pool1, pool2}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkforceProviders: %v", err)
 	}
@@ -265,7 +289,9 @@ func TestScanIAMWorkforcePools_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeIAMService(t, srv)
 
-	total, inserted, poolIDs, err := scanIAMWorkforcePools(t.Context(), svc, sc, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, poolIDs, err := scanIAMWorkforcePools(t.Context(), svc, sc, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanIAMWorkforcePools (denied): expected nil error, got %v", err)
 	}

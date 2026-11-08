@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanSearch discovers Azure AI Search services.
-func scanSearch(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSearch(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armsearch.NewServicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsearch:NewServicesClient: %w", err)
+		return 0, fmt.Errorf("armsearch:NewServicesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armsearch:Services.ListBySubscription", TypeSearchService, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil, nil),

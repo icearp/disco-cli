@@ -75,7 +75,7 @@ const drsPageMax = 1000
 // drsPhase is one phase of scanDRS and the op it is warned under.
 type drsPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
 // scanDRS discovers DRS source servers with their replication configurations,
@@ -88,50 +88,50 @@ type drsPhase struct {
 // failed store write does, since every later write would fail too. A child
 // phase reads the parents its parent phase stored, so a failed parent phase
 // leaves it fewer parents.
-func scanDRS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDRS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := drs.NewFromConfig(acct.cfg, func(o *drs.Options) { o.Region = region })
 	var servers, templates, plans []childParent
 	phases := []drsPhase{
-		{drsSourceServersOp, func() (t, i int, err error) {
-			t, i, servers, err = scanDRSSourceServers(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{drsSourceServersOp, func() (t int, err error) {
+			t, servers, err = scanDRSSourceServers(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{drsRecoveryInstancesOp, func() (int, int, error) {
+		{drsRecoveryInstancesOp, func() (int, error) {
 			return scanDRSRecoveryInstances(ctx, client, acct, region, st, scanID)
 		}},
-		{drsSourceNetworksOp, func() (int, int, error) { return scanDRSSourceNetworks(ctx, client, acct, region, st, scanID) }},
-		{drsReplicationTemplatesOp, func() (int, int, error) {
+		{drsSourceNetworksOp, func() (int, error) { return scanDRSSourceNetworks(ctx, client, acct, region, st, scanID) }},
+		{drsReplicationTemplatesOp, func() (int, error) {
 			return scanDRSReplicationTemplates(ctx, client, acct, region, st, scanID)
 		}},
-		{drsLaunchTemplatesOp, func() (t, i int, err error) {
-			t, i, templates, err = scanDRSLaunchTemplates(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{drsLaunchTemplatesOp, func() (t int, err error) {
+			t, templates, err = scanDRSLaunchTemplates(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{drsLaunchActionsOp, func() (int, int, error) {
+		{drsLaunchActionsOp, func() (int, error) {
 			return scanDRSLaunchActions(ctx, client, acct, region, st, scanID, slices.Concat(templates, servers))
 		}},
-		{drsRecoveryPlansOp, func() (t, i int, err error) {
-			t, i, plans, err = scanDRSRecoveryPlans(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{drsRecoveryPlansOp, func() (t int, err error) {
+			t, plans, err = scanDRSRecoveryPlans(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{drsRecoveryPlanStepsOp, func() (int, int, error) {
+		{drsRecoveryPlanStepsOp, func() (int, error) {
 			return scanDRSRecoveryPlanSteps(ctx, client, acct, region, st, scanID, plans)
 		}},
-		{drsReplicationConfigOp, func() (int, int, error) {
+		{drsReplicationConfigOp, func() (int, error) {
 			return scanDRSReplicationConfigurations(ctx, client, acct, region, st, scanID, servers)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
+		t, err := ph.run()
 		// Every DRS op models UninitializedAccountException, which an account
 		// never onboarded to DRS returns. It reads as the service disabled
 		// only while no phase has stored a row or failed otherwise, so no
 		// count or error is discarded.
 		if isAccountNotInitialized(err) && p.total+t == 0 && len(p.errs) == 0 {
-			return 0, 0, markServiceDisabled(err)
+			return 0, markServiceDisabled(err)
 		}
-		if p.addPhase(ph.op, t, i, err) {
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -154,7 +154,7 @@ func drsRow(acct *account, region, scanID, rtype, what string, arn, id *string, 
 
 // scanDRSSourceServers also returns the stored servers for the launch-action
 // and replication-configuration phases.
-func scanDRSSourceServers(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanDRSSourceServers(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, drsSourceServersOp, "source servers", "SourceServerID",
 		func(ctx context.Context, token *string) ([]drstypes.SourceServer, *string, error) {
 			out, err := client.DescribeSourceServers(ctx, &drs.DescribeSourceServersInput{NextToken: token})
@@ -169,7 +169,7 @@ func scanDRSSourceServers(ctx context.Context, client drsAPI, acct *account, reg
 		func(s drstypes.SourceServer) string { return sv(s.SourceServerID) })
 }
 
-func scanDRSRecoveryInstances(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDRSRecoveryInstances(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, drsRecoveryInstancesOp,
 		func(ctx context.Context, token *string) ([]drstypes.RecoveryInstance, *string, error) {
 			out, err := client.DescribeRecoveryInstances(ctx, &drs.DescribeRecoveryInstancesInput{NextToken: token})
@@ -187,7 +187,7 @@ func scanDRSRecoveryInstances(ctx context.Context, client drsAPI, acct *account,
 		})
 }
 
-func scanDRSSourceNetworks(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDRSSourceNetworks(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, drsSourceNetworksOp,
 		func(ctx context.Context, token *string) ([]drstypes.SourceNetwork, *string, error) {
 			out, err := client.DescribeSourceNetworks(ctx, &drs.DescribeSourceNetworksInput{NextToken: token})
@@ -204,7 +204,7 @@ func scanDRSSourceNetworks(ctx context.Context, client drsAPI, acct *account, re
 // scanDRSReplicationTemplates stores each template's own Tags; its
 // StagingAreaTags, the tags DRS puts on the staging resources it creates,
 // stay in the attributes.
-func scanDRSReplicationTemplates(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDRSReplicationTemplates(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, drsReplicationTemplatesOp,
 		func(ctx context.Context, token *string) ([]drstypes.ReplicationConfigurationTemplate, *string, error) {
 			out, err := client.DescribeReplicationConfigurationTemplates(ctx, &drs.DescribeReplicationConfigurationTemplatesInput{NextToken: token})
@@ -221,7 +221,7 @@ func scanDRSReplicationTemplates(ctx context.Context, client drsAPI, acct *accou
 
 // scanDRSLaunchTemplates also returns the stored templates for the
 // launch-action phase.
-func scanDRSLaunchTemplates(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanDRSLaunchTemplates(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, drsLaunchTemplatesOp, "launch configuration templates", "LaunchConfigurationTemplateID",
 		func(ctx context.Context, token *string) ([]drstypes.LaunchConfigurationTemplate, *string, error) {
 			out, err := client.DescribeLaunchConfigurationTemplates(ctx, &drs.DescribeLaunchConfigurationTemplatesInput{
@@ -247,14 +247,14 @@ func storeDRSChildren[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	page func(ctx context.Context, parentID string, token *string) ([]Item, *string, error),
 	row func(parent childParent, it Item) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	byID := make(map[string]childParent, len(parents))
 	ids := make([]string, len(parents))
 	for i, p := range parents {
 		byID[p.id], ids[i] = p, p.id
 	}
 	var pairs [][2]string
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, op, []string{"ResourceNotFoundException"}, ids, page,
+	total, err := storeTokenEachParent(ctx, st, acct, region, op, []string{"ResourceNotFoundException"}, ids, page,
 		func(id string, it Item) (*store.Resource, string, string) {
 			p := byID[id]
 			r, why, key := row(p, it)
@@ -264,12 +264,12 @@ func storeDRSChildren[Item any](
 			return r, why, key
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return total, inserted, errors.Join(err, fmt.Errorf("closure %s: %w", op, herr))
+		return total, errors.Join(err, fmt.Errorf("closure %s: %w", op, herr))
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // scanDRSLaunchActions lists the launch actions of each launch configuration
@@ -277,7 +277,7 @@ func storeDRSChildren[Item any](
 // carry no ARN and the Service Reference defines no action resource, so the
 // NativeID is {parentARN}/launch-action/{actionId}: the same action id under
 // two parents stays two rows.
-func scanDRSLaunchActions(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, int, error) {
+func scanDRSLaunchActions(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent) (int, error) {
 	return storeDRSChildren(ctx, st, acct, region, drsLaunchActionsOp, parents,
 		func(ctx context.Context, id string, token *string) ([]drstypes.LaunchAction, *string, error) {
 			out, err := client.ListLaunchActions(ctx, &drs.ListLaunchActionsInput{ResourceId: &id, NextToken: token, MaxResults: sdkaws.Int32(drsPageMax)})
@@ -301,7 +301,7 @@ func scanDRSLaunchActions(ctx context.Context, client drsAPI, acct *account, reg
 
 // scanDRSRecoveryPlanSteps lists the steps of each recovery plan the plan
 // phase stored.
-func scanDRSRecoveryPlanSteps(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, int, error) {
+func scanDRSRecoveryPlanSteps(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, error) {
 	return storeDRSChildren(ctx, st, acct, region, drsRecoveryPlanStepsOp, plans,
 		func(ctx context.Context, arn string, token *string) ([]drstypes.RecoveryPlanStep, *string, error) {
 			out, err := client.ListRecoveryPlanSteps(ctx, &drs.ListRecoveryPlanStepsInput{RecoveryPlanArn: &arn, NextToken: token, MaxResults: sdkaws.Int32(drsPageMax)})
@@ -329,7 +329,7 @@ func scanDRSRecoveryPlanSteps(ctx context.Context, client drsAPI, acct *account,
 // {serverARN}/replication-configuration. There is no listed row to keep for a
 // server whose read fails, so a transient failure is returned, after the other
 // servers' rows are stored, and the scan reads as partial.
-func scanDRSReplicationConfigurations(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, int, error) {
+func scanDRSReplicationConfigurations(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, error) {
 	return storeDRSChildren(ctx, st, acct, region, drsReplicationConfigOp, servers,
 		func(ctx context.Context, id string, _ *string) ([]*drs.GetReplicationConfigurationOutput, *string, error) {
 			out, err := client.GetReplicationConfiguration(ctx, &drs.GetReplicationConfigurationInput{SourceServerID: &id})
@@ -373,7 +373,7 @@ type drsPlanRead struct {
 // ended (reads in flight then fail with their own errors). A failed list page keeps the plans read before it: a denial
 // is warned about, any other error returned. It also returns the stored plans
 // for the step phase.
-func scanDRSRecoveryPlans(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanDRSRecoveryPlans(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	summaries, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]drstypes.RecoveryPlanSummary, *string, error) {
 		out, err := client.ListRecoveryPlans(ctx, &drs.ListRecoveryPlansInput{NextToken: token, MaxResults: sdkaws.Int32(drsPageMax)})
 		if err != nil {
@@ -435,16 +435,16 @@ func scanDRSRecoveryPlans(ctx context.Context, client drsAPI, acct *account, reg
 	if t := &transient.skipTally; t.count > 0 {
 		errs = append(errs, fmt.Errorf("%s: "+drsPlanKept, drsGetRecoveryPlanOp, t.count, t.first, t.err))
 	}
-	total, inserted, err := storeReadRows(st, acct, region, drsRecoveryPlansOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, drsRecoveryPlansOp, rows, listErr, func() {
 		skips.warn(st, drsRecoveryPlansOp, acct, region)
 		if denied.count > 0 {
 			_ = skipIfAccessDenied(st, drsGetRecoveryPlanOp, acct.ID, region, fmt.Errorf(drsPlanKept, denied.count, denied.first, denied.err))
 		}
 	}, errs...)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, plans, err
+	return total, plans, err
 }
 
 // drsRecoveryPlanStepAttrs shadows the step's Configuration union, which

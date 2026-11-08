@@ -37,7 +37,7 @@ func isInterconnectClosedToAccount(err error) bool {
 }
 
 // scanInterconnect discovers Interconnect connections.
-func scanInterconnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInterconnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := interconnect.NewFromConfig(acct.cfg, func(o *interconnect.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -46,12 +46,12 @@ func scanInterconnect(ctx context.Context, acct *account, region string, st *sto
 		out, err := client.ListConnections(ctx, &interconnect.ListConnectionsInput{NextToken: nextToken})
 		if err != nil {
 			if isInterconnectClosedToAccount(err) {
-				return 0, 0, markServiceNotEntitled(err)
+				return 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "interconnect:ListConnections", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "interconnect:ListConnections", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("interconnect:ListConnections: %w", err)
+			return 0, fmt.Errorf("interconnect:ListConnections: %w", err)
 		}
 		for _, c := range out.Connections {
 			arn := sv(c.Arn)
@@ -71,32 +71,32 @@ func scanInterconnect(ctx context.Context, acct *account, region string, st *sto
 		}
 		nextToken = out.NextToken
 	}
-	ct, ci, cerr := upsertBatch(st, batch, "interconnect connections")
+	ct, cerr := upsertBatch(st, batch, "interconnect connections")
 	if cerr != nil {
-		return ct, ci, cerr
+		return ct, cerr
 	}
 
-	et, ei, eerr := scanInterconnectEnvironments(ctx, client, acct, region, st, scanID)
-	return ct + et, ci + ei, eerr
+	et, eerr := scanInterconnectEnvironments(ctx, client, acct, region, st, scanID)
+	return ct + et, eerr
 }
 
 // scanInterconnectEnvironments enumerates the connection environments available
 // to the account. The Environment shape carries no AWS-issued ARN, so the
 // NativeID is synthesized from EnvironmentId.
-func scanInterconnectEnvironments(ctx context.Context, client *interconnect.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInterconnectEnvironments(ctx context.Context, client *interconnect.Client, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := interconnect.NewListEnvironmentsPaginator(client, &interconnect.ListEnvironmentsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isInterconnectClosedToAccount(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "interconnect:ListEnvironments", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("interconnect:ListEnvironments: %w", perr)
+			return 0, fmt.Errorf("interconnect:ListEnvironments: %w", perr)
 		}
 		for _, e := range out.Environments {
 			id := sv(e.EnvironmentId)

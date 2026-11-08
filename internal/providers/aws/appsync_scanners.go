@@ -76,10 +76,10 @@ var appsyncNotFound = []string{"NotFoundException"}
 // appsyncPhase is one phase of scanAppSync and the op it is warned under.
 type appsyncPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
-func scanAppSync(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppSync(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := appsync.NewFromConfig(acct.cfg, func(o *appsync.Options) { o.Region = region })
 	return scanAppSyncAll(ctx, client, acct, region, st, scanID)
 }
@@ -94,53 +94,53 @@ func scanAppSync(ctx context.Context, acct *account, region string, st *store.St
 // failed store write does, since every later write would fail too. A child
 // phase reads the parents its parent phase stored, so a failed parent phase
 // leaves it fewer parents.
-func scanAppSyncAll(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppSyncAll(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var graphqlAPIs, eventAPIs, domains []childParent
 	phases := []appsyncPhase{
-		{appsyncGraphqlApisOp, func() (t, i int, err error) {
-			t, i, graphqlAPIs, err = scanASCGraphqlApis(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{appsyncGraphqlApisOp, func() (t int, err error) {
+			t, graphqlAPIs, err = scanASCGraphqlApis(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{appsyncEventApisOp, func() (t, i int, err error) {
-			t, i, eventAPIs, err = scanASCEventApis(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{appsyncEventApisOp, func() (t int, err error) {
+			t, eventAPIs, err = scanASCEventApis(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{appsyncDomainNamesOp, func() (t, i int, err error) {
-			t, i, domains, err = scanASCDomainNames(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{appsyncDomainNamesOp, func() (t int, err error) {
+			t, domains, err = scanASCDomainNames(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{appsyncAPIKeysOp, func() (int, int, error) {
+		{appsyncAPIKeysOp, func() (int, error) {
 			return scanASCApiKeys(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
-		{appsyncAPICacheOp, func() (int, int, error) {
+		{appsyncAPICacheOp, func() (int, error) {
 			return scanASCApiCaches(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
-		{appsyncDataSourcesOp, func() (int, int, error) {
+		{appsyncDataSourcesOp, func() (int, error) {
 			return scanASCDataSources(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
-		{appsyncFunctionsOp, func() (int, int, error) {
+		{appsyncFunctionsOp, func() (int, error) {
 			return scanASCFunctions(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
-		{appsyncSchemasOp, func() (int, int, error) {
+		{appsyncSchemasOp, func() (int, error) {
 			return scanASCSchemas(st, acct, region, scanID, graphqlAPIs)
 		}},
-		{appsyncSourceAssocsOp, func() (int, int, error) {
+		{appsyncSourceAssocsOp, func() (int, error) {
 			return scanASCSourceAPIAssocs(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
-		{appsyncChannelNamespacesOp, func() (int, int, error) {
+		{appsyncChannelNamespacesOp, func() (int, error) {
 			return scanASCChannelNamespaces(ctx, client, acct, region, st, scanID, eventAPIs)
 		}},
-		{appsyncAPIAssociationOp, func() (int, int, error) {
+		{appsyncAPIAssociationOp, func() (int, error) {
 			return scanASCDomainNameAssocs(ctx, client, acct, region, st, scanID, domains)
 		}},
-		{appsyncResolversOp, func() (int, int, error) {
+		{appsyncResolversOp, func() (int, error) {
 			return scanASCResolvers(ctx, client, acct, region, st, scanID, graphqlAPIs)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -172,12 +172,12 @@ func storeAppSyncParents[Item any](
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
-) (int, int, []childParent, error) {
+) (int, []childParent, error) {
 	return storeParentListDeniedBy(ctx, st, acct, region, op, what, idField, isAppSyncUnauthorized, page, row, key)
 }
 
 // scanASCGraphqlApis also returns the stored GraphQL APIs for the child phases.
-func scanASCGraphqlApis(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanASCGraphqlApis(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeAppSyncParents(ctx, st, acct, region, appsyncGraphqlApisOp, "GraphQL APIs", "ApiId",
 		func(ctx context.Context, token *string) ([]appsynctypes.GraphqlApi, *string, error) {
 			out, err := client.ListGraphqlApis(ctx, &appsync.ListGraphqlApisInput{NextToken: token, MaxResults: appsyncPageMax})
@@ -197,7 +197,7 @@ func scanASCGraphqlApis(ctx context.Context, client appSyncAPI, acct *account, r
 
 // scanASCEventApis also returns the stored Event APIs for the channel
 // namespace phase.
-func scanASCEventApis(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanASCEventApis(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeAppSyncParents(ctx, st, acct, region, appsyncEventApisOp, "Event APIs", "ApiId",
 		func(ctx context.Context, token *string) ([]appsynctypes.Api, *string, error) {
 			out, err := client.ListApis(ctx, &appsync.ListApisInput{NextToken: token, MaxResults: appsyncPageMax})
@@ -217,7 +217,7 @@ func scanASCEventApis(ctx context.Context, client appSyncAPI, acct *account, reg
 
 // scanASCDomainNames also returns the stored domain names for the API
 // association phase.
-func scanASCDomainNames(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanASCDomainNames(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeAppSyncParents(ctx, st, acct, region, appsyncDomainNamesOp, "domain names", "DomainName",
 		func(ctx context.Context, token *string) ([]appsynctypes.DomainNameConfig, *string, error) {
 			out, err := client.ListDomainNames(ctx, &appsync.ListDomainNamesInput{NextToken: token, MaxResults: appsyncPageMax})
@@ -255,14 +255,14 @@ func storeAppSyncChildren[Item any](
 	page func(ctx context.Context, parentID string, token *string) ([]Item, *string, error),
 	row func(parent childParent, it Item) (*store.Resource, string, string),
 	refuse *skipCode,
-) (int, int, error) {
+) (int, error) {
 	byID := make(map[string]childParent, len(parents))
 	ids := make([]string, len(parents))
 	for i, p := range parents {
 		byID[p.id], ids[i] = p, p.id
 	}
 	var denied, refused skipTally
-	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, op, appsyncNotFound, ids, page,
+	total, err := storeTokenEachParentSkip(ctx, st, acct, region, op, appsyncNotFound, ids, page,
 		func(id string, it Item) (*store.Resource, string, string) { return row(byID[id], it) },
 		func(parent string, err error) bool {
 			switch {
@@ -276,20 +276,20 @@ func storeAppSyncChildren[Item any](
 			return true
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	denied.warnDeniedIn(st, op, acct, region, "parent(s)")
 	if refuse != nil {
 		refused.warnCode(st, op, acct, region, refuse.code, "parent(s)", refuse.why)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // scanASCApiKeys lists each GraphQL API's keys. A key has no ARN; its
 // NativeID is {apiARN}/apikeys/{keyId}. The key id is the key itself, a
 // credential: the attributes' Id is redacted and the row is named by its
 // Description, not the id. The NativeID still carries the id.
-func scanASCApiKeys(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCApiKeys(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncAPIKeysOp, apis,
 		func(ctx context.Context, id string, token *string) ([]appsynctypes.ApiKey, *string, error) {
 			out, err := client.ListApiKeys(ctx, &appsync.ListApiKeysInput{ApiId: &id, NextToken: token, MaxResults: appsyncPageMax})
@@ -315,7 +315,7 @@ func scanASCApiKeys(ctx context.Context, client appSyncAPI, acct *account, regio
 // nothing for that API. There is no listed row to keep for an API whose read
 // fails, so every other failure is returned after the other caches are
 // stored, except a denial, which is warned about once.
-func scanASCApiCaches(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCApiCaches(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncAPICacheOp, apis,
 		func(ctx context.Context, id string, _ *string) ([]appsynctypes.ApiCache, *string, error) {
 			out, err := client.GetApiCache(ctx, &appsync.GetApiCacheInput{ApiId: &id})
@@ -329,7 +329,7 @@ func scanASCApiCaches(ctx context.Context, client appSyncAPI, acct *account, reg
 		}, nil)
 }
 
-func scanASCDataSources(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCDataSources(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncDataSourcesOp, apis,
 		func(ctx context.Context, id string, token *string) ([]appsynctypes.DataSource, *string, error) {
 			out, err := client.ListDataSources(ctx, &appsync.ListDataSourcesInput{ApiId: &id, NextToken: token, MaxResults: appsyncPageMax})
@@ -346,7 +346,7 @@ func scanASCDataSources(ctx context.Context, client appSyncAPI, acct *account, r
 		}, nil)
 }
 
-func scanASCFunctions(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCFunctions(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncFunctionsOp, apis,
 		func(ctx context.Context, id string, token *string) ([]appsynctypes.FunctionConfiguration, *string, error) {
 			out, err := client.ListFunctions(ctx, &appsync.ListFunctionsInput{ApiId: &id, NextToken: token, MaxResults: appsyncPageMax})
@@ -366,7 +366,7 @@ func scanASCFunctions(ctx context.Context, client appSyncAPI, acct *account, reg
 // scanASCSchemas stores one schema row per GraphQL API the API phase stored:
 // AppSync has no op that lists schemas, so the row carries only the API id,
 // under the NativeID {apiARN}/schema/_.
-func scanASCSchemas(st *store.Store, acct *account, region, scanID string, apis []childParent) (int, int, error) {
+func scanASCSchemas(st *store.Store, acct *account, region, scanID string, apis []childParent) (int, error) {
 	batch := make([]*store.Resource, 0, len(apis))
 	for _, api := range apis {
 		batch = append(batch, appsyncRow(acct, region, scanID, TypeAppSyncGraphQLSchema, api.arn+"/schema/_", "graphql-schema", map[string]string{"ApiId": api.id}, nil))
@@ -379,7 +379,7 @@ func scanASCSchemas(st *store.Store, acct *account, region, scanID string, apis 
 // associations read before it and is warned about once for the phase: the
 // code was tolerated silently before, and why the service returns it has not
 // been verified.
-func scanASCSourceAPIAssocs(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCSourceAPIAssocs(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncSourceAssocsOp, apis,
 		func(ctx context.Context, id string, token *string) ([]appsynctypes.SourceApiAssociationSummary, *string, error) {
 			out, err := client.ListSourceApiAssociations(ctx, &appsync.ListSourceApiAssociationsInput{ApiId: &id, NextToken: token, MaxResults: appsyncPageMax})
@@ -397,7 +397,7 @@ func scanASCSourceAPIAssocs(ctx context.Context, client appSyncAPI, acct *accoun
 		&skipCode{code: "BadRequestException", why: "their source API associations past that point were not listed, and why the service refuses an API is unverified"})
 }
 
-func scanASCChannelNamespaces(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCChannelNamespaces(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncChannelNamespacesOp, apis,
 		func(ctx context.Context, id string, token *string) ([]appsynctypes.ChannelNamespace, *string, error) {
 			out, err := client.ListChannelNamespaces(ctx, &appsync.ListChannelNamespacesInput{ApiId: &id, NextToken: token, MaxResults: appsyncPageMax})
@@ -420,7 +420,7 @@ func scanASCChannelNamespaces(ctx context.Context, client appSyncAPI, acct *acco
 // associated API or one deleted since it was listed, stores nothing for that
 // domain. Every other failure is returned after the other associations are
 // stored, except a denial, which is warned about once.
-func scanASCDomainNameAssocs(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, domains []childParent) (int, int, error) {
+func scanASCDomainNameAssocs(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, domains []childParent) (int, error) {
 	return storeAppSyncChildren(ctx, st, acct, region, appsyncAPIAssociationOp, domains,
 		func(ctx context.Context, name string, _ *string) ([]appsynctypes.ApiAssociation, *string, error) {
 			out, err := client.GetApiAssociation(ctx, &appsync.GetApiAssociationInput{DomainName: &name})
@@ -448,7 +448,7 @@ type appsyncTypeNames struct {
 // finds was deleted since it was listed, silently when no type was read and
 // with one warning otherwise; a denied API is warned about once; any other
 // failure is returned after the resolvers are stored.
-func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, int, error) {
+func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apis []childParent) (int, error) {
 	reads, stopped := readEachKey(ctx, apis, func(ctx context.Context, api childParent) appsyncTypeNames {
 		names, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]string, *string, error) {
 			out, err := client.ListTypes(ctx, &appsync.ListTypesInput{
@@ -495,7 +495,7 @@ func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, reg
 			pairs = append(pairs, childParent{id: api.id + "/" + name, arn: api.arn})
 		}
 	}
-	total, inserted, err := storeAppSyncChildren(ctx, st, acct, region, appsyncResolversOp, pairs,
+	total, err := storeAppSyncChildren(ctx, st, acct, region, appsyncResolversOp, pairs,
 		func(ctx context.Context, key string, token *string) ([]appsynctypes.Resolver, *string, error) {
 			apiID, typeName := appsyncSplitTypeKey(key)
 			out, err := client.ListResolvers(ctx, &appsync.ListResolversInput{ApiId: &apiID, TypeName: &typeName, NextToken: token, MaxResults: appsyncPageMax})
@@ -512,7 +512,7 @@ func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, reg
 		}, nil)
 	err = errors.Join(append(errs, err)...)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	denied.warnDeniedIn(st, appsyncTypesOp, acct, region, "GraphQL API(s) (resolvers not read past that point)")
 	if vanished.count > 0 {
@@ -527,7 +527,7 @@ func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, reg
 			Message: fmt.Sprintf("%d listed types have an empty Name, so their resolvers were not read; first in %s", noName.count, noName.first),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // appsyncSplitTypeKey splits a scanASCResolvers key into its API id and type

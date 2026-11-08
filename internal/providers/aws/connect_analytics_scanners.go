@@ -44,21 +44,21 @@ type connectAnalyticsAPI interface {
 // other. Each error is joined by phaseErrs, which demotes a transient one to a
 // warning only beside a hard one, so a throttle on one phase is reported under
 // its op instead of buried in the other's hard error.
-func scanConnectAnalytics(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAnalytics(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
-		wg             sync.WaitGroup
-		t1, i1, t2, i2 int
-		eerr, merr     error
+		wg         sync.WaitGroup
+		t1, t2     int
+		eerr, merr error
 	)
 	wg.Go(func() {
-		t1, i1, eerr = scanConnectExtractionDefinitions(ctx, client, instances, acct, region, st, scanID)
+		t1, eerr = scanConnectExtractionDefinitions(ctx, client, instances, acct, region, st, scanID)
 	})
-	wg.Go(func() { t2, i2, merr = scanConnectMetrics(ctx, client, instances, acct, region, st, scanID) })
+	wg.Go(func() { t2, merr = scanConnectMetrics(ctx, client, instances, acct, region, st, scanID) })
 	wg.Wait()
 	var errs phaseErrs
 	errs.add(connectListExtractionDefinitionsOp, eerr)
 	errs.add(connectListMetricsOp, merr)
-	return t1 + t2, i1 + i2, errs.join(st, acct, region)
+	return t1 + t2, errs.join(st, acct, region)
 }
 
 // connectListDescribe is the per-instance list-then-describe skeleton: list
@@ -74,7 +74,7 @@ func connectListDescribe[S any](
 	instances []cttypes.InstanceSummary,
 	list func(ctx context.Context, instanceID string, emit func(arn string, s S)) error,
 	describe func(ctx context.Context, instanceID, arn string, s S) (*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	type listed struct {
 		instanceID string
 		summary    S
@@ -98,7 +98,7 @@ func connectListDescribe[S any](
 			continue
 		}
 		if kerr := listErrs.keyErr(instID, err); kerr != nil {
-			return 0, 0, kerr
+			return 0, kerr
 		}
 	}
 	rows, err := describeFanOut(ctx, st, acct, region, describeOp, arns, isConnectNotFound,
@@ -107,7 +107,7 @@ func connectListDescribe[S any](
 			return describe(gctx, k.instanceID, arn, k.summary)
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, rows, label)
 }
@@ -115,7 +115,7 @@ func connectListDescribe[S any](
 // scanConnectExtractionDefinitions lists extraction-definition ids per
 // instance, then describes each: only the describe carries the extraction
 // configuration and the tags.
-func scanConnectExtractionDefinitions(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectExtractionDefinitions(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return connectListDescribe(ctx, st, acct, region, connectListExtractionDefinitionsOp, connectDescribeExtractionDefinitionOp, "connect extraction definitions", instances,
 		func(ctx context.Context, instID string, emit func(string, string)) error {
 			pager := connect.NewListExtractionDefinitionsPaginator(client, &connect.ListExtractionDefinitionsInput{InstanceId: &instID},
@@ -161,9 +161,9 @@ func scanConnectExtractionDefinitions(ctx context.Context, client connectAnalyti
 // are not requested. An unqualified DescribeMetric reads the published
 // version, so a SAVED metric is described with the $SAVED qualifier. NativeID
 // is the summary's ARN, because the describe's ARN may carry a qualifier.
-func scanConnectMetrics(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectMetrics(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var savedRejected skipTally
-	total, inserted, err := connectListDescribe(ctx, st, acct, region, connectListMetricsOp, connectDescribeMetricOp, "connect metrics", instances,
+	total, err := connectListDescribe(ctx, st, acct, region, connectListMetricsOp, connectDescribeMetricOp, "connect metrics", instances,
 		func(ctx context.Context, instID string, emit func(string, cttypes.MetricSummary)) error {
 			pager := connect.NewListMetricsPaginator(client, &connect.ListMetricsInput{InstanceId: &instID, Type: cttypes.MetricTypeCustomerManaged},
 				func(o *connect.ListMetricsPaginatorOptions) {
@@ -211,7 +211,7 @@ func scanConnectMetrics(ctx context.Context, client connectAnalyticsAPI, instanc
 		})
 	savedRejected.warnCode(st, connectDescribeMetricOp, acct, region, "ValidationException", "saved metric(s)",
 		"the metric id"+connectSavedQualifier+" describe form is inferred from DescribeView's doc, not documented for metrics")
-	return total, inserted, err
+	return total, err
 }
 
 // connectMetricAttrs is the DescribeMetric body with its CreatedByInfo unions

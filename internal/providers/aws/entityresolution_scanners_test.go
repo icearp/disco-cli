@@ -180,7 +180,7 @@ func erHandlers(calls *erCalls) map[string]func(in any) (any, error) {
 
 // erScan runs the service scan entry point against handlers; an op without a
 // handler is denied.
-func erScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func erScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, erDenied)
 	return scanEntityResolution(ctx, acct, testRegion, st, testScanID)
@@ -259,7 +259,9 @@ func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls erCalls
-	total, inserted, err := erScan(context.Background(), st, erHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := erScan(context.Background(), counted, erHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -366,17 +368,17 @@ func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanEntityResolution_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
-	if _, _, err := erScan(context.Background(), st, erHandlers(&calls)); err != nil {
+	if _, err := erScan(context.Background(), st, erHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	total, err := erScan(context.Background(), st, erHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -397,7 +399,9 @@ func TestScanEntityResolution_Empty(t *testing.T) {
 	h["ListIdNamespaces"] = func(any) (any, error) { return &entityresolution.ListIdNamespacesOutput{}, nil }
 	h["ListMatchingWorkflows"] = func(any) (any, error) { return &entityresolution.ListMatchingWorkflowsOutput{}, nil }
 	h["ListSchemaMappings"] = func(any) (any, error) { return &entityresolution.ListSchemaMappingsOutput{}, nil }
-	total, inserted, err := erScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := erScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -440,7 +444,7 @@ func TestScanEntityResolution_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := erCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+			total, err := erScan(context.Background(), st, erHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -511,7 +515,7 @@ func TestScanEntityResolution_GetMatchingWorkflowFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := erCalls{getErrs: map[string]error{c.wf: c.err}}
-			total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+			total, err := erScan(context.Background(), st, erHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -571,7 +575,7 @@ func TestScanEntityResolution_GetAndTagReadDenied(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := erCalls{getErrs: map[string]error{"mw-a": erDenied}, tagErrs: map[string]error{erTestMWA: erDenied}}
-	total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	total, err := erScan(context.Background(), st, erHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -597,7 +601,7 @@ func TestScanEntityResolution_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := erCalls{tagErrs: map[string]error{erTestIMWB: erDenied, erTestNSA: erDenied, erTestSMB: erDenied}}
-	total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	total, err := erScan(context.Background(), st, erHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -621,7 +625,7 @@ func TestScanEntityResolution_ThrottleDemotedBesideHardError(t *testing.T) {
 		tagErrs: map[string]error{erTestIMWA: erThrottle, erTestSMB: erValidation},
 		getErrs: map[string]error{"mw-b": erThrottle},
 	}
-	_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	_, err := erScan(context.Background(), st, erHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *tagWarns != 1 || *getWarns != 1 {
@@ -653,7 +657,7 @@ func TestScanEntityResolution_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 				}
 				return list(in)
 			}
-			total, _, err := erScan(context.Background(), st, h)
+			total, err := erScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			kept := slices.DeleteFunc(erAllListed(), func(id string) bool { return id == tc.lost })
@@ -702,7 +706,7 @@ func TestScanEntityResolution_ListDeniedWarnsAndContinues(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := erScan(context.Background(), st, h); err != nil {
+			if _, err := erScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			kept := slices.DeleteFunc(erAllListed(), func(id string) bool { return slices.Contains(tc.lost, id) })
@@ -743,7 +747,7 @@ func TestScanEntityResolution_PolicyReadErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := erCalls{policyErrs: c.errs}
-			total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+			total, err := erScan(context.Background(), st, erHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -779,7 +783,7 @@ func TestScanEntityResolution_PolicyThrottleDemotedBesideHardError(t *testing.T)
 	st := newTestStore(t)
 	warns := countOpWarnings(st, erGetPolicyOp)
 	calls := erCalls{policyErrs: map[string]error{erTestIMWA: erThrottle, erTestSMB: erBadRequest}}
-	_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	_, err := erScan(context.Background(), st, erHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if isAPIErrorCode(err, "ThrottlingException") {
@@ -799,7 +803,7 @@ func TestScanEntityResolution_PolicyThrottlesAreOneError(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := erCalls{policyErrs: map[string]error{erTestIMWA: erThrottle, erTestMWA: erThrottle, erTestSMB: erThrottle}}
-	_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+	_, err := erScan(context.Background(), st, erHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeTransient)
 	if m := joinedMembers(err); m != nil {
 		t.Errorf("err has %d members; want one error (err %v)", len(m), err)
@@ -831,7 +835,7 @@ func TestScanEntityResolution_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := erCalls{tagErrs: c.tagErrs, getErrs: c.getErrs, policyErrs: c.polErrs}
-			total, _, err := erScan(context.Background(), st, erHandlers(&calls))
+			total, err := erScan(context.Background(), st, erHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -871,7 +875,7 @@ func TestScanEntityResolution_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := erScan(context.Background(), st, h); err != nil {
+	if _, err := erScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -910,7 +914,7 @@ func TestScanEntityResolution_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := erScan(context.Background(), st, h)
+			total, err := erScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -949,7 +953,7 @@ func TestScanEntityResolution_ElementWithoutIdentifier(t *testing.T) {
 	h["ListSchemaMappings"] = func(any) (any, error) {
 		return &entityresolution.ListSchemaMappingsOutput{SchemaList: []ertypes.SchemaMappingSummary{{SchemaName: sdkaws.String("no-arn")}, {SchemaArn: &erTestSMA}}}, nil
 	}
-	if _, _, err := erScan(context.Background(), st, h); err != nil {
+	if _, err := erScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := erSorted(erTestIMWA, erTestNSA, erTestMWA, erTestSMA)
@@ -1016,7 +1020,7 @@ func TestScanEntityResolution_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, erDenied)
-			if _, _, err := scanEntityResolution(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanEntityResolution(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := erSorted(arns["ListIdMappingWorkflows"], arns["ListIdNamespaces"], arns["ListMatchingWorkflows"], arns["ListSchemaMappings"])
@@ -1058,7 +1062,7 @@ func TestScanEntityResolution_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := erScan(ctx, st, h)
+	_, err := erScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1091,7 +1095,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 		var calls erCalls
 		h := erHandlers(&calls)
 		h["ListIdNamespaces"] = func(any) (any, error) { return nil, nx }
-		total, _, err := erScan(context.Background(), st, h)
+		total, err := erScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := erTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1100,7 +1104,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := erCalls{tagErrs: map[string]error{erTestSMB: nx}}
-		_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+		_, err := erScan(context.Background(), st, erHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	// The NXDOMAIN is a hard error of its own, not tallied with a throttled
@@ -1109,7 +1113,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, erGetPolicyOp)
 		calls := erCalls{policyErrs: map[string]error{erTestIMWA: erThrottle, erTestIMWB: nx}}
-		_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+		_, err := erScan(context.Background(), st, erHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if *warns != 1 {
 			t.Errorf("%s warnings = %d; want 1", erGetPolicyOp, *warns)
@@ -1119,7 +1123,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 	t.Run("policy read beside another hard error", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := erCalls{policyErrs: map[string]error{erTestIMWB: nx, erTestSMB: erBadRequest}}
-		_, _, err := erScan(context.Background(), st, erHandlers(&calls))
+		_, err := erScan(context.Background(), st, erHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidRequestException")
 	})
@@ -1128,7 +1132,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanEntityResolution(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanEntityResolution(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1171,7 +1175,7 @@ func TestScanEntityResolution_ContextEndDuringPolicyReads(t *testing.T) {
 		<-release
 		return getPolicy(in)
 	}
-	_, _, err := erScan(ctx, st, h)
+	_, err := erScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}

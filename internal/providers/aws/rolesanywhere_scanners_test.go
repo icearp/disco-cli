@@ -208,7 +208,7 @@ func raTestHandlers(c *raTestCalls) map[string]func(in any) (any, error) {
 
 // raTestScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func raTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func raTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, raTestDenied)
 	return scanRolesAnywhere(ctx, acct, testRegion, st, testScanID)
@@ -259,7 +259,9 @@ func TestScanRolesAnywhere_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newRATestCalls()
 
-	total, inserted, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := raTestScan(context.Background(), counted, raTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -326,7 +328,7 @@ func TestScanRolesAnywhere_SubjectWithoutIDNamedByARN(t *testing.T) {
 		return subjects.page(e, nil), nil
 	}
 
-	if _, _, err := raTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := raTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeRolesAnywhereSubject)[arn]
@@ -367,7 +369,7 @@ func TestScanRolesAnywhere_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := raTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := raTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range raTestKinds() {
@@ -377,16 +379,16 @@ func TestScanRolesAnywhere_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRolesAnywhere_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls())); err != nil {
+	if _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls()))
+	total, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -416,7 +418,9 @@ func TestScanRolesAnywhere_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := raTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := raTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -466,7 +470,7 @@ func TestScanRolesAnywhere_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+			total, err := raTestScan(context.Background(), st, raTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -517,7 +521,7 @@ func TestScanRolesAnywhere_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[raTestKindOf(t, "ListTrustAnchors").arn("tagged")] = raTestDenied
 	calls.tagErrs[raTestKindOf(t, "ListSubjects").arn("bare")] = raTestDenied
 
-	total, _, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+	total, err := raTestScan(context.Background(), st, raTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -539,7 +543,7 @@ func TestScanRolesAnywhere_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[raTestKindOf(t, "ListProfiles").arn("bare")] = raTestThrottle
 	calls.tagErrs[raTestKindOf(t, "ListSubjects").arn("tagged")] = raTestBad
 
-	_, _, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+	_, err := raTestScan(context.Background(), st, raTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -558,7 +562,7 @@ func TestScanRolesAnywhere_FailedWriteStopsScan(t *testing.T) {
 	calls := newRATestCalls()
 	calls.tagErrs[raTestKindOf(t, "ListProfiles").arn("tagged")] = raTestDenied
 
-	total, _, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+	total, err := raTestScan(context.Background(), st, raTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -623,7 +627,7 @@ func TestScanRolesAnywhere_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := raTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := raTestScan(context.Background(), st, handlers)
+			_, err := raTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := raWarnOps(w); !slices.Equal(got, []string{"rolesanywhere:ListTagsForResource"}) {
@@ -677,7 +681,7 @@ func TestScanRolesAnywhere_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := raTestScan(context.Background(), st, handlers)
+			total, err := raTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -729,7 +733,7 @@ func TestScanRolesAnywhere_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := raTestScan(context.Background(), st, handlers)
+	total, err := raTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -765,7 +769,7 @@ func TestScanRolesAnywhere_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := raTestScan(context.Background(), st, handlers)
+			total, err := raTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -804,7 +808,7 @@ func TestScanRolesAnywhere_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(raTestHandlers(calls), raTestDenied)
-			if _, _, err := scanRolesAnywhere(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanRolesAnywhere(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -841,7 +845,7 @@ func TestScanRolesAnywhere_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := raTestScan(ctx, st, handlers)
+	_, err := raTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -881,7 +885,7 @@ func TestScanRolesAnywhere_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := raTestHandlers(newRATestCalls())
 		handlers["ListSubjects"] = func(any) (any, error) { return nil, nx }
-		total, _, err := raTestScan(context.Background(), st, handlers)
+		total, err := raTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := raTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -891,7 +895,7 @@ func TestScanRolesAnywhere_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newRATestCalls()
 		calls.tagErrs[raTestKindOf(t, "ListCrls").arn("tagged")] = nx
-		_, _, err := raTestScan(context.Background(), st, raTestHandlers(calls))
+		_, err := raTestScan(context.Background(), st, raTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -907,7 +911,7 @@ func TestScanRolesAnywhere_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanRolesAnywhere(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanRolesAnywhere(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

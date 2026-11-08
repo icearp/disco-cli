@@ -111,7 +111,7 @@ func rdsSnapshotAttrHandlers(calls, clusterCalls *parentCalls, fail func(id stri
 func noRDSAttrErr(string) error { return nil }
 
 // scanRDSTopLevel runs scanRDS with every op handlers lacks denied.
-func scanRDSTopLevel(st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, int, error) {
+func scanRDSTopLevel(st *store.Store, handlers map[string]func(in any) (any, error), log *opLog) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, rdsDenied)
 	acct.cfg.APIOptions = append([]func(*smithymw.Stack) error{recordOps(log)}, acct.cfg.APIOptions...)
@@ -139,7 +139,9 @@ func TestScanRDS_StoresSnapshotAttributesLast(t *testing.T) {
 	st := newTestStore(t)
 	var calls, clusterCalls parentCalls
 	var log opLog
-	total, inserted, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, noRDSAttrErr), &log)
+	counted, upserts := countUpserts(st)
+	total, err := scanRDSTopLevel(counted, rdsSnapshotAttrHandlers(&calls, &clusterCalls, noRDSAttrErr), &log)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanRDS: %v", err)
 	}
@@ -204,7 +206,7 @@ func TestScanRDS_SnapshotAttributeErrorKeepsOtherPhases(t *testing.T) {
 		}
 		return nil
 	}
-	total, _, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, failDBSnapshots), &log)
+	total, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, failDBSnapshots), &log)
 	assertAPICode(t, err, "InvalidParameterValue")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
@@ -235,7 +237,7 @@ func TestScanRDS_ThrottledOlderPhaseKeepsAttributeHardError(t *testing.T) {
 		}
 		return listSnapshots(in)
 	}
-	_, _, err := scanRDSTopLevel(st, h, &log)
+	_, err := scanRDSTopLevel(st, h, &log)
 	assertAPICode(t, err, "InvalidParameterValue")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
@@ -279,7 +281,7 @@ func TestScanRDS_FailedWriteRunsNoAttributePhase(t *testing.T) {
 		}
 		return listSnapshots(in)
 	}
-	_, _, err = scanRDSTopLevel(st, h, &log)
+	_, err = scanRDSTopLevel(st, h, &log)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want store.ErrStoreWrite", err)
 	}
@@ -296,7 +298,7 @@ func TestScanRDS_FailedAttributeWriteStopsClusterAttributes(t *testing.T) {
 	refuseStoreWrites(t, st, TypeRDSDBSnapshotAttribute)
 	var calls, clusterCalls parentCalls
 	var log opLog
-	_, _, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, noRDSAttrErr), &log)
+	_, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, noRDSAttrErr), &log)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
 	}
@@ -315,7 +317,7 @@ type rdsAttrKind struct {
 	arn           func(string) string
 	parentType    string
 	notFound      error
-	run           func(context.Context, rdsAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+	run           func(context.Context, rdsAPI, *account, string, *store.Store, string, []childParent) (int, error)
 }
 
 var rdsAttrKinds = []rdsAttrKind{
@@ -341,7 +343,7 @@ func (k rdsAttrKind) parents() []childParent {
 	return out
 }
 
-func (k rdsAttrKind) scan(t *testing.T, st *store.Store, fail func(string) error, parents []childParent) (int, int, error) {
+func (k rdsAttrKind) scan(t *testing.T, st *store.Store, fail func(string) error, parents []childParent) (int, error) {
 	t.Helper()
 	var calls, clusterCalls parentCalls
 	client := rds.NewFromConfig(opStubConfig(rdsSnapshotAttrHandlers(&calls, &clusterCalls, fail), rdsDenied))
@@ -372,12 +374,14 @@ func TestScanRDSSnapshotAttributes_ErrorLadder(t *testing.T) {
 				st := newTestStore(t)
 				seedParentRows(t, st, k.parentType, k.arn(first), k.arn(second))
 				warns := countOpWarnings(st, k.op)
-				total, inserted, err := k.scan(t, st, func(id string) error {
+				counted, upserts := countUpserts(st)
+				total, err := k.scan(t, counted, func(id string) error {
 					if slices.Contains(tc.failed, id) {
 						return tc.err
 					}
 					return nil
 				}, k.parents())
+				inserted := upserts()
 				if tc.wantCode != "" {
 					assertAPICode(t, err, tc.wantCode)
 				} else if err != nil {
@@ -408,10 +412,12 @@ func TestScanRDSSnapshotAttributes_Empty(t *testing.T) {
 	for _, k := range rdsAttrKinds {
 		t.Run(k.name+"/no snapshots", func(t *testing.T) {
 			st := newTestStore(t)
-			total, inserted, err := k.scan(t, st, func(id string) error {
+			counted, upserts := countUpserts(st)
+			total, err := k.scan(t, counted, func(id string) error {
 				t.Errorf("attributes described for %s with no snapshots", id)
 				return nil
 			}, nil)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}
@@ -419,7 +425,7 @@ func TestScanRDSSnapshotAttributes_Empty(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name string
-		run  func(context.Context, rdsAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+		run  func(context.Context, rdsAPI, *account, string, *store.Store, string, []childParent) (int, error)
 		op   string
 		out  any
 	}{
@@ -432,7 +438,9 @@ func TestScanRDSSnapshotAttributes_Empty(t *testing.T) {
 				tc.op: func(any) (any, error) { return tc.out, nil },
 			}, rdsDenied))
 			parents := []childParent{{id: "s", arn: rdsTestSnapARN("s")}}
-			total, inserted, err := tc.run(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			counted, upserts := countUpserts(st)
+			total, err := tc.run(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID, parents)
+			inserted := upserts()
 			if err != nil || total != 0 || inserted != 0 {
 				t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 			}

@@ -99,7 +99,9 @@ func TestScanConnectFlows(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanConnectFlows(context.Background(), stub, instances, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectFlows(context.Background(), stub, instances, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -124,7 +126,9 @@ func TestScanConnectFlowsEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectFlows{}
-	total, inserted, err := scanConnectFlows(context.Background(), stub, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectFlows(context.Background(), stub, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

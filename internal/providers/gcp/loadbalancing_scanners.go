@@ -37,34 +37,33 @@ func init() {
 // All `*.List` calls here are global-scope; `AggregatedList` covers global +
 // every region in one paginated walk, so no per-region fan-out tier is
 // needed here.
-func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("compute client: %w", err)
+		return 0, fmt.Errorf("compute client: %w", err)
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanForwardingRules(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanTargetHTTPProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanTargetHTTPSProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanURLMaps(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanBackendServices(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanBackendBuckets(ctx, svc, p, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanForwardingRules(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanTargetHTTPProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanTargetHTTPSProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanURLMaps(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanBackendServices(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanBackendBuckets(ctx, svc, p, st, scanID) },
 	} {
-		t, n, err := phase()
+		t, err := phase()
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // upsertWithProjClosure upserts a batch and fans out hierarchy_closure pairs
 // to the project parent — centralizes boilerplate shared by the LB
 // sub-phases. Equivalent to upsertWithParent with the project's resource ID.
-func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource) (int, int, error) {
+func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource) (int, error) {
 	return upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, p.ID))
 }
 
@@ -72,13 +71,13 @@ func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource)
 // caller-supplied parent resource id. Use when the parent isn't the project
 // (e.g. table→dataset, record-set→managed-zone, entry→cert-map,
 // crypto-key→keyring, cluster→instance).
-func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string) (int, int, error) {
+func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string) (int, error) {
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	pairs := make([][2]string, 0, len(batch))
 	for _, r := range batch {
@@ -88,15 +87,15 @@ func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string)
 		})
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return len(batch), n, err
+		return len(batch), err
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanForwardingRules(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanForwardingRules(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:forwardingRules.aggregatedList",
 		svc.ForwardingRules.AggregatedList(p.ID),
-		func(page *compute.ForwardingRuleAggregatedList) (int, int, error) {
+		func(page *compute.ForwardingRuleAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -120,10 +119,10 @@ func scanForwardingRules(ctx context.Context, svc *compute.Service, p *project, 
 		})
 }
 
-func scanTargetHTTPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanTargetHTTPProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetHttpProxies.list",
 		svc.TargetHttpProxies.List(p.ID),
-		func(page *compute.TargetHttpProxyList) (int, int, error) {
+		func(page *compute.TargetHttpProxyList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, tp := range page.Items {
 				name := tp.Name
@@ -143,10 +142,10 @@ func scanTargetHTTPProxies(ctx context.Context, svc *compute.Service, p *project
 		})
 }
 
-func scanTargetHTTPSProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanTargetHTTPSProxies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetHttpsProxies.list",
 		svc.TargetHttpsProxies.List(p.ID),
-		func(page *compute.TargetHttpsProxyList) (int, int, error) {
+		func(page *compute.TargetHttpsProxyList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, tp := range page.Items {
 				name := tp.Name
@@ -166,10 +165,10 @@ func scanTargetHTTPSProxies(ctx context.Context, svc *compute.Service, p *projec
 		})
 }
 
-func scanURLMaps(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanURLMaps(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:urlMaps.list",
 		svc.UrlMaps.List(p.ID),
-		func(page *compute.UrlMapList) (int, int, error) {
+		func(page *compute.UrlMapList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, um := range page.Items {
 				name := um.Name
@@ -196,10 +195,10 @@ func scanURLMaps(ctx context.Context, svc *compute.Service, p *project, st *stor
 // (compute_networking_scanners.go), so the upstream RegionBackendService
 // Discovery key gets its own disco type instead of collapsing into the
 // global one.
-func scanBackendServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanBackendServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:backendServices.aggregatedList",
 		svc.BackendServices.AggregatedList(p.ID),
-		func(page *compute.BackendServiceAggregatedList) (int, int, error) {
+		func(page *compute.BackendServiceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeBackendService
@@ -228,10 +227,10 @@ func scanBackendServices(ctx context.Context, svc *compute.Service, p *project, 
 		})
 }
 
-func scanBackendBuckets(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanBackendBuckets(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:backendBuckets.list",
 		svc.BackendBuckets.List(p.ID),
-		func(page *compute.BackendBucketList) (int, int, error) {
+		func(page *compute.BackendBucketList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, bb := range page.Items {
 				name := bb.Name

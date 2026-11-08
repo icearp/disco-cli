@@ -58,11 +58,11 @@ var cdAppGone = []string{"ApplicationDoesNotExistException"}
 // Applications and deployment groups have their tags read per row (cdTags),
 // whose denials are one warning for the whole scan; deployment configs take
 // no tags.
-func scanCodeDeploy(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeDeploy(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := codedeploy.NewFromConfig(acct.cfg, func(o *codedeploy.Options) { o.Region = region })
 	tags := cdTags(client).sharingDenials()
 	var apps []string
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "codedeploy", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "codedeploy", 0, []hostPhase{
 		{op: cdListAppsOp, run: func(p *phaseTotals) (failed bool) {
 			apps, failed = scanCDApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -70,12 +70,12 @@ func scanCodeDeploy(ctx context.Context, acct *account, region string, st *store
 		{op: cdListGroupsOp, run: func(p *phaseTotals) bool {
 			return scanCDDeploymentGroups(ctx, client, apps, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, cdListConfigsOp, func() (int, int, error) {
+		countedPhase(0, cdListConfigsOp, func() (int, error) {
 			return scanCDDeploymentConfigs(ctx, client, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // cdTags reads a row's tags with ListTagsForResource, sent the row's
@@ -239,19 +239,19 @@ func (o *cdBatchOutcomes) warnCDBatchMisses(st *store.Store, acct *account, regi
 func cdStoreRows(ctx context.Context, st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr, listed, listedTransient error, warn func(), gets *cdBatchOutcomes, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	var tagErrs rowTagErrs
 	rows, tagWarn := tags.hook(ctx, st, acct, region, &tagErrs)(rows)
-	total, inserted, err := storeReadRows(st, acct, region, op, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, op, rows, listErr, func() {
 		warn()
 		gets.warnCDBatchMisses(st, acct, region)
 		tagWarn()
 	}, listed)
 	hard, transient := gets.cdBatchErrs()
 	if errors.Is(err, store.ErrStoreWrite) {
-		return tagErrs.addPhase(p, tags.op, op, total, inserted, errors.Join(err, hard, transient, listedTransient))
+		return tagErrs.addPhase(p, tags.op, op, total, errors.Join(err, hard, transient, listedTransient))
 	}
 	p.errs.add(gets.op, hard)
 	p.errs.add(gets.op, transient)
 	p.errs.add(op, listedTransient)
-	return tagErrs.addPhase(p, tags.op, op, total, inserted, err)
+	return tagErrs.addPhase(p, tags.op, op, total, err)
 }
 
 // scanCDApplications stores the applications with their tags and returns
@@ -393,16 +393,16 @@ func scanCDDeploymentGroups(ctx context.Context, client codeDeployAPI, apps []st
 	return cdStoreRows(ctx, st, acct, region, cdListGroupsOp, rows, nil, errors.Join(lists.errs...), listTransient, func() { lists.warn(st, acct, region) }, &gets, tags, p)
 }
 
-func scanCDDeploymentConfigs(ctx context.Context, client codeDeployAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCDDeploymentConfigs(ctx context.Context, client codeDeployAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var names []string
 	var nextToken *string
 	for {
 		out, err := client.ListDeploymentConfigs(ctx, &codedeploy.ListDeploymentConfigsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "codedeploy:ListDeploymentConfigs", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "codedeploy:ListDeploymentConfigs", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("codedeploy:ListDeploymentConfigs: %w", err)
+			return 0, fmt.Errorf("codedeploy:ListDeploymentConfigs: %w", err)
 		}
 		names = append(names, out.DeploymentConfigsList...)
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -418,7 +418,7 @@ func scanCDDeploymentConfigs(ctx context.Context, client codeDeployAPI, acct *ac
 			if isAccessDenied(err) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("codedeploy:GetDeploymentConfig %s: %w", nm, err)
+			return 0, fmt.Errorf("codedeploy:GetDeploymentConfig %s: %w", nm, err)
 		}
 		if out.DeploymentConfigInfo == nil {
 			continue

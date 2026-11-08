@@ -45,7 +45,7 @@ func scanBackupAccessPoints(ctx context.Context, client backupAPI, acct *account
 // because the restore access vault's own ARN is a backup-vault ARN: when it
 // lives in this account ListBackupVaults already stores that ARN as a vault
 // row, and one NativeID for two types merges them into one version chain.
-func scanBackupRestoreAccessVaults(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, airGapped []childParent) (int, int, error) {
+func scanBackupRestoreAccessVaults(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, airGapped []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, "backup:ListRestoreAccessBackupVaults", backupNotFound, airGapped, nil, nil,
 		func(ctx context.Context, vault childParent, token *string) ([]backuptypes.RestoreAccessBackupVaultListMember, *string, error) {
 			out, err := client.ListRestoreAccessBackupVaults(ctx, &backup.ListRestoreAccessBackupVaultsInput{

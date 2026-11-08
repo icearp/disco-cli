@@ -74,7 +74,7 @@ func aidevopsAgentSpaceARN(partition, region, acctID, id string) string {
 	return aidevopsARN(partition, region, acctID, "agentspace", id)
 }
 
-func scanAidevops(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAidevops(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := devopsagent.NewFromConfig(acct.cfg, func(o *devopsagent.Options) { o.Region = region })
 	return scanAidevopsAll(ctx, client, acct, region, st, scanID)
 }
@@ -93,13 +93,13 @@ func scanAidevops(ctx context.Context, acct *account, region string, st *store.S
 // data-plane NXDOMAIN always follows stored rows and is a failure of this
 // scan (resultLateNXDOMAIN). As a host of its own, its first NXDOMAIN would be
 // dropped as a region serving the control plane alone.
-func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := aidevopsTags(client).sharingDenials()
 	var (
 		spaces       []childParent
 		associations []aidevopsAssociation
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "aidevops", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "aidevops", 0, []hostPhase{
 		{op: aidevopsListAgentSpacesOp, run: func(p *phaseTotals) (failed bool) {
 			spaces, failed = scanAidevopsAgentSpaces(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -107,32 +107,32 @@ func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, reg
 		{op: aidevopsListServicesOp, run: func(p *phaseTotals) bool {
 			return scanAidevopsServices(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "aidevops:ListAssociations", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListAssociations", func() (int, error) {
 			var (
-				t, i int
-				err  error
+				t   int
+				err error
 			)
-			associations, t, i, err = scanAidevopsAssociations(ctx, client, acct, region, st, scanID, spaces)
-			return t, i, err
+			associations, t, err = scanAidevopsAssociations(ctx, client, acct, region, st, scanID, spaces)
+			return t, err
 		}),
 		{op: aidevopsListPrivateConnectionsOp, run: func(p *phaseTotals) bool {
 			return scanAidevopsPrivateConnections(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "aidevops:ListAssets", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListAssets", func() (int, error) {
 			return scanAidevopsAssets(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "aidevops:ListTriggers", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListTriggers", func() (int, error) {
 			return scanAidevopsTriggers(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "aidevops:ListGoals", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListGoals", func() (int, error) {
 			return scanAidevopsGoals(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "aidevops:ListWebhooks", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListWebhooks", func() (int, error) {
 			return scanAidevopsWebhooks(ctx, client, acct, region, st, scanID, associations)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // aidevopsTags reads a row's tags with ListTagsForResource, sent the row's
@@ -340,7 +340,7 @@ func aidevopsHasWebhooks(cfg devopsagenttypes.ServiceConfiguration) bool {
 
 // scanAidevopsAssociations fans out ListAssociations per agent space — an
 // association binds an agent space to a registered service.
-func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (associations []aidevopsAssociation, total, inserted int, err error) {
+func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (associations []aidevopsAssociation, total int, err error) {
 	for _, space := range spaces {
 		p := devopsagent.NewListAssociationsPaginator(client, &devopsagent.ListAssociationsInput{AgentSpaceId: &space.id})
 		for p.HasMorePages() {
@@ -350,7 +350,7 @@ func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *acc
 					_ = skipIfAccessDenied(st, "aidevops:ListAssociations", acct.ID, region, perr)
 					break
 				}
-				return associations, total, inserted, fmt.Errorf("aidevops:ListAssociations %s: %w", space.id, perr)
+				return associations, total, fmt.Errorf("aidevops:ListAssociations %s: %w", space.id, perr)
 			}
 			batch := make([]*store.Resource, 0, len(page.Associations))
 			listed := make([]aidevopsAssociation, 0, len(page.Associations))
@@ -374,15 +374,15 @@ func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *acc
 					DiscoveredBy:   scanID,
 				})
 			}
-			t, i, uerr := upsertBatch(st, batch, "aidevops associations")
-			total, inserted = total+t, inserted+i
+			t, uerr := upsertBatch(st, batch, "aidevops associations")
+			total += t
 			if uerr != nil {
-				return associations, total, inserted, uerr
+				return associations, total, uerr
 			}
 			associations = append(associations, listed...)
 		}
 	}
-	return associations, total, inserted, nil
+	return associations, total, nil
 }
 
 // scanAidevopsPrivateConnections stores the private connections with their
@@ -440,7 +440,7 @@ type aidevopsAssetAttrs struct {
 // scanAidevopsAssets lists the assets (skills, artifacts) uploaded to each
 // agent space, under the space. ListAssets models no not-found error, so no
 // failed space is skipped silently.
-func scanAidevopsAssets(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanAidevopsAssets(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "aidevops:ListAssets", spaces, func(error) bool { return false },
 		func(gctx context.Context, space childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -500,7 +500,7 @@ func flattenAidevopsTriggerCondition(c devopsagenttypes.TriggerCondition) aidevo
 
 // scanAidevopsTriggers lists each agent space's triggers (scheduled agent
 // invocations), under the space.
-func scanAidevopsTriggers(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanAidevopsTriggers(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "aidevops:ListTriggers", spaces, isAidevopsParentGone,
 		func(gctx context.Context, space childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -537,7 +537,7 @@ func scanAidevopsTriggers(ctx context.Context, client aidevopsAPI, acct *account
 // scanAidevopsGoals lists each agent space's goals (objectives the agent
 // evaluates, optionally on a schedule), under the space. ListGoals models no
 // not-found error, so no failed space is skipped silently.
-func scanAidevopsGoals(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanAidevopsGoals(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "aidevops:ListGoals", spaces, func(error) bool { return false },
 		func(gctx context.Context, space childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -568,7 +568,7 @@ func scanAidevopsGoals(ctx context.Context, client aidevopsAPI, acct *account, r
 // scanAidevopsWebhooks lists each association's inbound webhooks, under the
 // association. The Webhook shape carries only id, URL and auth type; no
 // webhook secret is part of it. ListWebhooks has no pagination.
-func scanAidevopsWebhooks(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, associations []aidevopsAssociation) (int, int, error) {
+func scanAidevopsWebhooks(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, associations []aidevopsAssociation) (int, error) {
 	var parents []childParent
 	spaceOf := make(map[string]string, len(associations))
 	for _, a := range associations {

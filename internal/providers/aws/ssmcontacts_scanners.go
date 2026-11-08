@@ -29,39 +29,36 @@ type ssmContactsAPI interface {
 
 // scanSSMContacts discovers SSM Contacts contacts and escalation plans (split
 // by ContactType), per-contact channels, and rotations.
-func scanSSMContacts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSMContacts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := ssmcontacts.NewFromConfig(acct.cfg, func(o *ssmcontacts.Options) { o.Region = region })
 
-	contactARNs, t, i, ferr := scanSCContacts(ctx, client, acct, region, st, scanID)
+	contactARNs, t, ferr := scanSCContacts(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, ca := range contactARNs {
-		t, i, ferr = scanSCContactChannels(ctx, client, acct, region, st, scanID, ca)
+		t, ferr = scanSCContactChannels(ctx, client, acct, region, st, scanID, ca)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	t, i, ferr = scanSCRotations(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSCRotations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSCContacts walks ListContacts and dispatches each row by ContactType:
 // ESCALATION → AWS::SSMContacts::Plan; PERSONAL / ONCALL_SCHEDULE / unknown
 // → AWS::SSMContacts::Contact. Returns ARNs of all rows for downstream
 // per-contact fan-out (channels apply to both kinds).
-func scanSCContacts(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanSCContacts(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := ssmcontacts.NewListContactsPaginator(client, &ssmcontacts.ListContactsInput{})
 	var batch []*store.Resource
 	var arns []string
@@ -69,9 +66,9 @@ func scanSCContacts(ctx context.Context, client ssmContactsAPI, acct *account, r
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "ssmcontacts:ListContacts", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "ssmcontacts:ListContacts", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("ssmcontacts:ListContacts: %w", err)
+			return nil, 0, fmt.Errorf("ssmcontacts:ListContacts: %w", err)
 		}
 		for _, c := range out.Contacts {
 			arn := sv(c.ContactArn)
@@ -91,11 +88,11 @@ func scanSCContacts(ctx context.Context, client ssmContactsAPI, acct *account, r
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "ssmcontacts contacts/plans")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "ssmcontacts contacts/plans")
+	return arns, t, err
 }
 
-func scanSCContactChannels(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string, contactARN string) (int, int, error) {
+func scanSCContactChannels(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string, contactARN string) (int, error) {
 	ca := contactARN
 	pager := ssmcontacts.NewListContactChannelsPaginator(client, &ssmcontacts.ListContactChannelsInput{ContactId: &ca})
 	var batch []*store.Resource
@@ -103,9 +100,9 @@ func scanSCContactChannels(ctx context.Context, client ssmContactsAPI, acct *acc
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssmcontacts:ListContactChannels", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "ssmcontacts:ListContactChannels", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("ssmcontacts:ListContactChannels: %w", err)
+			return 0, fmt.Errorf("ssmcontacts:ListContactChannels: %w", err)
 		}
 		for _, ch := range out.ContactChannels {
 			arn := sv(ch.ContactChannelArn)
@@ -124,21 +121,21 @@ func scanSCContactChannels(ctx context.Context, client ssmContactsAPI, acct *acc
 	return upsertBatch(st, batch, "ssmcontacts contact-channels")
 }
 
-func scanSCRotations(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSCRotations(ctx context.Context, client ssmContactsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := ssmcontacts.NewListRotationsPaginator(client, &ssmcontacts.ListRotationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssmcontacts:ListRotations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "ssmcontacts:ListRotations", acct.ID, region, err)
 			}
 			// "Account not found" via ValidationException = SSM Contacts not
 			// activated in this account/region. Skip rather than error.
 			if isAPIErrorWithMessage(err, "ValidationException", "Account not found") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ssmcontacts:ListRotations: %w", err)
+			return 0, fmt.Errorf("ssmcontacts:ListRotations: %w", err)
 		}
 		for _, r := range out.Rotations {
 			arn := sv(r.RotationArn)

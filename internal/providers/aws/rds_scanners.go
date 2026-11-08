@@ -93,10 +93,10 @@ func rdsPageScan[P any](
 	st *store.Store,
 	pager rdsPager[P],
 	toResources func(P) []*store.Resource,
-) (total, inserted int, err error) {
-	total, inserted, _, err = rdsPageScanParents(ctx, iamAction, acct, region, st, pager,
+) (total int, err error) {
+	total, _, err = rdsPageScanParents(ctx, iamAction, acct, region, st, pager,
 		func(page P) ([]*store.Resource, []childParent) { return toResources(page), nil })
-	return total, inserted, err
+	return total, err
 }
 
 // rdsPageScanParents is rdsPageScan whose toRows also names, among the rows it
@@ -110,23 +110,22 @@ func rdsPageScanParents[P any](
 	st *store.Store,
 	pager rdsPager[P],
 	toRows func(P) ([]*store.Resource, []childParent),
-) (total, inserted int, parents []childParent, err error) {
+) (total int, parents []childParent, err error) {
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, parents, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
+				return total, parents, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			return total, inserted, parents, fmt.Errorf("%s: %w", iamAction, err)
+			return total, parents, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		batch, pageParents := toRows(page)
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, parents, fmt.Errorf("upsert %s: %w", iamAction, err)
+				return total, parents, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		parents = append(parents, pageParents...)
 	}
@@ -141,17 +140,17 @@ func rdsPageScanParents[P any](
 // listing returns no tags have them read with ListTagsForResource (rdsTags),
 // fanoutMed reads at a time across every family, and every tag denial of the
 // scan is one warning.
-func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
 	tags := rdsTags(client).boundedBy(make(chan struct{}, fanoutMed)).sharingDenials()
 	var defaults rdsDefaultGroupRefusals
 	groupTags := defaults.tags(tags)
 	var snapshots, clusterSnapshots []childParent
 	p := runFamilies(ctx, "rds",
-		countedFamily("rds:DescribeDBInstances", func() (int, int, error) {
+		countedFamily("rds:DescribeDBInstances", func() (int, error) {
 			return scanDBInstances(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeDBClusters", func() (int, int, error) {
+		countedFamily("rds:DescribeDBClusters", func() (int, error) {
 			return scanDBClusters(ctx, client, acct, region, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) {
@@ -161,44 +160,44 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 		phaseFamily(func(p *phaseTotals) { scanDBProxiesAndTargetGroups(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanDBProxyEndpoints(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanDBSecurityGroups(ctx, client, acct, region, st, scanID, tags, p) }),
-		countedFamily("rds:DescribeDBShardGroups", func() (int, int, error) {
+		countedFamily("rds:DescribeDBShardGroups", func() (int, error) {
 			return scanDBShardGroups(ctx, client, acct, region, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) { scanDBSubnetGroups(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanEventSubscriptions(ctx, client, acct, region, st, scanID, tags, p) }),
-		countedFamily("rds:DescribeGlobalClusters", func() (int, int, error) {
+		countedFamily("rds:DescribeGlobalClusters", func() (int, error) {
 			return scanGlobalClusters(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeIntegrations", func() (int, int, error) {
+		countedFamily("rds:DescribeIntegrations", func() (int, error) {
 			return scanIntegrations(ctx, client, acct, region, st, scanID)
 		}),
 		phaseFamily(func(p *phaseTotals) { scanOptionGroups(ctx, client, acct, region, st, scanID, groupTags, p) }),
-		countedFamily("rds:DescribeDBEngineVersions", func() (int, int, error) {
+		countedFamily("rds:DescribeDBEngineVersions", func() (int, error) {
 			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeDBSnapshots", func() (t, i int, err error) {
-			t, i, snapshots, err = scanDBSnapshots(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		countedFamily("rds:DescribeDBSnapshots", func() (t int, err error) {
+			t, snapshots, err = scanDBSnapshots(ctx, client, acct, region, st, scanID)
+			return t, err
 		}),
-		countedFamily("rds:DescribeDBClusterSnapshots", func() (t, i int, err error) {
-			t, i, clusterSnapshots, err = scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		countedFamily("rds:DescribeDBClusterSnapshots", func() (t int, err error) {
+			t, clusterSnapshots, err = scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
+			return t, err
 		}),
 		phaseFamily(func(p *phaseTotals) { scanDBClusterEndpoints(ctx, client, acct, region, st, scanID, tags, p) }),
 		phaseFamily(func(p *phaseTotals) { scanReservedDBInstances(ctx, client, acct, region, st, scanID, tags, p) }),
-		countedFamily("rds:DescribeDBInstanceAutomatedBackups", func() (int, int, error) {
+		countedFamily("rds:DescribeDBInstanceAutomatedBackups", func() (int, error) {
 			return scanDBInstanceAutomatedBackups(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeDBClusterAutomatedBackups", func() (int, int, error) {
+		countedFamily("rds:DescribeDBClusterAutomatedBackups", func() (int, error) {
 			return scanDBClusterAutomatedBackups(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeTenantDatabases", func() (int, int, error) {
+		countedFamily("rds:DescribeTenantDatabases", func() (int, error) {
 			return scanTenantDatabases(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeDBSnapshotTenantDatabases", func() (int, int, error) {
+		countedFamily("rds:DescribeDBSnapshotTenantDatabases", func() (int, error) {
 			return scanDBSnapshotTenantDatabases(ctx, client, acct, region, st, scanID)
 		}),
-		countedFamily("rds:DescribeBlueGreenDeployments", func() (int, int, error) {
+		countedFamily("rds:DescribeBlueGreenDeployments", func() (int, error) {
 			return scanBlueGreenDeployments(ctx, client, acct, region, st, scanID)
 		}),
 	)
@@ -212,10 +211,10 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 	// (childFanOutSkipTransient). A failed write stops the scan, since every
 	// later write would fail too.
 	if !writeFailed {
-		t, i, err := scanDBSnapshotAttributes(ctx, client, acct, region, st, scanID, snapshots)
-		if !p.addPhase(rdsSnapshotAttributesOp, t, i, err) {
-			t, i, err = scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
-			p.addPhase(rdsClusterSnapshotAttributesOp, t, i, err)
+		t, err := scanDBSnapshotAttributes(ctx, client, acct, region, st, scanID, snapshots)
+		if !p.addPhase(rdsSnapshotAttributesOp, t, err) {
+			t, err = scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
+			p.addPhase(rdsClusterSnapshotAttributesOp, t, err)
 		}
 	}
 	p.foldStop(ctx, "rds", 0)
@@ -338,7 +337,7 @@ var nonRDSEngines = map[string]bool{
 	"docdb":   true,
 }
 
-func scanDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeDBInstances", acct, region, st,
 		rds.NewDescribeDBInstancesPaginator(client, &rds.DescribeDBInstancesInput{}),
@@ -369,7 +368,7 @@ func scanDBInstances(ctx context.Context, client rdsAPI, acct *account, region s
 	)
 }
 
-func scanDBClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeDBClusters", acct, region, st,
 		rds.NewDescribeDBClustersPaginator(client, &rds.DescribeDBClustersInput{}),
@@ -525,15 +524,15 @@ func scanDBSecurityGroups(ctx context.Context, client rdsAPI, acct *account, reg
 
 // scanDBShardGroups discovers RDS DB shard groups (Aurora Limitless).
 // The SDK has no paginator for this API, so we paginate manually via Marker.
-func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var marker *string
 	for {
 		out, apiErr := client.DescribeDBShardGroups(ctx, &rds.DescribeDBShardGroupsInput{Marker: marker})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied(st, "rds:DescribeDBShardGroups", acct.ID, region, apiErr)
+				return total, skipIfAccessDenied(st, "rds:DescribeDBShardGroups", acct.ID, region, apiErr)
 			}
-			return total, inserted, fmt.Errorf("rds:DescribeDBShardGroups: %w", apiErr)
+			return total, fmt.Errorf("rds:DescribeDBShardGroups: %w", apiErr)
 		}
 		var batch []*store.Resource
 		for _, sg := range out.DBShardGroups {
@@ -547,15 +546,14 @@ func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert rds:DescribeDBShardGroups: %w", err)
+				return total, fmt.Errorf("upsert rds:DescribeDBShardGroups: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if out.Marker == nil {
-			return total, inserted, nil
+			return total, nil
 		}
 		marker = out.Marker
 	}
@@ -604,7 +602,7 @@ func scanEventSubscriptions(ctx context.Context, client rdsAPI, acct *account, r
 // scanGlobalClusters discovers RDS global clusters (Aurora Global Database).
 // Global clusters are not region-scoped; this is called per-region but
 // UpsertResources deduplicates by NativeID (ARN contains no region).
-func scanGlobalClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGlobalClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeGlobalClusters", acct, region, st,
 		rds.NewDescribeGlobalClustersPaginator(client, &rds.DescribeGlobalClustersInput{}),
@@ -624,7 +622,7 @@ func scanGlobalClusters(ctx context.Context, client rdsAPI, acct *account, regio
 	)
 }
 
-func scanIntegrations(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIntegrations(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeIntegrations", acct, region, st,
 		rds.NewDescribeIntegrationsPaginator(client, &rds.DescribeIntegrationsInput{}),
@@ -670,7 +668,7 @@ func scanOptionGroups(ctx context.Context, client rdsAPI, acct *account, region 
 // The DescribeDBEngineVersions "status" filter does not accept "custom-*"
 // values (InvalidParameterValue), so we issue one call per known custom engine
 // type instead. This avoids fetching the many hundreds of standard versions.
-func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	// RDS Custom supports Oracle and SQL Server only. New variants may be added
 	// in future SDK releases but this list covers all currently available types.
 	customEngines := []string{
@@ -696,7 +694,7 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 		return out
 	}
 	for _, engine := range customEngines {
-		tt, nn, e := rdsPageScan(
+		tt, e := rdsPageScan(
 			ctx, "rds:DescribeDBEngineVersions (custom)", acct, region, st,
 			rds.NewDescribeDBEngineVersionsPaginator(client, &rds.DescribeDBEngineVersionsInput{
 				Engine:     aws.String(engine),
@@ -705,7 +703,6 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 			toResources,
 		)
 		total += tt
-		inserted += nn
 		if e != nil {
 			// RDS Custom variants are not deployed in every region;
 			// AWS surfaces this as InvalidParameterValue. Skip the
@@ -713,7 +710,7 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 			if isAPIErrorWithMessage(e, "InvalidParameterValue", "Unrecognized engine name") {
 				continue
 			}
-			return total, inserted, e
+			return total, e
 		}
 	}
 	return
@@ -722,7 +719,7 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 // scanDBSnapshots stores the snapshots the account owns (the op leaves out
 // shared and public ones unless asked) and returns the stored manual ones as
 // parents for the attribute phase.
-func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, manual []childParent, err error) {
+func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, manual []childParent, err error) {
 	return rdsPageScanParents(
 		ctx, "rds:DescribeDBSnapshots", acct, region, st,
 		rds.NewDescribeDBSnapshotsPaginator(client, &rds.DescribeDBSnapshotsInput{}),
@@ -748,7 +745,7 @@ func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region s
 // scanDBClusterSnapshots stores the cluster snapshots the account owns (the op
 // leaves out shared and public ones unless asked) and returns the stored
 // manual ones as parents for the attribute phase.
-func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, manual []childParent, err error) {
+func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, manual []childParent, err error) {
 	return rdsPageScanParents(
 		ctx, "rds:DescribeDBClusterSnapshots", acct, region, st,
 		rds.NewDescribeDBClusterSnapshotsPaginator(client, &rds.DescribeDBClusterSnapshotsInput{}),
@@ -833,7 +830,7 @@ func scanReservedDBInstances(ctx context.Context, client rdsAPI, acct *account, 
 		}, tags, p)
 }
 
-func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeDBInstanceAutomatedBackups", acct, region, st,
 		rds.NewDescribeDBInstanceAutomatedBackupsPaginator(client, &rds.DescribeDBInstanceAutomatedBackupsInput{}),
@@ -853,7 +850,7 @@ func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *ac
 	)
 }
 
-func scanDBClusterAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBClusterAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeDBClusterAutomatedBackups", acct, region, st,
 		rds.NewDescribeDBClusterAutomatedBackupsPaginator(client, &rds.DescribeDBClusterAutomatedBackupsInput{}),
@@ -873,7 +870,7 @@ func scanDBClusterAutomatedBackups(ctx context.Context, client rdsAPI, acct *acc
 	)
 }
 
-func scanTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeTenantDatabases", acct, region, st,
 		rds.NewDescribeTenantDatabasesPaginator(client, &rds.DescribeTenantDatabasesInput{}),
@@ -894,7 +891,7 @@ func scanTenantDatabases(ctx context.Context, client rdsAPI, acct *account, regi
 	)
 }
 
-func scanDBSnapshotTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBSnapshotTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeDBSnapshotTenantDatabases", acct, region, st,
 		rds.NewDescribeDBSnapshotTenantDatabasesPaginator(client, &rds.DescribeDBSnapshotTenantDatabasesInput{}),
@@ -918,7 +915,7 @@ func scanDBSnapshotTenantDatabases(ctx context.Context, client rdsAPI, acct *acc
 // scanBlueGreenDeployments discovers RDS blue/green deployment workflows. These
 // reference a source + target environment but carry no clean single parent ARN,
 // so they are leaf resources.
-func scanBlueGreenDeployments(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBlueGreenDeployments(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return rdsPageScan(
 		ctx, "rds:DescribeBlueGreenDeployments", acct, region, st,
 		rds.NewDescribeBlueGreenDeploymentsPaginator(client, &rds.DescribeBlueGreenDeploymentsInput{}),

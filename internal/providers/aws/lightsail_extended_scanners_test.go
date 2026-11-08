@@ -71,7 +71,7 @@ func seedLSBuckets(t *testing.T, st *store.Store, names ...string) []childParent
 }
 
 func runLSBucketAccessKeys(st *store.Store, fake *fakeLightsail, buckets []childParent) error {
-	_, _, err := scanLSBucketAccessKeys(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, buckets)
+	_, err := scanLSBucketAccessKeys(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, buckets)
 	return err
 }
 
@@ -245,7 +245,7 @@ func TestScanLightsail_BucketAccessKeysFanOutOverListedBuckets(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsServiceStub(t, nil)
-	total, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanLightsail: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestScanLightsail_BucketAccessKeyErrorPropagatesAfterExistingPhases(t *test
 	acct := newTestAccount(testAccountID)
 	boom := stubCall{Err: apiErr("ServiceException", "boom")}
 	acct.cfg = lsServiceStub(t, map[string][]stubCall{"GetBucketAccessKeys": {boom, boom}})
-	_, _, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanLightsail(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ServiceException") {
 		t.Fatalf("err = %v; want the GetBucketAccessKeys ServiceException", err)
 	}
@@ -330,7 +330,7 @@ func TestScanLSLBTlsCertificates_LoadBalancerErrorHandling(t *testing.T) {
 				certs: map[string][]lightsailtypes.LoadBalancerTlsCertificate{"ok1": {lsTLSCert("c1")}, "ok2": {lsTLSCert("c2")}},
 				errs:  map[string]error{"bad1": tc.err, "bad2": tc.err},
 			}
-			total, _, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID,
+			total, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID,
 				[]string{"bad1", "ok1", "bad2", "ok2"})
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
@@ -366,7 +366,7 @@ func TestScanLSLBTlsCertificates_CertificateWithoutARNWarns(t *testing.T) {
 	fake := &lsTLSFake{certs: map[string][]lightsailtypes.LoadBalancerTlsCertificate{
 		"lb": {{Name: sdkaws.String("noarn")}, lsTLSCert("c1")},
 	}}
-	if _, _, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"lb"}); err != nil {
+	if _, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"lb"}); err != nil {
 		t.Fatalf("scanLSLBTlsCertificates: %v", err)
 	}
 	if rows := rowsByNativeID(t, st, TypeLightsailLoadBalancerTLSCertificate); len(rows) != 1 {

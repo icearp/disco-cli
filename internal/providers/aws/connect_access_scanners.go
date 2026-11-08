@@ -42,44 +42,43 @@ type connectAccessAPI interface {
 // joined by phaseErrs, which demotes a transient one to a warning only beside a
 // hard one, so a throttle on one phase is reported under its op instead of
 // buried in the other's hard error.
-func scanConnectAccess(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAccess(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{connectListSecurityProfilePermissionsOp, func() (int, int, error) {
+		{connectListSecurityProfilePermissionsOp, func() (int, error) {
 			return scanConnectSecurityProfilePermissions(ctx, client, acct, region, st, scanID)
 		}},
-		{connectListLambdaFunctionsOp, func() (int, int, error) {
+		{connectListLambdaFunctionsOp, func() (int, error) {
 			return scanConnectLambdaFunctions(ctx, client, acct, region, st, scanID)
 		}},
-		{connectListRoutingProfileQueuesOp, func() (int, int, error) {
+		{connectListRoutingProfileQueuesOp, func() (int, error) {
 			return scanConnectRoutingProfileQueues(ctx, client, acct, region, st, scanID)
 		}},
 	}
 	type result struct {
-		total, inserted int
-		err             error
+		total int
+		err   error
 	}
 	results := make([]result, len(phases))
 	var wg sync.WaitGroup
 	for k, p := range phases {
 		wg.Go(func() {
 			r := &results[k]
-			r.total, r.inserted, r.err = p.run()
+			r.total, r.err = p.run()
 		})
 	}
 	wg.Wait()
 	var (
-		total, inserted int
-		errs            phaseErrs
+		total int
+		errs  phaseErrs
 	)
 	for k, r := range results {
 		total += r.total
-		inserted += r.inserted
 		errs.add(phases[k].op, r.err)
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // connectSecurityProfilePermissionAttrs is the permission list of one
@@ -95,10 +94,10 @@ type connectSecurityProfilePermissionAttrs struct {
 // that row rather than as a new row. The output's LastModifiedTime and
 // LastModifiedRegion describe the profile, which its own row already
 // carries, so they are not repeated here.
-func scanConnectSecurityProfilePermissions(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectSecurityProfilePermissions(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectSecurityProfile)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, connectListSecurityProfilePermissionsOp, parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -136,10 +135,10 @@ type connectLambdaFunctionAttrs struct {
 // scanConnectLambdaFunctions stores one row per Lambda function ARN that an
 // instance stored this scan allows its flows to invoke. ListIntegrationAssociations
 // does not return these: its IntegrationType enum has no Lambda member.
-func scanConnectLambdaFunctions(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectLambdaFunctions(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectStoredParents(st, acct, region, scanID, TypeConnectInstance, connectInstanceIDFromARN)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return childFanOut(ctx, st, acct, region, connectListLambdaFunctionsOp, parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -183,13 +182,13 @@ func lambdaFunctionNameFromARN(fnARN string) *string {
 // carries only the queue ids, not these settings. An entry without the
 // model-required QueueId or Channel has no identity and is not stored; such
 // entries are counted into one warning.
-func scanConnectRoutingProfileQueues(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectRoutingProfileQueues(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	parents, err := connectScannedParents(st, acct, region, scanID, TypeConnectRoutingProfile)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	var incomplete skipTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, connectListRoutingProfileQueuesOp, parents, isConnectNotFound,
+	total, err := childFanOut(ctx, st, acct, region, connectListRoutingProfileQueuesOp, parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			instID, profileID := connectChildARNIDs(p.arn)
 			var rows []*store.Resource
@@ -227,5 +226,5 @@ func scanConnectRoutingProfileQueues(ctx context.Context, client connectAccessAP
 				"AWS returned entries missing fields its model requires, so nothing in the account needs changing", incomplete.count, incomplete.first),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }

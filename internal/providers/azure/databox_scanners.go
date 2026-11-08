@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDataBox discovers Azure Data Box import/export jobs.
-func scanDataBox(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataBox(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdatabox.NewJobsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdatabox:NewJobsClient: %w", err)
+		return 0, fmt.Errorf("armdatabox:NewJobsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdatabox:Jobs.List", TypeDataBoxJob, sub, st, scanID,
 		client.NewListPager(nil),

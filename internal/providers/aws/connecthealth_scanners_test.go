@@ -117,7 +117,7 @@ func runHealthAgent(t *testing.T, st *store.Store, handlers map[string]func(in a
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", haUnstubbd))
-	total, _, err := registeredServices[idx].fn(context.Background(), acct, haRegion, st, testScanID)
+	total, err := registeredServices[idx].fn(context.Background(), acct, haRegion, st, testScanID)
 	return total, err
 }
 

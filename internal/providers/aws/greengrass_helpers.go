@@ -24,7 +24,7 @@ func ggListDefs[Out any](
 	op string, dtype string,
 	listFn func(*string) (Out, error),
 	extract func(Out) (any, *string),
-) ([]string, int, int, error) {
+) ([]string, int, error) {
 	var ids []string
 	var batch []*store.Resource
 	var token *string
@@ -33,14 +33,14 @@ func ggListDefs[Out any](
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "greengrass:List"+op, acct.ID, region, err)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("greengrass:List%s: %w", op, err)
+			return nil, 0, fmt.Errorf("greengrass:List%s: %w", op, err)
 		}
 		defsAny, next := extract(out)
 		defs, ok := defsAny.([]ggtypes.DefinitionInformation)
 		if !ok {
-			return nil, 0, 0, fmt.Errorf("greengrass:List%s: unexpected type %T", op, defsAny)
+			return nil, 0, fmt.Errorf("greengrass:List%s: unexpected type %T", op, defsAny)
 		}
 		for _, d := range defs {
 			arn := sv(d.Arn)
@@ -64,8 +64,8 @@ func ggListDefs[Out any](
 		}
 		token = next
 	}
-	t, i, err := upsertBatch(st, batch, "greengrass "+op)
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "greengrass "+op)
+	return ids, t, err
 }
 
 // scanGGVersions iterates over collected definition IDs and fetches
@@ -75,9 +75,9 @@ func scanGGVersions(
 	ctx context.Context, acct *account, region string, st *store.Store, scanID string,
 	op string, dtype string, defIDs []string,
 	listFn func(defID, token *string) (versOut, error),
-) (int, int, error) {
+) (int, error) {
 	if len(defIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, defID := range defIDs {
@@ -89,7 +89,7 @@ func scanGGVersions(
 				if isAccessDenied(err) {
 					break
 				}
-				return 0, 0, fmt.Errorf("greengrass:List%s %s: %w", op, defID, err)
+				return 0, fmt.Errorf("greengrass:List%s %s: %w", op, defID, err)
 			}
 			for _, v := range out.Versions {
 				arn := sv(v.Arn)

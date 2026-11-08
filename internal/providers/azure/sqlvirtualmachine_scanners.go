@@ -21,17 +21,17 @@ func init() {
 }
 
 // scanSQLVirtualMachine discovers SQL virtual machines and availability groups.
-func scanSQLVirtualMachine(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLVirtualMachine(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	vms, err := armsqlvirtualmachine.NewSQLVirtualMachinesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsqlvirtualmachine:NewSQLVirtualMachinesClient: %w", err)
+		return 0, fmt.Errorf("armsqlvirtualmachine:NewSQLVirtualMachinesClient: %w", err)
 	}
 	groups, err := armsqlvirtualmachine.NewGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsqlvirtualmachine:NewGroupsClient: %w", err)
+		return 0, fmt.Errorf("armsqlvirtualmachine:NewGroupsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armsqlvirtualmachine:SQLVirtualMachines.List", TypeSQLVirtualMachine, sub, st, scanID,
 				vms.NewListPager(nil),
 				func(p armsqlvirtualmachine.SQLVirtualMachinesClientListResponse) []*armsqlvirtualmachine.SQLVirtualMachine {
@@ -41,7 +41,7 @@ func scanSQLVirtualMachine(ctx context.Context, sub *subscription, cred azcore.T
 					return azTrackedBase{id: sv(m.ID), name: sv(m.Name), location: sv(m.Location), tags: m.Tags, full: m}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armsqlvirtualmachine:Groups.List", TypeSQLVirtualMachineGroup, sub, st, scanID,
 				groups.NewListPager(nil),
 				func(p armsqlvirtualmachine.GroupsClientListResponse) []*armsqlvirtualmachine.Group { return p.Value },

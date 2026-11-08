@@ -51,7 +51,9 @@ func TestScanSpannerInstancePartitions_MultiParentDerivedFromName(t *testing.T) 
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSpannerService(t, srv)
 
-	total, inserted, err := scanSpannerInstancePartitions(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSpannerInstancePartitions(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerInstancePartitions: %v", err)
 	}
@@ -122,7 +124,9 @@ func TestScanSpannerBackups_PartialDenyContinues(t *testing.T) {
 	svc := fakeSpannerService(t, srv)
 
 	instances := []*spanner.Instance{{Name: inst1Native}, {Name: inst2Native}}
-	total, inserted, err := scanSpannerBackups(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSpannerBackups(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerBackups: %v", err)
 	}
@@ -164,7 +168,9 @@ func TestScanSpannerFlatAndFanoutPhases_Basic(t *testing.T) {
 	// standalone here, without the preceding Databases phase.
 	upsertTestResource(t, st, "gcp", p.ID, TypeSpannerDatabase, dbNative, "", "{}")
 
-	total, inserted, err := scanSpannerInstanceConfigs(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSpannerInstanceConfigs(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerInstanceConfigs: %v", err)
 	}
@@ -172,7 +178,9 @@ func TestScanSpannerFlatAndFanoutPhases_Basic(t *testing.T) {
 		t.Fatalf("instanceConfigs counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanSpannerBackupSchedules(t.Context(), svc, p, []string{dbNative}, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanSpannerBackupSchedules(t.Context(), svc, p, []string{dbNative}, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerBackupSchedules: %v", err)
 	}
@@ -180,7 +188,9 @@ func TestScanSpannerFlatAndFanoutPhases_Basic(t *testing.T) {
 		t.Fatalf("backupSchedules counts: got total=%d inserted=%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanSpannerDatabaseRoles(t.Context(), svc, p, []string{dbNative}, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanSpannerDatabaseRoles(t.Context(), svc, p, []string{dbNative}, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerDatabaseRoles: %v", err)
 	}
@@ -224,7 +234,9 @@ func TestScanSpannerInstances_ManagedCatalogFlagged(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSpannerService(t, srv)
 
-	instances, total, inserted, err := scanSpannerInstances(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	instances, total, err := scanSpannerInstances(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerInstances: %v", err)
 	}
@@ -251,7 +263,9 @@ func TestScanSpannerInstanceConfigs_GoogleManagedFlagged(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeSpannerService(t, srv)
 
-	total, inserted, err := scanSpannerInstanceConfigs(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSpannerInstanceConfigs(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerInstanceConfigs: %v", err)
 	}
@@ -314,7 +328,9 @@ func TestScanSpannerDatabases_AccumulatesAcrossInstancesAndContinuesPastDenial(t
 	svc := fakeSpannerService(t, srv)
 
 	instances := []*spanner.Instance{{Name: inst1Native}, {Name: inst2Native}}
-	databaseNames, total, inserted, err := scanSpannerDatabases(t.Context(), svc, p, instances, st, testScanID)
+	counted, upserts := countUpserts(st)
+	databaseNames, total, err := scanSpannerDatabases(t.Context(), svc, p, instances, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerDatabases: %v", err)
 	}
@@ -350,7 +366,9 @@ func TestScanSpannerInstancePartitions_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeSpannerService(t, srv)
 
-	total, inserted, err := scanSpannerInstancePartitions(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSpannerInstancePartitions(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSpannerInstancePartitions (denied): expected nil error, got %v", err)
 	}

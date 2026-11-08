@@ -35,7 +35,7 @@ func rdsSnapshotAttributeNativeID(snapshotARN, attributeName string) string {
 // scanDBSnapshotAttributes stores the attributes of each manual DB snapshot
 // in snapshots; the restore attribute lists the accounts ("all" when public)
 // that may copy or restore it.
-func scanDBSnapshotAttributes(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, snapshots []childParent) (int, int, error) {
+func scanDBSnapshotAttributes(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, snapshots []childParent) (int, error) {
 	return scanRDSSnapshotAttributes(ctx, st, acct, region, scanID, rdsSnapshotAttributesOp, TypeRDSDBSnapshotAttribute, "DBSnapshotNotFound", snapshots,
 		func(ctx context.Context, id string) ([]rdstypes.DBSnapshotAttribute, error) {
 			out, err := client.DescribeDBSnapshotAttributes(ctx, &rds.DescribeDBSnapshotAttributesInput{DBSnapshotIdentifier: &id})
@@ -49,7 +49,7 @@ func scanDBSnapshotAttributes(ctx context.Context, client rdsAPI, acct *account,
 
 // scanDBClusterSnapshotAttributes is scanDBSnapshotAttributes for manual DB
 // cluster snapshots.
-func scanDBClusterSnapshotAttributes(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, snapshots []childParent) (int, int, error) {
+func scanDBClusterSnapshotAttributes(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, snapshots []childParent) (int, error) {
 	return scanRDSSnapshotAttributes(ctx, st, acct, region, scanID, rdsClusterSnapshotAttributesOp, TypeRDSDBClusterSnapshotAttribute, "DBClusterSnapshotNotFoundFault", snapshots,
 		func(ctx context.Context, id string) ([]rdstypes.DBClusterSnapshotAttribute, error) {
 			out, err := client.DescribeDBClusterSnapshotAttributes(ctx, &rds.DescribeDBClusterSnapshotAttributesInput{DBClusterSnapshotIdentifier: &id})
@@ -69,7 +69,7 @@ func scanDBClusterSnapshotAttributes(ctx context.Context, client rdsAPI, acct *a
 func scanRDSSnapshotAttributes[A any](
 	ctx context.Context, st *store.Store, acct *account, region, scanID, op, typ, notFoundCode string, snapshots []childParent,
 	describe func(context.Context, string) ([]A, error), attributeName func(A) *string,
-) (int, int, error) {
+) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, notFoundCode) }
 	return childFanOutSkipTransient(ctx, st, acct, region, op, snapshots, isGone, byParentID,
 		func(ctx context.Context, snapshot childParent) ([]*store.Resource, error) {

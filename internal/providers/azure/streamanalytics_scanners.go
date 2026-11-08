@@ -21,17 +21,17 @@ func init() {
 }
 
 // scanStreamAnalytics discovers Azure Stream Analytics streaming jobs and clusters.
-func scanStreamAnalytics(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStreamAnalytics(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	jobs, err := armstreamanalytics.NewStreamingJobsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armstreamanalytics:NewStreamingJobsClient: %w", err)
+		return 0, fmt.Errorf("armstreamanalytics:NewStreamingJobsClient: %w", err)
 	}
 	clusters, err := armstreamanalytics.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armstreamanalytics:NewClustersClient: %w", err)
+		return 0, fmt.Errorf("armstreamanalytics:NewClustersClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armstreamanalytics:StreamingJobs.List", TypeStreamAnalyticsJob, sub, st, scanID,
 				jobs.NewListPager(nil),
 				func(p armstreamanalytics.StreamingJobsClientListResponse) []*armstreamanalytics.StreamingJob {
@@ -41,7 +41,7 @@ func scanStreamAnalytics(ctx context.Context, sub *subscription, cred azcore.Tok
 					return azTrackedBase{id: sv(j.ID), name: sv(j.Name), location: sv(j.Location), tags: j.Tags, full: j}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armstreamanalytics:Clusters.ListBySubscription", TypeStreamAnalyticsCluster, sub, st, scanID,
 				clusters.NewListBySubscriptionPager(nil),
 				func(p armstreamanalytics.ClustersClientListBySubscriptionResponse) []*armstreamanalytics.Cluster {

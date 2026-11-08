@@ -97,7 +97,7 @@ func protonConnectionTags(tags rowTagReader, acct *account) rowTagReader {
 // Deployments are stored without tags: ListTagsForResource and TagResource
 // do not list the deployment resource in the Service Reference, and no op
 // creates a deployment with tags.
-func scanProton(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanProton(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := proton.NewFromConfig(acct.cfg, func(o *proton.Options) { o.Region = region })
 	tags := protonTags(client)
 	var envTemplates, svcTemplates []childParent
@@ -125,7 +125,7 @@ func scanProton(ctx context.Context, acct *account, region string, st *store.Sto
 		{op: "proton:ListComponents", run: func(p *phaseTotals) bool {
 			return scanProtonComponents(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "proton:ListDeployments", func() (int, int, error) {
+		countedPhase(0, "proton:ListDeployments", func() (int, error) {
 			return scanProtonDeployments(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "proton:ListRepositories", run: func(p *phaseTotals) bool {
@@ -303,7 +303,7 @@ func scanProtonComponents(ctx context.Context, client protonAPI, acct *account, 
 
 // scanProtonDeployments stores the deployments, without tags (scanProton
 // says why).
-func scanProtonDeployments(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanProtonDeployments(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "proton:ListDeployments",
 		func(ctx context.Context, token *string) ([]protontypes.DeploymentSummary, *string, error) {
 			out, err := client.ListDeployments(ctx, &proton.ListDeploymentsInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})

@@ -74,14 +74,14 @@ type acChild struct{ appID, id, arn string }
 // Every type but the hosted configuration version, which is not taggable, has
 // its tags read per row (acTags), whose denials are one warning for the whole
 // scan.
-func scanAppConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := appconfig.NewFromConfig(acct.cfg, func(o *appconfig.Options) { o.Region = region })
 	tags := acTags(client).sharingDenials()
 	var (
 		apps           []childParent
 		envs, profiles []acChild
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "appconfig", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "appconfig", 0, []hostPhase{
 		{op: "appconfig:ListApplications", run: func(p *phaseTotals) (failed bool) {
 			apps, failed = scanACApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -97,7 +97,7 @@ func scanAppConfig(ctx context.Context, acct *account, region string, st *store.
 		{op: "appconfig:ListDeployments", run: func(p *phaseTotals) bool {
 			return scanACDeployments(ctx, client, acct, region, st, scanID, envs, tags, p)
 		}},
-		countedPhase(0, "appconfig:ListHostedConfigurationVersions", func() (int, int, error) {
+		countedPhase(0, "appconfig:ListHostedConfigurationVersions", func() (int, error) {
 			return scanACHostedConfigVersions(ctx, client, acct, region, st, scanID, profiles)
 		}),
 		{op: "appconfig:ListDeploymentStrategies", run: func(p *phaseTotals) bool {
@@ -114,7 +114,7 @@ func scanAppConfig(ctx context.Context, acct *account, region string, st *store.
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // acTags reads a row's tags with ListTagsForResource, sent the row's
@@ -297,7 +297,7 @@ func scanACDeployments(ctx context.Context, client appconfigAPI, acct *account, 
 // version metadata only; the configuration content is never fetched. One
 // profile's failure costs the others none of theirs. Every profile's versions
 // are held until one write: a summary is a few small fields.
-func scanACHostedConfigVersions(ctx context.Context, client appconfigAPI, acct *account, region string, st *store.Store, scanID string, profiles []acChild) (int, int, error) {
+func scanACHostedConfigVersions(ctx context.Context, client appconfigAPI, acct *account, region string, st *store.Store, scanID string, profiles []acChild) (int, error) {
 	parents, byARN := acChildParents(profiles)
 	return storeTokenEachParent(ctx, st, acct, region, "appconfig:ListHostedConfigurationVersions", acGone, childParentIDs(parents),
 		func(ctx context.Context, profileARN string, token *string) ([]actypes.HostedConfigurationVersionSummary, *string, error) {

@@ -36,36 +36,36 @@ func appflowConnectorNativeID(partition, region, acct, label string) string {
 	return arnFor(partition, "appflow", region, acct, "connector/"+label)
 }
 
-func scanAppFlow(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppFlow(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := appflow.NewFromConfig(acct.cfg, func(o *appflow.Options) { o.Region = region })
-	fTotal, fInserted, err := scanAppFlowFlows(ctx, client, acct, region, st, scanID)
+	fTotal, err := scanAppFlowFlows(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return fTotal, fInserted, err
+		return fTotal, err
 	}
-	cTotal, cInserted, err := scanAppFlowConnectors(ctx, client, acct, region, st, scanID)
+	cTotal, err := scanAppFlowConnectors(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return fTotal + cTotal, fInserted + cInserted, err
+		return fTotal + cTotal, err
 	}
-	pTotal, pInserted, err := scanAppFlowConnectorProfiles(ctx, client, acct, region, st, scanID)
+	pTotal, err := scanAppFlowConnectorProfiles(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return fTotal + cTotal + pTotal, fInserted + cInserted + pInserted, err
+		return fTotal + cTotal + pTotal, err
 	}
-	return fTotal + cTotal + pTotal, fInserted + cInserted + pInserted, nil
+	return fTotal + cTotal + pTotal, nil
 }
 
 // scanAppFlowConnectors enumerates custom (registered) connectors via
 // appflow:ListConnectors. ConnectorDetail has no AWS-issued ARN; NativeID
 // synthesized as arn:{p}:appflow:{region}:{acct}:connector/{ConnectorLabel}.
 // ListConnectors uses manual NextToken pagination (no SDK paginator helper).
-func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.ListConnectors(ctx, &appflow.ListConnectorsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "appflow:ListConnectors", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "appflow:ListConnectors", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("appflow:ListConnectors: %w", err)
+			return total, fmt.Errorf("appflow:ListConnectors: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(out.Connectors))
 		for _, c := range out.Connectors {
@@ -92,32 +92,31 @@ func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert appflow connectors: %w", err)
+				return total, fmt.Errorf("upsert appflow connectors: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanAppFlowConnectorProfiles enumerates connector profiles. NativeID =
 // ConnectorProfileArn (real AWS-issued ARN). Paginated via SDK paginator.
-func scanAppFlowConnectorProfiles(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppFlowConnectorProfiles(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := appflow.NewDescribeConnectorProfilesPaginator(client, &appflow.DescribeConnectorProfilesInput{})
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "appflow:DescribeConnectorProfiles", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "appflow:DescribeConnectorProfiles", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("appflow:DescribeConnectorProfiles: %w", err)
+			return total, fmt.Errorf("appflow:DescribeConnectorProfiles: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(page.ConnectorProfileDetails))
 		for _, cp := range page.ConnectorProfileDetails {
@@ -140,26 +139,25 @@ func scanAppFlowConnectorProfiles(ctx context.Context, client appflowAPI, acct *
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert appflow connector profiles: %w", err)
+				return total, fmt.Errorf("upsert appflow connector profiles: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanAppFlowFlows(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppFlowFlows(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := appflow.NewListFlowsPaginator(client, &appflow.ListFlowsInput{})
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "appflow:ListFlows", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "appflow:ListFlows", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("appflow:ListFlows: %w", err)
+			return total, fmt.Errorf("appflow:ListFlows: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(page.Flows))
 		for _, f := range page.Flows {
@@ -185,13 +183,12 @@ func scanAppFlowFlows(ctx context.Context, client appflowAPI, acct *account, reg
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert appflow flows: %w", err)
+				return total, fmt.Errorf("upsert appflow flows: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

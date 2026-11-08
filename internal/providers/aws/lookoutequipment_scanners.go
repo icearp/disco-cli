@@ -67,11 +67,11 @@ var errLESchedulerNoName = errors.New("the inference scheduler was listed withou
 // NXDOMAIN, since the region does not serve the service (runHostPhases). The
 // model versions are read for the models stored this scan. The tag reads'
 // denials are one warning for the whole scan.
-func scanLookoutEquipment(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLookoutEquipment(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := lookoutequipment.NewFromConfig(acct.cfg, func(o *lookoutequipment.Options) { o.Region = region })
 	tags := leTags(client).sharingDenials()
 	var models []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "lookoutequipment", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "lookoutequipment", 0, []hostPhase{
 		{op: "lookoutequipment:ListInferenceSchedulers", run: func(p *phaseTotals) bool {
 			return scanLEInferenceSchedulers(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -90,7 +90,7 @@ func scanLookoutEquipment(ctx context.Context, acct *account, region string, st 
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // leTags reads a row's tags with ListTagsForResource, which the Service

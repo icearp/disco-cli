@@ -3,6 +3,7 @@ package azure
 import (
 	"encoding/json"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -101,5 +102,16 @@ func fakeClientOptions(t *testing.T, transport policy.Transporter) *arm.ClientOp
 			Transport: transport,
 			Retry:     policy.RetryOptions{MaxRetries: 0},
 		},
+	}
+}
+
+// countUpserts binds upsert and quota counters to st, as the dispatcher does around a service scan, and returns the
+// counting store and a func reporting the first discoveries plus version splits written through it so far, resources
+// and quota limits together.
+func countUpserts(st *store.Store) (*store.Store, func() int) {
+	var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+	counted := st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC)
+	return counted, func() int {
+		return int(newC.Load() + changedC.Load() + quotaNewC.Load() + quotaChangedC.Load())
 	}
 }

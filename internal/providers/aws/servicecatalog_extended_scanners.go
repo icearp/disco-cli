@@ -20,7 +20,7 @@ const (
 // reported under.
 type scPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
 // scanServiceCatalogExtendedPhases returns the phases scanServiceCatalog runs
@@ -29,30 +29,30 @@ type scPhase struct {
 func scanServiceCatalogExtendedPhases(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) []scPhase {
 	var tagOptionIDs []string
 	return []scPhase{
-		{"servicecatalog:ListAcceptedPortfolioShares", func() (int, int, error) {
+		{"servicecatalog:ListAcceptedPortfolioShares", func() (int, error) {
 			return scanSCAcceptedShares(ctx, client, acct, region, st, scanID)
 		}},
-		{scSearchProvisionedProductsOp, func() (int, int, error) {
+		{scSearchProvisionedProductsOp, func() (int, error) {
 			return scanSCProvisionedProducts(ctx, client, acct, region, st, scanID)
 		}},
-		{"servicecatalog:ListServiceActions", func() (int, int, error) {
+		{"servicecatalog:ListServiceActions", func() (int, error) {
 			return scanSCServiceActions(ctx, client, acct, region, st, scanID)
 		}},
-		{"servicecatalog:ListTagOptions", func() (int, int, error) {
-			ids, t, i, err := scanSCTagOptions(ctx, client, acct, region, st, scanID)
+		{"servicecatalog:ListTagOptions", func() (int, error) {
+			ids, t, err := scanSCTagOptions(ctx, client, acct, region, st, scanID)
 			tagOptionIDs = ids
-			return t, i, err
+			return t, err
 		}},
-		{"servicecatalog:ListResourcesForTagOption", func() (int, int, error) {
+		{"servicecatalog:ListResourcesForTagOption", func() (int, error) {
 			return scanSCTagOptionAssociations(ctx, client, acct, region, st, scanID, tagOptionIDs)
 		}},
-		{"servicecatalog:DescribePortfolioShares", func() (int, int, error) {
+		{"servicecatalog:DescribePortfolioShares", func() (int, error) {
 			return scanSCPortfolioShares(ctx, client, acct, region, st, scanID, portfolioIDs)
 		}},
-		{"servicecatalog:ListPrincipalsForPortfolio", func() (int, int, error) {
+		{"servicecatalog:ListPrincipalsForPortfolio", func() (int, error) {
 			return scanSCPortfolioPrincipals(ctx, client, acct, region, st, scanID, portfolioIDs)
 		}},
-		{"servicecatalog:ListConstraintsForPortfolio", func() (int, int, error) {
+		{"servicecatalog:ListConstraintsForPortfolio", func() (int, error) {
 			return scanSCConstraints(ctx, client, acct, region, st, scanID, portfolioIDs)
 		}},
 	}
@@ -62,7 +62,7 @@ func scARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "servicecatalog", region, acct, kind+"/"+id)
 }
 
-func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := servicecatalog.NewListAcceptedPortfolioSharesPaginator(client, &servicecatalog.ListAcceptedPortfolioSharesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -70,9 +70,9 @@ func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "servicecatalog:ListAcceptedPortfolioShares", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("servicecatalog:ListAcceptedPortfolioShares: %w", perr)
+			return 0, fmt.Errorf("servicecatalog:ListAcceptedPortfolioShares: %w", perr)
 		}
 		for _, p := range out.PortfolioDetails {
 			arn := sv(p.ARN)
@@ -99,7 +99,7 @@ func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *a
 // carries. A product listed without an ARN is not stored and is warned about
 // under its id. A denial is warned about once; any other error is returned
 // after the rows are stored.
-func scanSCProvisionedProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSCProvisionedProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, scSearchProvisionedProductsOp,
 		func(ctx context.Context, token *string) ([]sctypes.ProvisionedProductAttribute, *string, error) {
 			out, err := client.SearchProvisionedProducts(ctx, &servicecatalog.SearchProvisionedProductsInput{
@@ -128,7 +128,7 @@ func scanSCProvisionedProducts(ctx context.Context, client servicecatalogAPI, ac
 		})
 }
 
-func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := servicecatalog.NewListServiceActionsPaginator(client, &servicecatalog.ListServiceActionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -136,9 +136,9 @@ func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "servicecatalog:ListServiceActions", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("servicecatalog:ListServiceActions: %w", perr)
+			return 0, fmt.Errorf("servicecatalog:ListServiceActions: %w", perr)
 		}
 		for _, a := range out.ServiceActionSummaries {
 			id := sv(a.Id)
@@ -159,7 +159,7 @@ func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *a
 	return upsertBatch(st, batch, "servicecatalog service-actions")
 }
 
-func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := servicecatalog.NewListTagOptionsPaginator(client, &servicecatalog.ListTagOptionsInput{})
 	var ids []string
 	var batch []*store.Resource
@@ -168,14 +168,14 @@ func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *accou
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "servicecatalog:ListTagOptions", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
 			// TagOptionNotMigratedException = catalog hasn't migrated to the new
 			// TagOptions admin API; nothing to list in this account/region.
 			if isAPIErrorCode(perr, "TagOptionNotMigratedException") {
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("servicecatalog:ListTagOptions: %w", perr)
+			return nil, 0, fmt.Errorf("servicecatalog:ListTagOptions: %w", perr)
 		}
 		for _, t := range out.TagOptionDetails {
 			id := sv(t.Id)
@@ -197,13 +197,13 @@ func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *accou
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "servicecatalog tag-options")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "servicecatalog tag-options")
+	return ids, t, err
 }
 
-func scanSCTagOptionAssociations(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, tagOptionIDs []string) (int, int, error) {
+func scanSCTagOptionAssociations(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, tagOptionIDs []string) (int, error) {
 	if len(tagOptionIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, toID := range tagOptionIDs {
@@ -215,7 +215,7 @@ func scanSCTagOptionAssociations(ctx context.Context, client servicecatalogAPI, 
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("servicecatalog:ListResourcesForTagOption %s: %w", toID, perr)
+				return 0, fmt.Errorf("servicecatalog:ListResourcesForTagOption %s: %w", toID, perr)
 			}
 			for _, r := range out.ResourceDetails {
 				rid := sv(r.Id)
@@ -239,9 +239,9 @@ func scanSCTagOptionAssociations(ctx context.Context, client servicecatalogAPI, 
 // values per portfolio (ACCOUNT, ORGANIZATION, ORGANIZATIONAL_UNIT,
 // ORGANIZATION_MEMBER_ACCOUNT). Each row keyed on synthetic
 // (portfolioId, shareType, principalId) — no native ARN.
-func scanSCPortfolioShares(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, int, error) {
+func scanSCPortfolioShares(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, error) {
 	if len(portfolioIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	shareTypes := []sctypes.DescribePortfolioShareType{
 		sctypes.DescribePortfolioShareTypeAccount,
@@ -260,7 +260,7 @@ func scanSCPortfolioShares(ctx context.Context, client servicecatalogAPI, acct *
 					if isAccessDenied(perr) {
 						break
 					}
-					return 0, 0, fmt.Errorf("servicecatalog:DescribePortfolioShares %s/%s: %w", pid, sType, perr)
+					return 0, fmt.Errorf("servicecatalog:DescribePortfolioShares %s/%s: %w", pid, sType, perr)
 				}
 				for _, s := range out.PortfolioShareDetails {
 					principal := sv(s.PrincipalId)
@@ -281,9 +281,9 @@ func scanSCPortfolioShares(ctx context.Context, client servicecatalogAPI, acct *
 	return upsertBatch(st, batch, "servicecatalog portfolio-shares")
 }
 
-func scanSCPortfolioPrincipals(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, int, error) {
+func scanSCPortfolioPrincipals(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, error) {
 	if len(portfolioIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, pid := range portfolioIDs {
@@ -295,7 +295,7 @@ func scanSCPortfolioPrincipals(ctx context.Context, client servicecatalogAPI, ac
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("servicecatalog:ListPrincipalsForPortfolio %s: %w", pid, perr)
+				return 0, fmt.Errorf("servicecatalog:ListPrincipalsForPortfolio %s: %w", pid, perr)
 			}
 			for _, p := range out.Principals {
 				parn := sv(p.PrincipalARN)
@@ -320,9 +320,9 @@ func scanSCPortfolioPrincipals(ctx context.Context, client servicecatalogAPI, ac
 // NOTIFICATION→LaunchNotificationConstraint, TEMPLATE→
 // LaunchTemplateConstraint, RESOURCE_UPDATE→ResourceUpdateConstraint,
 // STACKSET→StackSetConstraint).
-func scanSCConstraints(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, int, error) {
+func scanSCConstraints(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (int, error) {
 	if len(portfolioIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, pid := range portfolioIDs {
@@ -334,7 +334,7 @@ func scanSCConstraints(ctx context.Context, client servicecatalogAPI, acct *acco
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("servicecatalog:ListConstraintsForPortfolio %s: %w", pid, perr)
+				return 0, fmt.Errorf("servicecatalog:ListConstraintsForPortfolio %s: %w", pid, perr)
 			}
 			for _, c := range out.ConstraintDetails {
 				cid := sv(c.ConstraintId)

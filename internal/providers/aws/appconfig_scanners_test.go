@@ -63,7 +63,7 @@ func scanACExpDefs(t *testing.T, st *store.Store, handler func(in any) (any, err
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanACExperimentDefinitions(context.Background(), client, acct, testRegion, st, testScanID, acTags(client), &p)
-	total, _, err := p.result(st, acct, testRegion)
+	total, err := p.result(st, acct, testRegion)
 	return total, err
 }
 
@@ -241,7 +241,7 @@ func TestScanAppConfig_StoresExperimentDefinitions(t *testing.T) {
 	)
 	acct.cfg = opStubConfig(acTopLevelHandlers(acExpDefHandler(&inputs, &mu, nil)), acDenied)
 
-	total, _, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanAppConfig: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestScanAppConfig_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanAppConfig(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanAppConfig(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanAppConfig: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -293,7 +293,7 @@ func TestScanAppConfig_ExperimentDefinitionErrorAfterExistingPhases(t *testing.T
 		return nil, acBadRequest
 	}), acDenied)
 
-	total, _, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAppConfig(context.Background(), acct, testRegion, st, testScanID)
 	if !called {
 		t.Fatal("ListExperimentDefinitions never called")
 	}

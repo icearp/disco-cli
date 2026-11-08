@@ -23,7 +23,7 @@ func init() {
 // scanNetworkMonitor discovers CloudWatch Network Monitor monitors and probes.
 // Probes are embedded in GetMonitor, so each monitor is described per-row to
 // surface its probes as standalone resources.
-func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := networkmonitor.NewFromConfig(acct.cfg, func(o *networkmonitor.Options) { o.Region = region })
 
 	var monitorBatch []*store.Resource
@@ -33,9 +33,9 @@ func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *s
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkmonitor:ListMonitors", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "networkmonitor:ListMonitors", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("networkmonitor:ListMonitors: %w", err)
+			return 0, fmt.Errorf("networkmonitor:ListMonitors: %w", err)
 		}
 		for _, m := range out.Monitors {
 			arn := sv(m.MonitorArn)
@@ -53,17 +53,17 @@ func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *s
 		}
 	}
 
-	total, inserted, err = upsertBatch(st, monitorBatch, "networkmonitor monitors")
+	total, err = upsertBatch(st, monitorBatch, "networkmonitor monitors")
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	probeBatch, err := scanNetworkMonitorProbes(ctx, client, acct, region, st, scanID, names)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	pt, pi, err := upsertBatch(st, probeBatch, "networkmonitor probes")
-	return total + pt, inserted + pi, err
+	pt, err := upsertBatch(st, probeBatch, "networkmonitor probes")
+	return total + pt, err
 }
 
 func scanNetworkMonitorProbes(ctx context.Context, client *networkmonitor.Client, acct *account, region string, st *store.Store, scanID string, monitorNames []string) ([]*store.Resource, error) {

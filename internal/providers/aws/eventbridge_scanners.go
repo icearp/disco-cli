@@ -44,42 +44,39 @@ type eventbridgeAPI interface {
 // scanEventBridge discovers EventBridge buses and rules in one region. Rules
 // are listed per bus and enriched with targets via ListTargetsByRule (stored
 // inline in attributes for resolver use).
-func scanEventBridge(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEventBridge(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := eventbridge.NewFromConfig(acct.cfg, func(o *eventbridge.Options) { o.Region = region })
-	t, i, ferr := scanEventBridgeAll(ctx, client, acct, region, st, scanID)
+	t, ferr := scanEventBridgeAll(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	t, i, ferr = scanEventBridgeExtended(ctx, client, acct, region, st, scanID)
+	t, ferr = scanEventBridgeExtended(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	t, i, ferr = scanEventBridgeEventSources(ctx, client, acct, region, st, scanID)
+	t, ferr = scanEventBridgeEventSources(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanEventBridgeEventSources discovers SaaS partner event sources offered to
 // the account (ListEventSources, manual NextToken — no SDK paginator). A partner
 // event bus is created from one; the source itself is edge-less.
-func scanEventBridgeEventSources(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEventBridgeEventSources(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var token *string
 	var batch []*store.Resource
 	for {
 		out, perr := client.ListEventSources(ctx, &eventbridge.ListEventSourcesInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "events:ListEventSources", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "events:ListEventSources", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("events:ListEventSources: %w", perr)
+			return 0, fmt.Errorf("events:ListEventSources: %w", perr)
 		}
 		for _, s := range out.EventSources {
 			arn := sv(s.Arn)
@@ -102,32 +99,28 @@ func scanEventBridgeEventSources(ctx context.Context, client eventbridgeAPI, acc
 }
 
 // scanEventBridgeAll holds the testable scan body.
-func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	busNames, t, i, ferr := scanEventBridgeBuses(ctx, client, acct, region, st, scanID)
+func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	busNames, t, ferr := scanEventBridgeBuses(ctx, client, acct, region, st, scanID)
 	total += t
-	inserted += i
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	t, i, ferr = scanEventBridgeRules(ctx, client, acct, region, st, scanID, busNames)
+	t, ferr = scanEventBridgeRules(ctx, client, acct, region, st, scanID, busNames)
 	total += t
-	inserted += i
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	t, i, ferr = scanEventBridgeConnections(ctx, client, acct, region, st, scanID)
+	t, ferr = scanEventBridgeConnections(ctx, client, acct, region, st, scanID)
 	total += t
-	inserted += i
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
-	t, i, ferr = scanEventBridgeAPIDestinations(ctx, client, acct, region, st, scanID)
+	t, ferr = scanEventBridgeAPIDestinations(ctx, client, acct, region, st, scanID)
 	total += t
-	inserted += i
-	return total, inserted, ferr
+	return total, ferr
 }
 
-func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var batch []*store.Resource
 	var busNames []string
 	var token *string
@@ -135,9 +128,9 @@ func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *acco
 		out, err := client.ListEventBuses(ctx, &eventbridge.ListEventBusesInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "events:ListEventBuses", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "events:ListEventBuses", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("events:ListEventBuses: %w", err)
+			return nil, 0, fmt.Errorf("events:ListEventBuses: %w", err)
 		}
 		for _, b := range out.EventBuses {
 			arn := sv(b.Arn)
@@ -164,16 +157,16 @@ func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *acco
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return busNames, 0, 0, nil
+		return busNames, 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("upsert EventBridge buses: %w", err)
+		return nil, 0, fmt.Errorf("upsert EventBridge buses: %w", err)
 	}
-	return busNames, len(batch), n, nil
+	return busNames, len(batch), nil
 }
 
-func scanEventBridgeRules(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string, busNames []string) (int, int, error) {
+func scanEventBridgeRules(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string, busNames []string) (int, error) {
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -185,16 +178,16 @@ func scanEventBridgeRules(ctx context.Context, client eventbridgeAPI, acct *acco
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert EventBridge rules: %w", err)
+		return 0, fmt.Errorf("upsert EventBridge rules: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 func collectEventBridgeRulesForBus(ctx context.Context, client eventbridgeAPI, acct *account, region, scanID, busName string, mu *sync.Mutex, batch *[]*store.Resource) error {
@@ -250,7 +243,7 @@ func collectEventBridgeRulesForBus(ctx context.Context, client eventbridgeAPI, a
 	}
 }
 
-func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -260,7 +253,7 @@ func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct
 				_ = skipIfAccessDenied(st, "events:ListConnections", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("events:ListConnections: %w", err)
+			return 0, fmt.Errorf("events:ListConnections: %w", err)
 		}
 		for _, c := range out.Connections {
 			arn := sv(c.ConnectionArn)
@@ -288,16 +281,16 @@ func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert EventBridge connections: %w", err)
+		return 0, fmt.Errorf("upsert EventBridge connections: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -307,7 +300,7 @@ func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, 
 				_ = skipIfAccessDenied(st, "events:ListApiDestinations", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("events:ListApiDestinations: %w", err)
+			return 0, fmt.Errorf("events:ListApiDestinations: %w", err)
 		}
 		for _, d := range out.ApiDestinations {
 			arn := sv(d.ApiDestinationArn)
@@ -331,11 +324,11 @@ func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, 
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert EventBridge api destinations: %w", err)
+		return 0, fmt.Errorf("upsert EventBridge api destinations: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

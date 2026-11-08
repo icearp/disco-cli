@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanServiceNetworking discovers Application Gateway for Containers traffic controllers.
-func scanServiceNetworking(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceNetworking(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armservicenetworking.NewTrafficControllerInterfaceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armservicenetworking:NewTrafficControllerInterfaceClient: %w", err)
+		return 0, fmt.Errorf("armservicenetworking:NewTrafficControllerInterfaceClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armservicenetworking:TrafficControllerInterface.ListBySubscription", TypeServiceNetworkingTrafficController, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

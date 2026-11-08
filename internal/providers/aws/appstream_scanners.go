@@ -116,9 +116,9 @@ const (
 // builders, applications, fleets, image builders and images have their tags
 // read per row (asTags), each such listing written a page at a time, and the
 // tag denials of the whole scan are one warning.
-func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if !appStreamRegionSupported(acct, region) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })
 	tags := asTags(client).sharingDenials()
@@ -126,14 +126,14 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 		stacks, fleets, builders, images []childParent
 		entKeys                          []asEntitlementKey
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "appstream", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "appstream", 0, []hostPhase{
 		{op: "appstream:DescribeStacks", run: func(p *phaseTotals) (failed bool) {
 			stacks, failed = scanASStacks(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "appstream:DescribeEntitlements", func() (t, i int, err error) {
-			entKeys, t, i, err = scanASEntitlements(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
-			return t, i, err
+		countedPhase(0, "appstream:DescribeEntitlements", func() (t int, err error) {
+			entKeys, t, err = scanASEntitlements(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
+			return t, err
 		}),
 		{op: "appstream:DescribeAppBlocks", run: func(p *phaseTotals) bool {
 			return scanASAppBlocks(ctx, client, acct, region, st, scanID, tags, p)
@@ -148,10 +148,10 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 			fleets, failed = scanASFleets(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "appstream:DescribeApplicationFleetAssociations", func() (int, int, error) {
+		countedPhase(0, "appstream:DescribeApplicationFleetAssociations", func() (int, error) {
 			return scanASAppFleetAssocs(ctx, client, acct, region, st, scanID, childParentIDs(fleets))
 		}),
-		countedPhase(0, "appstream:DescribeDirectoryConfigs", func() (int, int, error) {
+		countedPhase(0, "appstream:DescribeDirectoryConfigs", func() (int, error) {
 			return scanASDirectoryConfigs(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "appstream:DescribeImageBuilders", run: func(p *phaseTotals) (failed bool) {
@@ -162,27 +162,27 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 			images, failed = scanASImages(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "appstream:ListAssociatedFleets", func() (int, int, error) {
+		countedPhase(0, "appstream:ListAssociatedFleets", func() (int, error) {
 			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
 		}),
-		countedPhase(0, "appstream:DescribeUserStackAssociations", func() (int, int, error) {
+		countedPhase(0, "appstream:DescribeUserStackAssociations", func() (int, error) {
 			return scanASUserStackAssocs(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
 		}),
-		countedPhase(0, "appstream:DescribeUsers", func() (int, int, error) {
+		countedPhase(0, "appstream:DescribeUsers", func() (int, error) {
 			return scanASUsers(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "appstream:ListEntitledApplications", func() (int, int, error) {
+		countedPhase(0, "appstream:ListEntitledApplications", func() (int, error) {
 			return scanASAppEntitlementAssocs(ctx, client, acct, region, st, scanID, entKeys)
 		}),
-		countedPhase(0, asImagePermissionOp, func() (int, int, error) {
+		countedPhase(0, asImagePermissionOp, func() (int, error) {
 			return scanASImagePermissions(ctx, client, acct, region, st, scanID, images)
 		}),
-		countedPhase(0, asSoftwareAssociationOp, func() (int, int, error) {
+		countedPhase(0, asSoftwareAssociationOp, func() (int, error) {
 			return scanASSoftwareAssociations(ctx, client, acct, region, st, scanID, slices.Concat(images, builders))
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // asTags reads a row's tags with ListTagsForResource, sent the row's
@@ -297,7 +297,7 @@ func scanASApplications(ctx context.Context, client appStreamAPI, acct *account,
 // the rows of the others and those read before it, a denial warns once, and
 // a repeated token is an error. The op models no not-found code, so a fleet
 // deleted since it was listed fails like any other error.
-func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, fleetNames []string) (int, int, error) {
+func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, fleetNames []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "appstream:DescribeApplicationFleetAssociations", nil, fleetNames,
 		func(ctx context.Context, fleet string, token *string) ([]astypes.ApplicationFleetAssociation, *string, error) {
 			out, err := client.DescribeApplicationFleetAssociations(ctx, &appstream.DescribeApplicationFleetAssociationsInput{FleetName: &fleet, NextToken: token})
@@ -396,16 +396,16 @@ func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, regio
 		func(s astypes.Stack) string { return sv(s.Name) }, tags, p)
 }
 
-func scanASDirectoryConfigs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanASDirectoryConfigs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		out, err := client.DescribeDirectoryConfigs(ctx, &appstream.DescribeDirectoryConfigsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeDirectoryConfigs", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "appstream:DescribeDirectoryConfigs", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("appstream:DescribeDirectoryConfigs: %w", err)
+			return 0, fmt.Errorf("appstream:DescribeDirectoryConfigs: %w", err)
 		}
 		for _, d := range out.DirectoryConfigs {
 			name := sv(d.DirectoryName)
@@ -428,7 +428,7 @@ func scanASDirectoryConfigs(ctx context.Context, client appStreamAPI, acct *acco
 	return upsertBatch(st, batch, "appstream directory-configs")
 }
 
-func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) ([]asEntitlementKey, int, int, error) {
+func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) ([]asEntitlementKey, int, error) {
 	var keys []asEntitlementKey
 	var batch []*store.Resource
 	for _, sn := range stackNames {
@@ -440,7 +440,7 @@ func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account,
 				if isAccessDenied(err) || isAPIErrorCode(err, "EntitlementNotFoundException") {
 					break
 				}
-				return nil, 0, 0, fmt.Errorf("appstream:DescribeEntitlements %s: %w", sn, err)
+				return nil, 0, fmt.Errorf("appstream:DescribeEntitlements %s: %w", sn, err)
 			}
 			for _, e := range out.Entitlements {
 				name := sv(e.Name)
@@ -462,11 +462,11 @@ func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account,
 			token = out.NextToken
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "appstream entitlements")
-	return keys, t, i, err
+	t, err := upsertBatch(st, batch, "appstream entitlements")
+	return keys, t, err
 }
 
-func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, int, error) {
+func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, error) {
 	var batch []*store.Resource
 	for _, sn := range stackNames {
 		s := sn
@@ -477,7 +477,7 @@ func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *acco
 				if isAccessDenied(err) {
 					break
 				}
-				return 0, 0, fmt.Errorf("appstream:ListAssociatedFleets %s: %w", sn, err)
+				return 0, fmt.Errorf("appstream:ListAssociatedFleets %s: %w", sn, err)
 			}
 			for _, fname := range out.Names {
 				if fname == "" {
@@ -503,9 +503,9 @@ func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *acco
 // scanASUserStackAssocs requires either StackName or UserName as a filter —
 // blanket DescribeUserStackAssociations rejects empty input. Fan out per
 // stack name enumerated by scanASStacks.
-func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, int, error) {
+func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, error) {
 	if len(stackNames) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, sn := range stackNames {
@@ -518,9 +518,9 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 			})
 			if err != nil {
 				if isAccessDenied(err) {
-					return 0, 0, skipIfAccessDenied(st, "appstream:DescribeUserStackAssociations", acct.ID, region, err)
+					return 0, skipIfAccessDenied(st, "appstream:DescribeUserStackAssociations", acct.ID, region, err)
 				}
-				return 0, 0, fmt.Errorf("appstream:DescribeUserStackAssociations %s: %w", stackName, err)
+				return 0, fmt.Errorf("appstream:DescribeUserStackAssociations %s: %w", stackName, err)
 			}
 			for _, a := range out.UserStackAssociations {
 				user := sv(a.UserName)
@@ -553,7 +553,7 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 // none of them names a user pool entry: an API-auth session has no user record
 // (CreateStreamingURL mints the URL), and SAML/AWS_AD users are federated. So
 // there is nothing to enumerate under them, and asking for one is a 400.
-func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -565,7 +565,7 @@ func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region
 			if isAccessDenied(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("appstream:DescribeUsers: %w", err)
+			return 0, fmt.Errorf("appstream:DescribeUsers: %w", err)
 		}
 		for _, u := range out.Users {
 			arn := sv(u.Arn)
@@ -590,9 +590,9 @@ func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region
 	return upsertBatch(st, batch, "appstream users")
 }
 
-func scanASAppEntitlementAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, keys []asEntitlementKey) (int, int, error) {
+func scanASAppEntitlementAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, keys []asEntitlementKey) (int, error) {
 	if len(keys) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, k := range keys {
@@ -605,7 +605,7 @@ func scanASAppEntitlementAssocs(ctx context.Context, client appStreamAPI, acct *
 				if isAccessDenied(err) {
 					break
 				}
-				return 0, 0, fmt.Errorf("appstream:ListEntitledApplications %s/%s: %w", k.stack, k.entitlement, err)
+				return 0, fmt.Errorf("appstream:ListEntitledApplications %s/%s: %w", k.stack, k.entitlement, err)
 			}
 			for _, a := range out.EntitledApplications {
 				appID := sv(a.ApplicationIdentifier)
@@ -646,7 +646,7 @@ func isASParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFou
 // returns is queried. An image whose call still fails transiently after the
 // SDK's retries is skipped, keeping its siblings' rows, and the skips are
 // reported in one warning.
-func scanASImagePermissions(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, int, error) {
+func scanASImagePermissions(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, asImagePermissionOp, images, isASParentGone, byParentID,
 		func(ctx context.Context, img childParent) ([]*store.Resource, error) {
 			return listASImagePermissions(ctx, client, acct, region, scanID, img)
@@ -687,7 +687,7 @@ func listASImagePermissions(ctx context.Context, client appStreamAPI, acct *acco
 // region, since that response was never observed live. An owner whose call
 // still fails transiently after the SDK's retries is skipped, keeping its
 // siblings' rows, and the skips are reported in one warning.
-func scanASSoftwareAssociations(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, owners []childParent) (int, int, error) {
+func scanASSoftwareAssociations(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, owners []childParent) (int, error) {
 	// Keyed by ARN so error and warning messages name the owner unambiguously:
 	// an image and an image builder may share a name.
 	byARN := make([]childParent, len(owners))

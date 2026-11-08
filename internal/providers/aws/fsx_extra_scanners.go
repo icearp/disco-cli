@@ -8,7 +8,7 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-func scanFSxBackups(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxBackups(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeBackupsOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.Backup, *string, error) {
 			out, err := client.DescribeBackups(ctx, &fsx.DescribeBackupsInput{NextToken: token, MaxResults: fsxMaxResults})
@@ -25,7 +25,7 @@ func scanFSxBackups(ctx context.Context, client fsxAPI, acct *account, region st
 		})
 }
 
-func scanFSxFileCaches(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxFileCaches(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeFileCachesOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.FileCache, *string, error) {
 			out, err := client.DescribeFileCaches(ctx, &fsx.DescribeFileCachesInput{NextToken: token, MaxResults: fsxMaxResults})

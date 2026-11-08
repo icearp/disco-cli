@@ -22,10 +22,10 @@ func init() {
 // subscriptions, rules, authorization rules, network rule sets, DR configs,
 // and migration configs deferred — sub-resources with narrow cross-service
 // edge value beyond the namespace row.
-func scanServiceBus(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceBus(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armservicebus.NewNamespacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armservicebus:NewNamespacesClient: %w", err)
+		return 0, fmt.Errorf("armservicebus:NewNamespacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armservicebus:Namespaces.List", TypeServiceBusNamespace, sub, st, scanID,
 		client.NewListPager(nil),

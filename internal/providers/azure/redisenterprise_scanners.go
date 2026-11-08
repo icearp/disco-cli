@@ -15,10 +15,10 @@ func init() {
 }
 
 // scanRedisEnterprise discovers Azure Cache for Redis Enterprise clusters.
-func scanRedisEnterprise(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedisEnterprise(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armredisenterprise.NewClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armredisenterprise:NewClient: %w", err)
+		return 0, fmt.Errorf("armredisenterprise:NewClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armredisenterprise:Client.List", TypeRedisEnterpriseCluster, sub, st, scanID,
 		client.NewListPager(nil),

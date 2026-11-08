@@ -206,7 +206,7 @@ type bcmPCChildPhase struct {
 	// wantUnionMember is the CommitmentAction member key the seeded items'
 	// stored attributes must carry; empty for phases without the union.
 	wantUnionMember string
-	run             func(context.Context, bcmPricingCalculatorAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+	run             func(context.Context, bcmPricingCalculatorAPI, *account, string, *store.Store, string, []childParent) (int, error)
 	seed            func(f *bcmPCFake, parent string, pages [][]string)
 }
 
@@ -288,7 +288,7 @@ func TestScanBcmPCChildren_PagesStoredUnderParent(t *testing.T) {
 			ph.seed(f, "p1", [][]string{{"a"}, {"b", ""}})
 			f.errs[ph.op+" p2-gone"] = bcmPCAPIErr("ResourceNotFoundException", "not found")
 
-			total, _, err := ph.run(context.Background(), f.client(), acct, bcmPricingCalculatorRegion, st, testScanID, parents)
+			total, err := ph.run(context.Background(), f.client(), acct, bcmPricingCalculatorRegion, st, testScanID, parents)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -347,7 +347,7 @@ func TestScanBcmPCChildren_Empty(t *testing.T) {
 			st := newTestStore(t)
 			parents := bcmPCSeedParents(t, st, ph, "p1")
 			f := newBcmPCFake()
-			total, _, err := ph.run(context.Background(), f.client(), newTestAccount(testAccountID), bcmPricingCalculatorRegion, st, testScanID, parents)
+			total, err := ph.run(context.Background(), f.client(), newTestAccount(testAccountID), bcmPricingCalculatorRegion, st, testScanID, parents)
 			if err != nil || total != 0 {
 				t.Errorf("scan = (%d, %v); want (0, nil)", total, err)
 			}
@@ -390,7 +390,7 @@ func TestScanBcmPCChildren_ParentErrors(t *testing.T) {
 				f.errs[ph.op+" p2"] = tc.err
 				ph.seed(f, "p3", [][]string{{"c"}})
 
-				_, _, err := ph.run(context.Background(), f.client(), newTestAccount(testAccountID), bcmPricingCalculatorRegion, st, testScanID, parents)
+				_, err := ph.run(context.Background(), f.client(), newTestAccount(testAccountID), bcmPricingCalculatorRegion, st, testScanID, parents)
 				if tc.wantErrCode != "" {
 					if !isAPIErrorCode(err, tc.wantErrCode) {
 						t.Errorf("err = %v; want %s", err, tc.wantErrCode)
@@ -521,7 +521,7 @@ func bcmPCParentTypes() []bcmPCParentType {
 	}
 }
 
-func bcmPCScan(ctx context.Context, st *store.Store, f *bcmPCFake) (int, int, error) {
+func bcmPCScan(ctx context.Context, st *store.Store, f *bcmPCFake) (int, error) {
 	return scanBcmPricingCalculator(ctx, f.client(), newTestAccount(testAccountID), st, testScanID)
 }
 
@@ -536,7 +536,9 @@ func TestScanBcmPricingCalculator_StoresTagsOfParentTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := bcmPCTopLevelFake()
 
-	total, inserted, err := bcmPCScan(context.Background(), st, f)
+	counted, upserts := countUpserts(st)
+	total, err := bcmPCScan(context.Background(), counted, f)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -612,10 +614,12 @@ func TestScanBcmPricingCalculator_StoresTagsOfParentTypes(t *testing.T) {
 func TestScanBcmPricingCalculator_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := bcmPCScan(context.Background(), st, bcmPCTopLevelFake()); err != nil {
+	if _, err := bcmPCScan(context.Background(), st, bcmPCTopLevelFake()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := bcmPCScan(context.Background(), st, bcmPCTopLevelFake())
+	counted, upserts := countUpserts(st)
+	total, err := bcmPCScan(context.Background(), counted, bcmPCTopLevelFake())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -632,7 +636,9 @@ func TestScanBcmPricingCalculator_EmptyListings(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newBcmPCFake()
 
-	total, inserted, err := bcmPCScan(context.Background(), st, f)
+	counted, upserts := countUpserts(st)
+	total, err := bcmPCScan(context.Background(), counted, f)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -684,7 +690,7 @@ func TestScanBcmPricingCalculator_TagReadFailures(t *testing.T) {
 			f := bcmPCTopLevelFake()
 			f.errs[c.arn] = c.err
 
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -738,7 +744,7 @@ func TestScanBcmPricingCalculator_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := bcmPCScan(context.Background(), st, f)
+	total, err := bcmPCScan(context.Background(), st, f)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -760,7 +766,7 @@ func TestScanBcmPricingCalculator_TagThrottleDemotedBesideHardError(t *testing.T
 	f.errs[bcmPCARN("bill-scenario", "s2")] = bcmPCThrottled
 	f.errs[bcmPCARN("bill-estimate", "e2")] = bcmPCBadInput
 
-	_, _, err := bcmPCScan(context.Background(), st, f)
+	_, err := bcmPCScan(context.Background(), st, f)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -779,7 +785,7 @@ func TestScanBcmPricingCalculator_FailedWriteStopsScan(t *testing.T) {
 	f := bcmPCTopLevelFake()
 	f.errs[bcmPCARN("bill-estimate", "e1")] = bcmPCDenied
 
-	total, _, err := bcmPCScan(context.Background(), st, f)
+	total, err := bcmPCScan(context.Background(), st, f)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -811,7 +817,7 @@ func TestScanBcmPricingCalculator_ListFailureKeepsPagesAndLaterPhases(t *testing
 			f := bcmPCTopLevelFake()
 			f.errs[pt.op+" #1"] = bcmPCBadInput
 
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != bcmPCTestTotal-1 {
@@ -844,7 +850,7 @@ func TestScanBcmPricingCalculator_RepeatedTokenKeepsPages(t *testing.T) {
 			f := bcmPCTopLevelFake()
 			f.repeat = pt.op
 
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -872,7 +878,7 @@ func TestScanBcmPricingCalculator_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := bcmPCScan(context.Background(), st, f); err != nil {
+	if _, err := bcmPCScan(context.Background(), st, f); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, pt := range bcmPCParentTypes() {
@@ -903,7 +909,7 @@ func TestScanBcmPricingCalculator_ElementWithoutID(t *testing.T) {
 					f.workloads = append(f.workloads, bcmpctypes.WorkloadEstimateSummary{Name: n})
 				}
 
-				total, _, err := bcmPCScan(context.Background(), st, f)
+				total, err := bcmPCScan(context.Background(), st, f)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -941,7 +947,7 @@ func TestScanBcmPricingCalculator_TagReadsKeepPartitionARNs(t *testing.T) {
 			}
 			f.tags[want[2]] = map[string]string{"env": "gov-or-cn"}
 
-			if _, _, err := scanBcmPricingCalculator(context.Background(), f.client(), partitionAccount(pf.partition), st, testScanID); err != nil {
+			if _, err := scanBcmPricingCalculator(context.Background(), f.client(), partitionAccount(pf.partition), st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := f.sortedTagARNs(); !slices.Equal(got, want) {
@@ -967,7 +973,7 @@ func TestScanBcmPricingCalculator_ContextEndReportedOnce(t *testing.T) {
 		}
 	}
 
-	_, _, err := bcmPCScan(ctx, st, f)
+	_, err := bcmPCScan(ctx, st, f)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -993,7 +999,7 @@ func TestScanBcmPricingCalculator_OlderPhaseErrorKeepsLaterPhases(t *testing.T) 
 	st := newTestStore(t)
 	f := bcmPCTopLevelFake()
 	f.errs["ListBillEstimates #0"] = bcmPCBadInput
-	total, _, err := bcmPCScan(context.Background(), st, f)
+	total, err := bcmPCScan(context.Background(), st, f)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != bcmPCTestTotal-2 {
@@ -1018,7 +1024,7 @@ func TestScanBcmPricingCalculator_ChildPhaseErrorKeepsOtherPhases(t *testing.T) 
 			st := newTestStore(t)
 			f := bcmPCTopLevelFake()
 			f.errs[failing.op+" "+bcmPCTopLevelParent(failing)] = bcmPCBadInput
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("err = %v; want the %s ValidationException", err, failing.op)
 			}
@@ -1065,7 +1071,7 @@ func TestScanBcmPricingCalculator_FirstPhaseSentinelReturnedAlone(t *testing.T) 
 			warns := rhWarnRecorder(st)
 			f := bcmPCTopLevelFake()
 			f.errs["ListBillScenarios #0"] = c.err
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if !errors.Is(err, c.sentinel) || errors.Is(err, c.other) || total != 0 {
 				t.Errorf("scan = (%d, %v); want (0, %v alone)", total, err, c.sentinel)
 			}
@@ -1116,7 +1122,7 @@ func TestScanBcmPricingCalculator_LaterSentinelWarns(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := bcmPCTopLevelFake()
 			maps.Copy(f.errs, c.errs)
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if c.wantCode == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1166,7 +1172,7 @@ func TestScanBcmPricingCalculator_ListingDenials(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := bcmPCTopLevelFake()
 			f.errs[c.key] = c.err
-			total, _, err := bcmPCScan(context.Background(), st, f)
+			total, err := bcmPCScan(context.Background(), st, f)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1207,7 +1213,7 @@ func TestScanBcmPricingCalculator_OlderPhaseErrorDoesNotHideChildHardError(t *te
 			f := bcmPCTopLevelFake()
 			f.errs["ListBillEstimates #0"] = tc.estimatesErr
 			f.errs["ListBillScenarioCommitmentModifications s1"] = bcmPCBadInput
-			_, _, err := bcmPCScan(context.Background(), st, f)
+			_, err := bcmPCScan(context.Background(), st, f)
 			if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("outcome = %d, err = %v; want outcomeError (%d) with the child ValidationException", got, err, outcomeError)
 			}
@@ -1229,7 +1235,7 @@ func TestScanBcmPricingCalculator_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := bcmPCTopLevelFake()
 		f.errs["ListBillEstimates #0"] = nx
-		total, _, err := bcmPCScan(context.Background(), st, f)
+		total, err := bcmPCScan(context.Background(), st, f)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := bcmPCTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1239,7 +1245,7 @@ func TestScanBcmPricingCalculator_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := bcmPCTopLevelFake()
 		f.errs[bcmPCARN("bill-estimate", "e1")] = nx
-		total, _, err := bcmPCScan(context.Background(), st, f)
+		total, err := bcmPCScan(context.Background(), st, f)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != bcmPCTestTotal {
 			t.Errorf("total = %d; want %d", total, bcmPCTestTotal)
@@ -1250,7 +1256,7 @@ func TestScanBcmPricingCalculator_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		f := bcmPCTopLevelFake()
 		f.errs["ListBillScenarios #0"] = nx
-		_, _, err := bcmPCScan(context.Background(), st, f)
+		_, err := bcmPCScan(context.Background(), st, f)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1273,7 +1279,7 @@ func TestScanBcmPricingCalculator_EmptyStatusKept(t *testing.T) {
 	f.scenarios = []bcmpctypes.BillScenarioSummary{{Id: sdkaws.String("s1")}}
 	f.estimates = []bcmpctypes.BillEstimateSummary{{Id: sdkaws.String("e1")}}
 	f.workloads = []bcmpctypes.WorkloadEstimateSummary{{Id: sdkaws.String("w1")}}
-	if _, _, err := bcmPCScan(context.Background(), st, f); err != nil {
+	if _, err := bcmPCScan(context.Background(), st, f); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, c := range []struct{ typ, kind, id string }{

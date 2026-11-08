@@ -208,7 +208,7 @@ func dsyHandlers(c *dsyCalls) map[string]func(any) (any, error) {
 
 // dsyScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func dsyScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func dsyScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, dsyDenied)
@@ -232,7 +232,9 @@ func TestScanDataSync_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newDSYCalls()
 
-	total, inserted, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := dsyScan(context.Background(), t, counted, dsyHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -290,17 +292,17 @@ func TestScanDataSync_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanDataSync_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newDSYCalls()
-	if _, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls)); err != nil {
+	if _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	total, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -337,7 +339,7 @@ func TestScanDataSync_TagReadFailures(t *testing.T) {
 					calls := newDSYCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+					total, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -381,7 +383,7 @@ func TestScanDataSync_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[dsyARN("task", "tagged")] = dsyThrottle
 	calls.errs[dsyLocationARN("nfs", "tagged")] = dsyBadInput
 
-	_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -422,7 +424,7 @@ func TestScanDataSync_DescribeFailures(t *testing.T) {
 					calls := newDSYCalls()
 					calls.describeErrs[target.arn] = c.err
 
-					_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+					_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -457,7 +459,7 @@ func TestScanDataSync_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls.errs[dsyARN("task", "tagged")] = dsyDenied
 	calls.describeErrs[dsyARN("task", "bare")] = dsyThrottle
 
-	_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -479,7 +481,7 @@ func TestScanDataSync_FailedLocationWriteSendsNoDescribeWarning(t *testing.T) {
 	calls := newDSYCalls()
 	calls.describeErrs[dsyLocationARN("hdfs", "bare")] = dsyThrottle
 
-	_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -500,7 +502,7 @@ func TestScanDataSync_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers["ListAgents"] = failOnCall(2, dsyBadInput, handlers["ListAgents"])
 	handlers["ListTasks"] = func(any) (any, error) { return nil, dsyDenied }
 
-	total, _, err := dsyScan(context.Background(), t, st, handlers)
+	total, err := dsyScan(context.Background(), t, st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if total != 23 {
@@ -535,7 +537,7 @@ func TestScanDataSync_RepeatedTokenKeepsPages(t *testing.T) {
 		return tags(in)
 	}
 
-	_, _, err := dsyScan(context.Background(), t, st, handlers)
+	_, err := dsyScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -565,7 +567,7 @@ func TestScanDataSync_UnstorableItemsWarn(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := dsyScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := dsyScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := len(rowsByNativeID(t, st, TypeDataSyncAgent)); got != 1 {
@@ -597,7 +599,7 @@ func TestScanDataSync_ContextEndStopsOnce(t *testing.T) {
 		return agents(in)
 	}
 
-	_, _, err := dsyScan(ctx, t, st, handlers)
+	_, err := dsyScan(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -627,7 +629,7 @@ func TestScanDataSync_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := dsyHandlers(newDSYCalls())
 		handlers["ListLocations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := dsyScan(context.Background(), t, st, handlers)
+		total, err := dsyScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 4 {
 			t.Errorf("total = %d; want the 4 agent and task rows counted", total)
@@ -637,7 +639,7 @@ func TestScanDataSync_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newDSYCalls()
 		calls.errs[dsyARN("agent", "bare")] = nx
-		_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+		_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -645,7 +647,7 @@ func TestScanDataSync_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanDataSync(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanDataSync(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -664,7 +666,7 @@ func TestScanDataSync_LocationDescribeThrottleDemotedUnderItsOp(t *testing.T) {
 	calls.describeErrs[dsyLocationARN("nfs", "bare")] = dsyThrottle
 	calls.errs[dsyLocationARN("smb", "tagged")] = dsyBadInput
 
-	_, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
+	_, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 || *listWarns != 0 {

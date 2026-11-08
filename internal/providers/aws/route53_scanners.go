@@ -52,7 +52,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:route53",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			return scanRoute53(ctx, acct, st, scanID)
 		},
 	})
@@ -72,10 +72,10 @@ type route53ZoneSummary struct {
 //
 // The CIDR location and block phases run last, so their failure cannot cost
 // any other phase's rows.
-func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("route53")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := route53.NewFromConfig(acct.cfg, func(o *route53.Options) { o.Region = region })
 
@@ -87,9 +87,9 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListHostedZones", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListHostedZones", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListHostedZones: %w", err)
+			return 0, fmt.Errorf("route53:ListHostedZones: %w", err)
 		}
 		for _, z := range page.HostedZones {
 			bareID := strings.TrimPrefix(sv(z.Id), "/hostedzone/")
@@ -142,87 +142,81 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 		zoneBatch = append(zoneBatch, r)
 	}
 	if len(zoneBatch) > 0 {
-		n, err := st.UpsertResources(zoneBatch)
+		_, err := st.UpsertResources(zoneBatch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Route53 hosted zones: %w", err)
+			return 0, fmt.Errorf("upsert Route53 hosted zones: %w", err)
 		}
 		total += len(zoneBatch)
-		inserted += n
 	}
 
 	// Scan DNSSEC configs and key-signing keys for each zone (one GetDNSSEC call per zone).
-	t, n, err := scanRoute53DNSSEC(ctx, client, acct, zones, st, scanID)
+	t, err := scanRoute53DNSSEC(ctx, client, acct, zones, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Scan record sets for each hosted zone.
 	for _, zs := range zones {
-		t, n, err := scanRoute53RecordSets(ctx, client, acct, zs.id, zs.arn, st, scanID)
+		t, err := scanRoute53RecordSets(ctx, client, acct, zs.id, zs.arn, st, scanID)
 		total += t
-		inserted += n
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
 
 	// Scan CIDR collections (account-level, not per-zone).
-	collections, t, n, err := scanRoute53CIDRCollections(ctx, client, acct, st, scanID)
+	collections, t, err := scanRoute53CIDRCollections(ctx, client, acct, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Scan health checks (account-level).
-	t, n, err = scanRoute53HealthChecks(ctx, client, acct, st, scanID)
+	t, err = scanRoute53HealthChecks(ctx, client, acct, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Account-level: reusable delegation sets, query-logging configs, traffic
 	// policies and traffic-policy instances; then the CIDR collections'
 	// locations and blocks.
 	var locations map[string]bool
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanRoute53DelegationSets(ctx, client, acct, st, scanID) },
-		func() (int, int, error) { return scanRoute53QueryLoggingConfigs(ctx, client, acct, st, scanID) },
-		func() (int, int, error) { return scanRoute53TrafficPolicies(ctx, client, acct, st, scanID) },
-		func() (int, int, error) { return scanRoute53TrafficPolicyInstances(ctx, client, acct, st, scanID) },
-		func() (t, i int, err error) {
-			locations, t, i, err = scanRoute53CIDRLocations(ctx, client, acct, st, scanID, collections)
-			return t, i, err
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanRoute53DelegationSets(ctx, client, acct, st, scanID) },
+		func() (int, error) { return scanRoute53QueryLoggingConfigs(ctx, client, acct, st, scanID) },
+		func() (int, error) { return scanRoute53TrafficPolicies(ctx, client, acct, st, scanID) },
+		func() (int, error) { return scanRoute53TrafficPolicyInstances(ctx, client, acct, st, scanID) },
+		func() (t int, err error) {
+			locations, t, err = scanRoute53CIDRLocations(ctx, client, acct, st, scanID, collections)
+			return t, err
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanRoute53CIDRBlocks(ctx, client, acct, st, scanID, collections, locations)
 		},
 	} {
-		t, n, perr := phase()
+		t, perr := phase()
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanRoute53DelegationSets lists reusable delegation sets (no paginator; manual
 // Marker pagination). NativeID is synthesized — Route53 ids are bare.
-func scanRoute53DelegationSets(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53DelegationSets(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var marker *string
 	for {
 		out, err := client.ListReusableDelegationSets(ctx, &route53.ListReusableDelegationSetsInput{Marker: marker})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListReusableDelegationSets", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListReusableDelegationSets", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListReusableDelegationSets: %w", err)
+			return 0, fmt.Errorf("route53:ListReusableDelegationSets: %w", err)
 		}
 		for i := range out.DelegationSets {
 			d := &out.DelegationSets[i]
@@ -248,16 +242,16 @@ func scanRoute53DelegationSets(ctx context.Context, client route53API, acct *acc
 
 // scanRoute53QueryLoggingConfigs lists query-logging configs (paginator).
 // NativeID synthesized from the bare config Id.
-func scanRoute53QueryLoggingConfigs(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53QueryLoggingConfigs(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := route53.NewListQueryLoggingConfigsPaginator(client, &route53.ListQueryLoggingConfigsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListQueryLoggingConfigs", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListQueryLoggingConfigs", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListQueryLoggingConfigs: %w", err)
+			return 0, fmt.Errorf("route53:ListQueryLoggingConfigs: %w", err)
 		}
 		for i := range page.QueryLoggingConfigs {
 			c := &page.QueryLoggingConfigs[i]
@@ -279,16 +273,16 @@ func scanRoute53QueryLoggingConfigs(ctx context.Context, client route53API, acct
 
 // scanRoute53TrafficPolicies lists traffic policies (no paginator; manual
 // TrafficPolicyIdMarker pagination).
-func scanRoute53TrafficPolicies(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53TrafficPolicies(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var marker *string
 	for {
 		out, err := client.ListTrafficPolicies(ctx, &route53.ListTrafficPoliciesInput{TrafficPolicyIdMarker: marker})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListTrafficPolicies", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListTrafficPolicies", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListTrafficPolicies: %w", err)
+			return 0, fmt.Errorf("route53:ListTrafficPolicies: %w", err)
 		}
 		for i := range out.TrafficPolicySummaries {
 			p := &out.TrafficPolicySummaries[i]
@@ -313,7 +307,7 @@ func scanRoute53TrafficPolicies(ctx context.Context, client route53API, acct *ac
 
 // scanRoute53TrafficPolicyInstances lists traffic-policy instances (no
 // paginator; manual three-marker pagination).
-func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var zoneMarker, nameMarker *string
 	var typeMarker route53types.RRType
@@ -325,9 +319,9 @@ func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, a
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListTrafficPolicyInstances", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListTrafficPolicyInstances", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListTrafficPolicyInstances: %w", err)
+			return 0, fmt.Errorf("route53:ListTrafficPolicyInstances: %w", err)
 		}
 		for i := range out.TrafficPolicyInstances {
 			ti := &out.TrafficPolicyInstances[i]
@@ -353,7 +347,7 @@ func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, a
 // scanRoute53RecordSets pages through all record sets in one hosted zone and
 // upserts them. NativeID is composed as "<zoneARN>/<type>/<name>" — stable
 // and unique per record set within the zone.
-func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account, zoneID, zoneARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account, zoneID, zoneARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := route53.NewListResourceRecordSetsPaginator(client, &route53.ListResourceRecordSetsInput{
 		HostedZoneId: &zoneID,
 	})
@@ -361,9 +355,9 @@ func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, nil // skip this zone's records silently
+				return total, nil // skip this zone's records silently
 			}
-			return 0, 0, fmt.Errorf("route53:ListResourceRecordSets (zone %s): %w", zoneID, err)
+			return 0, fmt.Errorf("route53:ListResourceRecordSets (zone %s): %w", zoneID, err)
 		}
 		var batch []*store.Resource
 		for _, rr := range page.ResourceRecordSets {
@@ -386,15 +380,14 @@ func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Route53 record sets (zone %s): %w", zoneID, err)
+				return 0, fmt.Errorf("upsert Route53 record sets (zone %s): %w", zoneID, err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanRoute53DNSSEC calls GetDNSSEC once per hosted zone and upserts one
@@ -407,7 +400,7 @@ func scanRoute53DNSSEC(
 	zones []route53ZoneSummary,
 	st *store.Store,
 	scanID string,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	// dnssecAttrs is the shape stored in AttributesJSON for the dnssec resource.
 	type dnssecAttrs struct {
 		Status         *route53types.DNSSECStatus   `json:"Status"`
@@ -424,13 +417,13 @@ func scanRoute53DNSSEC(
 			if isAccessDenied(err) {
 				continue // best-effort per zone
 			}
-			return 0, 0, fmt.Errorf("route53:GetDNSSEC (zone %s): %w", zs.id, err)
+			return 0, fmt.Errorf("route53:GetDNSSEC (zone %s): %w", zs.id, err)
 		}
 
 		// Upsert the DNSSEC configuration resource for this zone.
 		dnssecNativeID := fmt.Sprintf("%s/dnssec", zs.arn)
 		dnssecName := fmt.Sprintf("DNSSEC %s", zs.id)
-		n, err := st.UpsertResources([]*store.Resource{{
+		_, err = st.UpsertResources([]*store.Resource{{
 			Provider:       "aws",
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
@@ -442,10 +435,9 @@ func scanRoute53DNSSEC(
 			DiscoveredBy:   scanID,
 		}})
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Route53 DNSSEC (zone %s): %w", zs.id, err)
+			return 0, fmt.Errorf("upsert Route53 DNSSEC (zone %s): %w", zs.id, err)
 		}
 		total++
-		inserted += n
 
 		// Upsert one resource per key-signing key in this zone.
 		var kskBatch []*store.Resource
@@ -469,15 +461,14 @@ func scanRoute53DNSSEC(
 			})
 		}
 		if len(kskBatch) > 0 {
-			n, err := st.UpsertResources(kskBatch)
+			_, err := st.UpsertResources(kskBatch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Route53 KSKs (zone %s): %w", zs.id, err)
+				return 0, fmt.Errorf("upsert Route53 KSKs (zone %s): %w", zs.id, err)
 			}
 			total += len(kskBatch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanRoute53CIDRCollections pages through all CIDR collections in the account
@@ -490,15 +481,15 @@ func scanRoute53CIDRCollections(
 	acct *account,
 	st *store.Store,
 	scanID string,
-) (parents []childParent, total, inserted int, err error) {
+) (parents []childParent, total int, err error) {
 	pager := route53.NewListCidrCollectionsPaginator(client, &route53.ListCidrCollectionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "route53:ListCidrCollections", acct.ID, "global", err)
+				return nil, 0, skipIfAccessDenied(st, "route53:ListCidrCollections", acct.ID, "global", err)
 			}
-			return nil, 0, 0, fmt.Errorf("route53:ListCidrCollections: %w", err)
+			return nil, 0, fmt.Errorf("route53:ListCidrCollections: %w", err)
 		}
 		var batch []*store.Resource
 		for i := range page.CidrCollections {
@@ -524,15 +515,14 @@ func scanRoute53CIDRCollections(
 			}
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return nil, 0, 0, fmt.Errorf("upsert Route53 CIDR collections: %w", err)
+				return nil, 0, fmt.Errorf("upsert Route53 CIDR collections: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return parents, total, inserted, nil
+	return parents, total, nil
 }
 
 // route53CIDRLocationNativeID keys a CIDR location, which has no ARN or id of
@@ -566,10 +556,10 @@ func scanRoute53CIDRLocations(
 	st *store.Store,
 	scanID string,
 	collections []childParent,
-) (map[string]bool, int, int, error) {
+) (map[string]bool, int, error) {
 	var mu sync.Mutex
 	stored := map[string]bool{}
-	total, inserted, err := childFanOut(ctx, st, acct, "global", "route53:ListCidrLocations", collections, isNoSuchCidrCollection,
+	total, err := childFanOut(ctx, st, acct, "global", "route53:ListCidrLocations", collections, isNoSuchCidrCollection,
 		func(ctx context.Context, c childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := route53.NewListCidrLocationsPaginator(client, &route53.ListCidrLocationsInput{CollectionId: &c.id})
@@ -600,9 +590,9 @@ func scanRoute53CIDRLocations(
 			return rows, nil
 		})
 	if err != nil {
-		return nil, total, inserted, err
+		return nil, total, err
 	}
-	return stored, total, inserted, nil
+	return stored, total, nil
 }
 
 // scanRoute53CIDRBlocks lists every block of each given collection without a
@@ -616,23 +606,22 @@ func scanRoute53CIDRBlocks(
 	scanID string,
 	collections []childParent,
 	locations map[string]bool,
-) (int, int, error) {
+) (int, error) {
 	return childFanOutStored(ctx, st, acct, "global", "route53:ListCidrBlocks", collections, isNoSuchCidrCollection,
-		func(ctx context.Context, c childParent) (total, inserted int, err error) {
+		func(ctx context.Context, c childParent) (total int, err error) {
 			pager := route53.NewListCidrBlocksPaginator(client, &route53.ListCidrBlocksInput{CollectionId: &c.id})
 			for pager.HasMorePages() {
 				page, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
-				t, i, err := upsertRoute53CIDRBlocks(st, acct, scanID, c.arn, page.CidrBlocks, locations)
+				t, err := upsertRoute53CIDRBlocks(st, acct, scanID, c.arn, page.CidrBlocks, locations)
 				total += t
-				inserted += i
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }
 
@@ -644,7 +633,7 @@ func scanRoute53CIDRBlocks(
 func upsertRoute53CIDRBlocks(
 	st *store.Store, acct *account, scanID, collectionARN string,
 	blocks []route53types.CidrBlockSummary, locations map[string]bool,
-) (int, int, error) {
+) (int, error) {
 	var (
 		rows  []*store.Resource
 		pairs [][2]string
@@ -669,14 +658,14 @@ func upsertRoute53CIDRBlocks(
 			store.ResourceID("aws", acct.ID, nativeID), store.ResourceID("aws", acct.ID, parent),
 		})
 	}
-	total, inserted, err := upsertBatch(st, rows, "route53 cidr-blocks")
+	total, err := upsertBatch(st, rows, "route53 cidr-blocks")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return total, inserted, fmt.Errorf("closure route53 cidr-blocks: %w", err)
+		return total, fmt.Errorf("closure route53 cidr-blocks: %w", err)
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanRoute53HealthChecks pages through all health checks in the account and
@@ -688,7 +677,7 @@ func scanRoute53HealthChecks(
 	acct *account,
 	st *store.Store,
 	scanID string,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	// healthCheckSummary holds the bare ID and full struct for tag-batching.
 	type healthCheckSummary struct {
 		id string
@@ -701,9 +690,9 @@ func scanRoute53HealthChecks(
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53:ListHealthChecks", acct.ID, "global", err)
+				return 0, skipIfAccessDenied(st, "route53:ListHealthChecks", acct.ID, "global", err)
 			}
-			return 0, 0, fmt.Errorf("route53:ListHealthChecks: %w", err)
+			return 0, fmt.Errorf("route53:ListHealthChecks: %w", err)
 		}
 		for _, hc := range page.HealthChecks {
 			if hc.Id == nil {
@@ -753,12 +742,11 @@ func scanRoute53HealthChecks(
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Route53 health checks: %w", err)
+			return 0, fmt.Errorf("upsert Route53 health checks: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }

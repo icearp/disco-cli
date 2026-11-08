@@ -21,20 +21,20 @@ type arcRegionSwitchAPI interface {
 	ListPlans(context.Context, *arcregionswitch.ListPlansInput, ...func(*arcregionswitch.Options)) (*arcregionswitch.ListPlansOutput, error)
 }
 
-func scanARCRegionSwitch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanARCRegionSwitch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := arcregionswitch.NewFromConfig(acct.cfg, func(o *arcregionswitch.Options) { o.Region = region })
 	return scanARCRegionSwitchPlans(ctx, client, acct, region, st, scanID)
 }
 
-func scanARCRegionSwitchPlans(ctx context.Context, client arcRegionSwitchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanARCRegionSwitchPlans(ctx context.Context, client arcRegionSwitchAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := arcregionswitch.NewListPlansPaginator(client, &arcregionswitch.ListPlansInput{})
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "arc-region-switch:ListPlans", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "arc-region-switch:ListPlans", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("arc-region-switch:ListPlans: %w", err)
+			return total, fmt.Errorf("arc-region-switch:ListPlans: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(page.Plans))
 		for _, pl := range page.Plans {
@@ -56,13 +56,12 @@ func scanARCRegionSwitchPlans(ctx context.Context, client arcRegionSwitchAPI, ac
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert arc-region-switch plans: %w", err)
+				return total, fmt.Errorf("upsert arc-region-switch plans: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

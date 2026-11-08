@@ -88,7 +88,9 @@ func TestScanSQSQueues_PersistsQueuesAndArn(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanSQSQueues(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues: %v", err)
 	}
@@ -127,7 +129,9 @@ func TestScanSQSQueues_AccessDeniedOnListReturnsNilWarning(t *testing.T) {
 
 	stub := &stubSQS{listErr: apiErr("AccessDenied", "denied")}
 
-	total, inserted, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues returned err: %v", err)
 	}
@@ -145,7 +149,7 @@ func TestScanSQSQueues_ListErrorPropagates(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	stub := &stubSQS{listErr: errors.New("network kaput")}
 
-	_, _, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", st, testScanID)
+	_, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", st, testScanID)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -171,7 +175,9 @@ func TestScanSQSQueues_PerQueueAccessDeniedSkipped(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanSQSQueues(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues: %v", err)
 	}
@@ -192,7 +198,9 @@ func TestScanSQSQueues_MissingQueueArnSkipped(t *testing.T) {
 		attrs:        map[string]map[string]string{url: {}}, // no QueueArn
 	}
 
-	total, inserted, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSQSQueues(context.Background(), stub, acct, "us-east-1", counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSQSQueues: %v", err)
 	}

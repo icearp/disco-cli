@@ -37,17 +37,17 @@ type sagemakerEdgeAPI interface {
 }
 
 // scanSageMakerEdge runs all Edge / image phases for one region.
-func scanSageMakerEdge(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerEdge(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListDeviceFleets", func() (int, int, error) { return scanSageMakerDeviceFleets(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListDevices", func() (int, int, error) { return scanSageMakerDevices(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListImages", func() (int, int, error) { return scanSageMakerImages(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListImageVersions", func() (int, int, error) { return scanSageMakerImageVersions(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListAliases", func() (int, int, error) { return scanSageMakerImageAliases(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListDeviceFleets", func() (int, error) { return scanSageMakerDeviceFleets(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListDevices", func() (int, error) { return scanSageMakerDevices(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListImages", func() (int, error) { return scanSageMakerImages(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListImageVersions", func() (int, error) { return scanSageMakerImageVersions(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListAliases", func() (int, error) { return scanSageMakerImageAliases(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
-func scanSageMakerDeviceFleets(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerDeviceFleets(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.DeviceFleetSummary]{
 		listOp: "sagemaker:ListDeviceFleets", describeOp: "sagemaker:DescribeDeviceFleet", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.DeviceFleetSummary, *string, error) {
@@ -98,7 +98,7 @@ type deviceKey struct {
 
 // scanSageMakerDevices lists all devices across the account+region (no
 // fleet filter), then fans out DescribeDevice for full body.
-func scanSageMakerDevices(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerDevices(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[deviceKey]{
 		listOp: "sagemaker:ListDevices", describeOp: "sagemaker:DescribeDevice", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]deviceKey, *string, error) {
@@ -147,7 +147,7 @@ func scanSageMakerDevices(ctx context.Context, client sagemakerEdgeAPI, acct *ac
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListDevices"))
 }
 
-func scanSageMakerImages(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerImages(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.Image]{
 		listOp: "sagemaker:ListImages", describeOp: "sagemaker:DescribeImage", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.Image, *string, error) {
@@ -215,7 +215,7 @@ func (k imageVersionKey) name() string {
 // Their tags are not read: neither the Service Authorization Reference's
 // ListTags resource types nor the ListTags API reference name an image
 // version ARN, and CreateImageVersion takes no tags.
-func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "sagemaker:ListImageVersions"
 	c, err := readSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerImage, op, []string{"ResourceNotFound"},
 		sagemakerChildSkips{namelessWhat: "stored image(s)"},
@@ -240,10 +240,10 @@ func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, ac
 			return []sagemakerChildList[imageVersionKey]{{key: imageName, items: keys, err: err}}
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	untagged := sagemakerStoreUntagged(st, acct, region, op)
-	total, inserted, err := sagemakerDescribe[imageVersionKey]{
+	total, err := sagemakerDescribe[imageVersionKey]{
 		listOp: op, describeOp: "sagemaker:DescribeImageVersion", notFound: []string{"ResourceNotFound"},
 		name: imageVersionKey.name,
 		listed: func(k imageVersionKey) *store.Resource {
@@ -275,13 +275,13 @@ func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, ac
 				DiscoveredBy:   scanID,
 			}, nil
 		},
-	}.describeEach(ctx, st, acct, region, c.items, nil, func(rows []*store.Resource, listErr error, warn func()) (int, int, error) {
+	}.describeEach(ctx, st, acct, region, c.items, nil, func(rows []*store.Resource, listErr error, warn func()) (int, error) {
 		return untagged(rows, listErr, func() {
 			warn()
 			c.warn()
 		})
 	})
-	addOpErrsPhase(&c.p, op, total, inserted, err)
+	addOpErrsPhase(&c.p, op, total, err)
 	return opErrsResult(&c.p)
 }
 
@@ -299,7 +299,7 @@ type sagemakerImageAliasAttrs struct {
 // Version returns the aliases of all versions in one call per image. The row
 // therefore does not record which version an alias currently names — an accepted
 // gap; recovering it would cost one DescribeImageVersion per alias.
-func scanSageMakerImageAliases(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerImageAliases(ctx context.Context, client sagemakerEdgeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerImage, "sagemaker:ListAliases", []string{"ResourceNotFound"},
 		sagemakerChildSkips{emptyWhy: "image aliases are empty", namelessWhat: "stored image(s)"},
 		func(ctx context.Context, image store.Resource) []sagemakerChildList[*store.Resource] {

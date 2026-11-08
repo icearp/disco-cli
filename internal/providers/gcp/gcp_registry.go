@@ -20,7 +20,7 @@ import (
 // serviceEntry itself no longer carries an emits list.
 type serviceEntry struct {
 	name  string
-	fn    func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
+	fn    func(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error)
 	emits []coverage.TypeDecl
 }
 
@@ -56,7 +56,7 @@ type orgScope struct {
 // IAM policies, org-scope Logging sinks. Empty scopes => fn is skipped.
 type orgServiceEntry struct {
 	name  string
-	fn    func(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error)
+	fn    func(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error)
 	emits []coverage.TypeDecl
 }
 
@@ -147,7 +147,7 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 			continue
 		}
 		var newC, changedC atomic.Int64
-		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
+		total, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
 		if err != nil {
 			// API-not-enabled at org scope (accesscontextmanager, org-policy,
 			// etc.) returns errServiceDisabled — mirrors scanProject, surfaces

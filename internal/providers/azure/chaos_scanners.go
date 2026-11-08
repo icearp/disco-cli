@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanChaos discovers Azure Chaos Studio experiments.
-func scanChaos(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanChaos(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armchaos.NewExperimentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armchaos:NewExperimentsClient: %w", err)
+		return 0, fmt.Errorf("armchaos:NewExperimentsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armchaos:Experiments.ListAll", TypeChaosExperiment, sub, st, scanID,
 		client.NewListAllPager(nil),

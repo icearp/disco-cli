@@ -25,35 +25,33 @@ type paymentCryptographyAPI interface {
 
 // scanPaymentCryptography discovers Payment Cryptography keys and aliases.
 // Alias has no native ARN; synth as arn:{p}:payment-cryptography:{r}:{a}:alias/{name}.
-func scanPaymentCryptography(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPaymentCryptography(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := paymentcryptography.NewFromConfig(acct.cfg, func(o *paymentcryptography.Options) { o.Region = region })
 
-	t, i, ferr := scanPCKeys(ctx, client, acct, region, st, scanID)
+	t, ferr := scanPCKeys(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanPCAliases(ctx, client, acct, region, st, scanID)
+	t, ferr = scanPCAliases(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanPCKeys(ctx context.Context, client paymentCryptographyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPCKeys(ctx context.Context, client paymentCryptographyAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListKeys(ctx, &paymentcryptography.ListKeysInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "payment-cryptography:ListKeys", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "payment-cryptography:ListKeys", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("payment-cryptography:ListKeys: %w", err)
+			return 0, fmt.Errorf("payment-cryptography:ListKeys: %w", err)
 		}
 		for _, k := range out.Keys {
 			arn := sv(k.KeyArn)
@@ -77,16 +75,16 @@ func scanPCKeys(ctx context.Context, client paymentCryptographyAPI, acct *accoun
 	return upsertBatch(st, batch, "payment-cryptography keys")
 }
 
-func scanPCAliases(ctx context.Context, client paymentCryptographyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPCAliases(ctx context.Context, client paymentCryptographyAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListAliases(ctx, &paymentcryptography.ListAliasesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "payment-cryptography:ListAliases", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "payment-cryptography:ListAliases", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("payment-cryptography:ListAliases: %w", err)
+			return 0, fmt.Errorf("payment-cryptography:ListAliases: %w", err)
 		}
 		for _, a := range out.Aliases {
 			name := sv(a.AliasName)

@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanBatch discovers Azure Batch accounts.
-func scanBatch(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBatch(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armbatch.NewAccountClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armbatch:NewAccountClient: %w", err)
+		return 0, fmt.Errorf("armbatch:NewAccountClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armbatch:Account.List", TypeBatchAccount, sub, st, scanID,
 		client.NewListPager(nil),

@@ -35,7 +35,7 @@ type efsAPI interface {
 // scanEFS discovers EFS file systems, mount targets, access points and
 // replication configurations in one region. DescribeFileSystems is paginated; mount targets are fetched
 // concurrently per file system to minimise wall time.
-func scanEFS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEFS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := efs.NewFromConfig(acct.cfg, func(o *efs.Options) { o.Region = region })
 	return scanEFSAll(ctx, client, acct, region, st, scanID)
 }
@@ -44,19 +44,19 @@ func scanEFS(ctx context.Context, acct *account, region string, st *store.Store,
 // the file system phases whatever they returned. A transient error on either
 // side is demoted to a warning only beside a hard error, so it cannot make the
 // dispatcher report the other side's hard error as a transient one.
-func scanEFSAll(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, fileSystems, err := scanEFSFileSystemsAndChildren(ctx, client, acct, region, st, scanID)
-	t, i, rerr := scanEFSReplicationConfigurations(ctx, client, acct, region, st, scanID, fileSystems)
+func scanEFSAll(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, fileSystems, err := scanEFSFileSystemsAndChildren(ctx, client, acct, region, st, scanID)
+	t, rerr := scanEFSReplicationConfigurations(ctx, client, acct, region, st, scanID, fileSystems)
 	var errs phaseErrs
 	errs.add("elasticfilesystem", err)
 	errs.add(efsReplicationConfigurationsOp, rerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // scanEFSFileSystemsAndChildren runs the file system, mount target and access point
 // phases, stopping at the first hard error, and returns the ARNs of the file
 // systems it stored.
-func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, fileSystems map[string]bool, err error) {
+func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (total int, fileSystems map[string]bool, err error) {
 	// Phase 1: file systems
 	fsPager := efs.NewDescribeFileSystemsPaginator(client, &efs.DescribeFileSystemsInput{})
 	var fsIDs, fsARNs []string
@@ -65,9 +65,9 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		page, err := fsPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "elasticfilesystem:DescribeFileSystems", acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, "elasticfilesystem:DescribeFileSystems", acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("efs:DescribeFileSystems: %w", err)
+			return 0, nil, fmt.Errorf("efs:DescribeFileSystems: %w", err)
 		}
 		for i := range page.FileSystems {
 			fs := page.FileSystems[i]
@@ -96,12 +96,11 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		}
 	}
 	if len(fsBatch) > 0 {
-		n, err := st.UpsertResources(fsBatch)
+		_, err := st.UpsertResources(fsBatch)
 		if err != nil {
-			return 0, 0, nil, fmt.Errorf("upsert EFS file systems: %w", err)
+			return 0, nil, fmt.Errorf("upsert EFS file systems: %w", err)
 		}
 		total += len(fsBatch)
-		inserted += n
 	}
 	fileSystems = make(map[string]bool, len(fsARNs))
 	for _, a := range fsARNs {
@@ -153,15 +152,14 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return total, inserted, fileSystems, err
+		return total, fileSystems, err
 	}
 	if len(mtBatch) > 0 {
-		n, err := st.UpsertResources(mtBatch)
+		_, err := st.UpsertResources(mtBatch)
 		if err != nil {
-			return total, inserted, fileSystems, fmt.Errorf("upsert EFS mount targets: %w", err)
+			return total, fileSystems, fmt.Errorf("upsert EFS mount targets: %w", err)
 		}
 		total += len(mtBatch)
-		inserted += n
 	}
 
 	// Phase 3: access points
@@ -171,9 +169,9 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		page, err := apPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, fileSystems, nil
+				return total, fileSystems, nil
 			}
-			return total, inserted, fileSystems, fmt.Errorf("efs:DescribeAccessPoints: %w", err)
+			return total, fileSystems, fmt.Errorf("efs:DescribeAccessPoints: %w", err)
 		}
 		for i := range page.AccessPoints {
 			ap := page.AccessPoints[i]
@@ -199,15 +197,14 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		}
 	}
 	if len(apBatch) > 0 {
-		n, err := st.UpsertResources(apBatch)
+		_, err := st.UpsertResources(apBatch)
 		if err != nil {
-			return total, inserted, fileSystems, fmt.Errorf("upsert EFS access points: %w", err)
+			return total, fileSystems, fmt.Errorf("upsert EFS access points: %w", err)
 		}
 		total += len(apBatch)
-		inserted += n
 	}
 
-	return total, inserted, fileSystems, nil
+	return total, fileSystems, nil
 }
 
 const efsReplicationConfigurationsOp = "elasticfilesystem:DescribeReplicationConfigurations"
@@ -225,7 +222,7 @@ func efsReplicationConfigurationNativeID(sourceFileSystemARN string) string {
 // scanEFSReplicationConfigurations lists the region's replication
 // configurations in one unfiltered listing and links each under its source
 // file system when fileSystems holds that ARN.
-func scanEFSReplicationConfigurations(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string, fileSystems map[string]bool) (int, int, error) {
+func scanEFSReplicationConfigurations(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string, fileSystems map[string]bool) (int, error) {
 	pager := efs.NewDescribeReplicationConfigurationsPaginator(client, &efs.DescribeReplicationConfigurationsInput{},
 		func(o *efs.DescribeReplicationConfigurationsPaginatorOptions) { o.Limit = efsReplicationPageLimit })
 	var children []containedChild
@@ -237,7 +234,7 @@ func scanEFSReplicationConfigurations(ctx context.Context, client efsAPI, acct *
 			// unfiltered call returns it for a region with none, or an empty
 			// list, is unverified; on the first page either means none.
 			if firstPage && isAPIErrorCode(err, "ReplicationNotFound") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			return upsertRegionChildren(st, acct, region, efsReplicationConfigurationsOp, children, err)
 		}

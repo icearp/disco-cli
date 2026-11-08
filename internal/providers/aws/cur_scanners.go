@@ -21,10 +21,10 @@ func init() {
 // scanCUR discovers Cost and Usage Report definitions. CUR is global; called
 // in its home region (homeRegion; us-east-1 for aws).
 // Synth ARN: arn:{p}:cur::{a}:definition/{name}.
-func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("costandusagereportservice")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := costandusagereportservice.NewFromConfig(acct.cfg, func(o *costandusagereportservice.Options) { o.Region = region })
 
@@ -34,9 +34,9 @@ func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scan
 		out, err := client.DescribeReportDefinitions(ctx, &costandusagereportservice.DescribeReportDefinitionsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cur:DescribeReportDefinitions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "cur:DescribeReportDefinitions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("cur:DescribeReportDefinitions: %w", err)
+			return 0, fmt.Errorf("cur:DescribeReportDefinitions: %w", err)
 		}
 		for _, r := range out.ReportDefinitions {
 			name := sv(r.ReportName)

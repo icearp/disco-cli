@@ -255,7 +255,7 @@ func asyOpWarnings(st *store.Store) func(op string) int {
 func scanAppSyncTest(t *testing.T, st *store.Store, over map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	client := appsync.NewFromConfig(opStubConfig(asyHandlers(over), asyDenied))
-	total, _, err := scanAppSyncAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAppSyncAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -756,7 +756,7 @@ func TestScanASCResolvers_ContextStopReturned(t *testing.T) {
 	cancel()
 	client := appsync.NewFromConfig(opStubConfig(asyHandlers(nil), asyDenied))
 	apis := []childParent{{id: "g1", arn: asyARN("apis/g1")}}
-	_, _, err := scanASCResolvers(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
+	_, err := scanASCResolvers(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v; want context.Canceled", err)
 	}
@@ -776,7 +776,7 @@ func TestScanAppSyncAll_StoreWriteStops(t *testing.T) {
 		t.Errorf("stored %d rows; want none after the first phase's write failed", n)
 	}
 	client := appsync.NewFromConfig(opStubConfig(asyHandlers(nil), asyDenied))
-	_, _, parents, err := scanASCGraphqlApis(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, parents, err := scanASCGraphqlApis(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || parents != nil {
 		t.Errorf("parents = %v, err = %v; want none and the store write failure", parents, err)
 	}
@@ -801,14 +801,14 @@ func TestScanAppSync_StoreWriteFailureWarnsNothing(t *testing.T) {
 				return asyHandlers(nil)["ListGraphqlApis"](in)
 			}},
 			run: func(client appSyncAPI, st *store.Store) error {
-				_, _, _, err := scanASCGraphqlApis(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+				_, _, err := scanASCGraphqlApis(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 				return err
 			},
 		},
 		{
 			name: "source associations", typ: TypeAppSyncSourceAPIAssociation,
 			run: func(client appSyncAPI, st *store.Store) error {
-				_, _, err := scanASCSourceAPIAssocs(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
+				_, err := scanASCSourceAPIAssocs(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
 				return err
 			},
 		},
@@ -821,7 +821,7 @@ func TestScanAppSync_StoreWriteFailureWarnsNothing(t *testing.T) {
 				return asyHandlers(nil)["ListTypes"](in)
 			}},
 			run: func(client appSyncAPI, st *store.Store) error {
-				_, _, err := scanASCResolvers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
+				_, err := scanASCResolvers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, apis)
 				return err
 			},
 		},
@@ -849,7 +849,7 @@ func TestScanASCApiKeys_KeepsParentPartition(t *testing.T) {
 	st := newTestStore(t)
 	apiARN := "arn:aws-cn:appsync:cn-north-1:" + testAccountID + ":apis/g1"
 	client := appsync.NewFromConfig(opStubConfig(asyHandlers(nil), asyDenied))
-	if _, _, err := scanASCApiKeys(context.Background(), client, newTestAccount(testAccountID), "cn-north-1", st, testScanID, []childParent{{id: "g1", arn: apiARN}}); err != nil {
+	if _, err := scanASCApiKeys(context.Background(), client, newTestAccount(testAccountID), "cn-north-1", st, testScanID, []childParent{{id: "g1", arn: apiARN}}); err != nil {
 		t.Fatalf("scanASCApiKeys: %v", err)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeAppSyncAPIKey)[apiARN+"/apikeys/da2-key1"]; !ok {

@@ -68,7 +68,7 @@ func wswTags(client wswAPI) rowTagReader {
 //
 // No listing is sent MaxResults: the model's MaxResults range trait sets only
 // a minimum, and its documentation names no maximum.
-func scanWorkSpacesWeb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWorkSpacesWeb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := workspacesweb.NewFromConfig(acct.cfg, func(o *workspacesweb.Options) { o.Region = region })
 	tags := wswTags(client)
 	var portals []childParent

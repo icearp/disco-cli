@@ -71,7 +71,7 @@ func (c *elbClassicCalls) handlers() map[string]func(in any) (any, error) {
 	}
 }
 
-func elbClassicScan(st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func elbClassicScan(st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, elbTestDenied)
 	return scanELBClassic(context.Background(), acct, region, st, testScanID)
 }
@@ -92,7 +92,9 @@ func TestScanELBClassic_StoresTagsByName(t *testing.T) {
 				acct = partitionAccount(pf.partition)
 			}
 
-			total, inserted, err := elbClassicScan(st, acct, pf.region, calls.handlers())
+			counted, upserts := countUpserts(st)
+			total, err := elbClassicScan(counted, acct, pf.region, calls.handlers())
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -163,7 +165,7 @@ func TestScanELBClassic_TagReadFailures(t *testing.T) {
 				}}, nil
 			}
 
-			total, _, err := elbClassicScan(st, newTestAccount(testAccountID), testRegion, handlers)
+			total, err := elbClassicScan(st, newTestAccount(testAccountID), testRegion, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -213,7 +215,7 @@ func TestScanELBClassic_LaterPageFailureAndNamelessElement(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := elbClassicScan(st, newTestAccount(testAccountID), testRegion, handlers)
+	total, err := elbClassicScan(st, newTestAccount(testAccountID), testRegion, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationError")
 	if total != 1 {

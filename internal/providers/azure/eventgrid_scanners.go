@@ -33,12 +33,12 @@ func init() {
 // traffic. Partner-namespace, partner-topic, partner-channel,
 // CA-certificates, and namespaces (the newer pull-style EventGrid namespaces)
 // deferred to follow-up iterations.
-func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			topicClient, err := armeventgrid.NewTopicsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewTopicsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewTopicsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:Topics.ListBySubscription", TypeEventGridTopic, sub, st, scanID,
 				topicClient.NewListBySubscriptionPager(nil),
@@ -47,10 +47,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(t.ID), name: sv(t.Name), location: sv(t.Location), tags: t.Tags, full: t}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			stClient, err := armeventgrid.NewSystemTopicsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewSystemTopicsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewSystemTopicsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:SystemTopics.ListBySubscription", TypeEventGridSystemTopic, sub, st, scanID,
 				stClient.NewListBySubscriptionPager(nil),
@@ -61,10 +61,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(t.ID), name: sv(t.Name), location: sv(t.Location), tags: t.Tags, full: t}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			domClient, err := armeventgrid.NewDomainsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewDomainsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewDomainsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:Domains.ListBySubscription", TypeEventGridDomain, sub, st, scanID,
 				domClient.NewListBySubscriptionPager(nil),
@@ -73,10 +73,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(d.ID), name: sv(d.Name), location: sv(d.Location), tags: d.Tags, full: d}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			esClient, err := armeventgrid.NewEventSubscriptionsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewEventSubscriptionsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewEventSubscriptionsClient: %w", err)
 			}
 			return azPageScan(ctx, "armeventgrid:EventSubscriptions.ListGlobalBySubscription", sub, st,
 				esClient.NewListGlobalBySubscriptionPager(nil),
@@ -98,10 +98,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return batch, nil
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			nsClient, err := armeventgrid.NewNamespacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewNamespacesClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewNamespacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:Namespaces.ListBySubscription", TypeEventGridNamespace, sub, st, scanID,
 				nsClient.NewListBySubscriptionPager(nil),
@@ -112,10 +112,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(n.ID), name: sv(n.Name), location: sv(n.Location), tags: n.Tags, full: n}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			pcClient, err := armeventgrid.NewPartnerConfigurationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewPartnerConfigurationsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewPartnerConfigurationsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:PartnerConfigurations.ListBySubscription", TypeEventGridPartnerConfiguration, sub, st, scanID,
 				pcClient.NewListBySubscriptionPager(nil),
@@ -126,10 +126,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			pnClient, err := armeventgrid.NewPartnerNamespacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewPartnerNamespacesClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewPartnerNamespacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:PartnerNamespaces.ListBySubscription", TypeEventGridPartnerNamespace, sub, st, scanID,
 				pnClient.NewListBySubscriptionPager(nil),
@@ -140,10 +140,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(n.ID), name: sv(n.Name), location: sv(n.Location), tags: n.Tags, full: n}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			prClient, err := armeventgrid.NewPartnerRegistrationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewPartnerRegistrationsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewPartnerRegistrationsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:PartnerRegistrations.ListBySubscription", TypeEventGridPartnerRegistration, sub, st, scanID,
 				prClient.NewListBySubscriptionPager(nil),
@@ -154,10 +154,10 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			ptClient, err := armeventgrid.NewPartnerTopicsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armeventgrid:NewPartnerTopicsClient: %w", err)
+				return 0, fmt.Errorf("armeventgrid:NewPartnerTopicsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armeventgrid:PartnerTopics.ListBySubscription", TypeEventGridPartnerTopic, sub, st, scanID,
 				ptClient.NewListBySubscriptionPager(nil),

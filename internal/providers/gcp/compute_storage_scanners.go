@@ -28,10 +28,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeStoragePool, Service: "compute"})
 }
 
-func scanComputeDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:disks.aggregatedList",
 		svc.Disks.AggregatedList(p.ID),
-		func(page *compute.DiskAggregatedList) (int, int, error) {
+		func(page *compute.DiskAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, d := range items.Disks {
@@ -42,7 +42,7 @@ func scanComputeDisks(ctx context.Context, svc *compute.Service, p *project, st 
 		})
 }
 
-func scanComputeRegionDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionDisks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionDisks.list",
 		func(region string) pager[compute.DiskList] { return svc.RegionDisks.List(p.ID, region) },
 		func(page *compute.DiskList) []*compute.Disk { return page.Items },
@@ -76,10 +76,10 @@ func diskToResource(p *project, scanID, discoType string, d *compute.Disk) *stor
 	return r
 }
 
-func scanComputeImages(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeImages(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:images.list",
 		svc.Images.List(p.ID),
-		func(page *compute.ImageList) (int, int, error) {
+		func(page *compute.ImageList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, img := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -98,10 +98,10 @@ func scanComputeImages(ctx context.Context, svc *compute.Service, p *project, st
 		})
 }
 
-func scanComputeMachineImages(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeMachineImages(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:machineImages.list",
 		svc.MachineImages.List(p.ID),
-		func(page *compute.MachineImageList) (int, int, error) {
+		func(page *compute.MachineImageList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, mi := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -120,10 +120,10 @@ func scanComputeMachineImages(ctx context.Context, svc *compute.Service, p *proj
 		})
 }
 
-func scanComputeSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:snapshots.list",
 		svc.Snapshots.List(p.ID),
-		func(page *compute.SnapshotList) (int, int, error) {
+		func(page *compute.SnapshotList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, snap := range page.Items {
 				batch = append(batch, snapshotToResource(p, scanID, TypeComputeSnapshot, snap))
@@ -132,7 +132,7 @@ func scanComputeSnapshots(ctx context.Context, svc *compute.Service, p *project,
 		})
 }
 
-func scanComputeRegionSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionSnapshots.list",
 		func(region string) pager[compute.SnapshotList] { return svc.RegionSnapshots.List(p.ID, region) },
 		func(page *compute.SnapshotList) []*compute.Snapshot { return page.Items },
@@ -157,10 +157,10 @@ func snapshotToResource(p *project, scanID, discoType string, snap *compute.Snap
 	}
 }
 
-func scanComputeInstantSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInstantSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:instantSnapshots.aggregatedList",
 		svc.InstantSnapshots.AggregatedList(p.ID),
-		func(page *compute.InstantSnapshotAggregatedList) (int, int, error) {
+		func(page *compute.InstantSnapshotAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, is := range items.InstantSnapshots {
@@ -171,7 +171,7 @@ func scanComputeInstantSnapshots(ctx context.Context, svc *compute.Service, p *p
 		})
 }
 
-func scanComputeRegionInstantSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionInstantSnapshots(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionInstantSnapshots.list",
 		func(region string) pager[compute.InstantSnapshotList] {
 			return svc.RegionInstantSnapshots.List(p.ID, region)
@@ -207,13 +207,13 @@ func instantSnapshotToResource(p *project, scanID, discoType string, is *compute
 // AggregatedList exists for this type) via gcpZones + forEachItem. A
 // one-off, not promoted to a shared gcpZoneFanoutScan generic — this is the
 // only Wave 1 type needing per-zone (rather than per-region) fan-out.
-func scanComputeInstantSnapshotGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInstantSnapshotGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	zones, err := gcpZones(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(zones) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -240,12 +240,12 @@ func scanComputeInstantSnapshotGroups(ctx context.Context, svc *compute.Service,
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertWithProjClosure(p, st, batch)
 }
 
-func scanComputeRegionInstantSnapshotGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionInstantSnapshotGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionInstantSnapshotGroups.list",
 		func(region string) pager[compute.ListInstantSnapshotGroups] {
 			return svc.RegionInstantSnapshotGroups.List(p.ID, region)
@@ -277,10 +277,10 @@ func instantSnapshotGroupToResource(p *project, scanID, discoType string, g *com
 	return r
 }
 
-func scanComputeStoragePools(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeStoragePools(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:storagePools.aggregatedList",
 		svc.StoragePools.AggregatedList(p.ID),
-		func(page *compute.StoragePoolAggregatedList) (int, int, error) {
+		func(page *compute.StoragePoolAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, sp := range items.StoragePools {

@@ -48,11 +48,11 @@ var pcsNotFound = []string{"ResourceNotFoundException"}
 // read the clusters stored this scan, those clusters concurrently. Every
 // type has its tags read per row (pcsTags), and the tag denials of the whole
 // scan are one warning.
-func scanPCS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPCS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := pcs.NewFromConfig(acct.cfg, func(o *pcs.Options) { o.Region = region })
 	tags := pcsTags(client).sharingDenials()
 	var clusters []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "pcs", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "pcs", 0, []hostPhase{
 		{op: "pcs:ListClusters", run: func(p *phaseTotals) (failed bool) {
 			clusters, failed = scanPCSClusters(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -65,7 +65,7 @@ func scanPCS(ctx context.Context, acct *account, region string, st *store.Store,
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // pcsTags reads a row's tags with ListTagsForResource, sent the row's

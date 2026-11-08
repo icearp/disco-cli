@@ -91,7 +91,7 @@ var pinpointNotFound = []string{"NotFoundException"}
 // pinpointPhase is one independent phase of scanPinpoint, warned under op.
 type pinpointPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
 // pinpointApps is what every per-app phase reads and writes with: the apps the
@@ -107,11 +107,11 @@ type pinpointApps struct {
 // stream, campaigns, segments and channels, then the account's message
 // templates. Every phase runs; the per-app phases read only the apps the first
 // phase stored, and only a store write failure stops the scan.
-func scanPinpoint(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPinpoint(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := pinpoint.NewFromConfig(acct.cfg, func(o *pinpoint.Options) { o.Region = region })
 	var p phaseTotals
-	t, i, appIDs, err := scanPinpointApps(ctx, client, acct, region, st, scanID)
-	if p.addPhase(pinpointAppsOp, t, i, err) {
+	t, appIDs, err := scanPinpointApps(ctx, client, acct, region, st, scanID)
+	if p.addPhase(pinpointAppsOp, t, err) {
 		return p.result(st, acct, region)
 	}
 	apps := pinpointApps{st: st, acct: acct, region: region, scanID: scanID, ids: appIDs}
@@ -132,16 +132,16 @@ func scanPinpoint(ctx context.Context, acct *account, region string, st *store.S
 				}
 				return out.EventStream, nil
 			}),
-		{pinpointCampaignsOp, func() (int, int, error) { return scanPinpointCampaigns(ctx, client, apps) }},
-		{pinpointSegmentsOp, func() (int, int, error) { return scanPinpointSegments(ctx, client, apps) }},
+		{pinpointCampaignsOp, func() (int, error) { return scanPinpointCampaigns(ctx, client, apps) }},
+		{pinpointSegmentsOp, func() (int, error) { return scanPinpointSegments(ctx, client, apps) }},
 	}
 	phases = append(phases, pinpointChannelPhases(ctx, client, apps)...)
-	phases = append(phases, pinpointPhase{pinpointTemplatesOp, func() (int, int, error) {
+	phases = append(phases, pinpointPhase{pinpointTemplatesOp, func() (int, error) {
 		return scanPinpointTemplates(ctx, client, acct, region, st, scanID)
 	}})
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -172,8 +172,8 @@ func pinpointListedRow(acct *account, region, scanID, rtype, what string, arn, i
 
 // scanPinpointApps stores every app GetApps lists and returns the Ids of the
 // stored ones for the per-app phases.
-func scanPinpointApps(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []string, error) {
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, pinpointAppsOp, "apps", "Id",
+func scanPinpointApps(ctx context.Context, client pinpointAPI, acct *account, region string, st *store.Store, scanID string) (int, []string, error) {
+	total, parents, err := storeParentList(ctx, st, acct, region, pinpointAppsOp, "apps", "Id",
 		func(ctx context.Context, token *string) ([]pptypes.ApplicationResponse, *string, error) {
 			out, err := client.GetApps(ctx, &pinpoint.GetAppsInput{Token: token})
 			if err != nil || out.ApplicationsResponse == nil {
@@ -189,7 +189,7 @@ func scanPinpointApps(ctx context.Context, client pinpointAPI, acct *account, re
 	for i, p := range parents {
 		ids[i] = p.id
 	}
-	return total, inserted, ids, err
+	return total, ids, err
 }
 
 // pinpointPerAppPhase is the phase that reads one configuration body per app
@@ -199,7 +199,7 @@ func scanPinpointApps(ctx context.Context, client pinpointAPI, acct *account, re
 func pinpointPerAppPhase[Body any](ctx context.Context, apps pinpointApps, op, rtype, path, name string,
 	get func(ctx context.Context, appID string) (*Body, error),
 ) pinpointPhase {
-	return pinpointPhase{op, func() (int, int, error) {
+	return pinpointPhase{op, func() (int, error) {
 		return storeTokenEachParent(ctx, apps.st, apps.acct, apps.region, op, pinpointNotFound, apps.ids,
 			func(ctx context.Context, appID string, _ *string) ([]*Body, *string, error) {
 				body, err := get(ctx, appID)
@@ -220,7 +220,7 @@ func pinpointPerAppPhase[Body any](ctx context.Context, apps pinpointApps, op, r
 }
 
 // scanPinpointCampaigns lists the campaigns of each app concurrently.
-func scanPinpointCampaigns(ctx context.Context, client pinpointAPI, apps pinpointApps) (int, int, error) {
+func scanPinpointCampaigns(ctx context.Context, client pinpointAPI, apps pinpointApps) (int, error) {
 	return storeTokenEachParent(ctx, apps.st, apps.acct, apps.region, pinpointCampaignsOp, pinpointNotFound, apps.ids,
 		func(ctx context.Context, appID string, token *string) ([]pptypes.CampaignResponse, *string, error) {
 			out, err := client.GetCampaigns(ctx, &pinpoint.GetCampaignsInput{ApplicationId: &appID, Token: token})
@@ -235,7 +235,7 @@ func scanPinpointCampaigns(ctx context.Context, client pinpointAPI, apps pinpoin
 }
 
 // scanPinpointSegments lists the segments of each app concurrently.
-func scanPinpointSegments(ctx context.Context, client pinpointAPI, apps pinpointApps) (int, int, error) {
+func scanPinpointSegments(ctx context.Context, client pinpointAPI, apps pinpointApps) (int, error) {
 	return storeTokenEachParent(ctx, apps.st, apps.acct, apps.region, pinpointSegmentsOp, pinpointNotFound, apps.ids,
 		func(ctx context.Context, appID string, token *string) ([]pptypes.SegmentResponse, *string, error) {
 			out, err := client.GetSegments(ctx, &pinpoint.GetSegmentsInput{ApplicationId: &appID, Token: token})

@@ -35,13 +35,13 @@ const (
 // monitor phase's transient error is demoted to a warning only beside a hard
 // error: joined, it would be buried in the hard error instead of reported under
 // its op; the counts are summed.
-func scanRUM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRUM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := rum.NewFromConfig(acct.cfg, func(o *rum.Options) { o.Region = region })
-	total, inserted, monitors, err := scanRUMAppMonitors(ctx, client, acct, region, st, scanID)
-	t, i, dests, derr := scanRUMMetricsDestinations(ctx, client, acct, region, st, scanID, monitors)
-	total, inserted = total+t, inserted+i
-	t, i, merr := scanRUMMetricDefinitions(ctx, client, acct, region, st, scanID, dests)
-	return total + t, inserted + i, demoteBeside(st, rumListAppMonitorsOp, acct, region, err, derr, merr)
+	total, monitors, err := scanRUMAppMonitors(ctx, client, acct, region, st, scanID)
+	t, dests, derr := scanRUMMetricsDestinations(ctx, client, acct, region, st, scanID, monitors)
+	total += t
+	t, merr := scanRUMMetricDefinitions(ctx, client, acct, region, st, scanID, dests)
+	return total + t, demoteBeside(st, rumListAppMonitorsOp, acct, region, err, derr, merr)
 }
 
 // rumAppMonitorARN is the app monitor ARN (Service Reference format
@@ -53,7 +53,7 @@ func rumAppMonitorARN(partition, region, acctID, name string) string {
 // scanRUMAppMonitors stores the app monitors a page at a time and returns the
 // ones stored before any failure, keyed by name. A denial on a later page
 // warns and keeps the earlier pages.
-func scanRUMAppMonitors(ctx context.Context, client rum.ListAppMonitorsAPIClient, acct *account, region string, st *store.Store, scanID string) (total, inserted int, monitors []childParent, err error) {
+func scanRUMAppMonitors(ctx context.Context, client rum.ListAppMonitorsAPIClient, acct *account, region string, st *store.Store, scanID string) (total int, monitors []childParent, err error) {
 	pager := rum.NewListAppMonitorsPaginator(client, &rum.ListAppMonitorsInput{}, func(o *rum.ListAppMonitorsPaginatorOptions) {
 		o.Limit = rumPageLimit
 		o.StopOnDuplicateToken = true
@@ -62,9 +62,9 @@ func scanRUMAppMonitors(ctx context.Context, client rum.ListAppMonitorsAPIClient
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, monitors, skipIfAccessDenied(st, rumListAppMonitorsOp, acct.ID, region, err)
+				return total, monitors, skipIfAccessDenied(st, rumListAppMonitorsOp, acct.ID, region, err)
 			}
-			return total, inserted, monitors, fmt.Errorf("%s: %w", rumListAppMonitorsOp, err)
+			return total, monitors, fmt.Errorf("%s: %w", rumListAppMonitorsOp, err)
 		}
 		var (
 			batch []*store.Resource
@@ -85,15 +85,14 @@ func scanRUMAppMonitors(ctx context.Context, client rum.ListAppMonitorsAPIClient
 			})
 			page = append(page, childParent{id: name, arn: arn})
 		}
-		t, i, err := upsertBatch(st, batch, "rum app-monitors")
+		t, err := upsertBatch(st, batch, "rum app-monitors")
 		if err != nil {
-			return total, inserted, monitors, err
+			return total, monitors, err
 		}
 		total += t
-		inserted += i
 		monitors = append(monitors, page...)
 	}
-	return total, inserted, monitors, nil
+	return total, monitors, nil
 }
 
 // rumMetricsDestinationNativeID keys a destination under its app monitor: the
@@ -131,7 +130,7 @@ func isRUMParentGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFo
 func rumChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op, why string, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	return childFanOutSkipNotReady(ctx, st, acct, region, op, parents, isRUMParentGone, byParentID,
 		"parent(s)", why, list)
 }
@@ -148,12 +147,12 @@ type rumDestination struct {
 // destinations, links each under its app monitor, and returns them. monitors
 // holds only app monitors stored this scan; the returned destinations are only
 // those stored, none when the phase fails.
-func scanRUMMetricsDestinations(ctx context.Context, client rum.ListRumMetricsDestinationsAPIClient, acct *account, region string, st *store.Store, scanID string, monitors []childParent) (int, int, []rumDestination, error) {
+func scanRUMMetricsDestinations(ctx context.Context, client rum.ListRumMetricsDestinationsAPIClient, acct *account, region string, st *store.Store, scanID string, monitors []childParent) (int, []rumDestination, error) {
 	var (
 		mu    sync.Mutex
 		dests []rumDestination
 	)
-	total, inserted, err := rumChildFanOut(ctx, st, acct, region, rumListMetricsDestinationsOp,
+	total, err := rumChildFanOut(ctx, st, acct, region, rumListMetricsDestinationsOp,
 		"the app monitor may be being deleted", monitors,
 		func(ctx context.Context, m childParent) ([]*store.Resource, error) {
 			rows, listed, err := listRUMMetricsDestinations(ctx, client, acct, region, scanID, m)
@@ -166,9 +165,9 @@ func scanRUMMetricsDestinations(ctx context.Context, client rum.ListRumMetricsDe
 			return rows, nil
 		})
 	if err != nil {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, dests, nil
+	return total, dests, nil
 }
 
 func listRUMMetricsDestinations(ctx context.Context, client rum.ListRumMetricsDestinationsAPIClient, acct *account, region, scanID string, m childParent) ([]*store.Resource, []rumDestination, error) {
@@ -207,7 +206,7 @@ func listRUMMetricsDestinations(ctx context.Context, client rum.ListRumMetricsDe
 // scanRUMMetricDefinitions stores each destination's metric definitions and
 // links each under its destination. dests holds only destinations stored this
 // scan.
-func scanRUMMetricDefinitions(ctx context.Context, client rum.BatchGetRumMetricDefinitionsAPIClient, acct *account, region string, st *store.Store, scanID string, dests []rumDestination) (int, int, error) {
+func scanRUMMetricDefinitions(ctx context.Context, client rum.BatchGetRumMetricDefinitionsAPIClient, acct *account, region string, st *store.Store, scanID string, dests []rumDestination) (int, error) {
 	byID := make(map[string]rumDestination, len(dests))
 	parents := make([]childParent, len(dests))
 	for i, d := range dests {

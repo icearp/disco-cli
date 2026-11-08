@@ -60,7 +60,7 @@ func runACOAutomationAcct(t *testing.T, st *store.Store, acct *account) (int, er
 	if idx < 0 {
 		t.Fatal("aws:aco-automation is not registered")
 	}
-	total, _, err := registeredServices[idx].fn(context.Background(), acct, "", st, testScanID)
+	total, err := registeredServices[idx].fn(context.Background(), acct, "", st, testScanID)
 	return total, err
 }
 

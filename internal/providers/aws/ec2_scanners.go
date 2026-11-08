@@ -31,98 +31,97 @@ func init() {
 // later phase's error are joined by phaseErrs: a lone or all-transient failure
 // is returned, so a throttled region is marked partial; a transient one beside
 // a hard one is demoted to a warning under its own op.
-func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
 	var (
 		homeIPAM     bool
 		ipamPolicies []childParent
 	)
-	total, inserted, err := runScanners(
+	total, err := runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2Networking(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanEC2VPN(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) { return scanEC2VPN(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, error) {
 			return scanEC2ComputeMgmt(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2Observability(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
-			t, n, home, err := scanEC2IPAM(ctx, client, acct, region, st, scanID)
+		func(ctx context.Context) (int, error) {
+			t, home, err := scanEC2IPAM(ctx, client, acct, region, st, scanID)
 			homeIPAM = home
-			return t, n, err
+			return t, err
 		},
-		func(ctx context.Context) (int, int, error) { return scanEC2TGW(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) { return scanEC2TGW(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, error) {
 			return scanEC2TrafficMirror(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2VerifiedAccess(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2LocalGateway(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2ClientVPN(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2RouteServer(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanIPAMPrefixListResolverTargets(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2MiscExtra(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2Inventory(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2TGWExtra(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
-			t, n, policies, err := scanEC2IPAMExtra(ctx, client, acct, region, st, scanID)
+		func(ctx context.Context) (int, error) {
+			t, policies, err := scanEC2IPAMExtra(ctx, client, acct, region, st, scanID)
 			ipamPolicies = policies
-			return t, n, err
+			return t, err
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2LocalGatewayExtra(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2ComputeExtra(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2Secondary(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanEC2NetworkExtra(ctx, client, acct, region, st, scanID)
 		},
 	)
 	var errs phaseErrs
 	errs.add("ec2", err)
-	t, n := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies, &errs)
-	lt, ln := scanEC2Late(ctx, client, acct, region, st, scanID, &errs)
-	return total + t + lt, inserted + n + ln, errs.join(st, acct, region)
+	t := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies, &errs)
+	lt := scanEC2Late(ctx, client, acct, region, st, scanID, &errs)
+	return total + t + lt, errs.join(st, acct, region)
 }
 
-// runScanners executes scanner functions concurrently via errgroup, aggregating
-// total/inserted counts. Each fn receives the errgroup-derived context. An fn
+// runScanners executes scanner functions concurrently via errgroup, summing
+// their totals. Each fn receives the errgroup-derived context. An fn
 // whose listing ended incomplete (continuesPastIncomplete) has stored what it
 // read and does not cancel the others; its error is returned after they
 // finish. Any other error cancels them.
-func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, error)) (int, int, error) {
+func runScanners(ctx context.Context, fns ...func(context.Context) (int, error)) (int, error) {
 	var (
-		t, n       atomic.Int64
+		t          atomic.Int64
 		incomplete incompleteLists
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, fn := range fns {
 		g.Go(func() error {
-			tt, nn, err := fn(gctx)
+			tt, err := fn(gctx)
 			t.Add(int64(tt))
-			n.Add(int64(nn))
 			if continuesPastIncomplete(err) {
 				incomplete.record(err)
 				return nil
@@ -134,7 +133,7 @@ func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, er
 	// left-to-right, so loading them inline with g.Wait() would read them while
 	// goroutines are still running and yield 0/0.
 	err := g.Wait()
-	return int(t.Load()), int(n.Load()), errors.Join(err, incomplete.err())
+	return int(t.Load()), errors.Join(err, incomplete.err())
 }
 
 // ec2Pager is satisfied by every AWS SDK v2 EC2 paginator.
@@ -145,8 +144,7 @@ type ec2Pager[P any] interface {
 
 // ec2PageScan runs a paginated EC2 Describe call, converts each page to a
 // batch of resources via toResources, and upserts the batch. Access-denied
-// errors route through skipIfAccessDenied. Returns total resources seen and
-// count newly inserted.
+// errors route through skipIfAccessDenied. Returns the total resources seen.
 func ec2PageScan[P any](
 	ctx context.Context,
 	iamAction string,
@@ -155,25 +153,24 @@ func ec2PageScan[P any](
 	st *store.Store,
 	pager ec2Pager[P],
 	toResources func(P) []*store.Resource,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
+				return total, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
 			if isEC2RegionFeatureGap(err) {
-				return total, inserted, nil
+				return total, nil
 			}
-			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
+			return total, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		if batch := toResources(page); len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert %s: %w", iamAction, err)
+				return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -232,12 +229,12 @@ func neverSkip(error) bool { return false }
 // fails the phase. Rows other parents stored stay.
 func scanEC2Children(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	what string, codes []skipCode, list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	return childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, neverSkip, byParentID, what, codes,
-		func(ctx context.Context, p childParent) (int, int, error) {
+		func(ctx context.Context, p childParent) (int, error) {
 			rows, err := list(ctx, p)
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			children := make([]containedChild, len(rows))

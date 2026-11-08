@@ -69,12 +69,12 @@ type amplifyAppEnvRef struct {
 // ctx's end do; a region whose component listing finds no endpoint runs no
 // form or theme listing (runHostPhases). Every type has its tags read per row
 // (auibTags), and the tag denials of the whole scan are one warning.
-func scanAmplifyUIBuilder(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAmplifyUIBuilder(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	uib := amplifyuibuilder.NewFromConfig(acct.cfg, func(o *amplifyuibuilder.Options) { o.Region = region })
 	amp := amplify.NewFromConfig(acct.cfg, func(o *amplify.Options) { o.Region = region })
 	tags := auibTags(uib).sharingDenials()
 	var envs []amplifyAppEnvRef
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "amplify-ui-builder", auibHost, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "amplify-ui-builder", auibHost, []hostPhase{
 		{op: auibAppsOp, host: auibAmplifyHost, run: func(p *phaseTotals) bool {
 			envs = loadAmplifyAppEnvs(ctx, amp, acct, region, st, p)
 			return false
@@ -90,7 +90,7 @@ func scanAmplifyUIBuilder(ctx context.Context, acct *account, region string, st 
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // auibTags reads a row's tags with ListTagsForResource, sent the row's
@@ -165,7 +165,7 @@ func loadAmplifyAppEnvs(ctx context.Context, client amplifyAppEnvsAPI, acct *acc
 		err = lateNXDOMAIN(auibAppsOp, err)
 	}
 	denied.warn(st, auibAppsOp, acct, region)
-	p.addPhase(auibAppsOp, 0, 0, err)
+	p.addPhase(auibAppsOp, 0, err)
 
 	var (
 		appIDs  []string
@@ -219,7 +219,7 @@ func loadAmplifyAppEnvs(ctx context.Context, client amplifyAppEnvsAPI, acct *acc
 	out.stopped(stopped)
 	out.warn(st, acct, region)
 	warnAUIBUnread(st, auibEnvsOp, acct, region, &noName, "backend environments", "EnvironmentName")
-	p.addPhase(auibEnvsOp, 0, 0, errors.Join(out.errs...))
+	p.addPhase(auibEnvsOp, 0, errors.Join(out.errs...))
 	return envs
 }
 

@@ -292,7 +292,7 @@ func iwHandlers(c *iwCalls) map[string]func(in any) (any, error) {
 
 // iwScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func iwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func iwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iwDenied)
 	return scanIoTWireless(ctx, acct, testRegion, st, testScanID)
@@ -300,7 +300,7 @@ func iwScan(ctx context.Context, st *store.Store, handlers map[string]func(in an
 
 func scanIoTWirelessTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := iwScan(context.Background(), st, handlers)
+	total, err := iwScan(context.Background(), st, handlers)
 	return total, err
 }
 
@@ -341,7 +341,9 @@ func TestScanIoTWireless_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newIWCalls()
 
-	total, inserted, err := iwScan(context.Background(), st, iwHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := iwScan(context.Background(), counted, iwHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -391,16 +393,16 @@ func TestScanIoTWireless_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanIoTWireless_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := iwScan(context.Background(), st, iwHandlers(newIWCalls())); err != nil {
+	if _, err := iwScan(context.Background(), st, iwHandlers(newIWCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := iwScan(context.Background(), st, iwHandlers(newIWCalls()))
+	total, err := iwScan(context.Background(), st, iwHandlers(newIWCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -441,7 +443,7 @@ func TestScanIoTWireless_TagReadFailures(t *testing.T) {
 					calls := newIWCalls()
 					calls.errs[arn] = c.err
 
-					total, _, err := iwScan(context.Background(), st, iwHandlers(calls))
+					total, err := iwScan(context.Background(), st, iwHandlers(calls))
 					if c.outcome < 0 {
 						if err != nil {
 							t.Fatalf("err = %v; want nil", err)
@@ -488,7 +490,7 @@ func TestScanIoTWireless_TagNotFoundIsNoEventParent(t *testing.T) {
 			st := newTestStore(t)
 			calls := newIWCalls()
 			calls.errs[c.parent] = iwNotFound
-			if _, _, err := iwScan(context.Background(), st, iwHandlers(calls)); err != nil {
+			if _, err := iwScan(context.Background(), st, iwHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			assertIWCfgRows(t, st, iwCfgRowsExcept())
@@ -508,7 +510,7 @@ func TestScanIoTWireless_TagDenialsWarnOncePerPhase(t *testing.T) {
 	calls.errs[k.arn("tagged")] = iwDenied
 	calls.errs[k.arn("bare")] = iwDenied
 
-	if _, _, err := iwScan(context.Background(), st, iwHandlers(calls)); err != nil {
+	if _, err := iwScan(context.Background(), st, iwHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 {
@@ -529,7 +531,7 @@ func TestScanIoTWireless_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[iwKindOf(t, "ListDeviceProfiles").arn("tagged")] = iwThrottle
 	calls.errs[iwKindOf(t, "ListServiceProfiles").arn("bare")] = iwBadInput
 
-	_, _, err := iwScan(context.Background(), st, iwHandlers(calls))
+	_, err := iwScan(context.Background(), st, iwHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -547,7 +549,7 @@ func TestScanIoTWireless_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newIWCalls()
 	calls.errs[iwKindOf(t, "ListDestinations").arn("tagged")] = iwDenied
 
-	_, _, err := iwScan(context.Background(), st, iwHandlers(calls))
+	_, err := iwScan(context.Background(), st, iwHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -571,7 +573,7 @@ func TestScanIoTWireless_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 			k := iwKindOf(t, op)
 			handlers[op] = failOnCall(2, iwConflict, handlers[op])
 
-			total, _, err := iwScan(context.Background(), st, handlers)
+			total, err := iwScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ConflictException")
 			if total != iwTotalCount-1 {
@@ -599,7 +601,7 @@ func TestScanIoTWireless_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(k.arn(suffix), k.id(suffix), sdkaws.String("same")), nil
 	}
 
-	total, _, err := iwScan(context.Background(), st, handlers)
+	total, err := iwScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -627,7 +629,7 @@ func TestScanIoTWireless_ElementWithoutARNWarns(t *testing.T) {
 			handlers := iwHandlers(newIWCalls())
 			handlers[c.op] = func(any) (any, error) { return c.page, nil }
 
-			total, _, err := iwScan(context.Background(), st, handlers)
+			total, err := iwScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -665,7 +667,7 @@ func TestScanIoTWireless_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			k := iwKindOf(t, c.op)
 			handlers[c.op] = failOnCall(c.call, iwDenied, handlers[c.op])
 
-			total, _, err := iwScan(context.Background(), st, handlers)
+			total, err := iwScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -694,7 +696,7 @@ func TestScanIoTWireless_PartnerRegionGate(t *testing.T) {
 		all := countWarnings(st)
 		handlers := iwHandlers(newIWCalls())
 		handlers[k.op] = func(any) (any, error) { return nil, iwGated }
-		total, _, err := iwScan(context.Background(), st, handlers)
+		total, err := iwScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -707,7 +709,7 @@ func TestScanIoTWireless_PartnerRegionGate(t *testing.T) {
 		warnings := bacWarnings(st, "iotwireless:"+k.op)
 		handlers := iwHandlers(newIWCalls())
 		handlers[k.op] = failOnCall(2, iwGated, handlers[k.op])
-		if _, _, err := iwScan(context.Background(), st, handlers); err != nil {
+		if _, err := iwScan(context.Background(), st, handlers); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 		if _, ok := rowsByNativeID(t, st, k.typ)[k.arn("tagged")]; !ok {
@@ -737,7 +739,7 @@ func TestScanIoTWireless_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := iwScan(ctx, st, handlers)
+	_, err := iwScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -766,7 +768,7 @@ func TestScanIoTWireless_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := iwHandlers(newIWCalls())
 		handlers["ListServiceProfiles"] = func(any) (any, error) { return nil, nx }
-		total, _, err := iwScan(context.Background(), st, handlers)
+		total, err := iwScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != iwTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, iwTotalCount-2)
@@ -776,7 +778,7 @@ func TestScanIoTWireless_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newIWCalls()
 		calls.errs[iwKindOf(t, "ListDestinations").arn("bare")] = nx
-		_, _, err := iwScan(context.Background(), st, iwHandlers(calls))
+		_, err := iwScan(context.Background(), st, iwHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -784,7 +786,7 @@ func TestScanIoTWireless_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanIoTWireless(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanIoTWireless(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

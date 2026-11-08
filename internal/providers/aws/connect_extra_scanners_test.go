@@ -34,7 +34,7 @@ func TestScanConnectExtra(t *testing.T) {
 		authProfiles: []cttypes.AuthenticationProfileSummary{{Arn: ptrStr(apARN), Id: ptrStr("ap-1"), Name: ptrStr("default")}},
 	}
 	insts := []cttypes.InstanceSummary{{Id: ptrStr("i-1")}}
-	total, _, err := scanConnectExtra(context.Background(), stub, insts, acct, testRegion, st, testScanID)
+	total, err := scanConnectExtra(context.Background(), stub, insts, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanConnectExtra: %v", err)
 	}
@@ -58,7 +58,9 @@ func TestScanConnectExtra_NoInstances(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	total, inserted, err := scanConnectExtra(context.Background(), &stubConnectExtra{}, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectExtra(context.Background(), &stubConnectExtra{}, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("got (%d,%d,%v), want (0,0,nil)", total, inserted, err)
 	}

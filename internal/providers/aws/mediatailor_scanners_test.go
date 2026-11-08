@@ -80,7 +80,7 @@ func (p *mtFunctionPages) handler(pageTwoErr error) func(in any) (any, error) {
 
 func scanMTFunctionsWith(st *store.Store, handler func(in any) (any, error)) (int, error) {
 	client := mediatailor.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListFunctions": handler}, mtDenied))
-	total, _, err := scanMTFunctions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanMTFunctions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -286,7 +286,7 @@ func TestScanMediaTailor_StoresFunctions(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanMediaTailor(context.Background(), acct, "eu-west-1", st, testScanID)
+	total, err := scanMediaTailor(context.Background(), acct, "eu-west-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanMediaTailor: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestScanMediaTailor_FunctionErrorAfterMediaPhase(t *testing.T) {
 		"ListFunctions": fns.handler(mtValidation),
 	}), mtDenied)
 
-	total, _, err := scanMediaTailor(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMediaTailor(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "BadRequestException")
 	if total != 2 {
 		t.Errorf("total = %d, want 2 (1 playback configuration, 1 function)", total)
@@ -339,7 +339,7 @@ func TestScanMediaTailor_MediaErrorStillScansFunctions(t *testing.T) {
 		"ListPlaybackConfigurations": func(any) (any, error) { return nil, mtValidation },
 	}), mtDenied)
 
-	total, _, err := scanMediaTailor(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMediaTailor(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "BadRequestException")
 	if total != 2 || len(rowsByNativeID(t, st, TypeMediaTailorFunction)) != 2 {
 		t.Errorf("total = %d, want 2 functions", total)
@@ -464,7 +464,7 @@ func mtMediaHandlers(calls *mtCalls, fns *mtFunctionPages, overrides map[string]
 
 func scanMTMediaWith(st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	client := mediatailor.NewFromConfig(opStubConfig(handlers, mtDenied))
-	total, _, err := scanMediaTailorAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanMediaTailorAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 

@@ -36,7 +36,7 @@ type dbPage struct {
 type dbPhase struct {
 	sdkOp, label, typ string
 	output            func(elems []dbElem, next *string) any
-	scan              func(context.Context, databrewAPI, *account, string, *store.Store, string) (int, int, error)
+	scan              func(context.Context, databrewAPI, *account, string, *store.Store, string) (int, error)
 }
 
 var dbPhases = []dbPhase{
@@ -148,7 +148,7 @@ func dbAllHandlers(t *testing.T) map[string]func(in any) (any, error) {
 func dbScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := databrew.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanDataBrewAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDataBrewAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -241,7 +241,7 @@ func TestScanDataBrewPhases_ListOutcomes(t *testing.T) {
 					}
 				}
 				client := databrew.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){p.sdkOp: p.dbHandler(t, c.pages)}, errors.New("unexpected op")))
-				total, _, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+				total, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if c.wantErr == nil && err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
@@ -287,7 +287,7 @@ func TestScanDataBrewDatasets_WriteFailsWarnsNothing(t *testing.T) {
 		return serve(in)
 	}}
 	client := databrew.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	_, _, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}

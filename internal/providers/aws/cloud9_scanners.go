@@ -32,14 +32,14 @@ const (
 // environment it stored. The membership phase runs only when the environment
 // phase succeeds: a failed environment phase stores nothing, so there are no
 // parents to fan out over.
-func scanCloud9(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloud9(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := cloud9.NewFromConfig(acct.cfg, func(o *cloud9.Options) { o.Region = region })
-	total, inserted, envs, err := scanCloud9Environments(ctx, client, acct, region, st, scanID)
+	total, envs, err := scanCloud9Environments(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err := scanCloud9Memberships(ctx, client, acct, region, st, scanID, envs)
-	return total + t, inserted + i, err
+	t, err := scanCloud9Memberships(ctx, client, acct, region, st, scanID, envs)
+	return total + t, err
 }
 
 // scanCloud9Environments discovers Cloud9 EC2 environments. Closed to new
@@ -47,7 +47,7 @@ func scanCloud9(ctx context.Context, acct *account, region string, st *store.Sto
 // returns IDs only — DescribeEnvironments fan-out fills in ARN+Type. Only
 // Type=ec2 emits (CFN models only AWS::Cloud9::EnvironmentEC2; SSH variant has
 // no CFN type). It returns the environments it stored that carry an Id.
-func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, envs []childParent, err error) {
+func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *account, region string, st *store.Store, scanID string) (total int, envs []childParent, err error) {
 	var ids []string
 	var nextToken *string
 	for {
@@ -62,12 +62,12 @@ func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *ac
 			// and surface via skipIfAccessDenied below.
 			if isClosedToNewCustomers(err) ||
 				isAccessDeniedWithMessage(err, "does not have access to the Cloud9 service") {
-				return 0, 0, nil, markServiceNotEntitled(err)
+				return 0, nil, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "cloud9:ListEnvironments", acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, "cloud9:ListEnvironments", acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("cloud9:ListEnvironments: %w", err)
+			return 0, nil, fmt.Errorf("cloud9:ListEnvironments: %w", err)
 		}
 		ids = append(ids, out.EnvironmentIds...)
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -76,7 +76,7 @@ func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *ac
 		nextToken = out.NextToken
 	}
 	if len(ids) == 0 {
-		return 0, 0, nil, nil
+		return 0, nil, nil
 	}
 
 	var batch []*store.Resource
@@ -91,9 +91,9 @@ func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *ac
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "cloud9:DescribeEnvironments", acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, "cloud9:DescribeEnvironments", acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("cloud9:DescribeEnvironments: %w", err)
+			return 0, nil, fmt.Errorf("cloud9:DescribeEnvironments: %w", err)
 		}
 		for _, e := range out.Environments {
 			if e.Type != cloud9types.EnvironmentTypeEc2 {
@@ -114,11 +114,11 @@ func scanCloud9Environments(ctx context.Context, client *cloud9.Client, acct *ac
 			}
 		}
 	}
-	total, inserted, err = upsertBatch(st, batch, "cloud9 environments")
+	total, err = upsertBatch(st, batch, "cloud9 environments")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, envs, nil
+	return total, envs, nil
 }
 
 // cloud9MembershipNativeID keys a membership under its environment: the API
@@ -152,17 +152,17 @@ func isCloud9EnvironmentGone(err error) bool {
 // then fail it on every scan, and skipping silently would hide a real input
 // error, so it warns. The inputs disco sets are the listed environment Id and
 // a page size pinned to the model cap by a test.
-func scanCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironmentMembershipsAPIClient, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, int, error) {
+func scanCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironmentMembershipsAPIClient, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, error) {
 	return childFanOutStoredSkipNotReady(ctx, st, acct, region, cloud9DescribeMembershipsOp, envs, isCloud9EnvironmentGone, byParentARN,
 		"environment(s)", "an environment in a lifecycle status such as CREATING, CREATE_FAILED or DELETING may refuse the call",
 		[]string{"BadRequestException"},
-		func(ctx context.Context, env childParent) (int, int, error) {
+		func(ctx context.Context, env childParent) (int, error) {
 			return storeCloud9Memberships(ctx, client, acct, region, st, scanID, env)
 		})
 }
 
 // storeCloud9Memberships stores one environment's members a page at a time.
-func storeCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironmentMembershipsAPIClient, acct *account, region string, st *store.Store, scanID string, env childParent) (total, inserted int, err error) {
+func storeCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironmentMembershipsAPIClient, acct *account, region string, st *store.Store, scanID string, env childParent) (total int, err error) {
 	pager := cloud9.NewDescribeEnvironmentMembershipsPaginator(client,
 		&cloud9.DescribeEnvironmentMembershipsInput{EnvironmentId: &env.id},
 		func(o *cloud9.DescribeEnvironmentMembershipsPaginatorOptions) {
@@ -173,7 +173,7 @@ func storeCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironme
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var children []containedChild
 		for _, m := range out.Memberships {
@@ -188,12 +188,11 @@ func storeCloud9Memberships(ctx context.Context, client cloud9.DescribeEnvironme
 				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			}})
 		}
-		t, i, err := upsertContained(st, cloud9DescribeMembershipsOp, children)
+		t, err := upsertContained(st, cloud9DescribeMembershipsOp, children)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }

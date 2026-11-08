@@ -101,7 +101,9 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 			UpdatedAt: &updated,
 		}},
 	}
-	total, inserted, err := scanApplicationSignalsGroupingConfiguration(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanApplicationSignalsGroupingConfiguration(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationSignalsGroupingConfiguration: %v", err)
 	}
@@ -145,7 +147,9 @@ func TestScanApplicationSignalsServices_Populated(t *testing.T) {
 		}},
 	}
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	total, inserted, _, err := scanApplicationSignalsServices(context.Background(), stub, acct, region, st, testScanID, now)
+	counted, upserts := countUpserts(st)
+	total, _, err := scanApplicationSignalsServices(context.Background(), stub, acct, region, counted, testScanID, now)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationSignalsServices: %v", err)
 	}
@@ -169,7 +173,9 @@ func TestScanApplicationSignalsServices_Empty(t *testing.T) {
 
 	stub := &stubApplicationSignals{}
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	total, inserted, _, err := scanApplicationSignalsServices(context.Background(), stub, acct, testRegion, st, testScanID, now)
+	counted, upserts := countUpserts(st)
+	total, _, err := scanApplicationSignalsServices(context.Background(), stub, acct, testRegion, counted, testScanID, now)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationSignalsServices: %v", err)
 	}
@@ -184,7 +190,9 @@ func TestScanApplicationSignalsGroupingConfiguration_Empty(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	stub := &stubApplicationSignals{}
-	total, inserted, err := scanApplicationSignalsGroupingConfiguration(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanApplicationSignalsGroupingConfiguration(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanApplicationSignalsGroupingConfiguration: %v", err)
 	}
@@ -274,7 +282,7 @@ func appSignalsClient(handlers map[string]func(in any) (any, error)) *applicatio
 
 // runAppSignalsInstrumentation runs the configurations phase alone against
 // client, reading tags through it, and returns the phase's result.
-func runAppSignalsInstrumentation(client *applicationsignals.Client, st *store.Store, services []applicationSignalsService) (int, int, error) {
+func runAppSignalsInstrumentation(client *applicationsignals.Client, st *store.Store, services []applicationSignalsService) (int, error) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanApplicationSignalsInstrumentationConfigurations(context.Background(), client, acct, testRegion, st, testScanID, services, appSignalsTags(client), &p)
@@ -298,7 +306,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ProbesOfEveryPage(t
 	var calls parentCalls
 	client := appSignalsClient(map[string]func(any) (any, error){"ListInstrumentationConfigurations": appSignalsConfigHandler(&calls)})
 
-	total, _, err := runAppSignalsInstrumentation(client, st, services)
+	total, err := runAppSignalsInstrumentation(client, st, services)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -345,14 +353,16 @@ func TestScanApplicationSignalsInstrumentationConfigurations_Empty(t *testing.T)
 		},
 	})
 
-	total, inserted, err := runAppSignalsInstrumentation(client, st, services)
+	counted, upserts := countUpserts(st)
+	total, err := runAppSignalsInstrumentation(client, counted, services)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
 	if got := calls.distinct(); !reflect.DeepEqual(got, []string{"PROBE"}) {
 		t.Errorf("types queried = %v; want [PROBE]", got)
 	}
-	total, _, err = runAppSignalsInstrumentation(client, st, nil)
+	total, err = runAppSignalsInstrumentation(client, st, nil)
 	if err != nil || total != 0 || len(calls.ids) != 1 {
 		t.Errorf("no services: total, err, calls = %d, %v, %v; want 0, nil, no new calls", total, err, calls.ids)
 	}
@@ -379,7 +389,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_EmptyARNWarned(t *t
 		},
 	})
 
-	total, _, err := runAppSignalsInstrumentation(client, st, services)
+	total, err := runAppSignalsInstrumentation(client, st, services)
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -407,7 +417,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_SharedNameEnvironme
 	var calls parentCalls
 	client := appSignalsClient(map[string]func(any) (any, error){"ListInstrumentationConfigurations": appSignalsConfigHandler(&calls)})
 
-	total, _, err := runAppSignalsInstrumentation(client, st, services)
+	total, err := runAppSignalsInstrumentation(client, st, services)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -470,7 +480,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ErrorPolicy(t *test
 				},
 			})
 
-			_, _, err := runAppSignalsInstrumentation(client, st, services)
+			_, err := runAppSignalsInstrumentation(client, st, services)
 			if tc.outcome != 0 {
 				assertGlueOutcome(t, err, tc.outcome)
 				assertAPICode(t, err, tc.code)
@@ -529,7 +539,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ThrottleDemotedBesi
 				},
 			})
 
-			_, _, err := runAppSignalsInstrumentation(client, st, services)
+			_, err := runAppSignalsInstrumentation(client, st, services)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ConflictException")
 			if *warns != 1 {
@@ -566,7 +576,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_FailedWriteKeepsThr
 		},
 	})
 
-	_, _, err := runAppSignalsInstrumentation(client, st, services)
+	_, err := runAppSignalsInstrumentation(client, st, services)
 	if !errors.Is(err, store.ErrStoreWrite) || !isAPIErrorCode(err, "ThrottlingException") {
 		t.Errorf("err = %v; want store.ErrStoreWrite joined with the ThrottlingException", err)
 	}
@@ -592,7 +602,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ThrottleNamesSmalle
 		"ListInstrumentationConfigurations": func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") },
 	})
 
-	_, _, err := runAppSignalsInstrumentation(client, st, services)
+	_, err := runAppSignalsInstrumentation(client, st, services)
 	assertGlueOutcome(t, err, outcomeTransient)
 	if !strings.Contains(err.Error(), "first "+smallest.nativeID+":") {
 		t.Errorf("err = %v; want it naming %s first", err, smallest.nativeID)
@@ -613,7 +623,7 @@ func TestScanApplicationSignalsServices_FailedWriteReturnsNoServices(t *testing.
 		},
 	})
 
-	_, _, services, err := scanApplicationSignalsServices(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, time.Now())
+	_, services, err := scanApplicationSignalsServices(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, time.Now())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -642,7 +652,7 @@ func TestScanApplicationSignalsServices_ReturnsStoredInstrumentedServices(t *tes
 		},
 	})
 
-	total, _, services, err := scanApplicationSignalsServices(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, time.Now())
+	total, services, err := scanApplicationSignalsServices(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, time.Now())
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Errorf("err = %v; want the page 2 ConflictException", err)
 	}
@@ -763,7 +773,7 @@ func appSigHandlers(c *appSigCalls) map[string]func(any) (any, error) {
 
 // appSigScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func appSigScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func appSigScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, appSignalsDenied)
 	return scanApplicationSignals(ctx, acct, testRegion, st, testScanID)
@@ -788,7 +798,9 @@ func TestScanApplicationSignals_StoresTagsOfTaggedTypes(t *testing.T) {
 	warns := recordWarnings(st)
 	calls := newAppSigCalls()
 
-	total, inserted, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := appSigScan(context.Background(), counted, appSigHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -880,7 +892,7 @@ func TestScanApplicationSignals_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, appSignalsDenied)
 
-	total, _, err := scanApplicationSignals(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanApplicationSignals(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 4 {
 		t.Fatalf("scan = %d, %v; want 4 (SLO, grouping, service, configuration), nil", total, err)
 	}
@@ -913,7 +925,7 @@ func TestScanApplicationSignals_NothingToTag(t *testing.T) {
 	h["ListServiceLevelObjectives"] = func(any) (any, error) { return &applicationsignals.ListServiceLevelObjectivesOutput{}, nil }
 	h["ListServices"] = func(any) (any, error) { return &applicationsignals.ListServicesOutput{}, nil }
 
-	total, _, err := appSigScan(context.Background(), st, h)
+	total, err := appSigScan(context.Background(), st, h)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d, %v; want 1 (the grouping configuration), nil", total, err)
 	}
@@ -925,10 +937,12 @@ func TestScanApplicationSignals_NothingToTag(t *testing.T) {
 func TestScanApplicationSignals_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := appSigScan(context.Background(), st, appSigHandlers(newAppSigCalls())); err != nil {
+	if _, err := appSigScan(context.Background(), st, appSigHandlers(newAppSigCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := appSigScan(context.Background(), st, appSigHandlers(newAppSigCalls()))
+	counted, upserts := countUpserts(st)
+	total, err := appSigScan(context.Background(), counted, appSigHandlers(newAppSigCalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -967,7 +981,7 @@ func TestScanApplicationSignals_TagReadFailures(t *testing.T) {
 					calls := newAppSigCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+					total, err := appSigScan(context.Background(), st, appSigHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -1017,7 +1031,7 @@ func TestScanApplicationSignals_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[d.arn] = crDenied
 	}
 
-	total, _, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+	total, err := appSigScan(context.Background(), st, appSigHandlers(calls))
 	if err != nil || total != 9 {
 		t.Fatalf("scan = %d, %v; want 9, nil", total, err)
 	}
@@ -1041,7 +1055,7 @@ func TestScanApplicationSignals_TagThrottleDemotedBesideHardError(t *testing.T) 
 	calls.errs[appSigSLOARN("slo-b")] = crThrottled
 	calls.errs[appSignalsConfigARN("cart", "cart-probe2")] = crtBadInput
 
-	_, _, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+	_, err := appSigScan(context.Background(), st, appSigHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1077,7 +1091,7 @@ func TestScanApplicationSignals_ListFailureKeepsPagesAndRunsEveryPhase(t *testin
 				return list(in)
 			}
 
-			total, _, err := appSigScan(context.Background(), st, h)
+			total, err := appSigScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ConflictException")
 			if want := 9 - c.lost; total != want || countStoredRows(t, st) != want {
@@ -1118,7 +1132,7 @@ func TestScanApplicationSignals_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := appSigHandlers(calls)
 			h[c.op] = func(any) (any, error) { return nil, appSignalsDenied }
 
-			total, _, err := appSigScan(context.Background(), st, h)
+			total, err := appSigScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1158,7 +1172,7 @@ func TestScanApplicationSignals_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			_, _, err := appSigScan(context.Background(), st, h)
+			_, err := appSigScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1196,7 +1210,7 @@ func TestScanApplicationSignals_UnstorableItemsWarn(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := appSigScan(context.Background(), st, h)
+	total, err := appSigScan(context.Background(), st, h)
 	if err != nil || total != 5 {
 		t.Fatalf("scan = %d, %v; want 5 (1 SLO, grouping, 1 service, 2 configurations), nil", total, err)
 	}
@@ -1229,7 +1243,7 @@ func TestScanApplicationSignals_FailedWriteStopsWithoutWarning(t *testing.T) {
 			calls := newAppSigCalls()
 			calls.errs[c.deniedARN] = crDenied
 
-			_, _, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+			_, err := appSigScan(context.Background(), st, appSigHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1269,7 +1283,7 @@ func TestScanApplicationSignals_ServicesThrottleDemotedBesideHardConfigError(t *
 		return nil, apiErr("ConflictException", "bad")
 	}
 
-	_, _, err := appSigScan(context.Background(), st, h)
+	_, err := appSigScan(context.Background(), st, h)
 	if classifyServiceError(err) != outcomeError || *warns != 1 {
 		t.Errorf("outcome, warnings = %v, %d; want outcomeError, 1 (err %v)", classifyServiceError(err), *warns, err)
 	}
@@ -1288,7 +1302,7 @@ func TestScanApplicationSignals_GroupingThrottleDemotedUnderItsOp(t *testing.T) 
 	h["ListGroupingAttributeDefinitions"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 	h["ListServiceLevelObjectives"] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 
-	_, _, err := appSigScan(context.Background(), st, h)
+	_, err := appSigScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if len(*warns) != 1 || (*warns)[0].Service != appSignalsListGroupingOp {
@@ -1309,7 +1323,7 @@ func TestScanApplicationSignals_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := appSigScan(ctx, st, h)
+	_, err := appSigScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1339,7 +1353,7 @@ func TestScanApplicationSignals_Unreachable(t *testing.T) {
 		calls := newAppSigCalls()
 		h := appSigHandlers(calls)
 		h["ListServiceLevelObjectives"] = func(any) (any, error) { return nil, nx }
-		total, _, err := appSigScan(context.Background(), st, h)
+		total, err := appSigScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListServices") != 0 {
 			t.Errorf("total, ListServices calls = %d, %d; want 0, 0", total, calls.count("ListServices"))
@@ -1350,7 +1364,7 @@ func TestScanApplicationSignals_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newAppSigCalls()
 		calls.errs[appSignalsConfigARN("checkout", "checkout-probe2")] = nx
-		total, _, err := appSigScan(context.Background(), st, appSigHandlers(calls))
+		total, err := appSigScan(context.Background(), st, appSigHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 9 {
 			t.Errorf("total = %d; want 9", total)

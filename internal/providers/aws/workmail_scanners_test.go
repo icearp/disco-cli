@@ -58,7 +58,7 @@ func wmOrgOf(in any) string {
 type wmPhase struct {
 	op        string
 	typ       string
-	run       func(*workMailScan, context.Context) (int, int, error)
+	run       func(*workMailScan, context.Context) (int, error)
 	paginated bool
 	// out builds the op's output holding one element per id; an empty id
 	// leaves the element's identifier unset.
@@ -255,7 +255,7 @@ func TestWorkMailChildPhases_StoresEveryOrgsChildren(t *testing.T) {
 			wmSeedOrgs(t, st)
 			var calls parentCalls
 			client := wmClient(map[string]func(any) (any, error){p.op: wmHappyHandler(p, &calls)})
-			total, _, err := p.run(wmScan(client, st, wmOrgs), context.Background())
+			total, err := p.run(wmScan(client, st, wmOrgs), context.Background())
 			if err != nil {
 				t.Fatalf("%s: %v", p.op, err)
 			}
@@ -320,7 +320,7 @@ func wmErrScenario(t *testing.T, p wmPhase, mb func() (any, error)) (rows map[st
 		}
 		return p.out([]string{"a1"}, nil), nil
 	}})
-	_, _, err = p.run(wmScan(client, st, wmOrgs), context.Background())
+	_, err = p.run(wmScan(client, st, wmOrgs), context.Background())
 	return rowsByNativeID(t, st, p.typ), *warned, err
 }
 
@@ -358,7 +358,7 @@ func TestWorkMailChildPhases_AccessDeniedWarnsOnce(t *testing.T) {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
 			warned := countOpWarnings(st, "workmail:"+p.op)
-			total, _, err := p.run(wmScan(wmClient(nil), st, wmOrgs), context.Background())
+			total, err := p.run(wmScan(wmClient(nil), st, wmOrgs), context.Background())
 			if err != nil || total != 0 || *warned != 1 {
 				t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warned)
 			}
@@ -372,7 +372,7 @@ func TestWorkMailChildPhases_Empty(t *testing.T) {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
 			client := wmClient(map[string]func(any) (any, error){p.op: func(any) (any, error) { return p.out(nil, nil), nil }})
-			total, _, err := p.run(wmScan(client, st, wmOrgs), context.Background())
+			total, err := p.run(wmScan(client, st, wmOrgs), context.Background())
 			if err != nil || total != 0 || len(rowsByNativeID(t, st, p.typ)) != 0 {
 				t.Errorf("err = %v, total = %d; want nil, 0 and no rows", err, total)
 			}
@@ -386,7 +386,7 @@ func TestWorkMailEntities_StoreDeletedAndDisabled(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, kind string
-		run           func(*workMailScan, context.Context) (int, int, error)
+		run           func(*workMailScan, context.Context) (int, error)
 		out           any
 	}{
 		{"ListUsers", TypeWorkMailUser, "user", (*workMailScan).users, &workmail.ListUsersOutput{Users: []workmailtypes.User{
@@ -402,7 +402,7 @@ func TestWorkMailEntities_StoreDeletedAndDisabled(t *testing.T) {
 		t.Run(tc.op, func(t *testing.T) {
 			st := newTestStore(t)
 			client := wmClient(map[string]func(any) (any, error){tc.op: func(any) (any, error) { return tc.out, nil }})
-			if _, _, err := tc.run(wmScan(client, st, wmOrgs[:1]), context.Background()); err != nil {
+			if _, err := tc.run(wmScan(client, st, wmOrgs[:1]), context.Background()); err != nil {
 				t.Fatalf("%s: %v", tc.op, err)
 			}
 			rows := rowsByNativeID(t, st, tc.typ)
@@ -430,7 +430,7 @@ func TestScanWorkMailOrganizations_PagesAndAccessDenied(t *testing.T) {
 			}
 			return &workmail.ListOrganizationsOutput{OrganizationSummaries: []workmailtypes.OrganizationSummary{{OrganizationId: ptrStr("m-b")}}}, nil
 		}})
-		parents, total, _, err := scanWorkMailOrganizations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		parents, total, err := scanWorkMailOrganizations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -451,7 +451,7 @@ func TestScanWorkMailOrganizations_PagesAndAccessDenied(t *testing.T) {
 	t.Run("AccessDenied", func(t *testing.T) {
 		st := newTestStore(t)
 		warned := countOpWarnings(st, "workmail:ListOrganizations")
-		parents, total, _, err := scanWorkMailOrganizations(context.Background(), wmClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID)
+		parents, total, err := scanWorkMailOrganizations(context.Background(), wmClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 || len(parents) != 0 || *warned != 1 {
 			t.Errorf("err = %v, total = %d, parents = %v, warnings = %d; want nil, 0, none, 1", err, total, parents, *warned)
 		}
@@ -497,7 +497,7 @@ func TestScanWorkMailIn_RunsEveryPhaseOverListedOrgs(t *testing.T) {
 		return wmPerms(nil, "g-1"), nil
 	}
 	warned := countOpWarnings(st, "workmail:ListUsers")
-	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 
 	var ae smithy.APIError
 	if !errors.As(err, &ae) || ae.ErrorCode() != "InvalidParameterException" {
@@ -575,7 +575,7 @@ func TestScanWorkMailIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 		"ListUsers":  func(any) (any, error) { return nil, wmThrottled },
 		"ListGroups": func(any) (any, error) { return nil, wmBadInput },
 	})
-	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
@@ -611,7 +611,7 @@ func TestScanWorkMailIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 		},
 		"ListGroups": func(any) (any, error) { return nil, wmThrottled },
 	})
-	_, _, err = scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err = scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || classifyServiceError(err) != outcomeStoreWrite {
 		t.Errorf("err = %v classified %v; want store.ErrStoreWrite, outcomeStoreWrite", err, classifyServiceError(err))
 	}
@@ -689,7 +689,7 @@ func TestWorkMailMailboxPermissions_StoresEveryMailboxsGrants(t *testing.T) {
 		}
 		return wmPerms(nil, "u-2"), nil
 	}})
-	total, inserted, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+	total, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
 	if err != nil {
 		t.Fatalf("mailboxPermissions: %v", err)
 	}
@@ -703,8 +703,8 @@ func TestWorkMailMailboxPermissions_StoresEveryMailboxsGrants(t *testing.T) {
 		wmResourceA1 + "/mailboxpermission/u-1": "u-1",
 		wmUserB1 + "/mailboxpermission/u-2":     "u-2",
 	}
-	if total != 4 || inserted != 4 || len(rows) != 4 {
-		t.Errorf("total = %d, inserted = %d, rows = %v; want 4, 4, %v", total, inserted, slices.Sorted(maps.Keys(rows)), slices.Sorted(maps.Keys(want)))
+	if total != 4 || len(rows) != 4 {
+		t.Errorf("total = %d, rows = %v; want 4, %v", total, slices.Sorted(maps.Keys(rows)), slices.Sorted(maps.Keys(want)))
 	}
 	for nid, grantee := range want {
 		r, ok := rows[nid]
@@ -734,7 +734,7 @@ func TestWorkMailMailboxPermissions_EmptyAndDenied(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
 		st := newTestStore(t)
 		client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(any) (any, error) { return wmPerms(nil), nil }})
-		total, _, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+		total, err := wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
 		if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeWorkMailMailboxPermission)) != 0 {
 			t.Errorf("err = %v, total = %d; want nil, 0 and no rows", err, total)
 		}
@@ -742,7 +742,7 @@ func TestWorkMailMailboxPermissions_EmptyAndDenied(t *testing.T) {
 	t.Run("AccessDeniedWarnsOnce", func(t *testing.T) {
 		st := newTestStore(t)
 		warned := countOpWarnings(st, wmMailboxOp)
-		total, _, err := wmMailboxScan(t, st, wmClient(nil)).mailboxPermissions(context.Background())
+		total, err := wmMailboxScan(t, st, wmClient(nil)).mailboxPermissions(context.Background())
 		if err != nil || total != 0 || *warned != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warned)
 		}
@@ -760,7 +760,7 @@ func TestWorkMailMailboxPermissions_SkipsRejectedOrgs(t *testing.T) {
 	}})
 	s := wmMailboxScan(t, st, client)
 	s.rejected["m-b"] = true
-	if _, _, err := s.mailboxPermissions(context.Background()); err != nil {
+	if _, err := s.mailboxPermissions(context.Background()); err != nil {
 		t.Fatalf("mailboxPermissions: %v", err)
 	}
 	if got := calls.distinct(); !slices.Equal(got, []string{"m-a/r1", "m-a/u1"}) {
@@ -779,7 +779,7 @@ func wmMailboxErrScenario(t *testing.T, fail error) (rows map[string]store.Resou
 		}
 		return nil, fail
 	}})
-	total, _, err = wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
+	total, err = wmMailboxScan(t, st, client).mailboxPermissions(context.Background())
 	return rowsByNativeID(t, st, TypeWorkMailMailboxPermission), total, *warned, err
 }
 
@@ -826,7 +826,7 @@ func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		op, kind string
-		run      func(*workMailScan, context.Context) (int, int, error)
+		run      func(*workMailScan, context.Context) (int, error)
 		out      any
 	}{
 		{"ListUsers", "user", (*workMailScan).users, &workmail.ListUsersOutput{Users: []workmailtypes.User{
@@ -863,7 +863,7 @@ func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 					return tc.out, nil
 				}})
 				s := wmScan(client, st, wmOrgs)
-				if _, _, err := tc.run(s, context.Background()); (err != nil) != mb.wantErr {
+				if _, err := tc.run(s, context.Background()); (err != nil) != mb.wantErr {
 					t.Errorf("err = %v, want error: %v", err, mb.wantErr)
 				}
 				if !slices.Equal(s.mailboxes, mb.want) {
@@ -891,7 +891,7 @@ func TestScanWorkMailIn_MailboxPermissionsRunLast(t *testing.T) {
 			return wmPerms(nil, "m-a-1"), nil
 		},
 	})
-	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
@@ -958,7 +958,7 @@ func TestScanWorkMailIn_EntityStateMailboxes(t *testing.T) {
 					return wmPerms(nil, "g-1"), nil
 				},
 			})
-			_, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 
 			if tc.fail == wmBadInput {
 				var ae smithy.APIError
@@ -1004,7 +1004,7 @@ func TestScanWorkMailIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
 		"ListUsers": func(any) (any, error) { return nil, wmThrottled },
 	})
-	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -1027,7 +1027,7 @@ func TestScanWorkMailIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 			return nil, &net.DNSError{Err: "no such host", Name: "workmail." + testRegion + ".amazonaws.com", IsNotFound: true}
 		},
 	})
-	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err == nil || classifyServiceError(err) != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, classifyServiceError(err))
 	}

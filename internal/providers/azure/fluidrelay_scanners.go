@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanFluidRelay discovers fluidrelay resources.
-func scanFluidRelay(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFluidRelay(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armfluidrelay.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armfluidrelay:NewServersClient: %w", err)
+		return 0, fmt.Errorf("armfluidrelay:NewServersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armfluidrelay:Servers.ListBySubscription", TypeFluidRelayServer, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

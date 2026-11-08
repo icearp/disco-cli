@@ -74,7 +74,7 @@ const (
 	pzPageLimit = 100
 )
 
-func scanPersonalize(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPersonalize(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := personalize.NewFromConfig(acct.cfg, func(o *personalize.Options) { o.Region = region })
 	return scanPersonalizeAll(ctx, client, acct, region, st, scanID)
 }
@@ -88,16 +88,16 @@ func scanPersonalize(ctx context.Context, acct *account, region string, st *stor
 // lists none of them for ListTagsForResource. Each of those listings is
 // written once read whole (storeTokenList), as base did: a per-account
 // catalogue, not a listing that grows with use.
-func scanPersonalizeAll(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPersonalizeAll(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := pzTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "personalize", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "personalize", 0, []hostPhase{
 		{op: pzListDatasetGroupsOp, run: func(p *phaseTotals) bool {
 			return scanPzDatasetGroups(ctx, client, acct, region, st, scanID, tags, p)
 		}},
 		{op: pzListDatasetsOp, run: func(p *phaseTotals) bool {
 			return scanPzDatasets(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, pzListSchemasOp, func() (int, int, error) {
+		countedPhase(0, pzListSchemasOp, func() (int, error) {
 			return scanPzSchemas(ctx, client, acct, region, st, scanID)
 		}),
 		{op: pzListSolutionsOp, run: func(p *phaseTotals) bool {
@@ -112,13 +112,13 @@ func scanPersonalizeAll(ctx context.Context, client personalizeAPI, acct *accoun
 		{op: pzListFiltersOp, run: func(p *phaseTotals) bool {
 			return scanPzFilters(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, pzListMetricAttributionsOp, func() (int, int, error) {
+		countedPhase(0, pzListMetricAttributionsOp, func() (int, error) {
 			return scanPzMetricAttributions(ctx, client, acct, region, st, scanID)
 		}),
 		{op: pzListRecommendersOp, run: func(p *phaseTotals) bool {
 			return scanPzRecommenders(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, pzListRecipesOp, func() (int, int, error) {
+		countedPhase(0, pzListRecipesOp, func() (int, error) {
 			return scanPzRecipes(ctx, client, acct, region, st, scanID)
 		}),
 		{op: pzListSolutionVersionsOp, run: func(p *phaseTotals) bool {
@@ -126,7 +126,7 @@ func scanPersonalizeAll(ctx context.Context, client personalizeAPI, acct *accoun
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // pzTags reads a row's tags with ListTagsForResource, sent the row's
@@ -197,7 +197,7 @@ func scanPzDatasets(ctx context.Context, client personalizeAPI, acct *account, r
 		}, tags, p)
 }
 
-func scanPzSchemas(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPzSchemas(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, pzListSchemasOp,
 		func(ctx context.Context, token *string) ([]pztypes.DatasetSchemaSummary, *string, error) {
 			out, err := client.ListSchemas(ctx, &personalize.ListSchemasInput{MaxResults: sdkaws.Int32(pzPageLimit), NextToken: token})
@@ -271,7 +271,7 @@ func scanPzFilters(ctx context.Context, client personalizeAPI, acct *account, re
 		}, tags, p)
 }
 
-func scanPzMetricAttributions(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPzMetricAttributions(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, pzListMetricAttributionsOp,
 		func(ctx context.Context, token *string) ([]pztypes.MetricAttributionSummary, *string, error) {
 			out, err := client.ListMetricAttributions(ctx, &personalize.ListMetricAttributionsInput{MaxResults: sdkaws.Int32(pzPageLimit), NextToken: token})
@@ -302,7 +302,7 @@ func scanPzRecommenders(ctx context.Context, client personalizeAPI, acct *accoun
 }
 
 // scanPzRecipes lists AWS-provided recipes — provider-managed catalogue rows.
-func scanPzRecipes(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanPzRecipes(ctx context.Context, client personalizeAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, pzListRecipesOp,
 		func(ctx context.Context, token *string) ([]pztypes.RecipeSummary, *string, error) {
 			out, err := client.ListRecipes(ctx, &personalize.ListRecipesInput{MaxResults: sdkaws.Int32(pzPageLimit), NextToken: token})

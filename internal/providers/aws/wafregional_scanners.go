@@ -64,7 +64,7 @@ func wafRegionalARN(partition, region, account, kind, id string) string {
 
 // scanWAFRegional discovers WAF Classic (v1) regional resources per region,
 // then the resources each web ACL protects (scanWAFRegionalAll).
-func scanWAFRegional(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAFRegional(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := wafregional.NewFromConfig(acct.cfg, func(o *wafregional.Options) { o.Region = region })
 	return scanWAFRegionalAll(ctx, client, acct, region, st, scanID)
 }
@@ -75,19 +75,19 @@ func scanWAFRegional(ctx context.Context, acct *account, region string, st *stor
 // wafRegionalTags, their denials one warning for the scan), then, as a last
 // phase, one association row per resource each stored web ACL protects
 // (storeWAFRegionalAssociations).
-func scanWAFRegionalAll(ctx context.Context, client wafRegionalAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAFRegionalAll(ctx context.Context, client wafRegionalAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := wafRegionalTags(client).sharingDenials()
 	flavour := wafFlavour{svc: "wafregional", region: &region, arn: func(kind, id string) string {
 		return wafRegionalARN(acct.partition(), region, acct.ID, kind, id)
 	}}
 	var webACLs []childParent
 	phases := wafListingPhases(ctx, st, acct, region, scanID, flavour, wafRegionalPhases(client), tags, &webACLs)
-	phases = append(phases, countedPhase(0, wafRegionalAssocOp, func() (int, int, error) {
+	phases = append(phases, countedPhase(0, wafRegionalAssocOp, func() (int, error) {
 		return storeWAFRegionalAssociations(ctx, client, acct, region, st, scanID, webACLs)
 	}))
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "wafregional", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "wafregional", 0, phases)
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // wafRegionalTags reads a row's tags with the regional flavour's
@@ -273,7 +273,7 @@ type wafRegionalAssoc struct {
 // call, so each type is read as one page of the web ACL's listing, the page's
 // token naming the type (nil for the first): a failed type keeps the types
 // read before it.
-func storeWAFRegionalAssociations(ctx context.Context, client wafRegionalAPI, acct *account, region string, st *store.Store, scanID string, webACLs []childParent) (int, int, error) {
+func storeWAFRegionalAssociations(ctx context.Context, client wafRegionalAPI, acct *account, region string, st *store.Store, scanID string, webACLs []childParent) (int, error) {
 	ids := make([]string, len(webACLs))
 	for i, w := range webACLs {
 		ids[i] = w.id

@@ -165,7 +165,7 @@ func fmsGatedPages[Item any](gate *fmsGate, op string, page func(ctx context.Con
 // later phases run: the dispatcher reads the sentinel through any join and
 // would report the service disabled, discarding those rows' counts and
 // hiding the earlier failure.
-func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })
 	tags := fmsTags(client).sharingDenials()
 	var gate, disabled fmsGate
@@ -191,7 +191,7 @@ func scanFMS(ctx context.Context, acct *account, region string, st *store.Store,
 			return false
 		}}
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "fms", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "fms", 0, []hostPhase{
 		phase("fms:ListPolicies", func(p *phaseTotals) bool {
 			return scanFMSPolicies(ctx, client, acct, region, st, scanID, &gate, tags, p)
 		}),
@@ -199,8 +199,8 @@ func scanFMS(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanFMSResourceSets(ctx, client, acct, region, st, scanID, &gate, tags, p)
 		}),
 		phase("fms:GetNotificationChannel", func(p *phaseTotals) bool {
-			t, i, err := scanFMSNotificationChannel(ctx, client, acct, region, st, scanID)
-			return p.addPhase("fms:GetNotificationChannel", t, i, err)
+			t, err := scanFMSNotificationChannel(ctx, client, acct, region, st, scanID)
+			return p.addPhase("fms:GetNotificationChannel", t, err)
 		}),
 		phase("fms:ListAppsLists", func(p *phaseTotals) bool {
 			return scanFMSAppsLists(ctx, client, acct, region, st, scanID, &gate, tags, p)
@@ -211,10 +211,10 @@ func scanFMS(ctx context.Context, acct *account, region string, st *store.Store,
 	})
 	// Disabled, nothing was stored and no later phase ran.
 	if disabled.err != nil {
-		return 0, 0, disabled.err
+		return 0, disabled.err
 	}
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // fmsPolicyRow is a policy's row under arn, its listed summary as
@@ -396,20 +396,20 @@ func listFMSResourceSetMembers(ctx context.Context, client fmsAPI, id string) ([
 // which the op models, is read as no channel set; a not-enabled or admin-only
 // answer is the same expected state ListPolicies already reports, and any
 // other denial warns.
-func scanFMSNotificationChannel(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFMSNotificationChannel(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetNotificationChannel(ctx, &fms.GetNotificationChannelInput{})
 	switch {
 	case err == nil:
 	case isFMSNotEnabled(err), isFMSAdminOnlyDenial(err), isFMSResourceNotFound(err):
-		return 0, 0, nil
+		return 0, nil
 	case isAccessDenied(err):
-		return 0, 0, skipIfAccessDenied(st, "fms:GetNotificationChannel", acct.ID, region, err)
+		return 0, skipIfAccessDenied(st, "fms:GetNotificationChannel", acct.ID, region, err)
 	default:
-		return 0, 0, fmt.Errorf("fms:GetNotificationChannel: %w", err)
+		return 0, fmt.Errorf("fms:GetNotificationChannel: %w", err)
 	}
 	topic := sv(out.SnsTopicArn)
 	if topic == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

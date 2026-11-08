@@ -188,7 +188,7 @@ func scanCloudTrailTopLevel(t *testing.T, st *store.Store, handlers map[string]f
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ctDenied)
-	total, _, err := scanCloudTrail(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanCloudTrail(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -830,7 +830,7 @@ func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	_, failed := scanCTChannels(context.Background(), client, acct, testRegion, st, testScanID, newCloudTrailTags(client, acct.ID), &p)
-	if _, _, err := p.result(st, acct, testRegion); !failed || !errors.Is(err, store.ErrStoreWrite) {
+	if _, err := p.result(st, acct, testRegion); !failed || !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("write failed = %v, err = %v; want true, store.ErrStoreWrite", failed, err)
 	}
 	if *warns != 0 {

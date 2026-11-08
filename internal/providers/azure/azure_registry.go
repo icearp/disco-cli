@@ -62,7 +62,7 @@ func CollectEmits() []coverage.TypeDecl {
 // serviceEntry describes a scannable Azure service (scoped to one subscription).
 type serviceEntry struct {
 	name  string
-	fn    func(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	fn    func(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error)
 	emits []coverage.TypeDecl
 }
 

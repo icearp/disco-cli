@@ -70,12 +70,12 @@ const crmlNotReadyWhy = "a membership may refuse its ML listings, for example on
 // stores them runs concurrently with this one. The listing runs inside the
 // associations phase, the first that needs it, so a region without Clean
 // Rooms ML makes no Clean Rooms call either.
-func scanCleanRoomsML(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCleanRoomsML(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	ml := cleanroomsml.NewFromConfig(acct.cfg, func(o *cleanroomsml.Options) { o.Region = region })
 	cr := cleanrooms.NewFromConfig(acct.cfg, func(o *cleanrooms.Options) { o.Region = region })
 	tags := crmlTags(ml).sharingDenials()
 	var memberships []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "cleanrooms-ml", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "cleanrooms-ml", 0, []hostPhase{
 		{op: "cleanrooms-ml:ListConfiguredModelAlgorithms", run: func(p *phaseTotals) bool {
 			return scanCRMLConfiguredModelAlgorithms(ctx, ml, acct, region, st, scanID, tags, p)
 		}},
@@ -100,7 +100,7 @@ func scanCleanRoomsML(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // crmlTags reads a row's tags with ListTagsForResource, sent the row's
@@ -177,7 +177,7 @@ func crmlMemberships(ctx context.Context, client cleanRoomsAPI, acct *account, r
 		}
 		noID.skipped(cmp.Or(sv(m.Arn), sv(m.CollaborationName), "(a membership with no name)"), nil)
 	}
-	_, _, err := storeReadRows(st, acct, region, crmlMembershipsOp, nil, listErr, func() {
+	_, err := storeReadRows(st, acct, region, crmlMembershipsOp, nil, listErr, func() {
 		if noID.count > 0 {
 			st.ReportWarning(store.ScanWarning{
 				Provider: "aws", Service: crmlMembershipsOp, Scope: acct.ID + "/" + region,
@@ -185,7 +185,7 @@ func crmlMemberships(ctx context.Context, client cleanRoomsAPI, acct *account, r
 			})
 		}
 	})
-	p.addPhase(crmlMembershipsOp, 0, 0, err)
+	p.addPhase(crmlMembershipsOp, 0, err)
 	return memberships
 }
 

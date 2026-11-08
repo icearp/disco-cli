@@ -134,7 +134,7 @@ func odbTags(client odbAPI, acct *account, arnOf func(*store.Resource) string) r
 func odbNativeARN(r *store.Resource) string { return r.NativeID }
 
 // scanODB discovers Oracle Database@AWS resources.
-func scanODB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanODB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := odb.NewFromConfig(acct.cfg, func(o *odb.Options) { o.Region = region })
 	return scanODBAll(ctx, client, acct, region, st, scanID)
 }
@@ -145,7 +145,7 @@ func scanODB(ctx context.Context, acct *account, region string, st *store.Store,
 // do (runHostPhases). The phases run one at a time, so readEachKey's own
 // bound is the bound on the reads in flight. An account not onboarded is
 // reported disabled when a listing says so before any row was stored.
-func scanODBAll(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanODBAll(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		gate                               odbGate
 		tags                               = odbTags(client, acct, odbNativeARN)
@@ -193,12 +193,12 @@ func scanODBAll(ctx context.Context, client odbAPI, acct *account, region string
 			return scanODBAutonomousDatabaseBackups(ctx, client, acct, region, st, scanID, autonomousDBs, tags, p)
 		}),
 		phase("odb:ListDbServers", func(p *phaseTotals) bool {
-			t, i, err := scanODBDbServers(ctx, client, acct, region, st, scanID, exaInfras)
-			return p.addPhase("odb:ListDbServers", t, i, err)
+			t, err := scanODBDbServers(ctx, client, acct, region, st, scanID, exaInfras)
+			return p.addPhase("odb:ListDbServers", t, err)
 		}),
 		phase("odb:ListAutonomousVirtualMachines", func(p *phaseTotals) bool {
-			t, i, err := scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
-			return p.addPhase("odb:ListAutonomousVirtualMachines", t, i, err)
+			t, err := scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
+			return p.addPhase("odb:ListAutonomousVirtualMachines", t, err)
 		}),
 		phase("odb:ListExascaleDbStorageVaults", func(p *phaseTotals) bool {
 			return scanODBExascaleDbStorageVaults(ctx, client, acct, region, st, scanID, &gate, tags, p)
@@ -207,11 +207,11 @@ func scanODBAll(ctx context.Context, client odbAPI, acct *account, region string
 			return scanODBExadbVMClusters(ctx, client, acct, region, st, scanID, &gate, tags, p)
 		}),
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "odb", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "odb", 0, phases)
 	if gate.disabled {
-		return total, inserted, markServiceDisabled(gate.err)
+		return total, markServiceDisabled(gate.err)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 func odbRow(acct *account, region, scanID, typ, nativeID string, name *string, item any) *store.Resource {
@@ -278,7 +278,7 @@ func isODBParentGone(err error) bool {
 // servers have no ARN (the Service Reference defines none), so NativeID is
 // {infrastructureARN}/db-server/{dbServerId}, and ListTagsForResource, whose
 // ARN pattern needs one, cannot read their tags.
-func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, infras []childParent) (int, int, error) {
+func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, infras []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "odb:ListDbServers", infras, isODBParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -309,7 +309,7 @@ func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region 
 // Autonomous VM cluster. They have no ARN (the Service Reference defines none),
 // so NativeID is {clusterARN}/autonomous-virtual-machine/{autonomousVirtualMachineId},
 // and ListTagsForResource, whose ARN pattern needs one, cannot read their tags.
-func scanODBAutonomousVirtualMachines(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
+func scanODBAutonomousVirtualMachines(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "odb:ListAutonomousVirtualMachines", clusters, isODBParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource

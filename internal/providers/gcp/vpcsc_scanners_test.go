@@ -49,7 +49,9 @@ func TestScanVPCSCForOrg_NestedFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeACMService(t, srv)
 
-	total, inserted, err := scanVPCSCForOrg(t.Context(), svc, sc, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanVPCSCForOrg(t.Context(), svc, sc, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanVPCSCForOrg: %v", err)
 	}
@@ -105,7 +107,9 @@ func TestScanGcpUserAccessBindingsForOrg(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeACMService(t, srv)
 
-	total, inserted, err := scanGcpUserAccessBindingsForOrg(t.Context(), svc, sc, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanGcpUserAccessBindingsForOrg(t.Context(), svc, sc, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGcpUserAccessBindingsForOrg: %v", err)
 	}
@@ -134,7 +138,9 @@ func TestScanVPCSCForOrg_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, 403, body)
 	svc := fakeACMService(t, srv)
 
-	total, inserted, err := scanVPCSCForOrg(t.Context(), svc, sc, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanVPCSCForOrg(t.Context(), svc, sc, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanVPCSCForOrg (denied): expected nil error, got %v", err)
 	}

@@ -212,14 +212,14 @@ func (f *sfFixture) taggedARNs() []string {
 
 // scan runs the scan's real entry point against handlers in f's partition
 // and region; every op handlers does not answer is denied.
-func (f *sfFixture) scanWith(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func (f *sfFixture) scanWith(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(handlers, sfDenied)
 	return scanSFN(ctx, acct, f.region, st, testScanID)
 }
 
-func (f *sfFixture) scan(ctx context.Context, st *store.Store) (int, int, error) {
+func (f *sfFixture) scan(ctx context.Context, st *store.Store) (int, error) {
 	return f.scanWith(ctx, st, f.handlers())
 }
 
@@ -236,7 +236,9 @@ func TestScanSFN_StoresTagsOfTaggedTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newSFFixture("aws", testRegion)
 
-	total, inserted, err := f.scan(context.Background(), st)
+	counted, upserts := countUpserts(st)
+	total, err := f.scan(context.Background(), counted)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -315,17 +317,17 @@ func TestScanSFN_StoresTagsOfTaggedTypes(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSFN_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
-	if _, _, err := f.scan(context.Background(), st); err != nil {
+	if _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil || total != sfTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, sfTotal)
 	}
@@ -345,7 +347,7 @@ func TestScanSFN_EmptyListings(t *testing.T) {
 		return &sfn.ListActivitiesOutput{}, f.call("ListActivities", "", in)
 	}
 
-	total, _, err := f.scanWith(context.Background(), st, handlers)
+	total, err := f.scanWith(context.Background(), st, handlers)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -390,7 +392,7 @@ func TestScanSFN_TagReadFailures(t *testing.T) {
 			arn := f.arn(c.resource)
 			f.errs["ListTagsForResource/"+arn] = c.err
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -430,7 +432,7 @@ func TestScanSFN_StateMachineGoneHasNoChildren(t *testing.T) {
 	f := newSFFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.sm("sm-1")] = sfGone
 
-	if _, _, err := f.scan(context.Background(), st); err != nil {
+	if _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range []string{"ListStateMachineAliases", "ListStateMachineVersions"} {
@@ -451,7 +453,7 @@ func TestScanSFN_TagDenialsWarnOncePerScan(t *testing.T) {
 		f.errs["ListTagsForResource/"+f.arn(r)] = sfDenied
 	}
 
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -470,7 +472,7 @@ func TestScanSFN_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs["ListTagsForResource/"+f.sm("sm-2")] = sfThrottle
 	f.errs["ListTagsForResource/"+f.arn("activity:act-1")] = sfBadARN
 
-	_, _, err := f.scan(context.Background(), st)
+	_, err := f.scan(context.Background(), st)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArn")
 	if *warns != 1 {
@@ -521,7 +523,7 @@ func TestScanSFN_DescribeFailures(t *testing.T) {
 				f.errs["DescribeStateMachine/"+metadataKey] = c.retryErr
 			}
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -592,7 +594,7 @@ func TestScanSFN_DefinitionsNotReadWarnOnce(t *testing.T) {
 				f.errs["ListTagsForResource/"+f.sm(c.gone)] = sfGone
 			}
 
-			_, _, err := f.scan(context.Background(), st)
+			_, err := f.scan(context.Background(), st)
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v; want %v", err, c.wantErr)
 			}
@@ -673,7 +675,7 @@ func TestScanSFN_PerStateMachineFailureKeepsSiblingsAndLaterPhases(t *testing.T)
 			sm, page, _ := strings.Cut(c.key, "/")
 			f.errs[c.op+"/"+sfPageKey(f.sm(sm), nonEmptyPtr(page))] = c.err
 
-			_, _, err := f.scan(context.Background(), st)
+			_, err := f.scan(context.Background(), st)
 			if c.returned {
 				assertAPICode(t, err, code)
 			} else if err != nil {
@@ -723,7 +725,7 @@ func TestScanSFN_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			f := newSFFixture("aws", testRegion)
 			f.errs[c.key] = c.err
 
-			_, _, err := f.scan(context.Background(), st)
+			_, err := f.scan(context.Background(), st)
 			if c.deniedOp != "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -773,7 +775,7 @@ func TestScanSFN_NXDOMAIN(t *testing.T) {
 		f := newSFFixture("aws", testRegion)
 		f.errs["ListStateMachines/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -787,7 +789,7 @@ func TestScanSFN_NXDOMAIN(t *testing.T) {
 		f := newSFFixture("aws", testRegion)
 		f.errs["ListActivities/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := sfTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d rows stored but the activities", total, want)
@@ -810,7 +812,7 @@ func TestScanSFN_ContextEndReportedOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	total, _, err := f.scanWith(ctx, st, handlers)
+	total, err := f.scanWith(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -842,7 +844,7 @@ func TestScanSFN_RepeatedStateMachineToken(t *testing.T) {
 		return &sfn.ListStateMachinesOutput{StateMachines: []sfntypes.StateMachineListItem{{StateMachineArn: ptrStr(f.sm("sm-1")), Name: ptrStr("sm-1")}}, NextToken: ptrStr("same")}, nil
 	}
 
-	_, _, err := f.scanWith(context.Background(), st, handlers)
+	_, err := f.scanWith(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -889,7 +891,7 @@ func TestScanSFN_FailedWriteStopsScan(t *testing.T) {
 			f := newSFFixture("aws", testRegion)
 			f.errs["ListTagsForResource/"+f.arn("activity:act-1")] = sfDenied
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -923,7 +925,7 @@ func TestScanSFN_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newSFFixture(c.partition, c.region)
-			if _, _, err := f.scan(context.Background(), st); err != nil {
+			if _, err := f.scan(context.Background(), st); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := f.called("ListTagsForResource"), f.taggedARNs(); !slices.Equal(got, want) {

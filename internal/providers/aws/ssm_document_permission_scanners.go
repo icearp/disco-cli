@@ -53,7 +53,7 @@ func ssmDocumentPermissionNativeID(documentARN string) string {
 // unverified, so a document that gets it is skipped with one warning for all of them. A
 // document whose call still fails transiently after the SDK's retries is
 // skipped with one summary warning. Each skip keeps its siblings' rows.
-func scanSSMDocumentPermissions(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, docs []childParent) (int, int, error) {
+func scanSSMDocumentPermissions(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, docs []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "InvalidDocument") }
 	codes := []skipCode{{
 		code: "InvalidDocumentOperation",

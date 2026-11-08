@@ -28,7 +28,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:s3",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			return scanS3(ctx, acct, st, scanID)
 		},
 	})
@@ -63,10 +63,10 @@ const (
 // scan. S3 is a global service: ListBuckets uses a regional endpoint but
 // returns all the partition's buckets from any of them, so it is called once,
 // in S3's once-region; each per-bucket call goes to the bucket's home region.
-func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) (int, error) {
 	region, err := acct.onceRegion("s3")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
 	var (
@@ -84,27 +84,27 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 		{op: "s3:GetBucketLocation", run: func(p *phaseTotals) bool {
 			var err error
 			homed, err = s3HomedBuckets(ctx, acct, client, buckets, st)
-			return addOpErrsPhase(p, "s3:GetBucketLocation", 0, 0, err)
+			return addOpErrsPhase(p, "s3:GetBucketLocation", 0, err)
 		}},
-		countedPhase(0, "s3:GetBucketPolicy", func() (int, int, error) {
+		countedPhase(0, "s3:GetBucketPolicy", func() (int, error) {
 			return scanS3BucketPolicies(ctx, acct, homed, st, scanID)
 		}),
 		// Populate per-bucket SSE config on the account for
 		// resolveS3BucketEncryptionRelationships. No resources upserted — the
 		// config only exists to drive the bucket→KMS edge.
-		countedPhase(0, "s3:GetBucketEncryption", func() (int, int, error) {
-			return 0, 0, scanS3BucketEncryptions(ctx, acct, homed)
+		countedPhase(0, "s3:GetBucketEncryption", func() (int, error) {
+			return 0, scanS3BucketEncryptions(ctx, acct, homed)
 		}),
-		countedPhase(0, "s3:ListBucketAnalyticsConfigurations", func() (int, int, error) {
+		countedPhase(0, "s3:ListBucketAnalyticsConfigurations", func() (int, error) {
 			return scanS3AnalyticsConfigs(ctx, acct, homed, st, scanID)
 		}),
-		countedPhase(0, "s3:ListBucketIntelligentTieringConfigurations", func() (int, int, error) {
+		countedPhase(0, "s3:ListBucketIntelligentTieringConfigurations", func() (int, error) {
 			return scanS3IntelligentTieringConfigs(ctx, acct, homed, st, scanID)
 		}),
-		countedPhase(0, "s3:ListBucketInventoryConfigurations", func() (int, int, error) {
+		countedPhase(0, "s3:ListBucketInventoryConfigurations", func() (int, error) {
 			return scanS3InventoryConfigs(ctx, acct, homed, st, scanID)
 		}),
-		countedPhase(0, "s3:ListBucketMetricsConfigurations", func() (int, int, error) {
+		countedPhase(0, "s3:ListBucketMetricsConfigurations", func() (int, error) {
 			return scanS3MetricsConfigs(ctx, acct, homed, st, scanID)
 		}),
 	})
@@ -331,7 +331,7 @@ func s3RegionLookupOp(err error) string {
 func s3BucketConfigFanOut(
 	ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, op string,
 	list func(context.Context, s3HomedBucket) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	parents := make([]childParent, 0, len(homed))
 	for name := range homed {
 		parents = append(parents, childParent{id: name, arn: s3BucketARN(acct.partition(), name)})
@@ -379,7 +379,7 @@ func s3LastPage(truncated *bool, next, sent *string) (bool, error) {
 	return lastPage(sent, next)
 }
 
-func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, error) {
 	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketAnalyticsConfigurations",
 		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
 			in := &s3.ListBucketAnalyticsConfigurationsInput{Bucket: &b.name}
@@ -402,7 +402,7 @@ func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string
 		})
 }
 
-func scanS3IntelligentTieringConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+func scanS3IntelligentTieringConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, error) {
 	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketIntelligentTieringConfigurations",
 		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
 			in := &s3.ListBucketIntelligentTieringConfigurationsInput{Bucket: &b.name}
@@ -425,7 +425,7 @@ func scanS3IntelligentTieringConfigs(ctx context.Context, acct *account, homed m
 		})
 }
 
-func scanS3InventoryConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+func scanS3InventoryConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, error) {
 	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketInventoryConfigurations",
 		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
 			in := &s3.ListBucketInventoryConfigurationsInput{Bucket: &b.name}
@@ -448,7 +448,7 @@ func scanS3InventoryConfigs(ctx context.Context, acct *account, homed map[string
 		})
 }
 
-func scanS3MetricsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
+func scanS3MetricsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, error) {
 	return s3BucketConfigFanOut(ctx, acct, homed, st, "s3:ListBucketMetricsConfigurations",
 		func(ctx context.Context, b s3HomedBucket) ([]*store.Resource, error) {
 			in := &s3.ListBucketMetricsConfigurationsInput{Bucket: &b.name}
@@ -514,7 +514,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, homed map[strin
 // concurrently, from the bucket's home region (S3 answers any other region
 // with 301 PermanentRedirect). Buckets with no policy (NoSuchBucketPolicy)
 // are silently skipped.
-func scanS3BucketPolicies(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3BucketPolicies(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (total int, err error) {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
@@ -555,17 +555,16 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, homed map[string]s
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 bucket policies: %w", err)
+			return 0, fmt.Errorf("upsert S3 bucket policies: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // s3BucketRegion returns the region an S3 bucket lives in, from

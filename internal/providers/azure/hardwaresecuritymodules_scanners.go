@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanHardwareSecurityModules discovers hardwaresecuritymodules resources.
-func scanHardwareSecurityModules(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHardwareSecurityModules(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armhardwaresecuritymodules.NewDedicatedHsmClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhardwaresecuritymodules:NewDedicatedHsmClient: %w", err)
+		return 0, fmt.Errorf("armhardwaresecuritymodules:NewDedicatedHsmClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armhardwaresecuritymodules:DedicatedHsm.ListBySubscription", TypeDedicatedHsm, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

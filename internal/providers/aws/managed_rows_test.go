@@ -59,7 +59,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "ec2 default VPC", typ: TypeEC2VPC,
 			handlers: handlers{"DescribeVpcs": ret(&ec2.DescribeVpcsOutput{Vpcs: []ec2types.Vpc{{VpcId: sdkaws.String("vpc-d"), IsDefault: sdkaws.Bool(true)}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanVPCs(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanVPCs(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -67,7 +67,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "ec2 default subnet", typ: TypeEC2Subnet,
 			handlers: handlers{"DescribeSubnets": ret(&ec2.DescribeSubnetsOutput{Subnets: []ec2types.Subnet{{SubnetId: sdkaws.String("subnet-d"), DefaultForAz: sdkaws.Bool(true)}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanSubnets(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanSubnets(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -75,7 +75,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "ec2 default network ACL", typ: TypeEC2NetworkACL,
 			handlers: handlers{"DescribeNetworkAcls": ret(&ec2.DescribeNetworkAclsOutput{NetworkAcls: []ec2types.NetworkAcl{{NetworkAclId: sdkaws.String("acl-d"), IsDefault: sdkaws.Bool(true)}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanNetworkACLs(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanNetworkACLs(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -83,7 +83,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "ec2 default security group", typ: TypeEC2SecurityGroup,
 			handlers: handlers{"DescribeSecurityGroups": ret(&ec2.DescribeSecurityGroupsOutput{SecurityGroups: []ec2types.SecurityGroup{{GroupId: sdkaws.String("sg-d"), GroupName: sdkaws.String("default")}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanSecurityGroups(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanSecurityGroups(ctx, ec2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -91,7 +91,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "eventbridge default bus", typ: TypeEventsEventBus,
 			handlers: handlers{"ListEventBuses": ret(&eventbridge.ListEventBusesOutput{EventBuses: []eventbridgetypes.EventBus{{Arn: sdkaws.String(arn("events", "event-bus/default")), Name: sdkaws.String("default")}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, _, err := scanEventBridgeBuses(ctx, eventbridge.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, _, err := scanEventBridgeBuses(ctx, eventbridge.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -101,7 +101,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				BackupVaultArn: sdkaws.String(arn("backup", "backup-vault:Default")), BackupVaultName: sdkaws.String("Default"), CreatorRequestId: sdkaws.String("Default"),
 			}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanBackupAll(ctx, backup.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanBackupAll(ctx, backup.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -116,7 +116,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				client := athena.NewFromConfig(cfg)
 				var p phaseTotals
 				scanAthenaWorkGroups(ctx, client, acct, testRegion, st, testScanID, athenaTags(client), &athenaWorkGroupParents{}, &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -124,7 +124,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "resource explorer region-named view", typ: TypeResourceExplorer2View,
 			handlers: handlers{"ListViews": ret(&resourceexplorer2.ListViewsOutput{Views: []string{arn("resource-explorer-2", "view/"+testRegion+"/0b1c2d3e-0000-0000-0000-000000000000")}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanRE2Views(ctx, resourceexplorer2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanRE2Views(ctx, resourceexplorer2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -140,7 +140,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				client := apprunner.NewFromConfig(cfg)
 				var p phaseTotals
 				scanAppRunnerAutoScalingConfigs(ctx, client, acct, testRegion, st, testScanID, appRunnerTags(client), &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -155,7 +155,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
 				var p phaseTotals
 				scanStorageLens(ctx, acct, testRegion, s3control.NewFromConfig(cfg), st, testScanID, &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -163,7 +163,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "xray Default group", typ: TypeXRayGroup,
 			handlers: handlers{"GetGroups": ret(&xray.GetGroupsOutput{Groups: []xraytypes.GroupSummary{{GroupARN: sdkaws.String(arn("xray", "group/Default")), GroupName: sdkaws.String("Default")}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanXRayGroups(ctx, xray.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanXRayGroups(ctx, xray.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -173,7 +173,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				RuleARN: sdkaws.String(arn("xray", "sampling-rule/Default")), RuleName: sdkaws.String("Default"),
 			}}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanXRaySamplingRules(ctx, xray.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanXRaySamplingRules(ctx, xray.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -188,7 +188,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
 				var p phaseTotals
 				scanOrgRoots(ctx, newOrgScan(organizations.NewFromConfig(cfg), acct, st, testScanID, orgTestOrgARN), &p)
-				_, _, err := p.result(st, acct, "")
+				_, err := p.result(st, acct, "")
 				return err
 			},
 		},
@@ -196,7 +196,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			name: "elasticache default user", typ: TypeElastiCacheUser,
 			handlers: handlers{"DescribeUsers": ret(&elasticache.DescribeUsersOutput{Users: []elasticachetypes.User{{ARN: sdkaws.String(arn("elasticache", "user:default")), UserId: sdkaws.String("default")}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanElastiCacheUsers(ctx, elasticache.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, err := scanElastiCacheUsers(ctx, elasticache.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -210,7 +210,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				client := memorydb.NewFromConfig(cfg)
 				var p phaseTotals
 				scanMemDBUsers(ctx, client, acct, testRegion, st, testScanID, memDBTags(client), &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -226,7 +226,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				client := rds.NewFromConfig(cfg)
 				var p phaseTotals
 				scanDBSecurityGroups(ctx, client, acct, testRegion, st, testScanID, rdsTags(client), &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -242,7 +242,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				client := pinpointsmsvoicev2.NewFromConfig(cfg)
 				var p phaseTotals
 				scanSVOptOutLists(ctx, client, acct, testRegion, st, testScanID, svTags(client), &p)
-				_, _, err := p.result(st, acct, testRegion)
+				_, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
@@ -253,7 +253,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
 				mc := "arn:aws:notifications::" + acctID + ":managed-notification-configuration/category/AWS-Health/sub-category/Issue"
-				_, _, err := scanNotifManagedChannelAssocs(ctx, notifications.NewFromConfig(cfg), acct, testRegion, st, testScanID, mc)
+				_, err := scanNotifManagedChannelAssocs(ctx, notifications.NewFromConfig(cfg), acct, testRegion, st, testScanID, mc)
 				return err
 			},
 		},

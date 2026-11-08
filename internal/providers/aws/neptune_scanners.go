@@ -47,40 +47,37 @@ type neptuneAPI interface {
 // snapshots, parameter groups, subnet groups, global clusters, and
 // Neptune-specific resources (DescribeDBClusterEndpoints) deferred —
 // same scope rationale as Redshift / DocumentDB.
-func scanNeptune(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptune(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := neptune.NewFromConfig(acct.cfg, func(o *neptune.Options) { o.Region = region })
 
 	{
-		t, i, ferr := scanNeptuneClusters(ctx, client, acct, region, st, scanID)
+		t, ferr := scanNeptuneClusters(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	{
-		t, i, ferr := scanNeptuneInstances(ctx, client, acct, region, st, scanID)
+		t, ferr := scanNeptuneInstances(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	{
-		t, i, ferr := scanNeptuneExtended(ctx, client, acct, region, st, scanID)
+		t, ferr := scanNeptuneExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := neptune.NewDescribeDBClustersPaginator(client, &neptune.DescribeDBClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -88,9 +85,9 @@ func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "neptune:DescribeDBClusters", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("neptune:DescribeDBClusters: %w", perr)
+			return 0, fmt.Errorf("neptune:DescribeDBClusters: %w", perr)
 		}
 		for _, c := range out.DBClusters {
 			arn := sv(c.DBClusterArn)
@@ -114,16 +111,16 @@ func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, 
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert neptune clusters: %w", uerr)
+		return 0, fmt.Errorf("upsert neptune clusters: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := neptune.NewDescribeDBInstancesPaginator(client, &neptune.DescribeDBInstancesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -131,9 +128,9 @@ func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account,
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "neptune:DescribeDBInstances", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("neptune:DescribeDBInstances: %w", perr)
+			return 0, fmt.Errorf("neptune:DescribeDBInstances: %w", perr)
 		}
 		for _, i := range out.DBInstances {
 			// DescribeDBInstances on the Neptune endpoint returns every RDS-family
@@ -165,11 +162,11 @@ func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account,
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert neptune instances: %w", uerr)
+		return 0, fmt.Errorf("upsert neptune instances: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

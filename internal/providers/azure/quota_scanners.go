@@ -58,10 +58,10 @@ var quotaProviderNamespaces = []string{
 // empty for the compute/network/ML namespaces scanned here.
 //
 // Unlike AWS this scanner is not opt-in, so every Azure scan records quotas.
-func scanQuotaLimits(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanQuotaLimits(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armquota.NewClient(cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armquota:NewClient: %w", err)
+		return 0, fmt.Errorf("armquota:NewClient: %w", err)
 	}
 	return scanQuotaLimitsWithClient(ctx, sub, st, scanID, client, quotaProviderNamespaces, azureregions.Regions)
 }
@@ -73,7 +73,7 @@ type quotaLister interface {
 	NewListPager(scope string, options *armquota.ClientListOptions) *runtime.Pager[armquota.ClientListResponse]
 }
 
-func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store.Store, scanID string, client quotaLister, namespaces, regions []string) (total, inserted int, err error) {
+func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store.Store, scanID string, client quotaLister, namespaces, regions []string) (total int, err error) {
 	var (
 		mu       sync.Mutex
 		allBatch []*store.Quota
@@ -118,16 +118,16 @@ func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store
 		}
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(allBatch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertQuotas(allBatch)
+	_, err = st.UpsertQuotas(allBatch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert quota limits: %w", err)
+		return 0, fmt.Errorf("upsert quota limits: %w", err)
 	}
-	return len(allBatch), n, nil
+	return len(allBatch), nil
 }
 
 // quotaRow maps one Microsoft.Quota limit onto store.Quota, or returns

@@ -43,15 +43,15 @@ const (
 // phases have stored their rows: an op's transient errors are demoted to a
 // warning under that op, but only beside a hard error, which would otherwise
 // bury them.
-func scanSSMQuickSetup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSMQuickSetup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ssmquicksetup.NewFromConfig(acct.cfg, func(o *ssmquicksetup.Options) { o.Region = region })
 	var p phaseTotals
 	managers, stop := scanSSMQuickSetupManagers(ctx, client, acct, region, st, scanID, &p)
 	if stop {
 		return p.result(st, acct, region)
 	}
-	total, inserted, err := scanSSMQuickSetupConfigurations(ctx, client, acct, region, st, scanID, managers)
-	p.addPhase(ssmQuickSetupConfigurationsOp, total, inserted, err)
+	total, err := scanSSMQuickSetupConfigurations(ctx, client, acct, region, st, scanID, managers)
+	p.addPhase(ssmQuickSetupConfigurationsOp, total, err)
 	return p.result(st, acct, region)
 }
 
@@ -137,14 +137,14 @@ func scanSSMQuickSetupManagers(ctx context.Context, client *ssmquicksetup.Client
 		}
 		rows = append(rows, r)
 	}
-	total, inserted, err := storeReadRows(st, acct, region, ssmQuickSetupManagersOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, ssmQuickSetupManagersOp, rows, listErr, func() {
 		skips.warn(st, ssmQuickSetupManagersOp, acct, region)
 		if denied.count > 0 {
 			_ = skipIfAccessDenied(st, ssmQuickSetupGetManagerOp, acct.ID, region, fmt.Errorf(ssmQuickSetupManagerKept, denied.count, denied.first, denied.err))
 		}
 	})
 	p.errs.add(ssmQuickSetupGetManagerOp, errors.Join(readErrs...))
-	if p.addPhase(ssmQuickSetupManagersOp, total, inserted, err) {
+	if p.addPhase(ssmQuickSetupManagersOp, total, err) {
 		return nil, true
 	}
 	if t := &transient.skipTally; t.count > 0 {
@@ -182,7 +182,7 @@ func ssmQuickSetupConfigurationNativeID(managerARN, id string) string {
 // its ManagerArn or Id; each cause is warned about once, naming the first
 // row by the identifying fields it has. Warnings are sent only once the
 // write succeeded.
-func scanSSMQuickSetupConfigurations(ctx context.Context, client *ssmquicksetup.Client, acct *account, region string, st *store.Store, scanID string, managers map[string]bool) (int, int, error) {
+func scanSSMQuickSetupConfigurations(ctx context.Context, client *ssmquicksetup.Client, acct *account, region string, st *store.Store, scanID string, managers map[string]bool) (int, error) {
 	listed, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]qstypes.ConfigurationSummary, *string, error) {
 		out, err := client.ListConfigurations(ctx, &ssmquicksetup.ListConfigurationsInput{
 			StartingToken: token, MaxItems: sdkaws.Int32(ssmQuickSetupConfigurationPageLimit),
@@ -223,9 +223,9 @@ func scanSSMQuickSetupConfigurations(ctx context.Context, client *ssmquicksetup.
 			AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 		}})
 	}
-	total, inserted, uerr := upsertRegionChildren(st, acct, region, ssmQuickSetupConfigurationsOp, children, err)
+	total, uerr := upsertRegionChildren(st, acct, region, ssmQuickSetupConfigurationsOp, children, err)
 	if errors.Is(uerr, store.ErrStoreWrite) {
-		return total, inserted, uerr
+		return total, uerr
 	}
 	skips.warn(st, ssmQuickSetupConfigurationsOp, acct, region)
 	if foreign > 0 {
@@ -235,5 +235,5 @@ func scanSSMQuickSetupConfigurations(ctx context.Context, client *ssmquicksetup.
 				"they belong to the scan of their own account and region (listing other deployments is unverified API behaviour)", foreign),
 		})
 	}
-	return total, inserted, uerr
+	return total, uerr
 }

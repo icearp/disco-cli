@@ -65,93 +65,92 @@ type redshiftAPI interface {
 // only a failed store write does, since every later write would fail too.
 // Redshift Serverless workgroups + namespaces are tracked separately
 // (different SDK package).
-func scanRedshift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedshift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := redshift.NewFromConfig(acct.cfg, func(o *redshift.Options) { o.Region = region })
 
 	var clusters []childParent
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{"redshift:DescribeClusters", func() (t, i int, err error) {
-			t, i, clusters, err = scanRedshiftClusters(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{"redshift:DescribeClusters", func() (t int, err error) {
+			t, clusters, err = scanRedshiftClusters(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{"redshift:DescribeClusterSubnetGroups", func() (int, int, error) {
+		{"redshift:DescribeClusterSubnetGroups", func() (int, error) {
 			return scanRedshiftClusterSubnetGroups(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeClusterParameterGroups", func() (int, int, error) {
+		{"redshift:DescribeClusterParameterGroups", func() (int, error) {
 			return scanRedshiftClusterParameterGroups(ctx, client, acct, region, st, scanID)
 		}},
 		// AWS::Redshift::ClusterSecurityGroup discontinued by AWS — modern
 		// Redshift uses VPC SGs already covered via aws:ec2:security-group.
 		// DescribeClusterSecurityGroups returns InvalidParameterValue.
-		{"redshift:DescribeEndpointAccess", func() (int, int, error) {
+		{"redshift:DescribeEndpointAccess", func() (int, error) {
 			return scanRedshiftEndpointAccess(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeEndpointAuthorization", func() (int, int, error) {
+		{"redshift:DescribeEndpointAuthorization", func() (int, error) {
 			return scanRedshiftEndpointAuthorization(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeEventSubscriptions", func() (int, int, error) {
+		{"redshift:DescribeEventSubscriptions", func() (int, error) {
 			return scanRedshiftEventSubscriptions(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeIntegrations", func() (int, int, error) {
+		{"redshift:DescribeIntegrations", func() (int, error) {
 			return scanRedshiftIntegrations(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeScheduledActions", func() (int, int, error) {
+		{"redshift:DescribeScheduledActions", func() (int, error) {
 			return scanRedshiftScheduledActions(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeClusterSnapshots", func() (int, int, error) {
+		{"redshift:DescribeClusterSnapshots", func() (int, error) {
 			return scanRedshiftSnapshots(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeSnapshotSchedules", func() (int, int, error) {
+		{"redshift:DescribeSnapshotSchedules", func() (int, error) {
 			return scanRedshiftSnapshotSchedules(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeSnapshotCopyGrants", func() (int, int, error) {
+		{"redshift:DescribeSnapshotCopyGrants", func() (int, error) {
 			return scanRedshiftSnapshotCopyGrants(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeUsageLimits", func() (int, int, error) {
+		{"redshift:DescribeUsageLimits", func() (int, error) {
 			return scanRedshiftUsageLimits(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeHsmClientCertificates", func() (int, int, error) {
+		{"redshift:DescribeHsmClientCertificates", func() (int, error) {
 			return scanRedshiftHsmClientCertificates(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeHsmConfigurations", func() (int, int, error) {
+		{"redshift:DescribeHsmConfigurations", func() (int, error) {
 			return scanRedshiftHsmConfigurations(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeRedshiftIdcApplications", func() (int, int, error) {
+		{"redshift:DescribeRedshiftIdcApplications", func() (int, error) {
 			return scanRedshiftIdcApplications(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeDataShares", func() (int, int, error) {
+		{"redshift:DescribeDataShares", func() (int, error) {
 			return scanRedshiftDataShares(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeAuthenticationProfiles", func() (int, int, error) {
+		{"redshift:DescribeAuthenticationProfiles", func() (int, error) {
 			return scanRedshiftAuthenticationProfiles(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeReservedNodes", func() (int, int, error) {
+		{"redshift:DescribeReservedNodes", func() (int, error) {
 			return scanRedshiftReservedNodes(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeQev2IdcApplications", func() (int, int, error) {
+		{"redshift:DescribeQev2IdcApplications", func() (int, error) {
 			return scanRedshiftQev2IdcApplications(ctx, client, acct, region, st, scanID)
 		}},
-		{"redshift:DescribeCustomDomainAssociations", func() (int, int, error) {
+		{"redshift:DescribeCustomDomainAssociations", func() (int, error) {
 			return scanRedshiftCustomDomainAssociations(ctx, client, acct, region, st, scanID, clusters)
 		}},
-		{"redshift:DescribePartners", func() (int, int, error) {
+		{"redshift:DescribePartners", func() (int, error) {
 			return scanRedshiftPartners(ctx, client, acct, region, st, scanID, clusters)
 		}},
 	}
 	var errs phaseErrs
 	for _, p := range phases {
-		t, i, perr := p.run()
+		t, perr := p.run()
 		total += t
-		inserted += i
 		errs.add(p.op, perr)
 		if errors.Is(perr, store.ErrStoreWrite) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 func redshiftClusterARN(partition, region, accountID, name string) string {
@@ -190,7 +189,7 @@ func redshiftList[P, E any](
 	page func(P) (elems []E, next *string),
 	row func(E) *store.Resource,
 	what, idField string,
-) (listed []*store.Resource, total, inserted int, err error) {
+) (listed []*store.Resource, total int, err error) {
 	var (
 		batch   []*store.Resource
 		missing skipTally
@@ -222,8 +221,8 @@ func redshiftList[P, E any](
 		marker = next
 	}
 	warnNotStored(st, op, acct, region, &missing, what+" have no "+idField)
-	total, inserted, uerr := upsertBatch(st, batch, op)
-	return batch, total, inserted, errors.Join(listErr, uerr)
+	total, uerr := upsertBatch(st, batch, op)
+	return batch, total, errors.Join(listErr, uerr)
 }
 
 // redshiftListPageErr classifies a failed page of redshiftList: a first page
@@ -239,8 +238,8 @@ func redshiftListPageErr(st *store.Store, acct *account, region, op, what string
 	}
 }
 
-func scanRedshiftSnapshots(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterSnapshots", redshiftListCodes{},
+func scanRedshiftSnapshots(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterSnapshots", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeClusterSnapshotsOutput, error) {
 			return client.DescribeClusterSnapshots(ctx, &redshift.DescribeClusterSnapshotsInput{Marker: marker})
 		},
@@ -260,11 +259,11 @@ func scanRedshiftSnapshots(ctx context.Context, client redshiftAPI, acct *accoun
 				AttributesJSON: mustJSON(s), TagsJSON: kvTagsJSON(s.Tags, redshiftTagKV), DiscoveredBy: scanID,
 			}
 		}, "snapshots", "SnapshotArn or SnapshotIdentifier")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftSnapshotSchedules(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeSnapshotSchedules", redshiftListCodes{},
+func scanRedshiftSnapshotSchedules(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeSnapshotSchedules", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeSnapshotSchedulesOutput, error) {
 			return client.DescribeSnapshotSchedules(ctx, &redshift.DescribeSnapshotSchedulesInput{Marker: marker})
 		},
@@ -280,11 +279,11 @@ func scanRedshiftSnapshotSchedules(ctx context.Context, client redshiftAPI, acct
 				DiscoveredBy: scanID,
 			}
 		}, "snapshot schedules", "ScheduleIdentifier")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftSnapshotCopyGrants(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeSnapshotCopyGrants", redshiftListCodes{},
+func scanRedshiftSnapshotCopyGrants(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeSnapshotCopyGrants", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeSnapshotCopyGrantsOutput, error) {
 			return client.DescribeSnapshotCopyGrants(ctx, &redshift.DescribeSnapshotCopyGrantsInput{Marker: marker})
 		},
@@ -300,11 +299,11 @@ func scanRedshiftSnapshotCopyGrants(ctx context.Context, client redshiftAPI, acc
 				DiscoveredBy: scanID,
 			}
 		}, "snapshot copy grants", "SnapshotCopyGrantName")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftUsageLimits(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeUsageLimits", redshiftListCodes{},
+func scanRedshiftUsageLimits(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeUsageLimits", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeUsageLimitsOutput, error) {
 			return client.DescribeUsageLimits(ctx, &redshift.DescribeUsageLimitsInput{Marker: marker})
 		},
@@ -320,7 +319,7 @@ func scanRedshiftUsageLimits(ctx context.Context, client redshiftAPI, acct *acco
 				DiscoveredBy: scanID,
 			}
 		}, "usage limits", "UsageLimitId")
-	return total, inserted, err
+	return total, err
 }
 
 // redshiftHsmCodes: HSM encryption is being retired region-by-region (newer
@@ -328,8 +327,8 @@ func scanRedshiftUsageLimits(ctx context.Context, client redshiftAPI, acct *acco
 // gap — silent-skip. Self-heals as the deprecation rolls out.
 var redshiftHsmCodes = redshiftListCodes{skip: []string{"UnsupportedOperation"}}
 
-func scanRedshiftHsmClientCertificates(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeHsmClientCertificates", redshiftHsmCodes,
+func scanRedshiftHsmClientCertificates(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeHsmClientCertificates", redshiftHsmCodes,
 		func(ctx context.Context, marker *string) (*redshift.DescribeHsmClientCertificatesOutput, error) {
 			return client.DescribeHsmClientCertificates(ctx, &redshift.DescribeHsmClientCertificatesInput{Marker: marker})
 		},
@@ -345,11 +344,11 @@ func scanRedshiftHsmClientCertificates(ctx context.Context, client redshiftAPI, 
 				DiscoveredBy: scanID,
 			}
 		}, "HSM client certificates", "HsmClientCertificateIdentifier")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftHsmConfigurations(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeHsmConfigurations", redshiftHsmCodes,
+func scanRedshiftHsmConfigurations(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeHsmConfigurations", redshiftHsmCodes,
 		func(ctx context.Context, marker *string) (*redshift.DescribeHsmConfigurationsOutput, error) {
 			return client.DescribeHsmConfigurations(ctx, &redshift.DescribeHsmConfigurationsInput{Marker: marker})
 		},
@@ -365,15 +364,15 @@ func scanRedshiftHsmConfigurations(ctx context.Context, client redshiftAPI, acct
 				DiscoveredBy: scanID,
 			}
 		}, "HSM configurations", "HsmConfigurationIdentifier")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftIdcApplications(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRedshiftIdcApplications(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	codes := redshiftListCodes{
 		skip: []string{"RedshiftIdcApplicationNotExists", "UnsupportedOperation"},
 		warn: []string{"DependentServiceAccessDenied", "DependentServiceUnavailableFault"},
 	}
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeRedshiftIdcApplications", codes,
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeRedshiftIdcApplications", codes,
 		func(ctx context.Context, marker *string) (*redshift.DescribeRedshiftIdcApplicationsOutput, error) {
 			return client.DescribeRedshiftIdcApplications(ctx, &redshift.DescribeRedshiftIdcApplicationsInput{Marker: marker})
 		},
@@ -389,11 +388,11 @@ func scanRedshiftIdcApplications(ctx context.Context, client redshiftAPI, acct *
 				AttributesJSON: mustJSON(a), TagsJSON: kvTagsJSON(a.Tags, redshiftTagKV), DiscoveredBy: scanID,
 			}
 		}, "IdC applications", "RedshiftIdcApplicationArn")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftDataShares(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeDataShares", redshiftListCodes{},
+func scanRedshiftDataShares(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeDataShares", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeDataSharesOutput, error) {
 			return client.DescribeDataShares(ctx, &redshift.DescribeDataSharesInput{Marker: marker})
 		},
@@ -407,14 +406,14 @@ func scanRedshiftDataShares(ctx context.Context, client redshiftAPI, acct *accou
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}
 		}, "data shares", "DataShareArn")
-	return total, inserted, err
+	return total, err
 }
 
 // scanRedshiftClusters stores the region's clusters and returns them as the
 // parents of the per-cluster phases. If the write fails it returns
 // store.ErrStoreWrite, and scanRedshift runs no per-cluster phase.
-func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	rows, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusters", redshiftListCodes{},
+func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
+	rows, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusters", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeClustersOutput, error) {
 			return client.DescribeClusters(ctx, &redshift.DescribeClustersInput{Marker: marker})
 		},
@@ -438,11 +437,11 @@ func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account
 	for _, r := range rows {
 		parents = append(parents, childParent{id: sv(r.Name), arn: r.NativeID})
 	}
-	return total, inserted, parents, err
+	return total, parents, err
 }
 
-func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterSubnetGroups", redshiftListCodes{},
+func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterSubnetGroups", redshiftListCodes{},
 		func(ctx context.Context, marker *string) (*redshift.DescribeClusterSubnetGroupsOutput, error) {
 			return client.DescribeClusterSubnetGroups(ctx, &redshift.DescribeClusterSubnetGroupsInput{Marker: marker})
 		},
@@ -462,5 +461,5 @@ func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, ac
 				AttributesJSON: mustJSON(g), TagsJSON: kvTagsJSON(g.Tags, redshiftTagKV), DiscoveredBy: scanID,
 			}
 		}, "cluster subnet groups", "ClusterSubnetGroupName")
-	return total, inserted, err
+	return total, err
 }

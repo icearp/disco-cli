@@ -82,7 +82,9 @@ func testScanSageMakerPipelines(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, plARN, prjARN, paARN)
-	total, inserted, err := scanSageMakerPipelines(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerPipelines(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 3 || inserted != 3 {
 		t.Fatalf("total=%d inserted=%d want 3/3", total, inserted)
@@ -104,7 +106,9 @@ func TestScanSageMakerPipelinesEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerPipelines{}
-	total, inserted, err := scanSageMakerPipelines(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerPipelines(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

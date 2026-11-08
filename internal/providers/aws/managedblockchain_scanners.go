@@ -95,7 +95,7 @@ type mbOwnedMembers map[string][]string
 // every account taking part can tag them, and its tags are seen by it alone
 // (the Managed Blockchain tagging guides), so every network's and proposal's
 // tags are read.
-func scanManagedBlockchain(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanManagedBlockchain(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := managedblockchain.NewFromConfig(acct.cfg, func(o *managedblockchain.Options) { o.Region = region })
 	reads := &mbTagReads{client: client}
 	tags := reads.mbReader().sharingDenials()
@@ -103,7 +103,7 @@ func scanManagedBlockchain(ctx context.Context, acct *account, region string, st
 		networks []mbNetwork
 		owned    mbOwnedMembers
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "managedblockchain", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "managedblockchain", 0, []hostPhase{
 		{op: "managedblockchain:ListAccessors", run: func(p *phaseTotals) bool {
 			return mbScanAccessors(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -128,7 +128,7 @@ func scanManagedBlockchain(ctx context.Context, acct *account, region string, st
 	if !errors.Is(err, store.ErrStoreWrite) {
 		reads.warnMBNotReady(st, acct, region)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // mbTagReads reads one scan's rows' tags with ListTagsForResource, which

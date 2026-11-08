@@ -44,24 +44,24 @@ const (
 //   - ClusterCapacityProviderAssociations (synthesized per cluster from
 //     DescribeClusters response)
 //   - TaskSets (per service of each cluster)
-func scanECSExtended(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (total, inserted int, err error) {
+func scanECSExtended(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (total int, err error) {
 	var errs phaseErrs
-	stop := func(op string, t, i int, ferr error) bool {
-		total, inserted = total+t, inserted+i
+	stop := func(op string, t int, ferr error) bool {
+		total += t
 		errs.add(op, ferr)
 		return errors.Is(ferr, store.ErrStoreWrite)
 	}
-	t, i, ferr := scanECSCapacityProviders(ctx, client, acct, region, st, scanID)
-	if stop(ecsDescribeCapacityProvidersOp, t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	t, ferr := scanECSCapacityProviders(ctx, client, acct, region, st, scanID)
+	if stop(ecsDescribeCapacityProvidersOp, t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanECSClusterCapacityProviderAssociations(ctx, client, acct, region, st, scanID, clusterARNs)
-	if stop(ecsClusterAssocOp, t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanECSClusterCapacityProviderAssociations(ctx, client, acct, region, st, scanID, clusterARNs)
+	if stop(ecsClusterAssocOp, t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanECSTaskSets(ctx, client, acct, region, st, scanID, clusterARNs)
-	stop(ecsDescribeTaskSetsOp, t, i, ferr)
-	return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanECSTaskSets(ctx, client, acct, region, st, scanID, clusterARNs)
+	stop(ecsDescribeTaskSetsOp, t, ferr)
+	return total, errs.join(st, acct, region)
 }
 
 // ecsFargateCapacityProviders are the capacity providers ECS predefines for
@@ -73,7 +73,7 @@ var ecsFargateCapacityProviders = []string{"FARGATE", "FARGATE_SPOT"}
 
 // scanECSCapacityProviders stores every capacity provider DescribeCapacityProviders
 // returns, with its tags: the response carries them only for Include TAGS.
-func scanECSCapacityProviders(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECSCapacityProviders(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ecsDescribeCapacityProvidersOp,
 		func(ctx context.Context, token *string) ([]ecstypes.CapacityProvider, *string, error) {
 			out, err := client.DescribeCapacityProviders(ctx, &ecs.DescribeCapacityProvidersInput{
@@ -105,9 +105,9 @@ func scanECSCapacityProviders(ctx context.Context, client ecsExtAPI, acct *accou
 		})
 }
 
-func scanECSClusterCapacityProviderAssociations(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (int, int, error) {
+func scanECSClusterCapacityProviderAssociations(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (int, error) {
 	if len(clusterARNs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	const batchSize = 100
@@ -120,9 +120,9 @@ func scanECSClusterCapacityProviderAssociations(ctx context.Context, client ecsE
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, ecsClusterAssocOp, acct.ID, region, err)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("%s: %w", ecsClusterAssocOp, err)
+			return 0, fmt.Errorf("%s: %w", ecsClusterAssocOp, err)
 		}
 		for _, c := range out.Clusters {
 			arn := sv(c.ClusterArn)
@@ -158,9 +158,9 @@ func scanECSClusterCapacityProviderAssociations(ctx context.Context, client ecsE
 // cluster's failed listing is settled per storeTokenPerParent and a service's
 // failed read per ecsTaskSetReads.describe. Every error is returned after the
 // rows are stored.
-func scanECSTaskSets(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (int, int, error) {
+func scanECSTaskSets(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (int, error) {
 	var reads ecsTaskSetReads
-	total, inserted, err := storeTokenPerParent(ctx, st, acct, region, ecsListServicesTaskSetsOp, []string{"ClusterNotFoundException"}, clusterARNs,
+	total, err := storeTokenPerParent(ctx, st, acct, region, ecsListServicesTaskSetsOp, []string{"ClusterNotFoundException"}, clusterARNs,
 		func(ctx context.Context, cluster string, token *string) ([]ecstypes.TaskSet, *string, error) {
 			out, err := client.ListServices(ctx, &ecs.ListServicesInput{
 				Cluster: &cluster, MaxResults: sdkaws.Int32(ecsListServicesPageLimit), NextToken: token,
@@ -184,10 +184,10 @@ func scanECSTaskSets(ctx context.Context, client ecsExtAPI, acct *account, regio
 			}, "", ""
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	reads.warn(st, acct, region)
-	return total, inserted, errors.Join(err, errors.Join(reads.errs...))
+	return total, errors.Join(err, errors.Join(reads.errs...))
 }
 
 // ecsTaskSetReads collects, across one scan's DescribeTaskSets calls, the

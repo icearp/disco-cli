@@ -42,7 +42,9 @@ func TestScanWorkspacesInstancesIn_EnabledRegionScans(t *testing.T) {
 	}
 	enabled := map[string]bool{"us-east-1": true}
 
-	total, inserted, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, "us-east-1", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, "us-east-1", counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -65,7 +67,9 @@ func TestScanWorkspacesInstancesIn_DisabledRegionSkips(t *testing.T) {
 	stub := &stubWorkspacesInstances{}
 	enabled := map[string]bool{"us-east-1": true} // ap-northeast-3 absent
 
-	total, inserted, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, "ap-northeast-3", st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, "ap-northeast-3", counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -85,7 +89,9 @@ func TestScanWorkspacesInstancesIn_EmptyEnabledSetSkipsAll(t *testing.T) {
 	enabled := map[string]bool{} // service enabled nowhere
 
 	for _, region := range []string{"us-east-1", "eu-west-1", "ap-south-1"} {
-		total, inserted, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, region, st, testScanID)
+		counted, upserts := countUpserts(st)
+		total, err := scanWorkspacesInstancesIn(context.Background(), stub, enabled, acct, region, counted, testScanID)
+		inserted := upserts()
 		if err != nil || total != 0 || inserted != 0 {
 			t.Fatalf("region %s: total=%d inserted=%d err=%v, want 0/0/nil", region, total, inserted, err)
 		}
@@ -117,7 +123,7 @@ func TestScanWorkspacesInstances_HomePerPartition(t *testing.T) {
 	var regions parentCalls
 	acct := testAccountIn("aws")
 	acct.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &regions)
-	if _, _, err := scanWorkspacesInstances(context.Background(), acct, "eu-west-1", newTestStore(t), testScanID); err != nil {
+	if _, err := scanWorkspacesInstances(context.Background(), acct, "eu-west-1", newTestStore(t), testScanID); err != nil {
 		t.Fatalf("aws: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"us-east-1"}) {
@@ -127,7 +133,7 @@ func TestScanWorkspacesInstances_HomePerPartition(t *testing.T) {
 	var govRegions parentCalls
 	gov := testAccountIn("aws-us-gov")
 	gov.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &govRegions)
-	_, _, err := scanWorkspacesInstances(context.Background(), gov, "us-gov-west-1", newTestStore(t), testScanID)
+	_, err := scanWorkspacesInstances(context.Background(), gov, "us-gov-west-1", newTestStore(t), testScanID)
 	if !errors.Is(err, errServiceUnavailable) || len(govRegions.distinct()) != 0 {
 		t.Errorf("aws-us-gov: err %v, calls %v; want errServiceUnavailable and no call", err, govRegions.distinct())
 	}

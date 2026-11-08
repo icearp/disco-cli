@@ -228,7 +228,7 @@ func gsTestHandlers(c *gsTestCalls) map[string]func(in any) (any, error) {
 
 // gsTestScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func gsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func gsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, gsTestDenied)
 	return scanGroundStation(ctx, acct, testRegion, st, testScanID)
@@ -281,7 +281,9 @@ func TestScanGroundStation_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newGSTestCalls()
 
-	total, inserted, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := gsTestScan(context.Background(), counted, gsTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -351,7 +353,7 @@ func TestScanGroundStation_EphemeridesSendWideWindowAndEveryStatus(t *testing.T)
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newGSTestCalls()
-	if _, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls)); err != nil {
+	if _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(calls.ephInputs) != 2 {
@@ -398,7 +400,7 @@ func TestScanGroundStation_ServiceManagedEphemerisNotRead(t *testing.T) {
 		return out, err
 	}
 
-	if _, _, err := gsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := gsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if w := warns(); len(w) != 0 {
@@ -431,7 +433,7 @@ func TestScanGroundStation_EphemerisWithoutNameOrStatus(t *testing.T) {
 		return out, err
 	}
 
-	if _, _, err := gsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := gsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeGroundStationEphemeris)[eph.arn("bare")]
@@ -466,7 +468,7 @@ func TestScanGroundStation_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := gsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := gsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range gsTestKinds() {
@@ -476,16 +478,16 @@ func TestScanGroundStation_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGroundStation_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := gsTestScan(context.Background(), st, gsTestHandlers(newGSTestCalls())); err != nil {
+	if _, err := gsTestScan(context.Background(), st, gsTestHandlers(newGSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := gsTestScan(context.Background(), st, gsTestHandlers(newGSTestCalls()))
+	total, err := gsTestScan(context.Background(), st, gsTestHandlers(newGSTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -515,7 +517,9 @@ func TestScanGroundStation_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := gsTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := gsTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -567,7 +571,7 @@ func TestScanGroundStation_TagReadFailures(t *testing.T) {
 			k := gsTestKindOf(t, c.op)
 			calls.tagErrs[k.tagKey("tagged")] = c.err
 
-			total, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+			total, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -620,7 +624,7 @@ func TestScanGroundStation_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[eph.tagKey("tagged")] = gsTestDenied
 	calls.tagErrs[eph.tagKey("bare")] = gsTestDenied
 
-	total, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+	total, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -643,7 +647,7 @@ func TestScanGroundStation_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[gsTestKindOf(t, "ListConfigs").tagKey("bare")] = gsTestThrottle
 	calls.tagErrs[gsTestKindOf(t, "ListMissionProfiles").tagKey("tagged")] = gsTestBad
 
-	_, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+	_, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -662,7 +666,7 @@ func TestScanGroundStation_FailedWriteStopsScan(t *testing.T) {
 	calls := newGSTestCalls()
 	calls.tagErrs[gsTestKindOf(t, "ListDataflowEndpointGroups").tagKey("tagged")] = gsTestDenied
 
-	total, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+	total, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -718,7 +722,7 @@ func TestScanGroundStation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := gsTestScan(context.Background(), st, handlers)
+			total, err := gsTestScan(context.Background(), st, handlers)
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "InvalidParameterException")
@@ -767,7 +771,7 @@ func TestScanGroundStation_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := gsTestScan(context.Background(), st, handlers)
+	total, err := gsTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -855,7 +859,7 @@ func gsCheckElementWithoutIdentifier(t *testing.T, k gsTestKind, element any, ke
 		return twoPages(in)
 	}
 
-	total, _, err := gsTestScan(context.Background(), st, handlers)
+	total, err := gsTestScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -908,7 +912,7 @@ func TestScanGroundStation_TagReadsKeepPartitionARNs(t *testing.T) {
 	acct.Partition = partition
 	acct.cfg = opStubConfig(handlers, gsTestDenied)
 
-	if _, _, err := scanGroundStation(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanGroundStation(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !slices.Contains(calls.sortedTagARNs(), govConfig) {
@@ -940,7 +944,7 @@ func TestScanGroundStation_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := gsTestScan(ctx, st, handlers)
+	_, err := gsTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -970,7 +974,7 @@ func TestScanGroundStation_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := gsTestHandlers(newGSTestCalls())
 		handlers["ListEphemerides"] = func(any) (any, error) { return nil, nx }
-		total, _, err := gsTestScan(context.Background(), st, handlers)
+		total, err := gsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := gsTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -980,7 +984,7 @@ func TestScanGroundStation_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGSTestCalls()
 		calls.tagErrs[gsTestKindOf(t, "ListConfigs").tagKey("tagged")] = nx
-		_, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
+		_, err := gsTestScan(context.Background(), st, gsTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -996,7 +1000,7 @@ func TestScanGroundStation_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanGroundStation(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanGroundStation(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

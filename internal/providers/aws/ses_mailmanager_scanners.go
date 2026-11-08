@@ -142,12 +142,12 @@ func scanMMDetailed[Item any](
 ) (storeWriteFailed bool) {
 	ids := map[*store.Resource]string{}
 	d := &detailedRows{getOp: getOp, what: what, notFound: mmNotFound, tags: tags}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page,
+	total, err := storeTokenListWith(ctx, st, acct, region, op, page,
 		func(it Item) (*store.Resource, string, string) { return row(it, ids) },
 		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
 			return get(ctx, ids[r])
 		}))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // scanMMArchives stores each archive as its GetArchive body, which adds the
@@ -243,13 +243,13 @@ func scanMMTrafficPolicies(ctx context.Context, client mailManagerAPI, acct *acc
 // upsertBatch is a generic helper for scanners that fan out into a batch and
 // need uniform empty-skip + error formatting. label names the resource
 // family for error messages.
-func upsertBatch(st *store.Store, batch []*store.Resource, label string) (int, int, error) {
+func upsertBatch(st *store.Store, batch []*store.Resource, label string) (int, error) {
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
+		return 0, fmt.Errorf("upsert %s: %w", label, uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

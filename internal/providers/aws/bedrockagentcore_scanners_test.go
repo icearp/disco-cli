@@ -230,7 +230,7 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 	var p phaseTotals
 	scanBACBrowsers(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
 	scanBACCodeInterpreters(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
-	if _, _, err := p.result(st, acct, testRegion); err != nil {
+	if _, err := p.result(st, acct, testRegion); err != nil {
 		t.Fatalf("browsers, code-interpreters: %v", err)
 	}
 
@@ -260,7 +260,7 @@ func TestScanBACBrowsers_Empty(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanBACBrowsers(context.Background(), &stubBAC{}, acct, testRegion, st, testScanID, bacTags(&stubBAC{}), &p)
-	total, _, err := p.result(st, acct, testRegion)
+	total, err := p.result(st, acct, testRegion)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestScanBACAll_StoresNewTypes(t *testing.T) {
 		limitPages:    map[string][][]bactypes.GatewayRateLimitDetail{"gw-1": {{bacRateLimit("l1")}}},
 	}
 	data := &stubBACData{abPages: [][]bacdatatypes.ABTestSummary{{bacABTest("ab")}}}
-	if _, _, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanBACAll: %v", err)
 	}
 	for _, c := range []struct{ nativeID, rtype string }{
@@ -320,7 +320,7 @@ func TestScanBACAll_FanOutErrorKeepsAccountLists(t *testing.T) {
 		ruleErr:       map[string]error{"gw-1": apiErr("ValidationException", "bad")},
 	}
 	data := &stubBACData{abPages: [][]bacdatatypes.ABTestSummary{{bacABTest("ab")}}}
-	_, _, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanBACAll(context.Background(), control, data, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("scanBACAll err = %v; want the gateway-rule ValidationException", err)
 	}

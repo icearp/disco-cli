@@ -100,43 +100,43 @@ func autoScalingLaunchConfigurationARN(partition, region, accountID, name string
 // the group phase stored, so a failed group listing leaves them fewer groups.
 // Each phase's transient error is demoted to a warning only beside a hard
 // error (phaseErrs.join); the counts are summed.
-func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := autoscaling.NewFromConfig(acct.cfg, func(o *autoscaling.Options) { o.Region = region })
 	return scanAutoScalingAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanAutoScalingAll(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAutoScalingAll(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
-	groupIDs, t, i, err := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(autoScalingGroupsOp, t, i, err) {
+	groupIDs, t, err := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(autoScalingGroupsOp, t, err) {
 		return phases.result(st, acct, region)
 	}
 	asgNames := slices.Sorted(maps.Keys(groupIDs))
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{autoScalingLaunchConfigurationsOp, func() (int, int, error) {
+		{autoScalingLaunchConfigurationsOp, func() (int, error) {
 			return scanAutoScalingLaunchConfigurations(ctx, client, acct, region, st, scanID)
 		}},
-		{autoScalingPoliciesOp, func() (int, int, error) {
+		{autoScalingPoliciesOp, func() (int, error) {
 			return scanAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID)
 		}},
-		{autoScalingScheduledActionsOp, func() (int, int, error) {
+		{autoScalingScheduledActionsOp, func() (int, error) {
 			return scanAutoScalingScheduledActions(ctx, client, acct, region, st, scanID)
 		}},
-		{autoScalingLifecycleHooksOp, func() (int, int, error) {
+		{autoScalingLifecycleHooksOp, func() (int, error) {
 			return scanAutoScalingLifecycleHooks(ctx, client, acct, region, st, scanID, asgNames)
 		}},
-		{autoScalingWarmPoolOp, func() (int, int, error) {
+		{autoScalingWarmPoolOp, func() (int, error) {
 			return scanAutoScalingWarmPools(ctx, client, acct, region, st, scanID, asgNames)
 		}},
-		{"autoscaling:DescribeNotificationConfigurations", func() (int, int, error) {
+		{"autoscaling:DescribeNotificationConfigurations", func() (int, error) {
 			return scanAutoScalingNotificationConfigurations(ctx, client, acct, region, st, scanID, groupIDs)
 		}},
 	} {
-		t, i, err := phase.fn()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn()
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -148,9 +148,9 @@ func scanAutoScalingAll(ctx context.Context, client autoScalingAPI, acct *accoun
 // Tags its element carries, and returns the stored row ID of every group by
 // name for the per-group fan-outs and hierarchy pairs. Groups read before a
 // failed page are stored and returned.
-func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (groupIDs map[string]string, total, inserted int, err error) {
+func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (groupIDs map[string]string, total int, err error) {
 	groupIDs = map[string]string{}
-	total, inserted, err = storeTokenList(ctx, st, acct, region, autoScalingGroupsOp,
+	total, err = storeTokenList(ctx, st, acct, region, autoScalingGroupsOp,
 		func(ctx context.Context, token *string) ([]astypes.AutoScalingGroup, *string, error) {
 			out, err := client.DescribeAutoScalingGroups(ctx, &autoscaling.DescribeAutoScalingGroupsInput{
 				MaxRecords: sdkaws.Int32(autoScalingPageCap),
@@ -186,12 +186,12 @@ func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *acc
 				DiscoveredBy:   scanID,
 			}, "", ""
 		})
-	return groupIDs, total, inserted, err
+	return groupIDs, total, err
 }
 
 // scanAutoScalingLaunchConfigurations stores every launch configuration (no
 // names filter), those read before a failed page included.
-func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, autoScalingLaunchConfigurationsOp,
 		func(ctx context.Context, token *string) ([]astypes.LaunchConfiguration, *string, error) {
 			out, err := client.DescribeLaunchConfigurations(ctx, &autoscaling.DescribeLaunchConfigurationsInput{
@@ -229,7 +229,7 @@ func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScaling
 
 // scanAutoScalingScalingPolicies stores every scaling policy (no group,
 // name or type filter), those read before a failed page included.
-func scanAutoScalingScalingPolicies(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAutoScalingScalingPolicies(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, autoScalingPoliciesOp,
 		func(ctx context.Context, token *string) ([]astypes.ScalingPolicy, *string, error) {
 			out, err := client.DescribePolicies(ctx, &autoscaling.DescribePoliciesInput{
@@ -266,7 +266,7 @@ func scanAutoScalingScalingPolicies(ctx context.Context, client autoScalingAPI, 
 
 // scanAutoScalingScheduledActions stores every scheduled action (no group,
 // name or time filter), those read before a failed page included.
-func scanAutoScalingScheduledActions(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAutoScalingScheduledActions(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, autoScalingScheduledActionsOp,
 		func(ctx context.Context, token *string) ([]astypes.ScheduledUpdateGroupAction, *string, error) {
 			out, err := client.DescribeScheduledActions(ctx, &autoscaling.DescribeScheduledActionsInput{
@@ -308,7 +308,7 @@ func scanAutoScalingScheduledActions(ctx context.Context, client autoScalingAPI,
 // field). No group's failure cancels another: a denied group is warned about
 // once, and any other error is returned after the other groups' hooks are
 // stored.
-func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, int, error) {
+func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, error) {
 	reads, stopped := readEachKey(ctx, asgNames, func(ctx context.Context, group string) autoScalingGroupRead {
 		out, err := client.DescribeLifecycleHooks(ctx, &autoscaling.DescribeLifecycleHooksInput{AutoScalingGroupName: &group})
 		if err != nil {
@@ -344,7 +344,7 @@ func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, a
 // row. The op's NextToken pages only the pool's Instances, which are not
 // stored, so one call per group reads the whole configuration. Failures are
 // handled as in scanAutoScalingLifecycleHooks.
-func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, int, error) {
+func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, error) {
 	reads, stopped := readEachKey(ctx, asgNames, func(ctx context.Context, group string) autoScalingGroupRead {
 		out, err := client.DescribeWarmPool(ctx, &autoscaling.DescribeWarmPoolInput{AutoScalingGroupName: &group})
 		if err != nil {
@@ -380,7 +380,7 @@ type autoScalingGroupRead struct {
 // order, and returns the errors of the groups whose call failed other than by
 // a denial, plus stopped. A denied group is warned about once for op, and the
 // items read without a name once, after a successful write.
-func storeGroupReads(st *store.Store, acct *account, region, op string, groups []string, reads []autoScalingGroupRead, stopped error) (int, int, error) {
+func storeGroupReads(st *store.Store, acct *account, region, op string, groups []string, reads []autoScalingGroupRead, stopped error) (int, error) {
 	var (
 		rows   []*store.Resource
 		errs   []error
@@ -429,7 +429,7 @@ type autoScalingNotificationConfiguration struct {
 // group+topic pair, contained by its group when the group phase listed it.
 // A pair is only complete after the last page, so a failed page stores
 // nothing: a partial pair would record a type list AWS does not hold.
-func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, groupIDs map[string]string) (int, int, error) {
+func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, groupIDs map[string]string) (int, error) {
 	const op = "autoscaling:DescribeNotificationConfigurations"
 	pager := autoscaling.NewDescribeNotificationConfigurationsPaginator(client, &autoscaling.DescribeNotificationConfigurationsInput{},
 		func(o *autoscaling.DescribeNotificationConfigurationsPaginatorOptions) { o.Limit = 100 })
@@ -438,9 +438,9 @@ func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoS
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, op, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, op, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
+			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 		for _, nc := range page.NotificationConfigurations {
 			group, topic, kind := sv(nc.AutoScalingGroupName), sv(nc.TopicARN), sv(nc.NotificationType)
@@ -476,12 +476,12 @@ func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoS
 			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, nativeID), groupID})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, op)
+	total, err := upsertBatch(st, batch, op)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
+		return 0, fmt.Errorf("closure %s: %w", op, err)
 	}
-	return total, inserted, nil
+	return total, nil
 }

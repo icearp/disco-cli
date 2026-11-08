@@ -140,7 +140,9 @@ func testScanSageMakerStudio(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, domainARN, userARN, spaceARN, appARN, aicARN, slcARN)
-	total, inserted, err := scanSageMakerStudio(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerStudio(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 6 || inserted != 6 {
 		t.Fatalf("total=%d inserted=%d want 6/6", total, inserted)
@@ -167,7 +169,9 @@ func TestScanSageMakerStudioEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerStudio{}
-	total, inserted, err := scanSageMakerStudio(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerStudio(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -198,7 +202,7 @@ func TestScanSageMakerApps_AppWithoutOwnerWarned(t *testing.T) {
 		},
 		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
 	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
-	total, _, err := scanSageMakerApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

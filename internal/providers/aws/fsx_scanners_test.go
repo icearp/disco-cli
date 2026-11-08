@@ -235,7 +235,7 @@ func fsxHandlers(t *testing.T) map[string]func(in any) (any, error) {
 	return h
 }
 
-func fsxScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, int, error) {
+func fsxScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := fsx.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
 	return scanFSxAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -263,7 +263,9 @@ func assertJSONEqual(t *testing.T, what, got, want string) {
 func TestScanFSxAll_StoresRows(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := fsxScanAll(t, st, fsxHandlers(t))
+	counted, upserts := countUpserts(st)
+	total, err := fsxScanAll(t, counted, fsxHandlers(t))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFSxAll: %v", err)
 	}
@@ -343,7 +345,7 @@ func TestScanFSxAll_LaterPageFailureKeepsRows(t *testing.T) {
 				return serve(in)
 			}
 			st := newTestStore(t)
-			total, _, err := fsxScanAll(t, st, h)
+			total, err := fsxScanAll(t, st, h)
 			if !errors.Is(err, hard) {
 				t.Fatalf("err = %v, want the BadRequest", err)
 			}
@@ -376,7 +378,7 @@ func TestScanFSxAll_DeniedWarns(t *testing.T) {
 					scopes = append(scopes, w.Scope)
 				}
 			}
-			total, _, err := fsxScanAll(t, st, h)
+			total, err := fsxScanAll(t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -408,7 +410,7 @@ func TestScanFSxAll_EmptyARNWarned(t *testing.T) {
 					msgs = append(msgs, w.Message)
 				}
 			}
-			if _, _, err := fsxScanAll(t, st, h); err != nil {
+			if _, err := fsxScanAll(t, st, h); err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
 			if len(msgs) != 1 {
@@ -448,7 +450,7 @@ func TestScanFSxAll_StoreWriteStops(t *testing.T) {
 				return serve(in)
 			}
 			warns := countOpWarnings(st, fsxLabel(c))
-			if _, _, err := fsxScanAll(t, st, h); !errors.Is(err, store.ErrStoreWrite) {
+			if _, err := fsxScanAll(t, st, h); !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v, want ErrStoreWrite", err)
 			}
 			if *warns != 0 {
@@ -477,7 +479,7 @@ func TestScanFSxAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 			h := fsxHandlers(t)
 			h[c.op] = func(any) (any, error) { return nil, hard }
 			st := newTestStore(t)
-			if _, _, err := fsxScanAll(t, st, h); !errors.Is(err, hard) {
+			if _, err := fsxScanAll(t, st, h); !errors.Is(err, hard) {
 				t.Fatalf("err = %v, want the BadRequest", err)
 			}
 			for _, o := range fsxCases {
@@ -503,7 +505,7 @@ func TestScanFSxAll_TransientBesideHardError(t *testing.T) {
 	h["DescribeBackups"] = func(any) (any, error) { return nil, apiErr("BadRequest", "bad") }
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "fsx:DescribeFileSystems")
-	_, _, err := fsxScanAll(t, st, h)
+	_, err := fsxScanAll(t, st, h)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -526,7 +528,7 @@ func TestScanFSxAll_EmptyIDStoredWithoutName(t *testing.T) {
 			noID := fsxTestElem{arn: "arn:aws:fsx:us-east-1:123456789012:" + c.op + "/noid"}
 			h[c.op] = fsxServe(t, c, []fsxTestElem{fsxTagged(c), noID}, []fsxTestElem{fsxUntagged(c)})
 			st := newTestStore(t)
-			if _, _, err := fsxScanAll(t, st, h); err != nil {
+			if _, err := fsxScanAll(t, st, h); err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
 			r, ok := rowsByNativeID(t, st, c.typ)[noID.arn]
@@ -565,7 +567,7 @@ func TestScanFSxAll_FileCacheNotEnabledSkipped(t *testing.T) {
 		h[c.op] = func(any) (any, error) { return nil, notEnabled }
 		st := newTestStore(t)
 		warns := countOpWarnings(st, fsxLabel(c))
-		total, _, err := fsxScanAll(t, st, h)
+		total, err := fsxScanAll(t, st, h)
 		if err != nil {
 			t.Fatalf("err = %v, want nil", err)
 		}
@@ -583,7 +585,7 @@ func TestScanFSxAll_FileCacheNotEnabledSkipped(t *testing.T) {
 			return serve(in)
 		}
 		st := newTestStore(t)
-		if _, _, err := fsxScanAll(t, st, h); !errors.Is(err, notEnabled) {
+		if _, err := fsxScanAll(t, st, h); !errors.Is(err, notEnabled) {
 			t.Fatalf("err = %v, want the BadRequest", err)
 		}
 		if n := len(rowsByNativeID(t, st, c.typ)); n != 1 {

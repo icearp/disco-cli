@@ -195,7 +195,7 @@ func wafHandlers(c *wafCalls) map[string]func(in any) (any, error) {
 
 // wafScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func wafScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func wafScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wafTestDenied)
 	return scanWAF(ctx, acct, "", st, testScanID)
@@ -222,7 +222,9 @@ func TestScanWAF_StoresEveryListingWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newWAFCalls("aws")
 
-	total, inserted, err := wafScan(context.Background(), st, wafHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := wafScan(context.Background(), counted, wafHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -279,16 +281,16 @@ func TestScanWAF_StoresEveryListingWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanWAF_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := wafScan(context.Background(), st, wafHandlers(newWAFCalls("aws"))); err != nil {
+	if _, err := wafScan(context.Background(), st, wafHandlers(newWAFCalls("aws"))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := wafScan(context.Background(), st, wafHandlers(newWAFCalls("aws")))
+	total, err := wafScan(context.Background(), st, wafHandlers(newWAFCalls("aws")))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -312,7 +314,9 @@ func TestScanWAF_NoResources(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := wafScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := wafScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -357,7 +361,7 @@ func TestScanWAF_TagReadFailures(t *testing.T) {
 			calls := newWAFCalls("aws")
 			calls.errs[arn] = c.err
 
-			total, _, err := wafScan(context.Background(), st, wafHandlers(calls))
+			total, err := wafScan(context.Background(), st, wafHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -430,7 +434,7 @@ func TestScanWAF_TagPages(t *testing.T) {
 				return pageOf(c.second, "b", "2"), nil
 			}
 
-			total, _, err := wafScan(context.Background(), st, handlers)
+			total, err := wafScan(context.Background(), st, handlers)
 			if total != wafTestTotal {
 				t.Errorf("total = %d; want %d", total, wafTestTotal)
 			}
@@ -469,7 +473,7 @@ func TestScanWAF_TagResponseWithoutInfo(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	if _, _, err := wafScan(context.Background(), st, handlers); err != nil {
+	if _, err := wafScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeWAFWebACL)[arn]
@@ -491,7 +495,7 @@ func TestScanWAF_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[wafTestKindOf(t, "ListWebACLs").arn("aws", "1")] = wafTestDenied
 	calls.errs[wafTestKindOf(t, "ListRateBasedRules").arn("aws", "2")] = wafTestDenied
 
-	total, _, err := wafScan(context.Background(), st, wafHandlers(calls))
+	total, err := wafScan(context.Background(), st, wafHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -513,7 +517,7 @@ func TestScanWAF_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[wafTestKindOf(t, "ListWebACLs").arn("aws", "2")] = wafTestThrottle
 	calls.errs[wafTestKindOf(t, "ListRules").arn("aws", "1")] = wafTestBad
 
-	_, _, err := wafScan(context.Background(), st, wafHandlers(calls))
+	_, err := wafScan(context.Background(), st, wafHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "WAFInvalidParameterException")
 	if *warns != 1 {
@@ -547,7 +551,7 @@ func TestScanWAF_FailedWriteStopsScan(t *testing.T) {
 			calls := newWAFCalls("aws")
 			calls.errs[wafTestKindOf(t, "ListRules").arn("aws", "1")] = wafTestDenied
 
-			total, _, err := wafScan(context.Background(), st, wafHandlers(calls))
+			total, err := wafScan(context.Background(), st, wafHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -615,7 +619,7 @@ func TestScanWAF_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := wafScan(context.Background(), st, handlers)
+			total, err := wafScan(context.Background(), st, handlers)
 			if c.wantErr != nil {
 				if !errors.Is(err, c.wantErr) {
 					t.Fatalf("err = %v; want %v", err, c.wantErr)
@@ -654,7 +658,7 @@ func TestScanWAF_DeniedListingWarns(t *testing.T) {
 			handlers := wafHandlers(newWAFCalls("aws"))
 			delete(handlers, op)
 
-			total, _, err := wafScan(context.Background(), st, handlers)
+			total, err := wafScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -707,7 +711,7 @@ func TestScanWAF_ElementWithoutID(t *testing.T) {
 				return k.page(nil, c.elem, nil), nil
 			}
 
-			total, _, err := wafScan(context.Background(), st, handlers)
+			total, err := wafScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -768,7 +772,7 @@ func TestScanWAF_ElementWithoutNameStoredUnnamed(t *testing.T) {
 				return k.page(&id, c.elem, nil), nil
 			}
 
-			total, _, err := wafScan(context.Background(), st, handlers)
+			total, err := wafScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -802,7 +806,7 @@ func TestScanWAF_PartitionARNs(t *testing.T) {
 			calls := newWAFCalls(pf.partition)
 			client := waf.NewFromConfig(opStubConfig(wafHandlers(calls), wafTestDenied), func(o *waf.Options) { o.Region = pf.region })
 
-			total, _, err := scanWAFClassic(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID)
+			total, err := scanWAFClassic(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -843,7 +847,7 @@ func TestScanWAF_ContextEndReportedOnce(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	_, _, err := wafScan(ctx, st, handlers)
+	_, err := wafScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -881,7 +885,7 @@ func TestScanWAF_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := wafHandlers(newWAFCalls("aws"))
 		handlers["ListXssMatchSets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := wafScan(context.Background(), st, handlers)
+		total, err := wafScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := wafTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -891,7 +895,7 @@ func TestScanWAF_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newWAFCalls("aws")
 		calls.errs[wafTestKindOf(t, "ListWebACLs").arn("aws", "2")] = nx
-		_, _, err := wafScan(context.Background(), st, wafHandlers(calls))
+		_, err := wafScan(context.Background(), st, wafHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -905,7 +909,7 @@ func TestScanWAF_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := wafScan(context.Background(), st, handlers)
+		_, err := wafScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

@@ -173,7 +173,7 @@ func dmsHandlers(c *dmsCalls) map[string]func(any) (any, error) {
 
 // dmsScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func dmsScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func dmsScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, dmsDenied)
 	return scanDMS(ctx, acct, testRegion, st, testScanID)
@@ -196,7 +196,9 @@ func TestScanDMS_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newDMSCalls()
 
-	total, inserted, err := dmsScan(context.Background(), st, dmsHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := dmsScan(context.Background(), counted, dmsHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -295,7 +297,7 @@ func TestScanDMS_TagReadFailures(t *testing.T) {
 					calls := newDMSCalls()
 					calls.errs[arn] = c.err
 
-					total, _, err := dmsScan(context.Background(), st, dmsHandlers(calls))
+					total, err := dmsScan(context.Background(), st, dmsHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -339,7 +341,7 @@ func TestScanDMS_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[dmsARN(dmsKindOf(t, "DescribeReplicationTasks"), "tagged")] = dmsThrottle
 	calls.errs[dmsARN(dmsKindOf(t, "DescribeCertificates"), "bare")] = dmsBadState
 
-	_, _, err := dmsScan(context.Background(), st, dmsHandlers(calls))
+	_, err := dmsScan(context.Background(), st, dmsHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidResourceStateFault")
 	if *warns != 1 {
@@ -359,7 +361,7 @@ func TestScanDMS_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := dmsHandlers(newDMSCalls())
 			delete(handlers, k.op)
 
-			total, _, err := dmsScan(context.Background(), st, handlers)
+			total, err := dmsScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -386,7 +388,7 @@ func TestScanDMS_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newDMSCalls()
 	calls.errs[dmsARN(dmsKindOf(t, "DescribeEndpoints"), "tagged")] = dmsDenied
 
-	_, _, err := dmsScan(context.Background(), st, dmsHandlers(calls))
+	_, err := dmsScan(context.Background(), st, dmsHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -406,7 +408,7 @@ func TestScanDMS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers := dmsHandlers(newDMSCalls())
 	handlers["DescribeCertificates"] = failOnCall(2, dmsBadState, handlers["DescribeCertificates"])
 
-	total, _, err := dmsScan(context.Background(), st, handlers)
+	total, err := dmsScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidResourceStateFault")
 	if total != 21 {
@@ -436,7 +438,7 @@ func TestScanDMS_RepeatedMarkerKeepsPages(t *testing.T) {
 		return k.page(&arn, &id, sdkaws.String("same")), nil
 	}
 
-	total, _, err := dmsScan(context.Background(), st, handlers)
+	total, err := dmsScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -475,7 +477,7 @@ func TestScanDMS_UnstorableItemsWarn(t *testing.T) {
 		return &databasemigrationservice.DescribeReplicationSubnetGroupsOutput{ReplicationSubnetGroups: []dmstypes.ReplicationSubnetGroup{{}}}, nil
 	}
 
-	total, _, err := dmsScan(context.Background(), st, handlers)
+	total, err := dmsScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -526,7 +528,7 @@ func TestScanDMS_TagReadInAccountPartition(t *testing.T) {
 	calls.tags[gov("es")] = map[string]string{"k": "v"}
 	acct.cfg = opStubConfig(handlers, dmsDenied)
 
-	if _, _, err := scanDMS(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanDMS(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := []string{gov("cert"), gov("es")}
@@ -559,7 +561,7 @@ func TestScanDMS_ContextEndStopsOnce(t *testing.T) {
 		return certs(in)
 	}
 
-	_, _, err := dmsScan(ctx, st, handlers)
+	_, err := dmsScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -588,7 +590,7 @@ func TestScanDMS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := dmsHandlers(newDMSCalls())
 		handlers["DescribeReplicationTasks"] = func(any) (any, error) { return nil, nx }
-		total, _, err := dmsScan(context.Background(), st, handlers)
+		total, err := dmsScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 20 {
 			t.Errorf("total = %d; want the 20 earlier rows counted", total)
@@ -598,7 +600,7 @@ func TestScanDMS_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newDMSCalls()
 		calls.errs[dmsARN(dmsKindOf(t, "DescribeCertificates"), "bare")] = nx
-		_, _, err := dmsScan(context.Background(), st, dmsHandlers(calls))
+		_, err := dmsScan(context.Background(), st, dmsHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -606,7 +608,7 @@ func TestScanDMS_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanDMS(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanDMS(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

@@ -85,7 +85,7 @@ var errGDOrgConfigRefused = errors.New("guardduty organization configuration not
 // refusal to read the configuration (e.g. a rejected NextToken) and propagates.
 // refused reports that some detector's configuration was refused that way, so
 // the caller can skip the region's other delegated-administrator-only reads.
-func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, detectorIDs []string) (total, inserted int, refused bool, err error) {
+func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, detectorIDs []string) (total int, refused bool, err error) {
 	parents := make([]childParent, len(detectorIDs))
 	for i, did := range detectorIDs {
 		parents[i] = childParent{id: did, arn: guardDutyDetectorARN(acct.partition(), region, acct.ID, did)}
@@ -101,7 +101,7 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 		})
 		return true
 	}
-	total, inserted, err = childFanOut(ctx, st, acct, region, gdOrgConfigOp, parents, warnIfRefused,
+	total, err = childFanOut(ctx, st, acct, region, gdOrgConfigOp, parents, warnIfRefused,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			did := p.id
 			pager := guardduty.NewDescribeOrganizationConfigurationPaginator(client, &guardduty.DescribeOrganizationConfigurationInput{DetectorId: &did})
@@ -131,7 +131,7 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 				Name: &label, Region: &region, AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
 			}}, nil
 		})
-	return total, inserted, refused, err
+	return total, refused, err
 }
 
 // gdPlanTags reads a malware protection plan's tags from

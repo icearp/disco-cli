@@ -21,17 +21,17 @@ func init() {
 }
 
 // scanLabServices discovers Azure Lab Services labs and lab plans.
-func scanLabServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLabServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	labs, err := armlabservices.NewLabsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armlabservices:NewLabsClient: %w", err)
+		return 0, fmt.Errorf("armlabservices:NewLabsClient: %w", err)
 	}
 	plans, err := armlabservices.NewLabPlansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armlabservices:NewLabPlansClient: %w", err)
+		return 0, fmt.Errorf("armlabservices:NewLabPlansClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armlabservices:Labs.ListBySubscription", TypeLabServicesLab, sub, st, scanID,
 				labs.NewListBySubscriptionPager(nil),
 				func(p armlabservices.LabsClientListBySubscriptionResponse) []*armlabservices.Lab { return p.Value },
@@ -39,7 +39,7 @@ func scanLabServices(ctx context.Context, sub *subscription, cred azcore.TokenCr
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armlabservices:LabPlans.ListBySubscription", TypeLabServicesLabPlan, sub, st, scanID,
 				plans.NewListBySubscriptionPager(nil),
 				func(p armlabservices.LabPlansClientListBySubscriptionResponse) []*armlabservices.LabPlan {

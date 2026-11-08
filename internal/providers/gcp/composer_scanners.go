@@ -32,27 +32,27 @@ const maxConcurrentComposerConfigMapFanout = 10
 // Composer SDK doesn't expose a Locations.List, so per-location fan-out
 // isn't cheaply implementable anyway — the wildcard is the only reasonable
 // shape.
-func scanComposer(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComposer(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := composer.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("composer client: %w", err)
+		return 0, fmt.Errorf("composer client: %w", err)
 	}
 	return scanComposerWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanComposerWithClient is the test seam for scanComposer — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	type envRef struct {
 		name string
 		id   string
 	}
 	var envRefs []envRef
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	t, n, err := runPaginated(ctx, st, p, "composer:environments.list",
+	t, err := runPaginated(ctx, st, p, "composer:environments.list",
 		svc.Projects.Locations.Environments.List(parent),
-		func(page *composer.ListEnvironmentsResponse) (int, int, error) {
+		func(page *composer.ListEnvironmentsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Environments))
 			for _, e := range page.Environments {
 				if e == nil || e.Name == "" {
@@ -81,9 +81,8 @@ func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *proje
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Per-Environment fan-out — UserWorkloadsConfigMaps. Nested under a
@@ -113,9 +112,8 @@ func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *proje
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			ct, cn, cerr := upsertWithParent(st, batch, e.id)
+			ct, cerr := upsertWithParent(st, batch, e.id)
 			total += ct
-			inserted += cn
 			return cerr
 		})
 		if cerr != nil {
@@ -128,7 +126,7 @@ func scanComposerWithClient(ctx context.Context, svc *composer.Service, p *proje
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

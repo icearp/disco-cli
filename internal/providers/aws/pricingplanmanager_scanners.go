@@ -19,10 +19,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:pricingplanmanager",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			region, err := acct.homeRegion("pricingplanmanager")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := pricingplanmanager.NewFromConfig(acct.cfg, func(o *pricingplanmanager.Options) { o.Region = region })
 			return scanPricingPlanManagerSubscriptions(ctx, client, acct, st, scanID)
@@ -33,7 +33,7 @@ func init() {
 // scanPricingPlanManagerSubscriptions lists the account's flat-rate pricing
 // subscriptions. GetSubscription is not called: its Subscription body carries
 // no field the list summary lacks.
-func scanPricingPlanManagerSubscriptions(ctx context.Context, client pricingplanmanager.ListSubscriptionsAPIClient, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanPricingPlanManagerSubscriptions(ctx context.Context, client pricingplanmanager.ListSubscriptionsAPIClient, acct *account, st *store.Store, scanID string) (int, error) {
 	region := pricingPlanManagerRegion
 	// ListSubscriptionsInput has no page-size field, so there is no cap to set.
 	p := pricingplanmanager.NewListSubscriptionsPaginator(client, &pricingplanmanager.ListSubscriptionsInput{},

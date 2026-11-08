@@ -193,7 +193,7 @@ func memDBHandlers(c *memDBCalls) map[string]func(in any) (any, error) {
 
 // memDBScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func memDBScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func memDBScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, memDBDenied)
 	return scanMemoryDB(ctx, acct, testRegion, st, testScanID)
@@ -225,7 +225,9 @@ func TestScanMemoryDB_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newMemDBCalls()
 
-	total, inserted, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := memDBScan(context.Background(), counted, memDBHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -321,7 +323,7 @@ func TestScanMemoryDB_TagReadFailures(t *testing.T) {
 			calls := newMemDBCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+			total, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -366,7 +368,7 @@ func TestScanMemoryDB_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = memDBDenied
 	}
 
-	total, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	total, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -397,7 +399,7 @@ func TestScanMemoryDB_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[memDBKindOf(t, "DescribeClusters").arn("tagged")] = memDBThrottle
 	calls.errs[memDBKindOf(t, "DescribeSnapshots").arn("bare")] = memDBInvalid
 
-	_, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	_, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, memDBTestInvalidARN)
 	if *warns != 1 {
@@ -416,7 +418,7 @@ func TestScanMemoryDB_FailedWriteStopsScan(t *testing.T) {
 	k := memDBKindOf(t, "DescribeParameterGroups")
 	calls.errs[k.arn("tagged")] = memDBDenied
 
-	total, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	total, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -447,7 +449,7 @@ func TestScanMemoryDB_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 	k := memDBKindOf(t, "DescribeACLs")
 	handlers[k.op] = failOnCall(2, memDBInvalid, handlers[k.op])
 
-	total, _, err := memDBScan(context.Background(), st, handlers)
+	total, err := memDBScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, memDBTestInvalidARN)
 	if total != memDBTestTotal-1 {
@@ -477,7 +479,7 @@ func TestScanMemoryDB_RepeatedTokenKeepsPages(t *testing.T) {
 			arn, name := k.arn(suffix), k.name(suffix)
 			return k.page(&arn, &name, sdkaws.String("same")), nil
 		}
-		total, _, err := memDBScan(context.Background(), st, handlers)
+		total, err := memDBScan(context.Background(), st, handlers)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -493,7 +495,7 @@ func TestScanMemoryDB_RepeatedTokenKeepsPages(t *testing.T) {
 				ARN: sdkaws.String(memDBTestMRPG), Name: sdkaws.String("mrpg-1"),
 			}}}, nil
 		}
-		total, _, err := memDBScan(context.Background(), st, handlers)
+		total, err := memDBScan(context.Background(), st, handlers)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -536,7 +538,7 @@ func TestScanMemoryDB_ElementWithoutARNWarns(t *testing.T) {
 			handlers := memDBHandlers(calls)
 			handlers[c.op] = c.answer
 
-			total, _, err := memDBScan(context.Background(), st, handlers)
+			total, err := memDBScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -581,7 +583,7 @@ func TestScanMemoryDB_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, memDBDenied)
-			if _, _, err := scanMemoryDB(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanMemoryDB(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, want := range []string{clusterARN, mrcARN} {
@@ -616,7 +618,7 @@ func TestScanMemoryDB_ManagedRowsNotRead(t *testing.T) {
 	}
 	calls.tags[user] = map[string]string{"owner": "ops"}
 
-	if _, _, err := memDBScan(context.Background(), st, handlers); err != nil {
+	if _, err := memDBScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for typ, arn := range map[string]string{TypeMemoryDBACL: acl, TypeMemoryDBParameterGroup: pg} {
@@ -647,7 +649,7 @@ func TestScanMemoryDB_ClusterNotReadyWarnsOnce(t *testing.T) {
 	calls.errs[k.arn("tagged")] = notReady
 	calls.errs[k.arn("bare")] = notReady
 
-	total, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	total, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -678,7 +680,7 @@ func TestScanMemoryDB_NotReadyOnOtherTypeIsError(t *testing.T) {
 	k := memDBKindOf(t, "DescribeACLs")
 	calls.errs[k.arn("tagged")] = apiErr(memDBClusterNotReady, "x")
 
-	_, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	_, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, memDBClusterNotReady)
 	if w := warns(); len(w) != 0 {
@@ -699,7 +701,7 @@ func TestScanMemoryDB_RefusalAfterFailedWriteWarnsNothing(t *testing.T) {
 	calls := newMemDBCalls()
 	calls.errs[memDBKindOf(t, "DescribeClusters").arn("bare")] = apiErr(memDBClusterNotReady, "x")
 
-	_, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+	_, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -721,7 +723,7 @@ func TestScanMemoryDB_MultiRegionGap(t *testing.T) {
 		handlers := memDBHandlers(newMemDBCalls())
 		handlers["DescribeMultiRegionClusters"] = func(any) (any, error) { return nil, gap }
 		handlers["DescribeMultiRegionParameterGroups"] = func(any) (any, error) { return nil, gap }
-		total, _, err := memDBScan(context.Background(), st, handlers)
+		total, err := memDBScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -737,7 +739,7 @@ func TestScanMemoryDB_MultiRegionGap(t *testing.T) {
 		handlers := memDBHandlers(newMemDBCalls())
 		k := memDBKindOf(t, "DescribeMultiRegionClusters")
 		handlers[k.op] = failOnCall(2, gap, handlers[k.op])
-		total, _, err := memDBScan(context.Background(), st, handlers)
+		total, err := memDBScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidParameterValueException")
 		if total != memDBTestTotal-1 {
@@ -761,7 +763,7 @@ func TestScanMemoryDB_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			k := memDBKindOf(t, "DescribeSnapshots")
 			handlers[k.op] = failOnCall(call, memDBDenied, handlers[k.op])
 
-			total, _, err := memDBScan(context.Background(), st, handlers)
+			total, err := memDBScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -798,7 +800,7 @@ func TestScanMemoryDB_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := memDBScan(ctx, st, handlers)
+	_, err := memDBScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -825,7 +827,7 @@ func TestScanMemoryDB_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := memDBHandlers(newMemDBCalls())
 		handlers["DescribeSubnetGroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := memDBScan(context.Background(), st, handlers)
+		total, err := memDBScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != memDBTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, memDBTestTotal-2)
@@ -835,7 +837,7 @@ func TestScanMemoryDB_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newMemDBCalls()
 		calls.errs[memDBKindOf(t, "DescribeACLs").arn("bare")] = nx
-		_, _, err := memDBScan(context.Background(), st, memDBHandlers(calls))
+		_, err := memDBScan(context.Background(), st, memDBHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -843,7 +845,7 @@ func TestScanMemoryDB_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanMemoryDB(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanMemoryDB(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -877,13 +879,13 @@ func TestScanMemoryDB_MultiRegionClusterListedByTwoRegions(t *testing.T) {
 	acct.cfg = opStubConfig(handlers, memDBDenied)
 	for i, region := range []string{"us-east-1", "us-west-2"} {
 		var added, changed atomic.Int64
-		total, inserted, err := scanMemoryDB(context.Background(), acct, region, st.WithUpsertCounters(&added, &changed), testScanID)
+		total, err := scanMemoryDB(context.Background(), acct, region, st.WithUpsertCounters(&added, &changed), testScanID)
 		if err != nil {
 			t.Fatalf("scan %s: %v", region, err)
 		}
 		want := 1 - i
-		if total != 1 || inserted != want || added.Load() != int64(want) || changed.Load() != 0 {
-			t.Errorf("%s: total, inserted, new, changed = %d, %d, %d, %d; want 1, %d, %d, 0", region, total, inserted, added.Load(), changed.Load(), want, want)
+		if total != 1 || added.Load() != int64(want) || changed.Load() != 0 {
+			t.Errorf("%s: total, new, changed = %d, %d, %d; want 1, %d, 0", region, total, added.Load(), changed.Load(), want)
 		}
 	}
 	rows := rowsByNativeID(t, st, TypeMemoryDBMultiRegionCluster)

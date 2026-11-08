@@ -156,7 +156,9 @@ func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -233,7 +235,7 @@ func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
 		},
 	}
 
-	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+	if _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -281,7 +283,9 @@ func TestScanServiceQuotas_DefaultsFailureDegrades(t *testing.T) {
 		defaultsErr: apiErr("AccessDeniedException", "no read"),
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -318,7 +322,9 @@ func TestScanServiceQuotas_UnsupportedCodeSkipped(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -338,7 +344,9 @@ func TestScanServiceQuotas_EmptyService(t *testing.T) {
 		quotas:   map[string][]sqtypes.ServiceQuota{"ec2": {}},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -365,7 +373,9 @@ func TestScanServiceQuotas_CodelessQuotaDropped(t *testing.T) {
 		quotas:   map[string][]sqtypes.ServiceQuota{"ec2": {noArn, noCode}},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -399,7 +409,9 @@ func TestScanServiceQuotas_GenuineErrorContinues(t *testing.T) {
 		quotaErr: map[string]error{"broken": errors.New("network kaput")},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan returned err, want nil (collect-and-continue): %v", err)
 	}
@@ -422,7 +434,9 @@ func TestScanServiceQuotas_ListServicesAccessDenied(t *testing.T) {
 
 	stub := &stubServiceQuotas{servicesErr: apiErr("AccessDenied", "denied")}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID, noRateLimit())
+	counted, upserts := countUpserts(st)
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", counted, testScanID, noRateLimit())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan returned err: %v", err)
 	}
@@ -452,7 +466,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2"}, scanRegions: []string{"us-east-1", "us-west-2"}}
 
 		stEast := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-east-1", stEast, testScanID, noRateLimit()); err != nil {
+		if _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-east-1", stEast, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("east scan: %v", err)
 		}
 		rows := listQuotaRows(t, stEast)
@@ -469,7 +483,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		}
 
 		stWest := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-west-2", stWest, testScanID, noRateLimit()); err != nil {
+		if _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-west-2", stWest, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("west scan: %v", err)
 		}
 		if rows := listQuotaRows(t, stWest); len(rows) != 0 {
@@ -481,7 +495,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-west-2", "eu-west-1"}, scanRegions: []string{"us-west-2", "eu-west-1"}}
 		// min(us-west-2, eu-west-1) == eu-west-1 → home.
 		st := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
+		if _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		if rows := listQuotaRows(t, st); len(rows) != 1 {
@@ -494,7 +508,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 	t.Run("only dispatched regions are elected", func(t *testing.T) {
 		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2", "eu-west-1"}, scanRegions: []string{"us-west-2", "eu-west-1"}}
 		st := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
+		if _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		if rows := listQuotaRows(t, st); len(rows) != 1 {
@@ -524,7 +538,7 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 				"ec2": {regionalQuota(region, "ec2", "L-1", "VPCs", value, adjustable)},
 			},
 		}
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+		if _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 	}
@@ -587,7 +601,7 @@ func TestScanServiceQuotas_ReportsDefaultsFailure(t *testing.T) {
 		},
 	}
 
-	total, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -644,7 +658,7 @@ func TestScanServiceQuotas_DefaultsAccessDeniedWarnsNotErrors(t *testing.T) {
 		},
 	}
 
-	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+	if _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*errs) != 0 {
@@ -675,7 +689,7 @@ func TestScanServiceQuotas_NoPublishedDefaultsIsSilent(t *testing.T) {
 		},
 	}
 
-	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
+	if _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*errs) != 0 || len(*warns) != 0 {
@@ -737,7 +751,7 @@ func TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion(t *testing.T) {
 		quotas:      quotas,
 	}
 
-	total, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
+	total, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -780,7 +794,7 @@ func TestScanServiceQuotas_PacesEachOperationSeparately(t *testing.T) {
 	stub := &stubServiceQuotas{services: codes, quotas: quotas}
 
 	pacers := noRateLimit()
-	if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, pacers); err != nil {
+	if _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, pacers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 

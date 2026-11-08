@@ -53,7 +53,7 @@ func TestScanBCMDataExportsExports(t *testing.T) {
 			},
 		},
 	}
-	total, _, err := scanBCMDataExportsExports(context.Background(), stub, acct, testRegion, st, testScanID)
+	total, err := scanBCMDataExportsExports(context.Background(), stub, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

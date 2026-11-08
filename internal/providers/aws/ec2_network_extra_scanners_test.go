@@ -168,7 +168,7 @@ func assertNetExtraRow(t *testing.T, rows map[string]store.Resource, w netExtraW
 	}
 }
 
-type netExtraScanFn func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+type netExtraScanFn func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 
 // runNetExtra runs one scanner against the stub and returns the stored rows of
 // typ and the warnings the scan recorded.
@@ -181,7 +181,7 @@ func runNetExtra(t *testing.T, fn netExtraScanFn, stub *netExtraStub, typ string
 		warns = append(warns, w)
 		mu.Unlock()
 	}
-	total, _, err := fn(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+	total, err := fn(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -191,7 +191,7 @@ func runNetExtra(t *testing.T, fn netExtraScanFn, stub *netExtraStub, typ string
 // scanNetExtraErr runs one scanner expecting it to fail and returns the error.
 func scanNetExtraErr(t *testing.T, fn netExtraScanFn, stub *netExtraStub) error {
 	t.Helper()
-	_, _, err := fn(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, newTestStore(t), testScanID)
+	_, err := fn(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, newTestStore(t), testScanID)
 	return err
 }
 
@@ -320,7 +320,7 @@ func TestScanSubnetCidrReservations(t *testing.T) {
 			warns = append(warns, w)
 			mu.Unlock()
 		}
-		_, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+		_, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
 		if !isAPIErrorCode(err, "InvalidParameterValue") {
 			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
 		}
@@ -389,7 +389,7 @@ func TestScanSubnetCidrReservations(t *testing.T) {
 			resvErr:     map[string]error{"subnet-b": apiErr("InvalidParameterValue", "bad")},
 		}
 		st := newTestStore(t)
-		total, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+		total, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
 		if !isAPIErrorCode(err, "InvalidParameterValue") {
 			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
 		}
@@ -556,7 +556,7 @@ func TestScanEC2NetworkExtra_AllPhasesStore(t *testing.T) {
 		}}},
 	}
 	st := newTestStore(t)
-	total, _, err := scanEC2NetworkExtra(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+	total, err := scanEC2NetworkExtra(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanEC2NetworkExtra: %v", err)
 	}
@@ -603,7 +603,7 @@ func TestScanSubnetCidrReservations_LaterPageFailureKeepsEarlierPages(t *testing
 					warned = append(warned, w.Message)
 				}
 			}
-			_, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+			_, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
 			if !tc.wantErr(err) {
 				t.Errorf("err = %v, want the second page's failure", err)
 			}

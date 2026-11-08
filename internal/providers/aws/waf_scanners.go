@@ -111,10 +111,10 @@ func wafARN(partition, account, kind, id string) string {
 // hosted in one home region (homeRegion; us-east-1 for aws) — so it registers
 // global=true, pins the client to that region, and stores resources with
 // region "global".
-func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("waf")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := waf.NewFromConfig(acct.cfg, func(o *waf.Options) { o.Region = region })
 	return scanWAFClassic(ctx, client, acct, region, st, scanID)
@@ -129,13 +129,13 @@ func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scan
 // repeated NextMarker. The rows of the types that take tags (wafTaggedKinds)
 // have their tags read per row (wafTags), a page written before the next is
 // read, and their denials are one warning for the whole scan.
-func scanWAFClassic(ctx context.Context, client wafAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAFClassic(ctx context.Context, client wafAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := wafTags(client).sharingDenials()
 	flavour := wafFlavour{svc: "waf", region: regionGlobal, arn: func(kind, id string) string { return wafARN(acct.partition(), acct.ID, kind, id) }}
 	phases := wafListingPhases(ctx, st, acct, region, scanID, flavour, wafPhases(client), tags, nil)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "waf", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "waf", 0, phases)
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // wafFlavour is what sets the rows of one WAF Classic flavour apart: svc,
@@ -167,8 +167,8 @@ func wafListingPhases(ctx context.Context, st *store.Store, acct *account, regio
 			case wafTaggedKinds[ph.kind]:
 				return storeTokenPagesTags(ctx, st, acct, region, op, ph.list, row, tags, p)
 			}
-			total, inserted, err := storeTokenList(ctx, st, acct, region, op, ph.list, row)
-			return p.addPhase(op, total, inserted, err)
+			total, err := storeTokenList(ctx, st, acct, region, op, ph.list, row)
+			return p.addPhase(op, total, err)
 		}}
 	}
 	return phases

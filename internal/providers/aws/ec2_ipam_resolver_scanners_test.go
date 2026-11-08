@@ -136,7 +136,7 @@ func plrHandlers(calls *parentCalls, errs map[string]error) map[string]func(in a
 	}
 }
 
-func plrScan(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func plrScan(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	return scanIPAMPrefixListResolvers(context.Background(), ipxClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
@@ -171,7 +171,9 @@ func TestScanIPAMPrefixListResolvers_EmbedsSortedRules(t *testing.T) {
 			var calls parentCalls
 			h := plrHandlers(&calls, nil)
 			h["GetIpamPrefixListResolverRules"] = plrRulesHandler(&calls, reversed, nil)
-			total, inserted, err := plrScan(t, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := plrScan(t, counted, h)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -239,7 +241,9 @@ func TestScanIPAMPrefixListResolvers_UnreadRulesKeepRow(t *testing.T) {
 					denied++
 				}
 			}
-			total, inserted, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrA: c.errA, plrB: c.errB}))
+			counted, upserts := countUpserts(st)
+			total, err := plrScan(t, counted, plrHandlers(&calls, map[string]error{plrA: c.errA, plrB: c.errB}))
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -287,7 +291,7 @@ func TestScanIPAMPrefixListResolvers_HardRulesReadError(t *testing.T) {
 			st := newTestStore(t)
 			var calls parentCalls
 			warnings := countOpWarnings(st, ec2IPAMPrefixListResolverRulesOp)
-			total, _, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrA: c.err, plrB: c.err}))
+			total, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrA: c.err, plrB: c.err}))
 			if !c.isWant(err) {
 				t.Fatalf("err = %v, want %v", err, c.err)
 			}
@@ -322,7 +326,7 @@ func TestScanIPAMPrefixListResolvers_FailureKeepsSiblings(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			var calls parentCalls
-			total, _, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrB: c.err}))
+			total, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrB: c.err}))
 			if c.wantErr != errors.Is(err, errIpxTest) || !c.wantErr && err != nil {
 				t.Fatalf("err = %v, want the hard error %v", err, c.wantErr)
 			}
@@ -354,7 +358,7 @@ func TestScanIPAMPrefixListResolvers_RepeatedRulesTokenFails(t *testing.T) {
 			return &ec2.GetIpamPrefixListResolverRulesOutput{NextToken: ptrStr(ipxPageNext), Rules: []ec2types.IpamPrefixListResolverRule{plrRule1()}}, nil
 		},
 	}
-	_, _, err := plrScan(t, st, h)
+	_, err := plrScan(t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -387,7 +391,7 @@ func TestScanIPAMPrefixListResolvers_IncompleteListingWarned(t *testing.T) {
 			h["DescribeIpamPrefixListResolvers"] = func(any) (any, error) {
 				return &ec2.DescribeIpamPrefixListResolversOutput{IpamPrefixListResolvers: []ec2types.IpamPrefixListResolver{r1, r2}}, nil
 			}
-			total, _, err := plrScan(t, st, h)
+			total, err := plrScan(t, st, h)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -417,7 +421,7 @@ func TestScanIPAMPrefixListResolvers_ListingErrors(t *testing.T) {
 			warnings := countOpWarnings(st, ec2IPAMPrefixListResolversOp)
 			h := plrHandlers(&calls, nil)
 			h["DescribeIpamPrefixListResolvers"] = func(any) (any, error) { return nil, c.err }
-			total, _, err := plrScan(t, st, h)
+			total, err := plrScan(t, st, h)
 			if (err != nil) != c.wantErr || (c.wantErr && !errors.Is(err, c.err)) {
 				t.Fatalf("err = %v, want error %v", err, c.wantErr)
 			}
@@ -452,7 +456,7 @@ func TestScanIPAMPrefixListResolvers_ErrorAfterFirstPage(t *testing.T) {
 				}
 				return plrListHandler(in)
 			}
-			_, _, err := plrScan(t, st, h)
+			_, err := plrScan(t, st, h)
 			if (err != nil) != c.wantErr {
 				t.Fatalf("err = %v, want error %v", err, c.wantErr)
 			}
@@ -514,7 +518,7 @@ func TestScanEC2_IPAMPrefixListResolvers(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfigCtx(ctxHandlers, ipxDenied)
-		_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 		if !errors.Is(err, errIpxTest) {
 			t.Fatalf("err = %v, want the rules read error", err)
 		}

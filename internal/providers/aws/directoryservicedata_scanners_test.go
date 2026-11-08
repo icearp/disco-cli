@@ -122,7 +122,7 @@ func dsDataWantWithout(typ string, dirIDs ...string) []string {
 
 func runDSDataScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := scanDirectoryServiceDataIn(context.Background(), dsClient(handlers), dsDataClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDirectoryServiceDataIn(context.Background(), dsClient(handlers), dsDataClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -516,7 +516,7 @@ func TestScanDirectoryServiceData_CallsScanRegion(t *testing.T) {
 	if acct.cfg.Region == region {
 		t.Fatalf("config region %q must differ from the scan region", acct.cfg.Region)
 	}
-	if _, _, err := scanDirectoryServiceData(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanDirectoryServiceData(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := []string{"DescribeDirectories@" + region, "ListGroups@" + region, "ListUsers@" + region}

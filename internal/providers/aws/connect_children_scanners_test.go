@@ -55,7 +55,7 @@ type connectChildCase struct {
 	respond func(parentID string, token *string) any
 	// wantIDs is the NativeIDs stored for one parent across both pages.
 	wantIDs func(parentARN, parentID string) []string
-	run     func(context.Context, connectChildrenAPI, *account, *store.Store) (int, int, error)
+	run     func(context.Context, connectChildrenAPI, *account, *store.Store) (int, error)
 	check   func(t *testing.T, r store.Resource)
 }
 
@@ -82,7 +82,7 @@ func connectChildCases() []connectChildCase {
 			wantIDs: func(arn, id string) []string {
 				return []string{arn + "/override/" + id + "-a", arn + "/override/" + id + "-b"}
 			},
-			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectHoursOfOperationOverrides(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -113,7 +113,7 @@ func connectChildCases() []connectChildCase {
 				arn := "arn:aws:connect:us-east-1:123456789012:instance/i-1/use-case/" + id
 				return []string{arn + "-a", arn + "-b"}
 			},
-			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectUseCases(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -141,7 +141,7 @@ func connectChildCases() []connectChildCase {
 				}}
 			},
 			wantIDs: func(arn, _ string) []string { return []string{arn + "/version/1", arn + "/version/2"} },
-			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectEvaluationFormVersions(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -168,7 +168,7 @@ func connectChildCases() []connectChildCase {
 				return &connect.ListWorkspacePagesOutput{WorkspacePageList: []cttypes.WorkspacePage{{Page: ptrStr("custom"), Slug: ptrStr("custom")}, {Slug: ptrStr("no page")}}}
 			},
 			wantIDs: func(arn, _ string) []string { return []string{arn + "/page/HOME", arn + "/page/custom"} },
-			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c connectChildrenAPI, a *account, st *store.Store) (int, error) {
 				return scanConnectWorkspacePages(ctx, c, a, testRegion, st, testScanID)
 			},
 			check: func(t *testing.T, r store.Resource) {
@@ -216,7 +216,7 @@ func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
 				calls.add(inst + "/" + id)
 				return c.respond(id, token), nil
 			}})
-			total, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -258,7 +258,7 @@ func TestConnectChildPhases_ParentErrors(t *testing.T) {
 				}
 				return c.respond(id, token), nil
 			}})
-			total, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -273,7 +273,7 @@ func TestConnectChildPhases_ParentErrors(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
 			warns := countWarnings(st)
-			total, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
 			if err != nil || total != 0 {
 				t.Fatalf("got (%d, %v), want (0, nil)", total, err)
 			}
@@ -285,20 +285,20 @@ func TestConnectChildPhases_ParentErrors(t *testing.T) {
 			st := newTestStore(t)
 			c.seedParents(t, st)
 			client := connectStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return nil, connectBadParam }})
-			if _, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterException") {
+			if _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterException") {
 				t.Errorf("err = %v, want InvalidParameterException", err)
 			}
 		})
 		t.Run(c.name+"/unparsable parent is an error", func(t *testing.T) {
 			st := newTestStore(t)
 			upsertTestResource(t, st, "aws", testAccountID, c.parentType, connectTestInstanceARN+"/"+c.parentKind, testRegion, "{}")
-			if _, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st); !errors.Is(err, errConnectParentARN) {
+			if _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st); !errors.Is(err, errConnectParentARN) {
 				t.Errorf("err = %v, want errConnectParentARN", err)
 			}
 		})
 		t.Run(c.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), connectStubClient(nil), newTestAccount(testAccountID), st)
 			if err != nil || total != 0 {
 				t.Errorf("got (%d, %v), want (0, nil)", total, err)
 			}
@@ -354,7 +354,7 @@ func TestScanConnectTestCases_DescribesEveryListedCase(t *testing.T) {
 	st := newTestStore(t)
 	var lists parentCalls
 	client := connectStubClient(testCaseHandlers(&lists, describedTestCase))
-	total, _, err := scanConnectTestCases(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectTestCases(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -390,7 +390,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 			}
 			return list(in)
 		}
-		total, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 2 || *warns != 0 {
 			t.Errorf("got (%d, %v, %d warnings), want i-2's 2 rows, nil, 0 warnings", total, err, *warns)
 		}
@@ -398,7 +398,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	t.Run("list denied warns once", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		total, _, err := scanConnectTestCases(ctx, connectStubClient(nil), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectTestCases(ctx, connectStubClient(nil), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("got (%d, %v, %d warnings), want (0, nil, 1)", total, err, *warns)
 		}
@@ -406,7 +406,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 	t.Run("list error propagates", func(t *testing.T) {
 		st := newTestStore(t)
 		h := map[string]func(any) (any, error){"ListTestCases": func(any) (any, error) { return nil, connectBadParam }}
-		if _, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
+		if _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 			t.Errorf("err = %v, want InvalidParameterException", err)
 		}
 	})
@@ -423,7 +423,7 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 			}
 			return describedTestCase(id)
 		})
-		total, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 1 || *warns != 1 {
 			t.Errorf("got (%d, %v, %d warnings), want (1, nil, 1)", total, err, *warns)
 		}
@@ -432,14 +432,14 @@ func TestScanConnectTestCases_Errors(t *testing.T) {
 		st := newTestStore(t)
 		var lists parentCalls
 		h := testCaseHandlers(&lists, func(string) (any, error) { return nil, connectBadParam })
-		if _, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
+		if _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 			t.Errorf("err = %v, want InvalidParameterException", err)
 		}
 	})
 	t.Run("no test cases", func(t *testing.T) {
 		st := newTestStore(t)
 		h := map[string]func(any) (any, error){"ListTestCases": func(any) (any, error) { return &connect.ListTestCasesOutput{}, nil }}
-		total, _, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectTestCases(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 {
 			t.Errorf("got (%d, %v), want (0, nil)", total, err)
 		}
@@ -470,7 +470,7 @@ func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
 	warns := countWarnings(st)
 	var calls parentCalls
 	client := connectStubClient(map[string]func(any) (any, error){"ListAttachedFilesConfigurations": attachedFilesHandler(&calls)})
-	total, _, err := scanConnectAttachedFilesConfigurations(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConnectAttachedFilesConfigurations(context.Background(), client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -522,7 +522,7 @@ func TestScanConnectAttachedFilesConfigurations_Errors(t *testing.T) {
 			}
 			return ok(in)
 		}})
-		total, _, err := scanConnectAttachedFilesConfigurations(ctx, client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectAttachedFilesConfigurations(ctx, client, connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 2 || *warns != 0 {
 			t.Errorf("got (%d, %v, %d warnings), want (2, nil, 0)", total, err, *warns)
 		}
@@ -530,7 +530,7 @@ func TestScanConnectAttachedFilesConfigurations_Errors(t *testing.T) {
 	t.Run("denied warns once", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		total, _, err := scanConnectAttachedFilesConfigurations(ctx, connectStubClient(nil), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConnectAttachedFilesConfigurations(ctx, connectStubClient(nil), connectInstances("i-1", "i-2"), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("got (%d, %v, %d warnings), want (0, nil, 1)", total, err, *warns)
 		}
@@ -538,7 +538,7 @@ func TestScanConnectAttachedFilesConfigurations_Errors(t *testing.T) {
 	t.Run("other error propagates", func(t *testing.T) {
 		st := newTestStore(t)
 		client := connectStubClient(map[string]func(any) (any, error){"ListAttachedFilesConfigurations": func(any) (any, error) { return nil, connectBadParam }})
-		if _, _, err := scanConnectAttachedFilesConfigurations(ctx, client, connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
+		if _, err := scanConnectAttachedFilesConfigurations(ctx, client, connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 			t.Errorf("err = %v, want InvalidParameterException", err)
 		}
 	})
@@ -622,7 +622,7 @@ func TestScanConnect_ChildrenReadParentsTheFamiliesStored(t *testing.T) {
 	maps.Copy(h, connectChildOps)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = connectStubConfig(h)
-	if _, _, err := scanConnect(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanConnect(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanConnect: %v", err)
 	}
 	for typ, id := range connectChildRowIDs {
@@ -649,7 +649,7 @@ func TestScanConnect_ChildPhaseErrorAfterFamilies(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, connectBadParam }
 			acct := newTestAccount(testAccountID)
 			acct.cfg = connectStubConfig(h)
-			if _, _, err := scanConnect(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
+			if _, err := scanConnect(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterException") {
 				t.Fatalf("err = %v, want InvalidParameterException", err)
 			}
 			for typ, id := range familyRows {

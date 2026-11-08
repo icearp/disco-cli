@@ -58,7 +58,9 @@ func TestScanArtifactRegistry_RepoPackageTagRuleAttachmentChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeArtifactRegistryService(t, srv)
 
-	total, inserted, err := scanArtifactRegistryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanArtifactRegistryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanArtifactRegistryWithClient: %v", err)
 	}
@@ -142,7 +144,9 @@ func TestScanArtifactRegistry_PackagesAPINotEnabledShapeDoesNotDisableWholeServi
 	t.Cleanup(srv.Close)
 	svc := fakeArtifactRegistryService(t, srv)
 
-	total, inserted, err := scanArtifactRegistryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanArtifactRegistryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanArtifactRegistryWithClient: %v (Packages.List's isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel — Repositories.List already proved the API enabled)", err)
 	}
@@ -186,7 +190,9 @@ func TestScanArtifactRegistry_RulesPermissionDeniedContinuesToAttachments(t *tes
 	t.Cleanup(srv.Close)
 	svc := fakeArtifactRegistryService(t, srv)
 
-	total, inserted, err := scanArtifactRegistryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanArtifactRegistryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanArtifactRegistryWithClient: %v", err)
 	}
@@ -207,7 +213,9 @@ func TestScanArtifactRegistry_EmptyProjectNoRepositories(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeArtifactRegistryService(t, srv)
 
-	total, inserted, err := scanArtifactRegistryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanArtifactRegistryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanArtifactRegistryWithClient: %v", err)
 	}

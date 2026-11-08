@@ -178,7 +178,7 @@ var dlFixtureRows = len(dlTaggedRows()) + len(dlUntaggedRows())
 
 // dlScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func dlScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func dlScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, dlDenied)
@@ -203,7 +203,9 @@ func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newDLCalls()
 
-	total, inserted, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := dlScan(context.Background(), t, counted, dlHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -274,17 +276,17 @@ func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanDeadline_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newDLCalls()
-	if _, _, err := dlScan(context.Background(), t, st, dlHandlers(calls)); err != nil {
+	if _, err := dlScan(context.Background(), t, st, dlHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+	total, err := dlScan(context.Background(), t, st, dlHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -328,7 +330,7 @@ func dlTagReadFailures(t *testing.T, target dlRow) {
 			calls := newDLCalls()
 			calls.errs[target.arn] = c.err
 
-			_, _, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+			_, err := dlScan(context.Background(), t, st, dlHandlers(calls))
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -379,7 +381,7 @@ func TestScanDeadline_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[dlFarm("tagged")+"/queue/tagged"] = dlThrottle
 	calls.errs[dlFarm("tagged")+"/queue/bare"] = dlBadInput
 
-	_, _, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+	_, err := dlScan(context.Background(), t, st, dlHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -400,7 +402,7 @@ func TestScanDeadline_FailedWriteStopsWithoutWarning(t *testing.T) {
 	handlers := dlHandlers(calls)
 	handlers["ListFleets"] = failOnCall(2, dlDenied, handlers["ListFleets"])
 
-	_, _, err := dlScan(context.Background(), t, st, handlers)
+	_, err := dlScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -433,7 +435,7 @@ func TestScanDeadline_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return listBudgets(in)
 	}
 
-	_, _, err := dlScan(context.Background(), t, st, handlers)
+	_, err := dlScan(context.Background(), t, st, handlers)
 	for _, code := range []string{"ValidationException", "ServiceQuotaExceededException", "ConflictException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -495,7 +497,7 @@ func TestScanDeadline_UnstorableItemsWarn(t *testing.T) {
 			handlers := dlHandlers(newDLCalls())
 			handlers[tc.op] = tc.answer
 
-			if _, _, err := dlScan(context.Background(), t, st, handlers); err != nil {
+			if _, err := dlScan(context.Background(), t, st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := len(rowsByNativeID(t, st, tc.typ)); got != 1 {
@@ -520,7 +522,7 @@ func TestScanDeadline_RepeatedTokenKeepsPages(t *testing.T) {
 		return &deadline.ListMonitorsOutput{Monitors: []dltypes.MonitorSummary{{MonitorId: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := dlScan(context.Background(), t, st, handlers)
+	_, err := dlScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -550,7 +552,7 @@ func TestScanDeadline_ContextEndStopsOnce(t *testing.T) {
 		return queues(in)
 	}
 
-	_, _, err := dlScan(ctx, t, st, handlers)
+	_, err := dlScan(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -582,7 +584,7 @@ func TestScanDeadline_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := dlHandlers(newDLCalls())
 		handlers["ListMonitors"] = func(any) (any, error) { return nil, nx }
-		total, _, err := dlScan(context.Background(), t, st, handlers)
+		total, err := dlScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total == 0 {
 			t.Error("total = 0; want the stored rows counted")
@@ -592,7 +594,7 @@ func TestScanDeadline_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newDLCalls()
 		calls.errs[dlFarm("tagged")] = nx
-		_, _, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+		_, err := dlScan(context.Background(), t, st, dlHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -600,7 +602,7 @@ func TestScanDeadline_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanDeadline(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanDeadline(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

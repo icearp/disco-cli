@@ -58,7 +58,9 @@ func TestScanCertificateManager_FullChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCertificateManagerService(t, srv)
 
-	total, inserted, err := scanCertificateManagerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCertificateManagerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCertificateManagerWithClient: %v", err)
 	}
@@ -117,7 +119,9 @@ func TestScanCertificateManager_TrustConfigsAPINotEnabledShapeDoesNotDisableWhol
 	t.Cleanup(srv.Close)
 	svc := fakeCertificateManagerService(t, srv)
 
-	total, inserted, err := scanCertificateManagerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCertificateManagerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCertificateManagerWithClient: %v (TrustConfigs' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -140,7 +144,9 @@ func TestScanCertificateManager_EmptyProject(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCertificateManagerService(t, srv)
 
-	total, inserted, err := scanCertificateManagerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCertificateManagerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCertificateManagerWithClient: %v", err)
 	}

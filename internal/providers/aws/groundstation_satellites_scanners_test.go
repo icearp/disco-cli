@@ -74,7 +74,7 @@ func TestScanGSSatellites_PaginatesAndSkipsARNless(t *testing.T) {
 		{satellites: []gstypes.SatelliteListItem{gsSatellite("b")}},
 	}}
 
-	total, _, err := scanGSSatellites(context.Background(), stub, newTestAccount(testAccountID), st, testScanID)
+	total, err := scanGSSatellites(context.Background(), stub, newTestAccount(testAccountID), st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scanGSSatellites = (%d, %v); want (2, nil)", total, err)
 	}
@@ -126,7 +126,7 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(recordRegion, testRegion)}
 	for _, region := range []string{"us-east-1", "eu-west-1"} {
-		if _, _, err := entry.fn(context.Background(), acct, region, st, testScanID); err != nil {
+		if _, err := entry.fn(context.Background(), acct, region, st, testScanID); err != nil {
 			t.Fatalf("fn(%s): %v", region, err)
 		}
 	}
@@ -156,7 +156,7 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 func TestScanGSSatellites_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{}}}, newTestAccount(testAccountID), st, testScanID)
+	total, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{}}}, newTestAccount(testAccountID), st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -174,7 +174,7 @@ func TestScanGSSatellites_AccessDeniedKeepsEarlierPages(t *testing.T) {
 		{satellites: []gstypes.SatelliteListItem{gsSatellite("a")}},
 		{err: apiErr("AccessDeniedException", "User: x is not authorized to perform: groundstation:List")},
 	}}
-	total, _, err := scanGSSatellites(context.Background(), stub, newTestAccount(testAccountID), st, testScanID)
+	total, err := scanGSSatellites(context.Background(), stub, newTestAccount(testAccountID), st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = (%d, %v); want (1, nil)", total, err)
 	}
@@ -189,7 +189,7 @@ func TestScanGSSatellites_AccessDeniedKeepsEarlierPages(t *testing.T) {
 func TestScanGSSatellites_OtherErrorPropagates(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	_, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{err: apiErr("InvalidParameterException", "bad")}}}, newTestAccount(testAccountID), st, testScanID)
+	_, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{err: apiErr("InvalidParameterException", "bad")}}}, newTestAccount(testAccountID), st, testScanID)
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Fatalf("err = %v; want InvalidParameterException", err)
 	}

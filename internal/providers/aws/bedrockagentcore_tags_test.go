@@ -347,12 +347,12 @@ func bacTaggedARNs(c *bacCalls) []string {
 
 // bacScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func bacScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func bacScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	return bacScanCtx(context.Background(), t, st, handlers)
 }
 
-func bacScanCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func bacScanCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock-agentcore:Op"))
@@ -397,7 +397,9 @@ func TestScanBedrockAgentCore_StoresTagsOfEveryTaggedType(t *testing.T) {
 	calls := newBACCalls()
 	wantARNs := bacTaggedARNs(calls)
 
-	total, inserted, err := bacScan(t, st, bacHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := bacScan(t, counted, bacHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -484,7 +486,7 @@ func TestScanBedrockAgentCore_GatewayARNMatchesGetGateway(t *testing.T) {
 			return &bac.ListGatewaysOutput{Items: []bactypes.GatewaySummary{{GatewayId: sdkaws.String("gw-abc123")}}}
 		}),
 	}
-	if _, _, err := bacScan(t, st, handlers); err != nil {
+	if _, err := bacScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if _, ok := bacRowOf(t, st, TypeBedrockAgentCoreGateway, *got.GatewayArn); !ok {
@@ -501,10 +503,12 @@ func TestScanBedrockAgentCore_RescanInsertsNone(t *testing.T) {
 	st := newTestStore(t)
 	calls := newBACCalls()
 	bacTaggedARNs(calls)
-	if _, _, err := bacScan(t, st, bacHandlers(calls)); err != nil {
+	if _, err := bacScan(t, st, bacHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := bacScan(t, st, bacHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := bacScan(t, counted, bacHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -550,7 +554,7 @@ func bacTagReadFailures(t *testing.T, typ, arn string) {
 			bacTaggedARNs(calls)
 			calls.errs[arn] = c.err
 
-			_, _, err := bacScan(t, st, bacHandlers(calls))
+			_, err := bacScan(t, st, bacHandlers(calls))
 			if !c.fails && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -601,7 +605,7 @@ func TestScanBedrockAgentCore_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[bacTestARN("runtime", "tagged")] = apiErr("ThrottlingException", "Rate exceeded")
 	calls.errs[bacTestARN("memory", "tagged")] = apiErr("ValidationException", "bad")
 
-	_, _, err := bacScan(t, st, bacHandlers(calls))
+	_, err := bacScan(t, st, bacHandlers(calls))
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 	}
@@ -647,7 +651,7 @@ func TestScanBedrockAgentCore_FailedWriteStopsWithoutWarning(t *testing.T) {
 				}
 			}
 
-			_, _, err := bacScan(t, st, handlers)
+			_, err := bacScan(t, st, handlers)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -675,7 +679,7 @@ func TestScanBedrockAgentCore_FailedWriteSendsNoUnauthorizedWarning(t *testing.T
 	handlers := bacHandlers(calls)
 	handlers["ListWorkloadIdentities"] = failOnCall(2, apiErr("UnauthorizedException", "JWT bearer token invalid or not found"), handlers["ListWorkloadIdentities"])
 
-	_, _, err := bacScan(t, st, handlers)
+	_, err := bacScan(t, st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -702,7 +706,7 @@ func TestScanBedrockAgentCore_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.
 	}
 	handlers["ListPolicies"] = func(any) (any, error) { return nil, apiErr("ConflictException", "policies") }
 
-	_, _, err := bacScan(t, st, handlers)
+	_, err := bacScan(t, st, handlers)
 	for _, code := range []string{"ValidationException", "InvalidParameterException", "ConflictException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -795,7 +799,7 @@ func TestScanBedrockAgentCore_RegionGapOnlyOnFirstPage(t *testing.T) {
 			handlers := bacHandlers(calls)
 			handlers[c.op] = failOnCall(c.call, c.err, handlers[c.op])
 
-			_, _, err := bacScan(t, st, handlers)
+			_, err := bacScan(t, st, handlers)
 			if (err != nil) != c.wantErr {
 				t.Fatalf("err = %v; want an error: %v", err, c.wantErr)
 			}
@@ -836,7 +840,7 @@ func TestScanBedrockAgentCore_UnauthorizedIsDenial(t *testing.T) {
 				handlers := bacHandlers(calls)
 				handlers[l.op] = failOnCall(call, unauthorized, handlers[l.op])
 
-				if _, _, err := bacScan(t, st, handlers); err != nil {
+				if _, err := bacScan(t, st, handlers); err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
 				if len(*warnings) != 1 {
@@ -892,7 +896,7 @@ func TestScanBedrockAgentCore_ChildListingFailures(t *testing.T) {
 					return next(in)
 				}
 
-				_, _, err := bacScan(t, st, handlers)
+				_, err := bacScan(t, st, handlers)
 				if tc.wantCode == "" && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -960,7 +964,7 @@ func TestScanBedrockAgentCore_UnstorableItemsWarn(t *testing.T) {
 			handlers := bacHandlers(calls)
 			handlers[tc.op] = tc.answer
 
-			if _, _, err := bacScan(t, st, handlers); err != nil {
+			if _, err := bacScan(t, st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := len(rowsByNativeID(t, st, tc.typ)); got != tc.stored {
@@ -1013,7 +1017,7 @@ func TestScanBedrockAgentCore_RepeatedTokenKeepsPages(t *testing.T) {
 			handlers := bacHandlers(calls)
 			handlers[tc.op] = func(any) (any, error) { return tc.out, nil }
 
-			_, _, err := bacScan(t, st, handlers)
+			_, err := bacScan(t, st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1059,7 +1063,7 @@ func TestScanBedrockAgentCore_ContextEndStopsOnce(t *testing.T) {
 		return endpoints(in)
 	}
 
-	_, _, err := bacScanCtx(ctx, t, st, handlers)
+	_, err := bacScanCtx(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1101,7 +1105,7 @@ func TestScanBedrockAgentCore_RuntimeEndpointDenialKeepsSiblings(t *testing.T) {
 		return endpoints(in)
 	}
 
-	if _, _, err := bacScan(t, st, handlers); err != nil {
+	if _, err := bacScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -1131,7 +1135,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 		handlers := bacHandlers(calls)
 		handlers["ListCapacityProviders"] = func(any) (any, error) { return nil, nx }
 
-		total, _, err := bacScan(t, st, handlers)
+		total, err := bacScan(t, st, handlers)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 		}
@@ -1140,7 +1144,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 		}
 	})
 	// Every call but those handlers answers fails with nx.
-	nxScan := func(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+	nxScan := func(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 		t.Helper()
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
@@ -1149,7 +1153,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		_, _, err := nxScan(t, st, nil)
+		_, err := nxScan(t, st, nil)
 		if got := classifyServiceError(err); got != outcomeUnavailable {
 			t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
 		}
@@ -1160,7 +1164,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 	t.Run("A/B rows only", func(t *testing.T) {
 		st := newTestStore(t)
 		handlers := bacHandlers(newBACCalls())
-		total, _, err := nxScan(t, st, map[string]func(any) (any, error){"ListABTests": handlers["ListABTests"]})
+		total, err := nxScan(t, st, map[string]func(any) (any, error){"ListABTests": handlers["ListABTests"]})
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError, so the stored A/B rows keep their counts (err %v)", got, err)
 		}
@@ -1172,7 +1176,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := bacHandlers(newBACCalls())
 		dataNX := &net.DNSError{Err: "no such host", Name: "bedrock-agentcore.us-east-1.amazonaws.com", IsNotFound: true}
-		total, _, err := nxScan(t, st, map[string]func(any) (any, error){"ListABTests": failOnCall(2, dataNX, handlers["ListABTests"])})
+		total, err := nxScan(t, st, map[string]func(any) (any, error){"ListABTests": failOnCall(2, dataNX, handlers["ListABTests"])})
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 		}
@@ -1190,7 +1194,7 @@ func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
 			handlers := bacHandlers(calls)
 			handlers["ListABTests"] = failOnCall(call, dataNX, handlers["ListABTests"])
 
-			total, _, err := bacScan(t, st, handlers)
+			total, err := bacScan(t, st, handlers)
 			if call == 1 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}

@@ -36,7 +36,7 @@ func TestScanCloudSearch_NotEntitled(t *testing.T) {
 		Message: "New domain creation not supported on this account. Please reach out to AWS Support for assistance.",
 	}}
 
-	_, _, err := scanCloudSearchWithClient(context.Background(), stub, acct, testRegion, st, testScanID)
+	_, err := scanCloudSearchWithClient(context.Background(), stub, acct, testRegion, st, testScanID)
 	if !errors.Is(err, errServiceNotEntitled) {
 		t.Fatalf("err = %v; want errServiceNotEntitled", err)
 	}

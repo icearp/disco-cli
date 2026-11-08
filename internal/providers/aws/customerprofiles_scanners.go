@@ -66,7 +66,7 @@ const (
 	cpSegmentPageSize = 500
 )
 
-func scanCustomerProfiles(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCustomerProfiles(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := customerprofiles.NewFromConfig(acct.cfg, func(o *customerprofiles.Options) { o.Region = region })
 	return scanCPAll(ctx, client, acct, region, st, scanID)
 }
@@ -74,15 +74,15 @@ func scanCustomerProfiles(ctx context.Context, acct *account, region string, st 
 // scanCPAll stores the domains, then lists each child kind under every domain
 // stored. Every phase runs whatever an earlier one returned, except after a
 // failed store write; a phase that fails keeps the rows it read.
-func scanCPAll(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCPAll(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var errs phaseErrs
-	domains, total, inserted, werr := scanCPDomains(ctx, client, acct, region, st, scanID, &errs)
+	domains, total, werr := scanCPDomains(ctx, client, acct, region, st, scanID, &errs)
 	if werr != nil {
-		return total, inserted, errors.Join(errs.join(st, acct, region), werr)
+		return total, errors.Join(errs.join(st, acct, region), werr)
 	}
 	for _, phase := range []struct {
 		op   string
-		scan func(context.Context, cpAPI, *account, string, *store.Store, string, []string) (int, int, error)
+		scan func(context.Context, cpAPI, *account, string, *store.Store, string, []string) (int, error)
 	}{
 		{cpCalcAttrDefsOp, scanCPCalcAttrDefs},
 		{cpEventStreamsOp, scanCPEventStreams},
@@ -96,15 +96,14 @@ func scanCPAll(ctx context.Context, client cpAPI, acct *account, region string, 
 		{cpRecommenderFiltersOp, scanCPRecommenderFilters},
 		{cpRecommenderSchemasOp, scanCPRecommenderSchemas},
 	} {
-		t, i, ferr := phase.scan(ctx, client, acct, region, st, scanID, domains)
+		t, ferr := phase.scan(ctx, client, acct, region, st, scanID, domains)
 		total += t
-		inserted += i
 		errs.add(phase.op, ferr)
 		if errors.Is(ferr, store.ErrStoreWrite) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // cpDomainReads tallies the listed domains whose GetDomain read failed, one
@@ -121,7 +120,7 @@ type cpDomainReads struct {
 // fails keeps the domains read before it: a denial warns, any other error is
 // filed in errs under ListDomains. GetDomain errors are filed under GetDomain.
 // It returns only a failed write.
-func scanCPDomains(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) ([]string, int, int, error) {
+func scanCPDomains(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) ([]string, int, error) {
 	var (
 		names      []string
 		batch      []*store.Resource
@@ -156,9 +155,9 @@ func scanCPDomains(ctx context.Context, client cpAPI, acct *account, region stri
 		}
 		token = out.NextToken
 	}
-	total, inserted, uerr := upsertBatch(st, batch, "customer-profiles domains")
+	total, uerr := upsertBatch(st, batch, "customer-profiles domains")
 	if uerr != nil {
-		return nil, total, inserted, uerr
+		return nil, total, uerr
 	}
 	if listDenied != nil {
 		_ = skipIfAccessDenied(st, cpListDomainsOp, acct.ID, region, fmt.Errorf(
@@ -172,7 +171,7 @@ func scanCPDomains(ctx context.Context, client cpAPI, acct *account, region stri
 		_ = skipIfTransient(st, cpGetDomainOp, acct.ID, region, fmt.Errorf(kept, reads.transient.count, reads.transient.first, reads.transient.err))
 	}
 	warnNotStored(st, cpListDomainsOp, acct, region, &reads.unkeyed, "domains have an empty DomainName")
-	return names, total, inserted, nil
+	return names, total, nil
 }
 
 // cpDomainRow builds a listed domain's row from its GetDomain body. Tags come
@@ -230,7 +229,7 @@ func cpListChildren[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op, what string, domains []string,
 	list func(ctx context.Context, domain string, token *string) ([]Item, *string, error),
 	row func(domain string, item Item) *store.Resource,
-) (int, int, error) {
+) (int, error) {
 	var (
 		batch           []*store.Resource
 		errs            []error
@@ -267,16 +266,16 @@ func cpListChildren[Item any](
 			token = next
 		}
 	}
-	total, inserted, err := upsertListed(st, batch, op, errors.Join(errs...))
+	total, err := upsertListed(st, batch, op, errors.Join(errs...))
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if denied.count > 0 {
 		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf(
 			"%d domain(s) not fully listed, %s read before the denial kept; first %s: %w", denied.count, what, denied.first, denied.err))
 	}
 	warnNotStored(st, op, acct, region, &unnamed, what+" have an empty identifier")
-	return total, inserted, err
+	return total, err
 }
 
 const (
@@ -293,7 +292,7 @@ const (
 	cpRecommenderSchemasOp = "profile:ListRecommenderSchemas"
 )
 
-func scanCPCalcAttrDefs(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPCalcAttrDefs(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpCalcAttrDefsOp, "calculated attribute definitions", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.ListCalculatedAttributeDefinitionItem, *string, error) {
 			out, err := client.ListCalculatedAttributeDefinitions(ctx, &customerprofiles.ListCalculatedAttributeDefinitionsInput{
@@ -314,7 +313,7 @@ func scanCPCalcAttrDefs(ctx context.Context, client cpAPI, acct *account, region
 		})
 }
 
-func scanCPEventStreams(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPEventStreams(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpEventStreamsOp, "event streams", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.EventStreamSummary, *string, error) {
 			out, err := client.ListEventStreams(ctx, &customerprofiles.ListEventStreamsInput{
@@ -334,7 +333,7 @@ func scanCPEventStreams(ctx context.Context, client cpAPI, acct *account, region
 		})
 }
 
-func scanCPEventTriggers(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPEventTriggers(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpEventTriggersOp, "event triggers", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.EventTriggerSummaryItem, *string, error) {
 			out, err := client.ListEventTriggers(ctx, &customerprofiles.ListEventTriggersInput{
@@ -357,7 +356,7 @@ func scanCPEventTriggers(ctx context.Context, client cpAPI, acct *account, regio
 
 // scanCPIntegrations leaves IncludeHidden unset, so the service's default
 // (false) applies and hidden integrations are not listed.
-func scanCPIntegrations(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPIntegrations(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpIntegrationsOp, "integrations", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.ListIntegrationItem, *string, error) {
 			out, err := client.ListIntegrations(ctx, &customerprofiles.ListIntegrationsInput{
@@ -378,7 +377,7 @@ func scanCPIntegrations(ctx context.Context, client cpAPI, acct *account, region
 		})
 }
 
-func scanCPObjectTypes(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPObjectTypes(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpObjectTypesOp, "object types", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.ListProfileObjectTypeItem, *string, error) {
 			out, err := client.ListProfileObjectTypes(ctx, &customerprofiles.ListProfileObjectTypesInput{
@@ -399,7 +398,7 @@ func scanCPObjectTypes(ctx context.Context, client cpAPI, acct *account, region 
 		})
 }
 
-func scanCPSegmentDefinitions(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPSegmentDefinitions(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpSegmentDefinitionsOp, "segment definitions", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.SegmentDefinitionItem, *string, error) {
 			out, err := client.ListSegmentDefinitions(ctx, &customerprofiles.ListSegmentDefinitionsInput{
@@ -419,7 +418,7 @@ func scanCPSegmentDefinitions(ctx context.Context, client cpAPI, acct *account, 
 		})
 }
 
-func scanCPRecommenders(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPRecommenders(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpRecommendersOp, "recommenders", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.RecommenderSummary, *string, error) {
 			out, err := client.ListRecommenders(ctx, &customerprofiles.ListRecommendersInput{
@@ -440,7 +439,7 @@ func scanCPRecommenders(ctx context.Context, client cpAPI, acct *account, region
 		})
 }
 
-func scanCPLayouts(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPLayouts(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpLayoutsOp, "layouts", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.LayoutItem, *string, error) {
 			out, err := client.ListDomainLayouts(ctx, &customerprofiles.ListDomainLayoutsInput{
@@ -461,7 +460,7 @@ func scanCPLayouts(ctx context.Context, client cpAPI, acct *account, region stri
 		})
 }
 
-func scanCPDomainObjectTypes(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPDomainObjectTypes(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpDomainObjectTypesOp, "domain object types", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.DomainObjectTypesListItem, *string, error) {
 			out, err := client.ListDomainObjectTypes(ctx, &customerprofiles.ListDomainObjectTypesInput{
@@ -482,7 +481,7 @@ func scanCPDomainObjectTypes(ctx context.Context, client cpAPI, acct *account, r
 		})
 }
 
-func scanCPRecommenderFilters(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPRecommenderFilters(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpRecommenderFiltersOp, "recommender filters", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.RecommenderFilterSummary, *string, error) {
 			out, err := client.ListRecommenderFilters(ctx, &customerprofiles.ListRecommenderFiltersInput{
@@ -505,7 +504,7 @@ func scanCPRecommenderFilters(ctx context.Context, client cpAPI, acct *account, 
 
 // scanCPRecommenderSchemas stores no tags: RecommenderSchemaSummary carries
 // none, and ListTagsForResource is not called.
-func scanCPRecommenderSchemas(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, int, error) {
+func scanCPRecommenderSchemas(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID string, domains []string) (int, error) {
 	return cpListChildren(ctx, st, acct, region, cpRecommenderSchemasOp, "recommender schemas", domains,
 		func(ctx context.Context, domain string, token *string) ([]cptypes.RecommenderSchemaSummary, *string, error) {
 			out, err := client.ListRecommenderSchemas(ctx, &customerprofiles.ListRecommenderSchemasInput{

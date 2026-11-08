@@ -38,7 +38,7 @@ type pipeReads struct {
 // keeps the pipes read before it, warning when it was denied and returning
 // any other error after they are stored, as is every DescribePipe error that
 // is neither a denial, a transient failure nor a not-found.
-func scanPipes(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPipes(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := pipes.NewFromConfig(acct.cfg, func(o *pipes.Options) { o.Region = region })
 
 	var (
@@ -52,9 +52,9 @@ func scanPipes(ctx context.Context, acct *account, region string, st *store.Stor
 		out, err := client.ListPipes(ctx, &pipes.ListPipesInput{NextToken: nextToken})
 		if err != nil && nextToken == nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, pipesListOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, pipesListOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", pipesListOp, err)
+			return 0, fmt.Errorf("%s: %w", pipesListOp, err)
 		}
 		if err != nil {
 			if isAccessDenied(err) {
@@ -78,9 +78,9 @@ func scanPipes(ctx context.Context, acct *account, region string, st *store.Stor
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, uerr := upsertBatch(st, batch, "pipes")
+	total, uerr := upsertBatch(st, batch, "pipes")
 	if uerr != nil {
-		return total, inserted, errors.Join(errs.join(st, acct, region), uerr)
+		return total, errors.Join(errs.join(st, acct, region), uerr)
 	}
 	if listDenied != nil {
 		_ = skipIfAccessDenied(st, pipesListOp, acct.ID, region, fmt.Errorf(
@@ -94,7 +94,7 @@ func scanPipes(ctx context.Context, acct *account, region string, st *store.Stor
 	if reads.transient.count > 0 {
 		_ = skipIfTransient(st, pipesDescribeOp, acct.ID, region, fmt.Errorf(kept, reads.transient.count, reads.transient.first, reads.transient.err))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // pipeRow builds a listed pipe's row from its DescribePipe body. A pipe

@@ -122,7 +122,9 @@ func testScanSageMakerMonitoring(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, schedARN, dqARN, biasARN, explARN, qARN)
-	total, inserted, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 6 || inserted != 6 {
 		t.Fatalf("total=%d inserted=%d want 6/6", total, inserted)
@@ -147,7 +149,9 @@ func TestScanSageMakerMonitoringEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerMonitoring{}
-	total, inserted, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -199,7 +203,7 @@ func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T
 		},
 		errs: map[string]error{"gone": apiErr("ResourceNotFound", "schedule not found")},
 	}
-	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -221,7 +225,7 @@ func TestScanSageMakerMonitoringAlerts_NoAlerts(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")
-	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), &stubSMAlerts{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerMonitoringAlerts(context.Background(), &stubSMAlerts{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -233,7 +237,7 @@ func TestScanSageMakerMonitoringAlerts_AccessDeniedWarns(t *testing.T) {
 	warnings := countSMWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")
 	stub := &stubSMAlerts{errs: map[string]error{"s1": apiErr("AccessDeniedException", "denied")}}
-	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerMonitoringAlerts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}

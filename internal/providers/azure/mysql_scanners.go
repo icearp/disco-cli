@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanMySQL discovers Azure Database for MySQL flexible servers.
-func scanMySQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMySQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armmysqlflexibleservers.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmysqlflexibleservers:NewServersClient: %w", err)
+		return 0, fmt.Errorf("armmysqlflexibleservers:NewServersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armmysqlflexibleservers:Servers.List", TypeMySQLFlexibleServer, sub, st, scanID,
 		client.NewListPager(nil),

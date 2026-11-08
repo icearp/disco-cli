@@ -248,7 +248,7 @@ func trsTestHandlers(c *trsTestCalls) map[string]func(in any) (any, error) {
 
 // trsTestScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func trsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func trsTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, trsTestDenied)
 	return scanTranscribe(ctx, acct, testRegion, st, testScanID)
@@ -301,7 +301,9 @@ func TestScanTranscribe_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newTRSTestCalls()
 
-	total, inserted, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := trsTestScan(context.Background(), counted, trsTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -381,7 +383,7 @@ func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := trsTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := trsTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range trsTagReadKinds() {
@@ -391,16 +393,16 @@ func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanTranscribe_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls())); err != nil {
+	if _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls()))
+	total, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -424,7 +426,9 @@ func TestScanTranscribe_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := trsTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := trsTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -474,7 +478,7 @@ func TestScanTranscribe_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+			total, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -525,7 +529,7 @@ func TestScanTranscribe_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[trsTestKindOf(t, "ListVocabularyFilters").arn("tagged")] = trsTestDenied
 	calls.tagErrs[trsTestKindOf(t, "ListMedicalVocabularies").arn("bare")] = trsTestDenied
 
-	total, _, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+	total, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -547,7 +551,7 @@ func TestScanTranscribe_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[trsTestKindOf(t, "ListLanguageModels").arn("bare")] = trsTestThrottle
 	calls.tagErrs[trsTestKindOf(t, "ListMedicalVocabularies").arn("tagged")] = trsTestBad
 
-	_, _, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+	_, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -568,7 +572,7 @@ func TestScanTranscribe_ListThrottleDemotedBesideHardError(t *testing.T) {
 	handlers[categories.op] = calls.failFirstPage(categories, trsTestThrottle)
 	handlers[vocabs.op] = calls.failFirstPage(vocabs, trsTestBad)
 
-	_, _, err := trsTestScan(context.Background(), st, handlers)
+	_, err := trsTestScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -587,7 +591,7 @@ func TestScanTranscribe_FailedWriteStopsScan(t *testing.T) {
 	calls := newTRSTestCalls()
 	calls.tagErrs[trsTestKindOf(t, "ListVocabularies").arn("tagged")] = trsTestDenied
 
-	total, _, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+	total, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -622,7 +626,7 @@ func TestScanTranscribe_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 	medical := trsTestKindOf(t, "ListMedicalVocabularies")
 	handlers[medical.op] = calls.failLaterPage(medical, handlers, trsTestBad)
 
-	_, _, err := trsTestScan(context.Background(), st, handlers)
+	_, err := trsTestScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	w := warns()
@@ -667,7 +671,7 @@ func TestScanTranscribe_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				handlers[c.op] = calls.failFirstPage(k, c.err)
 			}
 
-			total, _, err := trsTestScan(context.Background(), st, handlers)
+			total, err := trsTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -724,7 +728,7 @@ func TestScanTranscribe_RepeatedTokenKeepsPages(t *testing.T) {
 				return k.page(k.element(sdkaws.String(k.name(suffix)), suffix), sdkaws.String("same")), nil
 			}
 
-			total, _, err := trsTestScan(context.Background(), st, handlers)
+			total, err := trsTestScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -763,7 +767,7 @@ func TestScanTranscribe_ElementWithoutName(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := trsTestScan(context.Background(), st, handlers)
+			total, err := trsTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -802,7 +806,7 @@ func TestScanTranscribe_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(trsTestHandlers(calls), trsTestDenied)
-			if _, _, err := scanTranscribe(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanTranscribe(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -845,7 +849,7 @@ func TestScanTranscribe_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := trsTestScan(ctx, st, handlers)
+	_, err := trsTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -884,7 +888,7 @@ func TestScanTranscribe_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := trsTestHandlers(newTRSTestCalls())
 		handlers["ListMedicalVocabularies"] = func(any) (any, error) { return nil, nx }
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := trsTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -894,7 +898,7 @@ func TestScanTranscribe_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newTRSTestCalls()
 		calls.tagErrs[trsTestKindOf(t, "ListLanguageModels").arn("tagged")] = nx
-		_, _, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
+		_, err := trsTestScan(context.Background(), st, trsTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -907,7 +911,7 @@ func TestScanTranscribe_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanTranscribe(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanTranscribe(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -931,7 +935,7 @@ func TestScanTranscribe_FeatureGap(t *testing.T) {
 		handlers := trsTestHandlers(calls)
 		handlers[categories.op] = calls.failFirstPage(categories, trsTestGap)
 
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -948,7 +952,7 @@ func TestScanTranscribe_FeatureGap(t *testing.T) {
 		handlers := trsTestHandlers(calls)
 		handlers[categories.op] = calls.failLaterPage(categories, handlers, trsTestGap)
 
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		if want := trsTestTotal - 1; total != want {
@@ -976,7 +980,7 @@ func TestScanTranscribe_NotOffered(t *testing.T) {
 		categories := trsTestKindOf(t, "ListCallAnalyticsCategories")
 		handlers[categories.op] = calls.failFirstPage(categories, trsTestNotOffered)
 
-		_, _, err := trsTestScan(context.Background(), st, handlers)
+		_, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1000,7 +1004,7 @@ func TestScanTranscribe_NotOffered(t *testing.T) {
 		}
 		handlers[vocabs.op] = calls.failFirstPage(vocabs, trsTestNotOffered)
 
-		_, _, err := trsTestScan(context.Background(), st, handlers)
+		_, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if got := trsWarnOps(warns()); !slices.Equal(got, []string{"transcribe:ListCallAnalyticsCategories"}) {
 			t.Errorf("warnings = %v; want the categories denial", got)
@@ -1024,7 +1028,7 @@ func TestScanTranscribe_NotOffered(t *testing.T) {
 			return &transcribe.ListCallAnalyticsCategoriesOutput{NextToken: sdkaws.String("p2")}, nil
 		}
 
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		if want := trsTestTotal - 2; total != want {
@@ -1039,7 +1043,7 @@ func TestScanTranscribe_NotOffered(t *testing.T) {
 		handlers[categories.op] = calls.failFirstPage(categories, trsTestBad)
 		handlers[models.op] = calls.failFirstPage(models, trsTestNotOffered)
 
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		if want := trsTestTotal - 4; total != want {
@@ -1058,7 +1062,7 @@ func TestScanTranscribe_NotOffered(t *testing.T) {
 		vocabs := trsTestKindOf(t, "ListVocabularies")
 		handlers[vocabs.op] = calls.failFirstPage(vocabs, trsTestNotOffered)
 
-		total, _, err := trsTestScan(context.Background(), st, handlers)
+		total, err := trsTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		if want := trsTestTotal - 2; total != want {

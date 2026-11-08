@@ -45,47 +45,46 @@ const xrayGetIndexingRulesOp = "xray:GetIndexingRules"
 // warning only beside a hard error: joined, it would be buried in the hard
 // error instead of reported under its op; the rest are joined and the counts
 // summed.
-func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := xray.NewFromConfig(acct.cfg, func(o *xray.Options) { o.Region = region })
-	total, inserted, err := scanXRayOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, ierr := scanXRayIndexingRules(ctx, client, acct, region, st, scanID)
+	total, err := scanXRayOlderPhases(ctx, client, acct, region, st, scanID)
+	t, ierr := scanXRayIndexingRules(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add("xray", err)
 	errs.add(xrayGetIndexingRulesOp, ierr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // scanXRayOlderPhases runs the phases that predate indexing rules, stopping at
 // the first hard error.
-func scanXRayOlderPhases(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanXRayGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanXRayResourcePolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanXRaySamplingRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+func scanXRayOlderPhases(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanXRayGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanXRayResourcePolicies(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanXRaySamplingRules(ctx, client, acct, region, st, scanID) },
+		func() (int, error) {
 			return scanXRayTransactionSearchConfig(ctx, client, acct, region, st, scanID)
 		},
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := xray.NewGetGroupsPaginator(client, &xray.GetGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "xray:GetGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "xray:GetGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("xray:GetGroups: %w", err)
+			return 0, fmt.Errorf("xray:GetGroups: %w", err)
 		}
 		for _, g := range out.Groups {
 			arn := sv(g.GroupARN)
@@ -104,16 +103,16 @@ func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region s
 }
 
 // scanXRayResourcePolicies synthesizes ARN per policy: arn:{p}:xray:{r}:{a}:resource-policy/{name}.
-func scanXRayResourcePolicies(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRayResourcePolicies(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := xray.NewListResourcePoliciesPaginator(client, &xray.ListResourcePoliciesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "xray:ListResourcePolicies", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "xray:ListResourcePolicies", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("xray:ListResourcePolicies: %w", err)
+			return 0, fmt.Errorf("xray:ListResourcePolicies: %w", err)
 		}
 		for _, p := range out.ResourcePolicies {
 			name := sv(p.PolicyName)
@@ -132,16 +131,16 @@ func scanXRayResourcePolicies(ctx context.Context, client xrayAPI, acct *account
 	return upsertBatch(st, batch, "xray resource-policies")
 }
 
-func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := xray.NewGetSamplingRulesPaginator(client, &xray.GetSamplingRulesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "xray:GetSamplingRules", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "xray:GetSamplingRules", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("xray:GetSamplingRules: %w", err)
+			return 0, fmt.Errorf("xray:GetSamplingRules: %w", err)
 		}
 		for _, r := range out.SamplingRuleRecords {
 			if r.SamplingRule == nil {
@@ -165,16 +164,16 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 // scanXRayTransactionSearchConfig captures the per-(account,region)
 // trace-segment-destination singleton backing X-Ray Transaction Search. No
 // ARN — synthesize one.
-func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetTraceSegmentDestination(ctx, &xray.GetTraceSegmentDestinationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "xray:GetTraceSegmentDestination", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "xray:GetTraceSegmentDestination", acct.ID, region, err)
 		}
 		if isAPIErrorCode(err, "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("xray:GetTraceSegmentDestination: %w", err)
+		return 0, fmt.Errorf("xray:GetTraceSegmentDestination: %w", err)
 	}
 	arn := arnFor(acct.partition(), "xray", region, acct.ID, "transaction-search-config")
 	label := "transaction-search-config"
@@ -230,7 +229,7 @@ func xrayIndexingRuleNativeID(partition, region, accountID, name string) string 
 // page warns rather than fails: disco builds no input for that call, and it is
 // unverified whether a region without Transaction Search answers with it. On a
 // later page it is returned, since there disco echoes a NextToken.
-func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	in := &xray.GetIndexingRulesInput{}
 	var (
 		batch   []*store.Resource
@@ -247,10 +246,10 @@ func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, r
 				Provider: "aws", Service: xrayGetIndexingRulesOp, Scope: acct.ID + "/" + region,
 				Message: fmt.Sprintf("indexing rules not listed: InvalidRequestException; the region may lack Transaction Search (unverified): %v", err),
 			})
-			return 0, 0, nil
+			return 0, nil
 		}
 		if err != nil {
-			return 0, 0, fmt.Errorf("%s: %w", xrayGetIndexingRulesOp, err)
+			return 0, fmt.Errorf("%s: %w", xrayGetIndexingRulesOp, err)
 		}
 		for _, r := range out.IndexingRules {
 			name := sv(r.Name)

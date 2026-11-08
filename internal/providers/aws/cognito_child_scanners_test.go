@@ -193,7 +193,7 @@ type cogChildPhase struct {
 	parentARN func(key string) string
 	callKey   func(key string) string
 	seedOK    func(f *cogFake, key string) (native string)
-	run       func(f *cogFake, st *store.Store, keys []string) (int, int, error)
+	run       func(f *cogFake, st *store.Store, keys []string) (int, error)
 }
 
 func cogChildPhases() []cogChildPhase {
@@ -210,7 +210,7 @@ func cogChildPhases() []cogChildPhase {
 				}}
 				return cogTestPoolARN(testRegion, key) + "/replica/us-west-2"
 			},
-			run: func(f *cogFake, st *store.Store, keys []string) (int, int, error) {
+			run: func(f *cogFake, st *store.Store, keys []string) (int, error) {
 				var pools []childParent
 				for _, k := range keys {
 					pools = append(pools, childParent{id: k, arn: cogTestPoolARN(testRegion, k)})
@@ -226,7 +226,7 @@ func cogChildPhases() []cogChildPhase {
 				f.secrets[key] = [][]cognitoidptypes.ClientSecretDescriptorType{{cogSecret(key + "--1")}}
 				return cogTestClientARN("pool", key) + "/secret/" + key + "--1"
 			},
-			run: func(f *cogFake, st *store.Store, keys []string) (int, int, error) {
+			run: func(f *cogFake, st *store.Store, keys []string) (int, error) {
 				var clients []cognitoAppClientRef
 				for _, k := range keys {
 					clients = append(clients, cognitoAppClientRef{poolID: "pool", clientID: k, arn: cogTestClientARN("pool", k)})
@@ -262,7 +262,7 @@ func TestScanCognitoUserPoolReplicas_PagesStoredUnderPrimary(t *testing.T) {
 	}
 	f.errs["ListUserPoolReplicas p2-gone"] = bcmPCAPIErr("ResourceNotFoundException", "gone")
 
-	total, _, err := ph.run(f, st, []string{"p1", "p2-gone"})
+	total, err := ph.run(f, st, []string{"p1", "p2-gone"})
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestScanCognitoUserPoolReplicas_ListingNotFromPrimaryNotStored(t *testing.T
 			ph.seedParents(t, st, "p1")
 			f := newCogFake()
 			f.replicas["p1"] = [][]cognitoidptypes.UserPoolReplicaType{listing}
-			total, _, err := ph.run(f, st, []string{"p1"})
+			total, err := ph.run(f, st, []string{"p1"})
 			if err != nil || total != 0 {
 				t.Errorf("scan = (%d, %v); want (0, nil)", total, err)
 			}
@@ -342,7 +342,7 @@ func TestScanCognitoUserPoolClientSecrets_PagesStoredUnderClient(t *testing.T) {
 	f.secrets["c1"] = [][]cognitoidptypes.ClientSecretDescriptorType{{cogSecret("c1--1")}, {cogSecret("c1--2"), {}}}
 	f.errs["ListUserPoolClientSecrets pool/c2-gone"] = bcmPCAPIErr("ResourceNotFoundException", "gone")
 
-	total, _, err := ph.run(f, st, []string{"c1", "c2-gone"})
+	total, err := ph.run(f, st, []string{"c1", "c2-gone"})
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestScanCognitoChildren_Empty(t *testing.T) {
 			st := newTestStore(t)
 			ph.seedParents(t, st, "p1")
 			f := newCogFake()
-			total, _, err := ph.run(f, st, []string{"p1"})
+			total, err := ph.run(f, st, []string{"p1"})
 			if err != nil || total != 0 {
 				t.Errorf("scan = (%d, %v); want (0, nil)", total, err)
 			}
@@ -418,7 +418,7 @@ func TestScanCognitoChildren_RepeatedTokenFails(t *testing.T) {
 				f.replicas[k] = append(f.replicas[k], nil)
 				f.secrets[k] = append(f.secrets[k], nil)
 			}
-			if _, _, err := ph.run(f, st, keys); !errors.Is(err, errRepeatedNextToken) {
+			if _, err := ph.run(f, st, keys); !errors.Is(err, errRepeatedNextToken) {
 				t.Errorf("err = %v; want errRepeatedNextToken", err)
 			}
 			if n := len(f.calls.ids); n != 4 {
@@ -470,7 +470,7 @@ func TestScanCognitoChildren_ParentErrors(t *testing.T) {
 				f.errs[ph.op+" "+ph.callKey("p2")] = tc.err
 				native := ph.seedOK(f, "p3")
 
-				_, _, err := ph.run(f, st, []string{"p1", "p2", "p3"})
+				_, err := ph.run(f, st, []string{"p1", "p2", "p3"})
 				if tc.wantErrCode != "" {
 					if !isAPIErrorCode(err, tc.wantErrCode) {
 						t.Errorf("err = %v; want %s", err, tc.wantErrCode)
@@ -521,7 +521,7 @@ var (
 	cogTopSecretNative  = cogTestClientARN(cogP1, "c1") + "/secret/c1--1"
 )
 
-func runCognitoAll(f *cogFake, st *store.Store) (int, int, error) {
+func runCognitoAll(f *cogFake, st *store.Store) (int, error) {
 	return scanCognitoAll(context.Background(), f.client(), cogIdentityClient(), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
@@ -538,7 +538,7 @@ func TestScanCognitoAll_StoresChildrenOfListedParents(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := cogTopLevelFake()
-	total, _, err := runCognitoAll(f, st)
+	total, err := runCognitoAll(f, st)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -577,7 +577,7 @@ func TestScanCognitoAll_ChildPhasesRunAfterOlderPhaseFailure(t *testing.T) {
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	f.groupsErr = bcmPCAPIErr("InvalidParameterException", "bad")
-	total, _, err := runCognitoAll(f, st)
+	total, err := runCognitoAll(f, st)
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("err = %v; want the ListGroups InvalidParameterException", err)
 	}
@@ -598,7 +598,7 @@ func TestScanCognitoAll_ChildPhaseErrorKeepsOtherPhases(t *testing.T) {
 			st := newTestStore(t)
 			f := cogTopLevelFake()
 			f.errs[failing] = bcmPCAPIErr("InvalidParameterException", "bad")
-			total, _, err := runCognitoAll(f, st)
+			total, err := runCognitoAll(f, st)
 			if !isAPIErrorCode(err, "InvalidParameterException") {
 				t.Errorf("err = %v; want the %s InvalidParameterException", err, failing)
 			}
@@ -626,7 +626,7 @@ func TestScanCognitoAll_OlderTransientDoesNotHideChildHardError(t *testing.T) {
 	f := cogTopLevelFake()
 	f.groupsErr = bcmPCAPIErr("TooManyRequestsException", "slow down")
 	f.errs["ListUserPoolReplicas "+cogP1] = bcmPCAPIErr("InvalidParameterException", "bad")
-	_, _, err := runCognitoAll(f, st)
+	_, err := runCognitoAll(f, st)
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("outcome = %d, err = %v; want outcomeError (%d) with the replica InvalidParameterException", got, err, outcomeError)
 	}
@@ -643,7 +643,7 @@ func TestScanCognitoAll_PoolDescribeFailureKeepsChildren(t *testing.T) {
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	f.errs["DescribeUserPool p2"] = bcmPCAPIErr("InvalidParameterException", "bad")
-	_, _, err := runCognitoAll(f, st)
+	_, err := runCognitoAll(f, st)
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("err = %v; want the DescribeUserPool InvalidParameterException", err)
 	}

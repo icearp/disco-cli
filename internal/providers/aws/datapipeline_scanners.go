@@ -36,7 +36,7 @@ type dataPipelineAPI interface {
 // scanDataPipeline discovers AWS Data Pipeline pipelines. The service is closed
 // to new customers (2024); accounts that never onboarded can't self-enable it,
 // so the scanner marks it not-entitled → (account: not entitled).
-func scanDataPipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataPipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := datapipeline.NewFromConfig(acct.cfg, func(o *datapipeline.Options) { o.Region = region })
 	return scanDataPipelinePipelines(ctx, client, acct, region, st, scanID)
 }
@@ -47,7 +47,7 @@ func scanDataPipeline(ctx context.Context, acct *account, region string, st *sto
 // a failed list page keeps the pipelines of the pages read before it, and a
 // failed describe batch costs only its own pipelines. A denial is warned about
 // once per op; any other error is returned after the rows are stored.
-func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed, listErr := readTokenPages(ctx, func(ctx context.Context, marker *string) ([]dptypes.PipelineIdName, *string, error) {
 		out, err := client.ListPipelines(ctx, &datapipeline.ListPipelinesInput{Marker: marker})
 		if err != nil {
@@ -56,7 +56,7 @@ func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct
 		return out.PipelineIdList, out.Marker, nil
 	})
 	if len(listed) == 0 && isClosedToNewCustomers(listErr) {
-		return 0, 0, markServiceNotEntitled(listErr)
+		return 0, markServiceNotEntitled(listErr)
 	}
 
 	var (
@@ -77,10 +77,10 @@ func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct
 	if isAccessDenied(listErr) {
 		listDenied, listErr = listErr, nil
 	}
-	total, inserted, err := upsertListed(st, rows, dataPipelineListOp, listErr)
+	total, err := upsertListed(st, rows, dataPipelineListOp, listErr)
 	err = errors.Join(err, describeErr)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if listDenied != nil {
 		_ = skipIfAccessDenied(st, dataPipelineListOp, acct.ID, region, listDenied)
@@ -91,7 +91,7 @@ func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct
 	}
 	skips.warn(st, dataPipelineListOp, acct, region)
 	describeSkips.warn(st, dataPipelineDescribeOp, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // dataPipelineGoneCodes are the codes DescribePipelines models for a pipeline

@@ -21,7 +21,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeAccountAccessEntitlement, Service: "account-access"})
 	registerService(serviceEntry{
 		name: "aws:account-access",
-		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 			client := accountaccess.NewFromConfig(acct.cfg, func(o *accountaccess.Options) { o.Region = region })
 			return scanAccountAccess(ctx, client, acct, region, st, scanID)
 		},
@@ -39,13 +39,13 @@ type accountAccessAPI interface {
 // applications, then the entitlements of each stored application. The
 // entitlement phase needs the applications as parents, so a hard error in the
 // application phase ends the scan.
-func scanAccountAccess(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, apps, err := scanAccountAccessApplications(ctx, client, acct, region, st, scanID)
+func scanAccountAccess(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, apps, err := scanAccountAccessApplications(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err := scanAccountAccessEntitlements(ctx, client, acct, region, st, scanID, apps)
-	return total + t, inserted + i, err
+	t, err := scanAccountAccessEntitlements(ctx, client, acct, region, st, scanID, apps)
+	return total + t, err
 }
 
 // accountAccessApps are the applications stored this scan: parents for the
@@ -59,7 +59,7 @@ type accountAccessApps struct {
 // each with GetApplication: only it carries the status, identity source and
 // tags. A denial mid-listing warns and keeps the applications listed so far;
 // an application deleted between the list and its Get is skipped.
-func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, accountAccessApps, error) {
+func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, accountAccessApps, error) {
 	apps := accountAccessApps{notActive: map[string]bool{}}
 	var arns []string
 	pager := accountaccess.NewListApplicationsPaginator(client, &accountaccess.ListApplicationsInput{MaxResults: sdkaws.Int32(100)},
@@ -71,7 +71,7 @@ func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI,
 				_ = skipIfAccessDenied(st, "account-access:ListApplications", acct.ID, region, err)
 				break
 			}
-			return 0, 0, apps, fmt.Errorf("account-access:ListApplications: %w", err)
+			return 0, apps, fmt.Errorf("account-access:ListApplications: %w", err)
 		}
 		for _, a := range out.Applications {
 			if arn := sv(a.ApplicationArn); arn != "" {
@@ -96,11 +96,11 @@ func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI,
 			}, nil
 		})
 	if err != nil {
-		return 0, 0, apps, err
+		return 0, apps, err
 	}
-	total, inserted, err := upsertBatch(st, rows, "account-access applications")
+	total, err := upsertBatch(st, rows, "account-access applications")
 	if err != nil {
-		return 0, 0, apps, err
+		return 0, apps, err
 	}
 	for _, r := range rows {
 		apps.parents = append(apps.parents, childParent{id: r.NativeID, arn: r.NativeID})
@@ -108,7 +108,7 @@ func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI,
 			apps.notActive[r.NativeID] = true
 		}
 	}
-	return total, inserted, apps, nil
+	return total, apps, nil
 }
 
 // scanAccountAccessEntitlements lists the entitlements of each application
@@ -120,10 +120,10 @@ func scanAccountAccessApplications(ctx context.Context, client accountAccessAPI,
 // ValidationException (not observed live), so that code skips it with one
 // warning; from an ACTIVE application the code is returned, since the only
 // inputs are the listed ARN, the empty filter and a fixed page size.
-func scanAccountAccessEntitlements(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string, apps accountAccessApps) (int, int, error) {
+func scanAccountAccessEntitlements(ctx context.Context, client accountAccessAPI, acct *account, region string, st *store.Store, scanID string, apps accountAccessApps) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	var notReady skipTally
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, accountAccessListEntitlementsOp, apps.parents, isGone, byParentARN,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, accountAccessListEntitlementsOp, apps.parents, isGone, byParentARN,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := listAccountAccessEntitlements(ctx, client, acct, region, scanID, p)
 			if apps.notActive[p.arn] && notReady.dropCode("ValidationException", p.arn, err) {
@@ -133,7 +133,7 @@ func scanAccountAccessEntitlements(ctx context.Context, client accountAccessAPI,
 		})
 	notReady.warnCode(st, accountAccessListEntitlementsOp, acct, region, "ValidationException", "application(s)",
 		"an application that is not ACTIVE may refuse its entitlement listing")
-	return total, inserted, err
+	return total, err
 }
 
 // listAccountAccessEntitlements returns the entitlements of one application.

@@ -73,10 +73,10 @@ const lmPageSize = 100
 // licenses and tokens are not read: the Service Reference lists neither among
 // the types ListTagsForResource accepts. The tag denials of the whole scan are one
 // warning.
-func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("licensemanager")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	// The SDK neither lists RateLimitExceededException, License Manager's HTTP
 	// 429 throttle, among its throttle codes nor retries a 429 by status, so
@@ -97,18 +97,18 @@ func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.
 	// it themselves (lmNotSetUpGap); judged records it for the two read
 	// through lmListPhase, which returns it.
 	var notSetUp phaseErrs
-	judged := func(op string, run func() (int, int, error)) hostPhase {
-		return countedPhase(0, op, func() (int, int, error) {
-			t, i, err := run()
+	judged := func(op string, run func() (int, error)) hostPhase {
+		return countedPhase(0, op, func() (int, error) {
+			t, err := run()
 			if isLicenseManagerNotSetUp(err) {
 				notSetUp.add(op, err)
-				return t, i, nil
+				return t, nil
 			}
-			return t, i, err
+			return t, err
 		})
 	}
 	tags := lmTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "license-manager", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "license-manager", 0, []hostPhase{
 		{op: lmListLicensesOp, run: func(p *phaseTotals) bool {
 			return scanLMLicenses(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
 		}},
@@ -118,7 +118,7 @@ func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.
 		{op: lmListConfigurationsOp, run: func(p *phaseTotals) bool {
 			return scanLMLicenseConfigurations(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
 		}},
-		countedPhase(0, lmListReportGeneratorsOp, func() (int, int, error) {
+		countedPhase(0, lmListReportGeneratorsOp, func() (int, error) {
 			return scanLMReportGenerators(ctx, client, acct, region, st, scanID, &notSetUp)
 		}),
 		{op: lmListAssetGroupsOp, run: func(p *phaseTotals) bool {
@@ -127,19 +127,19 @@ func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.
 		{op: lmListAssetRulesetsOp, run: func(p *phaseTotals) bool {
 			return scanLMLicenseAssetRulesets(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
 		}},
-		judged(lmListReceivedLicensesOp, func() (int, int, error) {
+		judged(lmListReceivedLicensesOp, func() (int, error) {
 			return scanLMReceivedLicenses(ctx, client, acct, region, st, scanID)
 		}),
-		judged(lmListTokensOp, func() (int, int, error) { return scanLMTokens(ctx, client, acct, region, st, scanID) }),
+		judged(lmListTokensOp, func() (int, error) { return scanLMTokens(ctx, client, acct, region, st, scanID) }),
 	})
 	tags.warnDenials(st, acct, region)
 	if len(notSetUp) > 0 && total == 0 && err == nil {
-		return 0, 0, markServiceDisabled(notSetUp[0].err)
+		return 0, markServiceDisabled(notSetUp[0].err)
 	}
 	for _, n := range notSetUp {
 		_ = skipIfAccessDenied(st, n.op, acct.ID, region, n.err)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 const (
@@ -256,7 +256,7 @@ func lmARNRow(acct *account, scanID, what, rtype string, arn, name, status *stri
 // returned for scanLicenseManager to judge; any other denial, an
 // lmAuthorizationDenied refusal included, warns. Any other
 // error, and a repeated token, is returned with the stored pages' counts.
-func lmListPhase(st *store.Store, acct *account, region, op string, page func(token *string) ([]*store.Resource, *string, error)) (int, int, error) {
+func lmListPhase(st *store.Store, acct *account, region, op string, page func(token *string) ([]*store.Resource, *string, error)) (int, error) {
 	var (
 		batch   []*store.Resource
 		token   *string
@@ -265,7 +265,7 @@ func lmListPhase(st *store.Store, acct *account, region, op string, page func(to
 	for {
 		rows, next, err := page(token)
 		if token == nil && isLicenseManagerNotSetUp(err) {
-			return 0, 0, err
+			return 0, err
 		}
 		if isAccessDenied(err) || isLMAuthorizationDenied(err) {
 			_ = skipIfAccessDenied(st, op, acct.ID, region, err)
@@ -305,9 +305,9 @@ func lmTokenNativeID(licenseArn, tokenID string) string {
 // scanLMReceivedLicenses stores the licenses granted to this account, with
 // this account's received status (PENDING_ACCEPT, ACTIVE, REJECTED, …) as the
 // row status. A DELETED license is skipped.
-func scanLMReceivedLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLMReceivedLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var arnless skipTally
-	total, inserted, err := lmListPhase(st, acct, region, lmListReceivedLicensesOp, func(token *string) ([]*store.Resource, *string, error) {
+	total, err := lmListPhase(st, acct, region, lmListReceivedLicensesOp, func(token *string) ([]*store.Resource, *string, error) {
 		out, err := client.ListReceivedLicenses(ctx, &licensemanager.ListReceivedLicensesInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
 		if err != nil {
 			return nil, nil, err
@@ -338,7 +338,7 @@ func scanLMReceivedLicenses(ctx context.Context, client licenseManagerAPI, acct 
 		return rows, out.NextToken, nil
 	})
 	warnNotStored(st, lmListReceivedLicensesOp, acct, region, &arnless, "received licenses have no LicenseArn")
-	return total, inserted, err
+	return total, err
 }
 
 // lmTokenDeleted is the TokenData.Status of a deleted token; the model
@@ -348,9 +348,9 @@ const lmTokenDeleted = "DELETED"
 // scanLMTokens stores the account's license tokens. ListTokens returns token
 // metadata only; the JWT itself is returned once, by CreateToken. A DELETED
 // token is skipped.
-func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var unkeyed skipTally
-	total, inserted, err := lmListPhase(st, acct, region, lmListTokensOp, func(token *string) ([]*store.Resource, *string, error) {
+	total, err := lmListPhase(st, acct, region, lmListTokensOp, func(token *string) ([]*store.Resource, *string, error) {
 		out, err := client.ListTokens(ctx, &licensemanager.ListTokensInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
 		if err != nil {
 			return nil, nil, err
@@ -375,7 +375,7 @@ func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, 
 		return rows, out.NextToken, nil
 	})
 	warnNotStored(st, lmListTokensOp, acct, region, &unkeyed, "tokens have no TokenId or LicenseArn")
-	return total, inserted, err
+	return total, err
 }
 
 func scanLMLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
@@ -433,9 +433,9 @@ func scanLMLicenseConfigurations(ctx context.Context, client licenseManagerAPI, 
 // listed element carries, so no tag read is made. An lmAuthorizationDenied
 // refusal ends the listing, keeping the pages read before it, and is warned
 // about once they are written (listDenial).
-func scanLMReportGenerators(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs) (int, int, error) {
+func scanLMReportGenerators(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs) (int, error) {
 	d := listDenial{isDenied: isLMAuthorizationDenied, unread: "report generators on later pages"}
-	total, inserted, err := storeTokenList(ctx, st, acct, region, lmListReportGeneratorsOp,
+	total, err := storeTokenList(ctx, st, acct, region, lmListReportGeneratorsOp,
 		deniedPages(&d, firstPageGapPages(lmNotSetUpGap(notSetUp, lmListReportGeneratorsOp), func(ctx context.Context, token *string) ([]lmtypes.ReportGenerator, *string, error) {
 			out, err := client.ListLicenseManagerReportGenerators(ctx, &licensemanager.ListLicenseManagerReportGeneratorsInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
 			if err != nil {
@@ -453,7 +453,7 @@ func scanLMReportGenerators(ctx context.Context, client licenseManagerAPI, acct 
 	if !errors.Is(err, store.ErrStoreWrite) {
 		d.warn(st, lmListReportGeneratorsOp, acct, region)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 func scanLMLicenseAssetGroups(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {

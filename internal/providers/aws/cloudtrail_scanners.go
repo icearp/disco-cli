@@ -49,7 +49,7 @@ type cloudtrailAPI interface {
 // scanCloudTrail discovers CloudTrail trails in one region. DescribeTrails
 // with IncludeShadowTrails=false returns only trails whose home region matches
 // the current region, avoiding cross-region duplicates.
-func scanCloudTrail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudTrail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	cfg := acct.cfg
 	cfg.Region = region
 	client := cloudtrail.NewFromConfig(cfg)
@@ -69,13 +69,13 @@ func scanCloudTrail(ctx context.Context, acct *account, region string, st *store
 // Trails, event data stores, channels and dashboards have their tags read
 // with ListTags (newCloudTrailTags); its denials are one warning for the
 // whole scan.
-func scanCloudTrailAll(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudTrailAll(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := newCloudTrailTags(client, acct.ID)
 	var (
 		parents                    cloudTrailParents
 		channelArns, dashboardArns []string
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "cloudtrail", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "cloudtrail", 0, []hostPhase{
 		{op: "cloudtrail:DescribeTrails", run: func(p *phaseTotals) (failed bool) {
 			parents, failed = scanCloudTrailTrails(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -91,22 +91,22 @@ func scanCloudTrailAll(ctx context.Context, client cloudtrailAPI, acct *account,
 			dashboardArns, failed = scanCTDashboards(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "cloudtrail:GetResourcePolicy", func() (int, int, error) {
+		countedPhase(0, "cloudtrail:GetResourcePolicy", func() (int, error) {
 			targets := slices.Concat(channelArns, dashboardArns)
 			for _, eds := range parents.eventDataStores {
 				targets = append(targets, eds.arn)
 			}
 			return scanCTResourcePolicies(ctx, client, targets, acct, region, st, scanID)
 		}),
-		countedPhase(0, cloudTrailInsightSelectorsOp, func() (int, int, error) {
+		countedPhase(0, cloudTrailInsightSelectorsOp, func() (int, error) {
 			return scanCloudTrailInsightSelectors(ctx, client, acct, region, st, scanID, parents)
 		}),
-		countedPhase(0, cloudTrailEventConfigurationOp, func() (int, int, error) {
+		countedPhase(0, cloudTrailEventConfigurationOp, func() (int, error) {
 			return scanCloudTrailEventConfigurations(ctx, client, acct, region, st, scanID, parents)
 		}),
 	})
 	tags.rows.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 const (
@@ -309,11 +309,11 @@ func scanCloudTrailEventDataStores(ctx context.Context, client cloudtrailAPI, ac
 		})
 	reads := detailedRows{getOp: getOp, getErrs: rowTagErrs{hard: getHard, transient: getTransient}, tags: tags.rows}
 	kept, tagWarn := tags.rows.hook(ctx, st, acct, region, &reads.tagErrs)(rows)
-	total, inserted, err := storeReadRows(st, acct, region, op, kept, listErr, func() {
+	total, err := storeReadRows(st, acct, region, op, kept, listErr, func() {
 		getWarn()
 		tagWarn()
 	})
-	if reads.addPhase(p, op, total, inserted, err) {
+	if reads.addPhase(p, op, total, err) {
 		return true
 	}
 	for _, r := range kept {
@@ -384,9 +384,9 @@ func scanCloudTrailTrails(ctx context.Context, client cloudtrailAPI, acct *accou
 	})
 	switch {
 	case err != nil && isAccessDenied(err):
-		return parents, p.addPhase(op, 0, 0, skipIfAccessDenied(st, op, acct.ID, region, err))
+		return parents, p.addPhase(op, 0, skipIfAccessDenied(st, op, acct.ID, region, err))
 	case err != nil:
-		return parents, p.addPhase(op, 0, 0, fmt.Errorf("%s: %w", op, err))
+		return parents, p.addPhase(op, 0, fmt.Errorf("%s: %w", op, err))
 	}
 	// listedTrail is a trail stored unless its tag read drops it, with what
 	// its GetTrailStatus read left out.
@@ -423,11 +423,11 @@ func scanCloudTrailTrails(ctx context.Context, client cloudtrailAPI, acct *accou
 		status.addTrailReads(&l.status)
 		p.errs.add("cloudtrail:GetTrailStatus", l.statusErr)
 	}
-	total, inserted, err := storeReadRows(st, acct, region, op, kept, nil, func() {
+	total, err := storeReadRows(st, acct, region, op, kept, nil, func() {
 		status.warn(st, "cloudtrail:GetTrailStatus", "Status", acct, region)
 		tagWarn()
 	})
-	if tagErrs.addPhase(p, ctListTagsOp, op, total, inserted, err) {
+	if tagErrs.addPhase(p, ctListTagsOp, op, total, err) {
 		return parents, true
 	}
 	for _, r := range kept {

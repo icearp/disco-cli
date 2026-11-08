@@ -203,7 +203,7 @@ func auibOpLabel(op string) string {
 
 // auibScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func auibScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func auibScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -234,7 +234,9 @@ func TestScanAmplifyUIBuilder_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newAUIBCalls()
 
-	total, inserted, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := auibScan(context.Background(), t, counted, auibHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -326,7 +328,7 @@ func TestScanAmplifyUIBuilder_PartitionARNsReachTagOp(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, crDenied)
 
-			total, _, err := scanAmplifyUIBuilder(context.Background(), acct, pf.region, st, testScanID)
+			total, err := scanAmplifyUIBuilder(context.Background(), acct, pf.region, st, testScanID)
 			if err != nil || total != 3 {
 				t.Fatalf("scan = %d, %v; want 3, nil", total, err)
 			}
@@ -362,7 +364,9 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 		h := auibHandlers(calls)
 		h["ListApps"] = func(any) (any, error) { return &amplify.ListAppsOutput{}, nil }
 
-		total, inserted, err := auibScan(context.Background(), t, st, h)
+		counted, upserts := countUpserts(st)
+		total, err := auibScan(context.Background(), t, counted, h)
+		inserted := upserts()
 		if err != nil || total != 0 || inserted != 0 {
 			t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 		}
@@ -379,7 +383,7 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 			h[k.op] = calls.answer(k.op, func(any) any { return auibPage(k.op, nil) })
 		}
 
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		if err != nil || total != 0 {
 			t.Fatalf("scan = %d, %v; want 0, nil", total, err)
 		}
@@ -394,17 +398,17 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAmplifyUIBuilder_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newAUIBCalls()
-	if _, _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
+	if _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+	total, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -440,7 +444,7 @@ func TestScanAmplifyUIBuilder_TagReadFailures(t *testing.T) {
 			calls := newAUIBCalls()
 			calls.errs[target] = c.err
 
-			total, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+			total, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -486,7 +490,7 @@ func TestScanAmplifyUIBuilder_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[auibComponentARN("dt", "t")] = crDenied
 	calls.errs[theme] = auibUnauthorized
 
-	if _, _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
+	if _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
@@ -512,7 +516,7 @@ func TestScanAmplifyUIBuilder_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[auibComponentARN("dt", "t")] = crThrottled
 	calls.errs[auibTestARN("aws", testRegion, "db", "dev", "forms", "f-b")] = auibBadInput
 
-	_, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+	_, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -547,7 +551,7 @@ func TestScanAmplifyUIBuilder_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := auibHandlers(calls)
 			h[c.op] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := auibScan(context.Background(), t, st, h)
+			total, err := auibScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -571,7 +575,7 @@ func TestScanAmplifyUIBuilder_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newAUIBCalls()
 	calls.errs[auibComponentARN("dt", "t")] = crDenied
 
-	_, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+	_, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -609,7 +613,7 @@ func TestScanAmplifyUIBuilder_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.
 		return forms(in)
 	}
 
-	total, _, err := auibScan(context.Background(), t, st, h)
+	total, err := auibScan(context.Background(), t, st, h)
 	for _, code := range []string{"InvalidParameterException", "ResourceNotFoundException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -655,7 +659,7 @@ func TestScanAmplifyUIBuilder_ParentListFailures(t *testing.T) {
 		h["ListApps"] = failOnCall(2, crThrottled, h["ListApps"])
 		h["ListThemes"] = func(any) (any, error) { return nil, auibBadInput }
 
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidParameterException")
 		if *opWarns != 1 {
@@ -690,7 +694,7 @@ func TestScanAmplifyUIBuilder_ParentListFailures(t *testing.T) {
 					return envs(in)
 				}
 
-				total, _, err := auibScan(context.Background(), t, st, h)
+				total, err := auibScan(context.Background(), t, st, h)
 				if c.outcome == 0 && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -721,7 +725,7 @@ func TestScanAmplifyUIBuilder_ParentListFailures(t *testing.T) {
 			return &amplify.ListBackendEnvironmentsOutput{BackendEnvironments: []amplifytypes.BackendEnvironment{{EnvironmentName: sdkaws.String("prod")}}, NextToken: sdkaws.String("p2")}, nil
 		}
 
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "BadRequestException")
 		if stored := countStoredRows(t, st); total != 12 || stored != 12 {
@@ -765,7 +769,7 @@ func TestScanAmplifyUIBuilder_UnstorableItemsWarn(t *testing.T) {
 				return next(in)
 			}
 
-			total, _, err := auibScan(context.Background(), t, st, h)
+			total, err := auibScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -822,7 +826,7 @@ func TestScanAmplifyUIBuilder_RepeatedTokenKeepsPages(t *testing.T) {
 				return envs(in)
 			}
 
-			total, _, err := auibScan(context.Background(), t, st, h)
+			total, err := auibScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -856,7 +860,7 @@ func TestScanAmplifyUIBuilder_ContextEndStopsOnce(t *testing.T) {
 		return forms(in)
 	}
 
-	_, _, err := auibScan(ctx, t, st, h)
+	_, err := auibScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -887,7 +891,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 		calls := newAUIBCalls()
 		h := auibHandlers(calls)
 		h["ListComponents"] = func(any) (any, error) { return nil, nx }
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListForms") != 0 || calls.count("ListThemes") != 0 {
 			t.Errorf("total = %d, ListForms, ListThemes calls = %d, %d; want 0, 0, 0", total, calls.count("ListForms"), calls.count("ListThemes"))
@@ -899,7 +903,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 		calls := newAUIBCalls()
 		h := auibHandlers(calls)
 		h["ListApps"] = func(any) (any, error) { return nil, nx }
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		if err != nil || total != 0 || *warns != 0 {
 			t.Errorf("total, warnings, err = %d, %d, %v; want 0, 0, nil", total, *warns, err)
 		}
@@ -918,7 +922,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 			st := newTestStore(t)
 			h := auibHandlers(newAUIBCalls())
 			h[c.op] = failOnCall(2, nx, h[c.op])
-			total, _, err := auibScan(context.Background(), t, st, h)
+			total, err := auibScan(context.Background(), t, st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			if isDNSNotFound(err) || total != c.want {
 				t.Errorf("total = %d, err = %v; want %d, the NXDOMAIN flattened", total, err, c.want)
@@ -935,7 +939,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 			}
 			return nil, nx
 		}
-		total, _, err := auibScan(context.Background(), t, st, h)
+		total, err := auibScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if isDNSNotFound(err) || total != 0 || calls.count("ListBackendEnvironments") != 0 {
 			t.Errorf("total, ListBackendEnvironments calls, err = %d, %d, %v; want 0, 0, the NXDOMAIN flattened", total, calls.count("ListBackendEnvironments"), err)
@@ -952,7 +956,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 			for _, k := range auibKinds {
 				h[k.op] = func(any) (any, error) { return auibPage(k.op, nil), nil }
 			}
-			_, _, err := auibScan(context.Background(), t, st, h)
+			_, err := auibScan(context.Background(), t, st, h)
 			assertGlueOutcome(t, err, outcomeError)
 		})
 	}
@@ -960,7 +964,7 @@ func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newAUIBCalls()
 		calls.errs[auibComponentARN("dt", "t")] = nx
-		total, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+		total, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 12 {
 			t.Errorf("total = %d; want 12", total)

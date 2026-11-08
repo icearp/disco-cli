@@ -30,15 +30,15 @@ type sagemakerPipelinesAPI interface {
 
 // scanSageMakerPipelines runs all Pipelines family phases for one region:
 // pipelines, projects, partner apps.
-func scanSageMakerPipelines(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerPipelines(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListPipelines", func() (int, int, error) { return scanSageMakerPipelinesList(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListProjects", func() (int, int, error) { return scanSageMakerProjects(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListPartnerApps", func() (int, int, error) { return scanSageMakerPartnerApps(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListPipelines", func() (int, error) { return scanSageMakerPipelinesList(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListProjects", func() (int, error) { return scanSageMakerProjects(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListPartnerApps", func() (int, error) { return scanSageMakerPartnerApps(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
-func scanSageMakerPipelinesList(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerPipelinesList(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.PipelineSummary]{
 		listOp: "sagemaker:ListPipelines", describeOp: "sagemaker:DescribePipeline", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.PipelineSummary, *string, error) {
@@ -81,7 +81,7 @@ func scanSageMakerPipelinesList(ctx context.Context, client sagemakerPipelinesAP
 	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListPipelines"))
 }
 
-func scanSageMakerProjects(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerProjects(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ProjectSummary]{
 		listOp: "sagemaker:ListProjects", describeOp: "sagemaker:DescribeProject",
 		list: func(ctx context.Context, token *string) ([]smtypes.ProjectSummary, *string, error) {
@@ -126,7 +126,7 @@ func scanSageMakerProjects(ctx context.Context, client sagemakerPipelinesAPI, ac
 
 // scanSageMakerPartnerApps fans out by ARN — DescribePartnerApp's input
 // field is Arn, not Name (unlike most other SageMaker resources).
-func scanSageMakerPartnerApps(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerPartnerApps(ctx context.Context, client sagemakerPipelinesAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.PartnerAppSummary]{
 		listOp: "sagemaker:ListPartnerApps", describeOp: "sagemaker:DescribePartnerApp", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.PartnerAppSummary, *string, error) {

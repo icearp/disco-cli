@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanIntegrationSpaces discovers integrationspaces resources.
-func scanIntegrationSpaces(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIntegrationSpaces(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armintegrationspaces.NewSpacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armintegrationspaces:NewSpacesClient: %w", err)
+		return 0, fmt.Errorf("armintegrationspaces:NewSpacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armintegrationspaces:Spaces.ListBySubscription", TypeIntegrationSpace, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

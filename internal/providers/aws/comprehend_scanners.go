@@ -78,11 +78,11 @@ var comprehendNotFound = []string{"ResourceNotFoundException"}
 // stores nothing and fails only with NXDOMAIN, since the region does not
 // serve the service (runHostPhases). The tag reads' denials are one warning
 // for the whole scan.
-func scanComprehend(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanComprehend(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := comprehend.NewFromConfig(acct.cfg, func(o *comprehend.Options) { o.Region = region })
 	tags := comprehendTags(client).sharingDenials()
 	var flywheels []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "comprehend", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "comprehend", 0, []hostPhase{
 		{op: "comprehend:ListDocumentClassifiers", run: func(p *phaseTotals) bool {
 			return scanComprehendDocumentClassifiers(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -102,7 +102,7 @@ func scanComprehend(ctx context.Context, acct *account, region string, st *store
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // comprehendTags reads a row's tags with ListTagsForResource, sent the row's

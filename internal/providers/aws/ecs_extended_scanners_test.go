@@ -167,7 +167,7 @@ func ecsCapacityProvidersHandler(pages [][]ecstypes.CapacityProvider, errs map[i
 	}
 }
 
-func scanECSCapacityProvidersWith(st *store.Store, handler func(any) (any, error)) (int, int, error) {
+func scanECSCapacityProvidersWith(st *store.Store, handler func(any) (any, error)) (int, error) {
 	client := ecs.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"DescribeCapacityProviders": handler}, ecsDenied))
 	return scanECSCapacityProviders(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 }
@@ -178,10 +178,12 @@ func TestScanECSCapacityProviders_StoresTagsAndManaged(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	ws := ecsWarnings(st)
-	total, inserted, err := scanECSCapacityProvidersWith(st, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
+	counted, upserts := countUpserts(st)
+	total, err := scanECSCapacityProvidersWith(counted, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
 		{ecsCPASG, ecsCPFargate},
 		{ecsCPManagedInstances, ecsCPNoARN, ecsCPFargateSpot},
 	}, nil))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -216,9 +218,11 @@ func TestScanECSCapacityProviders_LaterPageFails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warnings := countOpWarnings(st, "ecs:DescribeCapacityProviders")
-			total, inserted, err := scanECSCapacityProvidersWith(st, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
+			counted, upserts := countUpserts(st)
+			total, err := scanECSCapacityProvidersWith(counted, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
 				{ecsCPASG, ecsCPFargate}, {ecsCPManagedInstances},
 			}, map[int]error{1: tc.err}))
+			inserted := upserts()
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -238,7 +242,8 @@ func TestScanECSCapacityProviders_RepeatedToken(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	pinned := ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{{ecsCPASG}, {ecsCPFargate}}, nil)
-	total, inserted, err := scanECSCapacityProvidersWith(st, func(in any) (any, error) {
+	counted, upserts := countUpserts(st)
+	total, err := scanECSCapacityProvidersWith(counted, func(in any) (any, error) {
 		out, err := pinned(in)
 		if err == nil {
 			// Page p1 names itself as the next page.
@@ -246,6 +251,7 @@ func TestScanECSCapacityProviders_RepeatedToken(t *testing.T) {
 		}
 		return out, err
 	})
+	inserted := upserts()
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -261,9 +267,11 @@ func TestScanECSCapacityProviders_WriteRefusedWarnsNothing(t *testing.T) {
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSCapacityProvider)
 	ws := ecsWarnings(st)
-	total, inserted, err := scanECSCapacityProvidersWith(st, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
+	counted, upserts := countUpserts(st)
+	total, err := scanECSCapacityProvidersWith(counted, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
 		{ecsCPASG, ecsCPNoARN}, nil,
 	}, map[int]error{1: ecsDenied}))
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want ErrStoreWrite", err)
 	}
@@ -357,7 +365,7 @@ func (f *ecsTaskSetFixture) handlers() map[string]func(any) (any, error) {
 	}
 }
 
-func scanECSTaskSetsWith(st *store.Store, f *ecsTaskSetFixture, clusters ...string) (int, int, error) {
+func scanECSTaskSetsWith(st *store.Store, f *ecsTaskSetFixture, clusters ...string) (int, error) {
 	client := ecs.NewFromConfig(opStubConfig(f.handlers(), ecsDenied))
 	return scanECSTaskSets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, clusters)
 }
@@ -369,7 +377,9 @@ func TestScanECSTaskSets_StoresTagsAndSettlesEachFailure(t *testing.T) {
 	st := newTestStore(t)
 	ws := ecsWarnings(st)
 	var f ecsTaskSetFixture
-	total, inserted, err := scanECSTaskSetsWith(st, &f, ecsTestClusterARN, ecsTSCluster2, ecsTSCluster3, ecsTSCluster4)
+	counted, upserts := countUpserts(st)
+	total, err := scanECSTaskSetsWith(counted, &f, ecsTestClusterARN, ecsTSCluster2, ecsTSCluster3, ecsTSCluster4)
+	inserted := upserts()
 	if total != 3 || inserted != 3 {
 		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
 	}
@@ -402,7 +412,9 @@ func TestScanECSTaskSets_WriteRefusedWarnsNothing(t *testing.T) {
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSTaskSet)
 	ws := ecsWarnings(st)
-	total, inserted, err := scanECSTaskSetsWith(st, &ecsTaskSetFixture{}, ecsTestClusterARN, ecsTSCluster2)
+	counted, upserts := countUpserts(st)
+	total, err := scanECSTaskSetsWith(counted, &ecsTaskSetFixture{}, ecsTestClusterARN, ecsTSCluster2)
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want ErrStoreWrite", err)
 	}
@@ -428,7 +440,7 @@ func ecsExtendedHandlers(f *ecsTaskSetFixture, failing map[string]error) map[str
 	return h
 }
 
-func scanECSExtendedWith(st *store.Store, h map[string]func(any) (any, error)) (int, int, error) {
+func scanECSExtendedWith(st *store.Store, h map[string]func(any) (any, error)) (int, error) {
 	client := ecs.NewFromConfig(opStubConfig(h, ecsDenied))
 	return scanECSExtended(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{ecsTestClusterARN})
 }
@@ -440,9 +452,11 @@ func TestScanECSExtended_PhaseErrorKeepsLaterPhases(t *testing.T) {
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "ecs:DescribeCapacityProviders")
 	var f ecsTaskSetFixture
-	total, inserted, err := scanECSExtendedWith(st, ecsExtendedHandlers(&f, map[string]error{
+	counted, upserts := countUpserts(st)
+	total, err := scanECSExtendedWith(counted, ecsExtendedHandlers(&f, map[string]error{
 		"DescribeCapacityProviders": apiErr("ThrottlingException", "Rate exceeded"),
 	}))
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ClientException") {
 		t.Errorf("err = %v (%v); want the task-set ClientException as outcomeError", err, got)
 	}
@@ -470,9 +484,11 @@ func TestScanECSExtended_AssocErrorKeepsTaskSets(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
-	total, inserted, err := scanECSExtendedWith(st, ecsExtendedHandlers(&f, map[string]error{
+	counted, upserts := countUpserts(st)
+	total, err := scanECSExtendedWith(counted, ecsExtendedHandlers(&f, map[string]error{
 		"DescribeClusters": apiErr("ServerException", "boom"),
 	}))
+	inserted := upserts()
 	if got, want := ecsErrCodes(err), []string{"ClientException", "ServerException"}; !slices.Equal(got, want) {
 		t.Errorf("error codes = %v (%v); want %v", got, err, want)
 	}
@@ -488,7 +504,9 @@ func TestScanECSExtended_WriteFailureStops(t *testing.T) {
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSCapacityProvider)
 	var f ecsTaskSetFixture
-	total, inserted, err := scanECSExtendedWith(st, ecsExtendedHandlers(&f, nil))
+	counted, upserts := countUpserts(st)
+	total, err := scanECSExtendedWith(counted, ecsExtendedHandlers(&f, nil))
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want ErrStoreWrite", err)
 	}
@@ -511,7 +529,7 @@ func TestScanECS_StoresCapacityProvidersAndTaskSets(t *testing.T) {
 	}
 	h["DescribeTaskSets"] = f.handlers()["DescribeTaskSets"]
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, ecsDenied)}
-	if _, _, err := scanECS(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanECS(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeECSCapacityProvider)[sv(ecsCPASG.CapacityProviderArn)]; !ok {
@@ -555,7 +573,9 @@ func TestScanECS_ExtendedErrorKeepsCountsAndComputeExtra(t *testing.T) {
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(ecsComputeExtraHandlers(&f), ecsDenied)}
-	total, inserted, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanECS(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if got, want := ecsErrCodes(err), []string{"ClientException"}; !slices.Equal(got, want) {
 		t.Errorf("error codes = %v (%v); want %v (svc-g's)", got, err, want)
 	}
@@ -579,7 +599,7 @@ func TestScanECS_ComputeExtraErrorJoinsExtendedError(t *testing.T) {
 	h := ecsComputeExtraHandlers(&f)
 	h["ListContainerInstances"] = func(any) (any, error) { return nil, apiErr("ServerException", "boom") }
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, ecsDenied)}
-	_, _, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
 	if got, want := ecsErrCodes(err), []string{"ClientException", "ServerException"}; !slices.Equal(got, want) {
 		t.Errorf("error codes = %v (%v); want %v (svc-g's and ListContainerInstances')", got, err, want)
 	}
@@ -600,7 +620,7 @@ func TestScanECS_ExtendedWriteFailureSkipsComputeExtra(t *testing.T) {
 		return listInstances(in)
 	}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, ecsDenied)}
-	if _, _, err := scanECS(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, store.ErrStoreWrite) {
+	if _, err := scanECS(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want ErrStoreWrite", err)
 	}
 	if listed {
@@ -628,7 +648,9 @@ func TestScanECSTaskSets_CancelledStopsAndReturns(t *testing.T) {
 		},
 	}
 	client := ecs.NewFromConfig(opStubConfig(h, ecsDenied))
-	total, inserted, err := scanECSTaskSets(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{ecsTestClusterARN})
+	counted, upserts := countUpserts(st)
+	total, err := scanECSTaskSets(ctx, client, newTestAccount(testAccountID), testRegion, counted, testScanID, []string{ecsTestClusterARN})
+	inserted := upserts()
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v; want context.Canceled", err)
 	}

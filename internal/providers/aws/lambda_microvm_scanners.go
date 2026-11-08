@@ -120,7 +120,7 @@ func scanLambdaMicrovmImages(ctx context.Context, client lambdaMicrovmsAPI, acct
 
 // scanLambdaMicrovmImageVersions lists each image's versions. The API issues
 // no version ARN, so a version is keyed {imageArn}/version/{imageVersion}.
-func scanLambdaMicrovmImageVersions(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, int, error) {
+func scanLambdaMicrovmImageVersions(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string, images []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	return childFanOut(ctx, st, acct, region, "lambda:ListMicrovmImageVersions", images, isGone,
 		func(ctx context.Context, img childParent) ([]*store.Resource, error) {
@@ -156,7 +156,7 @@ func scanLambdaMicrovmImageVersions(ctx context.Context, client lambdaMicrovmsAP
 // scanLambdaMicrovms stores every MicroVM in the region. The API issues no
 // MicroVM ARN, so one is keyed {imageArn}/microvm/{microvmId} from the image it
 // runs.
-func scanLambdaMicrovms(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLambdaMicrovms(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := lambdamicrovms.NewListMicrovmsPaginator(client, &lambdamicrovms.ListMicrovmsInput{})
 	return pageScan(ctx, "lambda:ListMicrovms", acct, region, st, p.HasMorePages,
 		func(ctx context.Context) (*lambdamicrovms.ListMicrovmsOutput, error) { return p.NextPage(ctx) },
@@ -179,7 +179,7 @@ func scanLambdaMicrovms(ctx context.Context, client lambdaMicrovmsAPI, acct *acc
 		})
 }
 
-func scanLambdaManagedMicrovmImages(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLambdaManagedMicrovmImages(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := lambdamicrovms.NewListManagedMicrovmImagesPaginator(client, &lambdamicrovms.ListManagedMicrovmImagesInput{})
 	return pageScan(ctx, "lambda:ListManagedMicrovmImages", acct, region, st, p.HasMorePages,
 		func(ctx context.Context) (*lambdamicrovms.ListManagedMicrovmImagesOutput, error) {

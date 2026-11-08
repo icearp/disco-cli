@@ -229,7 +229,7 @@ func scanIoTFWTopLevel(t *testing.T, st *store.Store, handlers map[string]func(i
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iotFWDenied)
-	total, _, err := scanIoTFleetWise(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanIoTFleetWise(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -428,7 +428,7 @@ func TestScanIoTFWDecoderManifestSignals_NotReadyKeepsEarlierPages(t *testing.T)
 			}, nil
 		},
 	}, iotFWDenied))
-	total, _, err := scanIoTFWDecoderManifestSignals(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
+	total, err := scanIoTFWDecoderManifestSignals(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
 		[]childParent{{id: "dm-a", arn: iotFWTestManifestA}})
 	if err != nil || total != 1 || *warns != 1 {
 		t.Errorf("err, total, warnings = %v, %d, %d; want nil, 1, 1", err, total, *warns)
@@ -667,7 +667,7 @@ func (c *iotFWCalls) handlers() map[string]func(any) (any, error) {
 	return h
 }
 
-func iotFWScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func iotFWScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iotFWDenied)
 	return scanIoTFleetWise(ctx, acct, testRegion, st, testScanID)
@@ -683,7 +683,9 @@ func TestScanIoTFleetWise_StoresTagsOfEveryType(t *testing.T) {
 	st := newTestStore(t)
 	calls := newIoTFWCalls()
 
-	total, inserted, err := iotFWScan(context.Background(), st, calls.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := iotFWScan(context.Background(), counted, calls.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -737,10 +739,12 @@ func TestScanIoTFleetWise_StoresTagsOfEveryType(t *testing.T) {
 func TestScanIoTFleetWise_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := iotFWScan(context.Background(), st, newIoTFWCalls().handlers()); err != nil {
+	if _, err := iotFWScan(context.Background(), st, newIoTFWCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := iotFWScan(context.Background(), st, newIoTFWCalls().handlers())
+	counted, upserts := countUpserts(st)
+	total, err := iotFWScan(context.Background(), counted, newIoTFWCalls().handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -789,7 +793,7 @@ func TestScanIoTFleetWise_TagReadFailures(t *testing.T) {
 					calls := newIoTFWCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := iotFWScan(context.Background(), st, calls.handlers())
+					total, err := iotFWScan(context.Background(), st, calls.handlers())
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -840,7 +844,7 @@ func TestScanIoTFleetWise_ManifestGoneIsNoParent(t *testing.T) {
 	for _, op := range iotFWChildOps {
 		handlers[op] = base[op]
 	}
-	if _, _, err := iotFWScan(context.Background(), st, handlers); err != nil {
+	if _, err := iotFWScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range iotFWChildOps {
@@ -860,7 +864,7 @@ func TestScanIoTFleetWise_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[iotFWARN(iotFWKindOf(t, "ListFleets"), "tagged")] = iotFWThrottle
 	calls.errs[iotFWARN(iotFWKindOf(t, "ListVehicles"), "bare")] = iotFWBadInput
 
-	_, _, err := iotFWScan(context.Background(), st, calls.handlers())
+	_, err := iotFWScan(context.Background(), st, calls.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -886,7 +890,7 @@ func TestScanIoTFleetWise_FailedWriteStopsWithoutWarning(t *testing.T) {
 	}
 	handlers["ListStateTemplates"] = func(any) (any, error) { return nil, iotFWFeatureGated }
 
-	_, _, err := iotFWScan(context.Background(), st, handlers)
+	_, err := iotFWScan(context.Background(), st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -922,7 +926,7 @@ func TestScanIoTFleetWise_VehiclesWrittenPerPage(t *testing.T) {
 		}
 		return list(in)
 	}
-	if _, _, err := iotFWScan(context.Background(), st, handlers); err != nil {
+	if _, err := iotFWScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !storedFirst {
@@ -940,7 +944,7 @@ func TestScanIoTFleetWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	// Call 1 is the gate's probe, call 2 the first page.
 	handlers[k.op] = failOnCall(3, iotFWConflict, handlers[k.op])
 
-	total, _, err := iotFWScan(context.Background(), st, handlers)
+	total, err := iotFWScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if total != iotFWTagFixtureTotal-1 {
@@ -971,7 +975,7 @@ func TestScanIoTFleetWise_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(iotFWARN(k, suffix), iotFWName(k, suffix), sdkaws.String("same")), nil
 	}
 
-	total, _, err := iotFWScan(context.Background(), st, handlers)
+	total, err := iotFWScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -993,7 +997,7 @@ func TestScanIoTFleetWise_ElementWithoutARNWarns(t *testing.T) {
 		return &iotfleetwise.ListFleetsOutput{FleetSummaries: []iotfwtypes.FleetSummary{{Id: sdkaws.String("no-arn")}, {Arn: &kept, Id: sdkaws.String("kept")}}}, nil
 	}
 
-	if _, _, err := iotFWScan(context.Background(), st, handlers); err != nil {
+	if _, err := iotFWScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if rows := rowsByNativeID(t, st, k.typ); len(rows) != 1 || rows[kept].NativeID != kept {
@@ -1029,7 +1033,7 @@ func TestScanIoTFleetWise_ClosedListing(t *testing.T) {
 			k := iotFWKindOf(t, "ListFleets")
 			handlers[k.op] = failOnCall(c.call, iotFWClosed, handlers[k.op])
 
-			total, _, err := iotFWScan(context.Background(), st, handlers)
+			total, err := iotFWScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1063,7 +1067,7 @@ func TestScanIoTFleetWise_DeniedListingWarnsUnderItsOp(t *testing.T) {
 	handlers := newIoTFWCalls().handlers()
 	delete(handlers, "ListVehicles")
 
-	total, _, err := iotFWScan(context.Background(), st, handlers)
+	total, err := iotFWScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -1082,7 +1086,7 @@ func TestScanIoTFleetWise_StateTemplateGateOnLaterPageKeepsRows(t *testing.T) {
 	k := iotFWKindOf(t, "ListStateTemplates")
 	handlers[k.op] = failOnCall(2, iotFWFeatureGated, handlers[k.op])
 
-	if _, _, err := iotFWScan(context.Background(), st, handlers); err != nil {
+	if _, err := iotFWScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if _, ok := rowsByNativeID(t, st, k.typ)[iotFWARN(k, "tagged")]; !ok {
@@ -1117,7 +1121,7 @@ func TestScanIoTFleetWise_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := iotFWScan(ctx, st, handlers)
+	_, err := iotFWScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1148,7 +1152,7 @@ func TestScanIoTFleetWise_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newIoTFWCalls().handlers()
 		handlers["ListVehicles"] = func(any) (any, error) { return nil, iotFWNX }
-		total, _, err := iotFWScan(context.Background(), st, handlers)
+		total, err := iotFWScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != iotFWTagFixtureTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, iotFWTagFixtureTotal-2)
@@ -1158,7 +1162,7 @@ func TestScanIoTFleetWise_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newIoTFWCalls()
 		calls.errs[iotFWARN(iotFWKindOf(t, "ListCampaigns"), "tagged")] = iotFWNX
-		_, _, err := iotFWScan(context.Background(), st, calls.handlers())
+		_, err := iotFWScan(context.Background(), st, calls.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1166,7 +1170,7 @@ func TestScanIoTFleetWise_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, iotFWNX)
-		_, _, err := scanIoTFleetWise(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanIoTFleetWise(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -1244,7 +1248,7 @@ func TestScanIoTFleetWise_ContextEndsDuringTagReads(t *testing.T) {
 		return listTags(in)
 	}
 
-	_, _, err := iotFWScan(ctx, st, handlers)
+	_, err := iotFWScan(ctx, st, handlers)
 	stops := 0
 	for _, m := range bacTopMembers(err) {
 		if errors.Is(m, context.Canceled) {
@@ -1299,7 +1303,7 @@ func TestScanIoTFleetWise_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, iotFWDenied)
 
-	if _, _, err := scanIoTFleetWise(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanIoTFleetWise(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(calls.tagARNs)

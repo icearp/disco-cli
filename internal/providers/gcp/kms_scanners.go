@@ -40,11 +40,11 @@ const maxConcurrentKMSLocations = 10
 //     location goroutine — keyring counts per location are typically small.
 //  4. Per-crypto-key CryptoKeyVersions.List, sequential within each keyring
 //     loop — version counts per key are bounded by rotation history.
-func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudkms.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudkms client: %w", err)
+		return 0, fmt.Errorf("cloudkms client: %w", err)
 	}
 	return scanCloudKMSWithClient(ctx, svc, p, st, scanID)
 }
@@ -294,10 +294,8 @@ func (s *kmsScan) scanLocation(ctx context.Context, locName string) error {
 
 // recordKMSHierarchy builds and records the parent/child closure for the
 // scanned batch: keyring/ekm-connection/key-handle/hsm-instance → project;
-// crypto-key/import-job → keyring; crypto-key-version → crypto-key. n is the
-// UpsertResources inserted count, threaded through to the (total, inserted)
-// return.
-func (s *kmsScan) recordKMSHierarchy(n int) (total, inserted int, err error) {
+// crypto-key/import-job → keyring; crypto-key-version → crypto-key.
+func (s *kmsScan) recordKMSHierarchy() (total int, err error) {
 	projParentID := store.ResourceID("gcp", s.p.ID, s.p.ID)
 	var pairs [][2]string
 	for _, r := range s.batch {
@@ -327,27 +325,27 @@ func (s *kmsScan) recordKMSHierarchy(n int) (total, inserted int, err error) {
 		}
 	}
 	if err := s.st.RecordHierarchyBatch(pairs); err != nil {
-		return len(s.batch), n, fmt.Errorf("closure KMS: %w", err)
+		return len(s.batch), fmt.Errorf("closure KMS: %w", err)
 	}
-	return len(s.batch), n, nil
+	return len(s.batch), nil
 }
 
 // scanCloudKMSWithClient is the testable core of scanCloudKMS — same body,
 // but takes a pre-built client so tests can point it at a fake server
 // (mirrors gcpRegionFanoutScan / gcpRegionFanoutScanIn's split).
-func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: locations.
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var locations []string
-	if _, _, err := runPaginated(ctx, st, p, "cloudkms:projects.locations.list",
+	if _, err := runPaginated(ctx, st, p, "cloudkms:projects.locations.list",
 		svc.Projects.Locations.List(parent),
-		func(page *cloudkms.ListLocationsResponse) (int, int, error) {
+		func(page *cloudkms.ListLocationsResponse) (int, error) {
 			for _, loc := range page.Locations {
 				locations = append(locations, loc.Name)
 			}
-			return 0, 0, nil
+			return 0, nil
 		}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	// Phase 2 + 3: keyrings + crypto keys per location, bounded fan-out.
@@ -358,14 +356,14 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 	// shared flag on the first 403 and skip remaining locations for this scan.
 	s := &kmsScan{svc: svc, st: st, p: p, scanID: scanID}
 	if err := forEachItem(ctx, maxConcurrentKMSLocations, locations, s.scanLocation); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(s.batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, e := st.UpsertResources(s.batch)
+	_, e := st.UpsertResources(s.batch)
 	if e != nil {
-		return 0, 0, fmt.Errorf("upsert KMS resources: %w", e)
+		return 0, fmt.Errorf("upsert KMS resources: %w", e)
 	}
-	return s.recordKMSHierarchy(n)
+	return s.recordKMSHierarchy()
 }

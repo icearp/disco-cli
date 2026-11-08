@@ -54,7 +54,7 @@ type kafkaCluster struct {
 // region. ListClustersV2 returns the full Cluster object per entry — no
 // separate Describe needed. Both variants are carried in AttributesJSON as
 // returned by the SDK; resolvers branch on which sub-struct is populated.
-func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := kafka.NewFromConfig(acct.cfg, func(o *kafka.Options) { o.Region = region })
 	return scanKafkaAll(ctx, client, acct, region, st, scanID)
 }
@@ -66,44 +66,43 @@ func scanKafka(ctx context.Context, acct *account, region string, st *store.Stor
 // stored before it failed (see scanKafkaClusters). The child phases tally
 // their transient errors per cluster, so only the older phases' error can be
 // demoted, and only beside a hard error from another phase (demoteBeside).
-func scanKafkaAll(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, clusters, err := scanKafkaOlderPhases(ctx, client, acct, region, st, scanID)
-	tt, it, terr := scanKafkaTopics(ctx, client, acct, region, st, scanID, clusters)
-	tc, ic, cerr := scanKafkaChannels(ctx, client, acct, region, st, scanID, clusters)
-	tv, iv, verr := scanKafkaClientVpcConnections(ctx, client, acct, region, st, scanID, clusters)
-	tn, in, nerr := scanKafkaNodes(ctx, client, acct, region, st, scanID, clusters)
-	return total + tt + tc + tv + tn, inserted + it + ic + iv + in,
+func scanKafkaAll(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, clusters, err := scanKafkaOlderPhases(ctx, client, acct, region, st, scanID)
+	tt, terr := scanKafkaTopics(ctx, client, acct, region, st, scanID, clusters)
+	tc, cerr := scanKafkaChannels(ctx, client, acct, region, st, scanID, clusters)
+	tv, verr := scanKafkaClientVpcConnections(ctx, client, acct, region, st, scanID, clusters)
+	tn, nerr := scanKafkaNodes(ctx, client, acct, region, st, scanID, clusters)
+	return total + tt + tc + tv + tn,
 		demoteBeside(st, "kafka", acct, region, err, terr, cerr, verr, nerr)
 }
 
 // scanKafkaOlderPhases runs the phases that predate the cluster child phases,
 // stopping at the first hard error. It returns the clusters scanKafkaClusters
 // returned, which are all stored this scan.
-func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, clusters []kafkaCluster, err error) {
-	total, inserted, clusters, err = scanKafkaClusters(ctx, client, acct, region, st, scanID)
+func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (total int, clusters []kafkaCluster, err error) {
+	total, clusters, err = scanKafkaClusters(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, clusters, err
+		return total, clusters, err
 	}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanKafkaConfigurations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKafkaReplicators(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKafkaVpcConnections(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanKafkaConfigurations(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanKafkaReplicators(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanKafkaVpcConnections(ctx, client, acct, region, st, scanID) },
+		func() (int, error) {
 			return scanKafkaClusterPolicies(ctx, client, acct, region, st, scanID, clusters)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, clusters)
 		},
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, clusters, perr
+			return total, clusters, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, clusters, nil
+	return total, clusters, nil
 }
 
 // scanKafkaClusters stores the region's clusters and returns them as the
@@ -111,10 +110,10 @@ func scanKafkaOlderPhases(ctx context.Context, client kafkaAllAPI, acct *account
 // stored this scan. A failed page fetch adds no cluster, so on that error the
 // clusters of the earlier, stored pages are returned with it; a failed write
 // may have left the page's clusters unstored, so then none are returned.
-func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []kafkaCluster, error) {
+func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) (int, []kafkaCluster, error) {
 	var clusters []kafkaCluster
 	p := kafka.NewListClustersV2Paginator(client, &kafka.ListClustersV2Input{})
-	total, inserted, err := pageScan(ctx, "kafka:ListClustersV2", acct, region, st,
+	total, err := pageScan(ctx, "kafka:ListClustersV2", acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*kafka.ListClustersV2Output, error) { return p.NextPage(c) },
 		func(o *kafka.ListClustersV2Output) []kafkatypes.Cluster { return o.ClusterInfoList },
@@ -143,9 +142,9 @@ func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, regi
 			return r
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, clusters, err
+	return total, clusters, err
 }
 
 // isKafkaExpress reports whether c runs Express brokers. The MSK

@@ -24,7 +24,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeGameLiftStreamsStreamGroup, Service: "gameliftstreams"})
 	registerService(serviceEntry{
 		name: "aws:gameliftstreams",
-		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 			client := gameliftstreams.NewFromConfig(acct.cfg, func(o *gameliftstreams.Options) { o.Region = region })
 			return scanGameLiftStreams(ctx, client, acct, region, st, scanID)
 		},
@@ -44,9 +44,9 @@ type gameLiftStreamsAPI interface {
 // stores nothing and fails only with NXDOMAIN (runHostPhases). Each listing
 // is written a page at a time, and the tag reads' denials are one warning for
 // the whole scan.
-func scanGameLiftStreams(ctx context.Context, client gameLiftStreamsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGameLiftStreams(ctx context.Context, client gameLiftStreamsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := gameLiftStreamsTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "gameliftstreams", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "gameliftstreams", 0, []hostPhase{
 		{op: glsListApplicationsOp, run: func(p *phaseTotals) bool {
 			return scanGameLiftStreamsApplications(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -55,7 +55,7 @@ func scanGameLiftStreams(ctx context.Context, client gameLiftStreamsAPI, acct *a
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // gameLiftStreamsTags reads an application's or stream group's tags with

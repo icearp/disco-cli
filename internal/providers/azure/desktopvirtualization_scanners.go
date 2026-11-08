@@ -25,29 +25,29 @@ func init() {
 
 // scanDesktopVirtualization discovers AVD host pools, application groups,
 // workspaces, scaling plans, and app-attach packages.
-func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	hp, err := armdesktopvirtualization.NewHostPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewHostPoolsClient: %w", err)
+		return 0, fmt.Errorf("armdesktopvirtualization:NewHostPoolsClient: %w", err)
 	}
 	ag, err := armdesktopvirtualization.NewApplicationGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewApplicationGroupsClient: %w", err)
+		return 0, fmt.Errorf("armdesktopvirtualization:NewApplicationGroupsClient: %w", err)
 	}
 	ws, err := armdesktopvirtualization.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewWorkspacesClient: %w", err)
+		return 0, fmt.Errorf("armdesktopvirtualization:NewWorkspacesClient: %w", err)
 	}
 	sp, err := armdesktopvirtualization.NewScalingPlansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewScalingPlansClient: %w", err)
+		return 0, fmt.Errorf("armdesktopvirtualization:NewScalingPlansClient: %w", err)
 	}
 	aap, err := armdesktopvirtualization.NewAppAttachPackageClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewAppAttachPackageClient: %w", err)
+		return 0, fmt.Errorf("armdesktopvirtualization:NewAppAttachPackageClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdesktopvirtualization:HostPools.List", TypeDVCHostPool, sub, st, scanID,
 				hp.NewListPager(nil),
 				func(p armdesktopvirtualization.HostPoolsClientListResponse) []*armdesktopvirtualization.HostPool {
@@ -57,7 +57,7 @@ func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azco
 					return azTrackedBase{id: sv(h.ID), name: sv(h.Name), location: sv(h.Location), tags: h.Tags, full: h}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdesktopvirtualization:ApplicationGroups.ListBySubscription", TypeDVCApplicationGroup, sub, st, scanID,
 				ag.NewListBySubscriptionPager(nil),
 				func(p armdesktopvirtualization.ApplicationGroupsClientListBySubscriptionResponse) []*armdesktopvirtualization.ApplicationGroup {
@@ -67,7 +67,7 @@ func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azco
 					return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdesktopvirtualization:Workspaces.ListBySubscription", TypeDVCWorkspace, sub, st, scanID,
 				ws.NewListBySubscriptionPager(nil),
 				func(p armdesktopvirtualization.WorkspacesClientListBySubscriptionResponse) []*armdesktopvirtualization.Workspace {
@@ -77,7 +77,7 @@ func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azco
 					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdesktopvirtualization:ScalingPlans.ListBySubscription", TypeDVCScalingPlan, sub, st, scanID,
 				sp.NewListBySubscriptionPager(nil),
 				func(p armdesktopvirtualization.ScalingPlansClientListBySubscriptionResponse) []*armdesktopvirtualization.ScalingPlan {
@@ -87,7 +87,7 @@ func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azco
 					return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdesktopvirtualization:AppAttachPackage.ListBySubscription", TypeDesktopVirtAppAttachPackage, sub, st, scanID,
 				aap.NewListBySubscriptionPager(nil),
 				func(p armdesktopvirtualization.AppAttachPackageClientListBySubscriptionResponse) []*armdesktopvirtualization.AppAttachPackage {

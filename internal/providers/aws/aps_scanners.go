@@ -32,7 +32,7 @@ type apsAPI interface {
 	DescribeResourcePolicy(context.Context, *amp.DescribeResourcePolicyInput, ...func(*amp.Options)) (*amp.DescribeResourcePolicyOutput, error)
 }
 
-func scanAPS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := amp.NewFromConfig(acct.cfg, func(o *amp.Options) { o.Region = region })
 	return scanAPSAll(ctx, client, acct, region, st, scanID)
 }
@@ -40,38 +40,38 @@ func scanAPS(ctx context.Context, acct *account, region string, st *store.Store,
 // scanAPSAll runs every phase whatever an earlier one returns, except after a
 // failed store write: the phases list independent data, and the
 // per-workspace phases fan out over whichever workspaces were stored.
-func scanAPSAll(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPSAll(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var errs phaseErrs
-	stop := func(op string, t, i int, ferr error) bool {
-		total, inserted = total+t, inserted+i
+	stop := func(op string, t int, ferr error) bool {
+		total += t
 		errs.add(op, ferr)
 		return errors.Is(ferr, store.ErrStoreWrite)
 	}
 
-	workspaces, t, i, ferr := scanAPSWorkspaces(ctx, client, acct, region, st, scanID)
-	if stop("amp:ListWorkspaces", t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	workspaces, t, ferr := scanAPSWorkspaces(ctx, client, acct, region, st, scanID)
+	if stop("amp:ListWorkspaces", t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanAPSScrapers(ctx, client, acct, region, st, scanID)
-	if stop("amp:ListScrapers", t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanAPSScrapers(ctx, client, acct, region, st, scanID)
+	if stop("amp:ListScrapers", t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanAPSAnomalyDetectors(ctx, client, workspaces, acct, region, st, scanID)
-	if stop("amp:ListAnomalyDetectors", t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanAPSAnomalyDetectors(ctx, client, workspaces, acct, region, st, scanID)
+	if stop("amp:ListAnomalyDetectors", t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanAPSRuleGroupsNamespaces(ctx, client, workspaces, acct, region, st, scanID)
-	if stop("amp:ListRuleGroupsNamespaces", t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanAPSRuleGroupsNamespaces(ctx, client, workspaces, acct, region, st, scanID)
+	if stop("amp:ListRuleGroupsNamespaces", t, ferr) {
+		return total, errs.join(st, acct, region)
 	}
-	t, i, ferr = scanAPSResourcePolicies(ctx, client, workspaces, acct, region, st, scanID)
-	stop("amp:DescribeResourcePolicy", t, i, ferr)
-	return total, inserted, errs.join(st, acct, region)
+	t, ferr = scanAPSResourcePolicies(ctx, client, workspaces, acct, region, st, scanID)
+	stop("amp:DescribeResourcePolicy", t, ferr)
+	return total, errs.join(st, acct, region)
 }
 
 // scanAPSWorkspaces stores the listed workspaces and returns those stored, for
 // the per-workspace phases.
-func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (refs []apsWorkspaceRef, total, inserted int, err error) {
+func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (refs []apsWorkspaceRef, total int, err error) {
 	const op = "amp:ListWorkspaces"
 	var unkeyed, noID skipTally
 	defer func() {
@@ -91,9 +91,9 @@ func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return refs, total, inserted, skipIfAccessDenied(st, op, acct.ID, region, err)
+				return refs, total, skipIfAccessDenied(st, op, acct.ID, region, err)
 			}
-			return refs, total, inserted, fmt.Errorf("%s: %w", op, err)
+			return refs, total, fmt.Errorf("%s: %w", op, err)
 		}
 		batch := make([]*store.Resource, 0, len(page.Workspaces))
 		var pageRefs []apsWorkspaceRef
@@ -134,19 +134,18 @@ func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region
 			}
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return refs, total, inserted, fmt.Errorf("upsert aps workspaces: %w", err)
+				return refs, total, fmt.Errorf("upsert aps workspaces: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 			refs = append(refs, pageRefs...)
 		}
 	}
-	return refs, total, inserted, nil
+	return refs, total, nil
 }
 
-func scanAPSScrapers(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPSScrapers(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	const op = "amp:ListScrapers"
 	var unkeyed skipTally
 	defer func() {
@@ -159,9 +158,9 @@ func scanAPSScrapers(ctx context.Context, client apsAPI, acct *account, region s
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, err)
+				return total, skipIfAccessDenied(st, op, acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", op, err)
+			return total, fmt.Errorf("%s: %w", op, err)
 		}
 		batch := make([]*store.Resource, 0, len(page.Scrapers))
 		for _, s := range page.Scrapers {
@@ -194,13 +193,12 @@ func scanAPSScrapers(ctx context.Context, client apsAPI, acct *account, region s
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert aps scrapers: %w", err)
+				return total, fmt.Errorf("upsert aps scrapers: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

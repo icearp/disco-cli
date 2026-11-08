@@ -28,23 +28,23 @@ type accessAnalyzerAPI interface {
 	ListArchiveRules(context.Context, *accessanalyzer.ListArchiveRulesInput, ...func(*accessanalyzer.Options)) (*accessanalyzer.ListArchiveRulesOutput, error)
 }
 
-func scanAccessAnalyzer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAccessAnalyzer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := accessanalyzer.NewFromConfig(acct.cfg, func(o *accessanalyzer.Options) { o.Region = region })
-	total, inserted, analyzers, err := scanAccessAnalyzerAnalyzers(ctx, client, acct, region, st, scanID)
+	total, analyzers, err := scanAccessAnalyzerAnalyzers(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err := scanAccessAnalyzerArchiveRules(ctx, client, acct, region, st, scanID, analyzers)
-	return total + t, inserted + i, err
+	t, err := scanAccessAnalyzerArchiveRules(ctx, client, acct, region, st, scanID, analyzers)
+	return total + t, err
 }
 
 // analyzerRef carries the parent identity archive rules hang off of.
 type analyzerRef struct{ arn, name string }
 
-func scanAccessAnalyzerAnalyzers(ctx context.Context, client accessAnalyzerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []analyzerRef, error) {
+func scanAccessAnalyzerAnalyzers(ctx context.Context, client accessAnalyzerAPI, acct *account, region string, st *store.Store, scanID string) (int, []analyzerRef, error) {
 	var analyzers []analyzerRef
 	p := accessanalyzer.NewListAnalyzersPaginator(client, &accessanalyzer.ListAnalyzersInput{})
-	total, inserted, err := pageScan(ctx, "accessanalyzer:ListAnalyzers", acct, region, st,
+	total, err := pageScan(ctx, "accessanalyzer:ListAnalyzers", acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*accessanalyzer.ListAnalyzersOutput, error) { return p.NextPage(c) },
 		func(o *accessanalyzer.ListAnalyzersOutput) []aatypes.AnalyzerSummary { return o.Analyzers },
@@ -68,16 +68,16 @@ func scanAccessAnalyzerAnalyzers(ctx context.Context, client accessAnalyzerAPI, 
 				DiscoveredBy:   scanID,
 			}
 		})
-	return total, inserted, analyzers, err
+	return total, analyzers, err
 }
 
 // scanAccessAnalyzerArchiveRules fans out ListArchiveRules per analyzer.
 // Archive rules carry no AWS-issued ARN — NativeID is synthesized as
 // {analyzerARN}/archive-rule/{ruleName}; each rule is closure-wired to its
 // parent analyzer.
-func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAPI, acct *account, region string, st *store.Store, scanID string, analyzers []analyzerRef) (total, inserted int, err error) {
+func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAPI, acct *account, region string, st *store.Store, scanID string, analyzers []analyzerRef) (total int, err error) {
 	if len(analyzers) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		batch []*store.Resource
@@ -93,7 +93,7 @@ func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAP
 					_ = skipIfAccessDenied(st, "accessanalyzer:ListArchiveRules", acct.ID, region, perr)
 					break
 				}
-				return total, inserted, fmt.Errorf("accessanalyzer:ListArchiveRules %s: %w", az.name, perr)
+				return total, fmt.Errorf("accessanalyzer:ListArchiveRules %s: %w", az.name, perr)
 			}
 			for _, ar := range page.ArchiveRules {
 				ruleName := sv(ar.RuleName)
@@ -119,20 +119,19 @@ func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAP
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err = st.UpsertResources(batch)
 	if err != nil {
-		return total, inserted, fmt.Errorf("upsert accessanalyzer archive-rules: %w", err)
+		return total, fmt.Errorf("upsert accessanalyzer archive-rules: %w", err)
 	}
 	total += len(batch)
-	inserted += n
 	idPairs := make([][2]string, len(batch))
 	for i, r := range batch {
 		idPairs[i] = [2]string{r.ID, pairs[i][1]}
 	}
 	if err := st.RecordHierarchyBatch(idPairs); err != nil {
-		return total, inserted, fmt.Errorf("closure accessanalyzer archive-rules: %w", err)
+		return total, fmt.Errorf("closure accessanalyzer archive-rules: %w", err)
 	}
-	return total, inserted, nil
+	return total, nil
 }

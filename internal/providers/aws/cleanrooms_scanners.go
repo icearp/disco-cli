@@ -59,7 +59,7 @@ const (
 // parent listed, was deleted after it was listed.
 var crNotFoundCodes = []string{"ResourceNotFoundException"}
 
-func scanCleanRooms(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCleanRooms(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := cleanrooms.NewFromConfig(acct.cfg, func(o *cleanrooms.Options) { o.Region = region })
 	return scanCleanRoomsIn(ctx, client, acct, region, st, scanID)
 }
@@ -71,7 +71,7 @@ func scanCleanRooms(ctx context.Context, acct *account, region string, st *store
 // write also stops it, and so does ctx's end, reported as one error. The
 // per-membership phases read the memberships the membership phase stored,
 // the member phase the stored collaborations.
-func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p                           phaseTotals
 		tags                        = crTags(client, acct.ID)
@@ -108,8 +108,8 @@ func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, 
 			return scanCRPrivacyBudgetTemplates(ctx, client, acct, region, st, scanID, memberships, tags, p)
 		},
 		func(p *phaseTotals) bool {
-			t, i, err := scanCRMembers(ctx, client, acct, region, st, scanID, collaborations)
-			return p.addPhase("cleanrooms:ListMembers", t, i, err)
+			t, err := scanCRMembers(ctx, client, acct, region, st, scanID, collaborations)
+			return p.addPhase("cleanrooms:ListMembers", t, err)
 		},
 		func(p *phaseTotals) bool {
 			return scanCRIntermediateTables(ctx, client, acct, region, st, scanID, memberships, tags, p)
@@ -385,7 +385,7 @@ func scanCRPrivacyBudgetTemplates(ctx context.Context, client cleanRoomsAPI, acc
 // status. A collaboration the listing no longer finds is skipped; a denied
 // listing of another account's collaboration is expected and not warned
 // about (otherAccountGap).
-func scanCRMembers(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string, collaborations []childParent) (int, int, error) {
+func scanCRMembers(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string, collaborations []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, "cleanrooms:ListMembers", crNotFoundCodes, collaborations,
 		func(collaboration string, err error) bool {
 			return otherAccountGap(collaboration, acct.ID, err, nil)
@@ -450,7 +450,7 @@ func scanCRIntermediateTables(ctx context.Context, client cleanRoomsAPI, acct *a
 		pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, parentOf[r])})
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return p.addPhase(op, 0, 0, fmt.Errorf("closure %s: %w", op, err))
+		return p.addPhase(op, 0, fmt.Errorf("closure %s: %w", op, err))
 	}
 	return false
 }

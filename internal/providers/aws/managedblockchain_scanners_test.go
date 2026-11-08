@@ -232,12 +232,12 @@ func mbHandlers(c *mbCalls, fx mbFixture) map[string]func(in any) (any, error) {
 
 // mbScan runs the scan's real entry point for acct in its first region
 // against handlers; every op they do not answer is denied.
-func mbScan(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mbScan(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, mbTestDenied)
 	return scanManagedBlockchain(ctx, acct, acct.Regions[0], st, testScanID)
 }
 
-func mbScanDefault(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mbScanDefault(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return mbScan(ctx, st, newTestAccount(testAccountID), handlers)
 }
 
@@ -309,7 +309,9 @@ func TestScanManagedBlockchain_StoresEveryTypeWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newMBCalls()
 
-	total, inserted, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+	counted, upserts := countUpserts(st)
+	total, err := mbScanDefault(context.Background(), counted, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -375,17 +377,17 @@ func TestScanManagedBlockchain_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanManagedBlockchain_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	fx := newMBFixture("aws", testRegion, testAccountID)
-	if _, _, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx)); err != nil {
+	if _, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -402,7 +404,9 @@ func TestScanManagedBlockchain_Empty(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newMBCalls()
 
-	total, inserted, err := mbScanDefault(context.Background(), st, mbHandlers(calls, mbFixture{}))
+	counted, upserts := countUpserts(st)
+	total, err := mbScanDefault(context.Background(), counted, mbHandlers(calls, mbFixture{}))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -459,7 +463,7 @@ func TestScanManagedBlockchain_TagReadFailures(t *testing.T) {
 			calls := newMBCalls()
 			calls.tagErrs[c.tagARN] = c.err
 
-			total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+			total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -506,7 +510,7 @@ func TestScanManagedBlockchain_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.tagErrs[arn] = mbTestDenied
 	}
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -528,7 +532,7 @@ func TestScanManagedBlockchain_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[mbARN(testAccountID, "accessors/ac-tagged")] = mbTestThrottle
 	calls.tagErrs[mbARN(testAccountID, "nodes/nd-fabric-bare")] = mbTestBad
 
-	_, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+	_, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -550,7 +554,7 @@ func TestScanManagedBlockchain_TagsNotReadyWarnOnce(t *testing.T) {
 	calls.tagErrs[node] = mbTestNotReady
 	calls.tagErrs[mbARN("", "proposals/p-own")] = mbTestNotReady
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID)))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -610,7 +614,7 @@ func TestScanManagedBlockchain_FailedWriteStopsScan(t *testing.T) {
 				handlers["ListMembers"] = func(any) (any, error) { return nil, mbTestDenied }
 			}
 
-			total, _, err := mbScanDefault(context.Background(), st, handlers)
+			total, err := mbScanDefault(context.Background(), st, handlers)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -647,7 +651,7 @@ func TestScanManagedBlockchain_ListFailureKeepsPagesAndLaterPhases(t *testing.T)
 			return list(in)
 		}
 
-		total, _, err := mbScanDefault(context.Background(), st, handlers)
+		total, err := mbScanDefault(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidRequestException")
 		if want := mbTestTotal - 2; total != want {
@@ -669,7 +673,7 @@ func TestScanManagedBlockchain_ListFailureKeepsPagesAndLaterPhases(t *testing.T)
 		handlers := mbHandlers(newMBCalls(), newMBFixture("aws", testRegion, testAccountID))
 		handlers["ListAccessors"] = func(any) (any, error) { return nil, mbTestBad }
 
-		total, _, err := mbScanDefault(context.Background(), st, handlers)
+		total, err := mbScanDefault(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := mbTestTotal - 2; total != want {
 			t.Errorf("total = %d; want %d", total, want)
@@ -692,7 +696,7 @@ func TestScanManagedBlockchain_RepeatedTokenKeepsPages(t *testing.T) {
 		return &managedblockchain.ListAccessorsOutput{Accessors: page, NextToken: sdkaws.String("same")}, nil
 	}
 
-	total, _, err := mbScanDefault(context.Background(), st, handlers)
+	total, err := mbScanDefault(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -725,7 +729,7 @@ func TestScanManagedBlockchain_ElementsWithoutIdentifiers(t *testing.T) {
 		mbtypes.NetworkSummary{Arn: sdkaws.String(mbARN("", "networks/n-noid")), Name: sdkaws.String("noid")},
 		mbtypes.NetworkSummary{Name: sdkaws.String("anonymous")})
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -777,7 +781,7 @@ func TestScanManagedBlockchain_NetworkWithoutARN(t *testing.T) {
 	fx.nodes["n-noarn/m-x"] = [][]mbtypes.NodeSummary{{{Arn: sdkaws.String(node), Id: sdkaws.String("nd-x")}}}
 	fx.proposals["n-noarn"] = [][]mbtypes.ProposalSummary{{{Arn: sdkaws.String(mbARN("", "proposals/p-x")), ProposalId: sdkaws.String("p-x"), ProposedByMemberId: sdkaws.String("m-x")}}}
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -831,7 +835,7 @@ func TestScanManagedBlockchain_OwnedMemberWithoutID(t *testing.T) {
 			fx := newMBFixture("aws", testRegion, testAccountID)
 			fx.members["n-fabric"] = c.members(fx)
 
-			total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
+			total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -859,7 +863,7 @@ func TestScanManagedBlockchain_ProposalWithoutARN(t *testing.T) {
 	fx := newMBFixture("aws", testRegion, testAccountID)
 	fx.proposals["n-fabric"][0][0].Arn = nil
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx))
 	if !errors.Is(err, errMBProposalNoARN) {
 		t.Fatalf("err = %v; want errMBProposalNoARN", err)
 	}
@@ -884,7 +888,7 @@ func TestScanManagedBlockchain_MembersDeniedWarnsNodesNotListed(t *testing.T) {
 	handlers := mbHandlers(calls, newMBFixture("aws", testRegion, testAccountID))
 	handlers["ListMembers"] = func(any) (any, error) { return nil, mbTestDenied }
 
-	total, _, err := mbScanDefault(context.Background(), st, handlers)
+	total, err := mbScanDefault(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -918,7 +922,7 @@ func TestScanManagedBlockchain_OnlyOtherAccountsMemberWarnsNodesNotListed(t *tes
 	fx := newMBFixture("aws", testRegion, testAccountID)
 	fx.members["n-fabric"] = [][]mbtypes.MemberSummary{{fx.members["n-fabric"][1][0]}}
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -952,7 +956,7 @@ func TestScanManagedBlockchain_UnsetFrameworkAndOwnership(t *testing.T) {
 	fx.members["n-unset"] = [][]mbtypes.MemberSummary{{{Arn: sdkaws.String(member), Id: sdkaws.String("m-unset")}}}
 	fx.tags[member] = map[string]string{"owner": "me"}
 
-	total, _, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
+	total, err := mbScanDefault(context.Background(), st, mbHandlers(calls, fx))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -983,7 +987,7 @@ func TestScanManagedBlockchain_ProposalsOfDeletedNetwork(t *testing.T) {
 	handlers := mbHandlers(newMBCalls(), newMBFixture("aws", testRegion, testAccountID))
 	handlers["ListProposals"] = func(any) (any, error) { return nil, mbTestGone }
 
-	total, _, err := mbScanDefault(context.Background(), st, handlers)
+	total, err := mbScanDefault(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1006,7 +1010,7 @@ func TestScanManagedBlockchain_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(partition)
 			region := acct.Regions[0]
 
-			if _, _, err := mbScan(context.Background(), st, acct, mbHandlers(calls, newMBFixture(partition, region, testAccountID))); err != nil {
+			if _, err := mbScan(context.Background(), st, acct, mbHandlers(calls, newMBFixture(partition, region, testAccountID))); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := mbReadARNs()
@@ -1041,7 +1045,7 @@ func TestScanManagedBlockchain_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := mbScanDefault(ctx, st, handlers)
+	_, err := mbScanDefault(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1068,7 +1072,7 @@ func TestScanManagedBlockchain_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := mbHandlers(newMBCalls(), newMBFixture("aws", testRegion, testAccountID))
 		handlers["ListProposals"] = func(any) (any, error) { return nil, nx }
-		total, _, err := mbScanDefault(context.Background(), st, handlers)
+		total, err := mbScanDefault(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := mbTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1079,7 +1083,7 @@ func TestScanManagedBlockchain_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanManagedBlockchain(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanManagedBlockchain(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

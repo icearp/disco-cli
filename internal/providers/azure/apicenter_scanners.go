@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanAPICenter discovers apicenter resources.
-func scanAPICenter(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPICenter(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armapicenter.NewServicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armapicenter:NewServicesClient: %w", err)
+		return 0, fmt.Errorf("armapicenter:NewServicesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armapicenter:Services.ListBySubscription", TypeAPICenterService, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

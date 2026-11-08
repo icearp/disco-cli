@@ -41,32 +41,31 @@ type kinesisAPI interface {
 // itself. Every phase runs whatever another phase returns; the counts are
 // summed and the phase errors joined, so one failing phase never costs
 // another's rows.
-func scanKinesis(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKinesis(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := kinesis.NewFromConfig(acct.cfg, func(o *kinesis.Options) { o.Region = region })
 	var errs []error
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanKinesisStreams(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKinesisExtended(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKinesisChannels(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanKinesisStreams(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanKinesisExtended(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanKinesisChannels(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		total += t
-		inserted += i
 		errs = append(errs, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, errors.Join(errs...)
 }
 
 // scanKinesisStreams holds the testable scan body.
-func scanKinesisStreams(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKinesisStreams(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := kinesis.NewListStreamsPaginator(client, &kinesis.ListStreamsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kinesis:ListStreams", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "kinesis:ListStreams", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("kinesis:ListStreams: %w", err)
+			return 0, fmt.Errorf("kinesis:ListStreams: %w", err)
 		}
 
 		var (
@@ -109,16 +108,15 @@ func scanKinesisStreams(ctx context.Context, client kinesisAPI, acct *account, r
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Kinesis streams: %w", err)
+				return 0, fmt.Errorf("upsert Kinesis streams: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

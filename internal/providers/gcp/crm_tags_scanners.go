@@ -47,24 +47,23 @@ func init() {
 // Project-parented trees (a TagKey can be parented directly by a project,
 // bypassing the org entirely) are covered separately by
 // scanCRMLiensAndBindings, which runs per-project.
-func scanCRMTags(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMTags(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudresourcemanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudresourcemanager client: %w", err)
+		return 0, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 	for _, sc := range scopes {
 		if sc.Kind != "organization" {
 			continue
 		}
-		t, n, perr := scanCRMTagsUnder(ctx, svc, sc.Name, sc.Name, sc.Resource, st, scanID)
+		t, perr := scanCRMTagsUnder(ctx, svc, sc.Name, sc.Name, sc.Resource, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCRMTagsUnder lists TagKeys parented by listParent ("organizations/{id}"
@@ -72,7 +71,7 @@ func scanCRMTags(ctx context.Context, scopes []orgScope, st *store.Store, scanID
 // accountID scopes the resulting resource rows (org name or bare project ID,
 // matching each entry point's own AccountID convention); closureParentID is
 // the disco resource ID each TagKey attaches to in hierarchy_closure.
-func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID, listParent, closureParentID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID, listParent, closureParentID string, st *store.Store, scanID string) (total int, err error) {
 	err = svc.TagKeys.List().Parent(listParent).Pages(ctx, func(page *cloudresourcemanager.ListTagKeysResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -90,19 +89,17 @@ func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, ac
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag keys: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure tag keys: %w", cErr)
 		}
 		for _, tk := range page.TagKeys {
-			t, n, tvErr := scanCRMTagValuesUnder(ctx, svc, accountID, tk, st, scanID)
+			t, tvErr := scanCRMTagValuesUnder(ctx, svc, accountID, tk, st, scanID)
 			total += t
-			inserted += n
 			if tvErr != nil {
 				return tvErr
 			}
@@ -111,14 +108,14 @@ func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, ac
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:tagKeys.list", listParent, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:tagKeys.list", listParent, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tk *cloudresourcemanager.TagKey, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tk *cloudresourcemanager.TagKey, st *store.Store, scanID string) (total int, err error) {
 	tkID := store.ResourceID("gcp", accountID, tk.Name)
 	err = svc.TagValues.List().Parent(tk.Name).Pages(ctx, func(page *cloudresourcemanager.ListTagValuesResponse) error {
 		var batch []*store.Resource
@@ -137,19 +134,17 @@ func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Servic
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag values: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure tag values: %w", cErr)
 		}
 		for _, tv := range page.TagValues {
-			t, n, thErr := scanCRMTagHoldsUnder(ctx, svc, accountID, tv, st, scanID)
+			t, thErr := scanCRMTagHoldsUnder(ctx, svc, accountID, tv, st, scanID)
 			total += t
-			inserted += n
 			if thErr != nil {
 				return thErr
 			}
@@ -158,14 +153,14 @@ func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Servic
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:tagValues.list", tk.Name, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:tagValues.list", tk.Name, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tv *cloudresourcemanager.TagValue, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service, accountID string, tv *cloudresourcemanager.TagValue, st *store.Store, scanID string) (total int, err error) {
 	tvID := store.ResourceID("gcp", accountID, tv.Name)
 	err = svc.TagValues.TagHolds.List(tv.Name).Pages(ctx, func(page *cloudresourcemanager.ListTagHoldsResponse) error {
 		var batch []*store.Resource
@@ -183,12 +178,11 @@ func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag holds: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure tag holds: %w", cErr)
 		}
@@ -196,11 +190,11 @@ func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:tagValues.tagHolds.list", tv.Name, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:tagValues.tagHolds.list", tv.Name, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // crmProjectFullResourceName builds the full-resource-name form of a project
@@ -227,26 +221,24 @@ func crmProjectFullResourceName(projectNumber string) (name string, ok bool) {
 // cost-allocation and IAM-condition tagging. Scoped down to the project
 // resource itself — same judgment call as Wave 7's ReservationSlot
 // deferral (2026-07 type-coverage audit).
-func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := cloudresourcemanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudresourcemanager client: %w", err)
+		return 0, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 
-	t, n, err := scanCRMLiens(ctx, svc, p, projParentID, st, scanID)
+	t, err := scanCRMLiens(ctx, svc, p, projParentID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanCRMTagsUnder(ctx, svc, p.ID, "projects/"+p.ID, projParentID, st, scanID)
+	t, err = scanCRMTagsUnder(ctx, svc, p.ID, "projects/"+p.ID, projParentID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	fullResourceName, ok := crmProjectFullResourceName(p.Number)
@@ -257,23 +249,21 @@ func scanCRMLiensAndBindings(ctx context.Context, p *project, st *store.Store, s
 		// scanned — CRM access and per-service scan access are
 		// independent grants). Skip rather than send a malformed
 		// parent that would 400.
-		return total, inserted, nil
+		return total, nil
 	}
 
-	t, n, err = scanCRMTagBindings(ctx, svc, p, fullResourceName, projParentID, st, scanID)
+	t, err = scanCRMTagBindings(ctx, svc, p, fullResourceName, projParentID, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanCRMEffectiveTags(ctx, svc, p, fullResourceName, projParentID, st, scanID)
+	t, err = scanCRMEffectiveTags(ctx, svc, p, fullResourceName, projParentID, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
-func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *project, projParentID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *project, projParentID string, st *store.Store, scanID string) (total int, err error) {
 	err = svc.Liens.List().Parent("projects/"+p.ID).Pages(ctx, func(page *cloudresourcemanager.ListLiensResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -290,12 +280,11 @@ func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *pro
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert liens: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure liens: %w", cErr)
 		}
@@ -303,14 +292,14 @@ func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *pro
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:liens.list", p.ID, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:liens.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, p *project, fullResourceName, projParentID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, p *project, fullResourceName, projParentID string, st *store.Store, scanID string) (total int, err error) {
 	err = svc.TagBindings.List().Parent(fullResourceName).Pages(ctx, func(page *cloudresourcemanager.ListTagBindingsResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -327,12 +316,11 @@ func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, 
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag bindings: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure tag bindings: %w", cErr)
 		}
@@ -340,11 +328,11 @@ func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, 
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:tagBindings.list", p.ID, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:tagBindings.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCRMEffectiveTags synthesizes a NativeID from the parent resource's full
@@ -353,7 +341,7 @@ func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, 
 // NativeID shape as gcp:dns:resource-record-set / gcp:iam:policy. Exactly one
 // EffectiveTag exists per (project, TagValue) pair, so the pair is a stable,
 // collision-free natural key.
-func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service, p *project, fullResourceName, projParentID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service, p *project, fullResourceName, projParentID string, st *store.Store, scanID string) (total int, err error) {
 	err = svc.EffectiveTags.List().Parent(fullResourceName).Pages(ctx, func(page *cloudresourcemanager.ListEffectiveTagsResponse) error {
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -372,12 +360,11 @@ func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert effective tags: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure effective tags: %w", cErr)
 		}
@@ -385,9 +372,9 @@ func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "cloudresourcemanager:effectiveTags.list", p.ID, err)
+			return total, skipIfDenied(st, "cloudresourcemanager:effectiveTags.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

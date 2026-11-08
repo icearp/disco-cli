@@ -91,7 +91,7 @@ func runSupportAuthZAcct(t *testing.T, st *store.Store, acct *account) (int, err
 	if idx < 0 {
 		t.Fatal("aws:supportauthz is not registered")
 	}
-	total, _, err := registeredServices[idx].fn(context.Background(), acct, saRegion, st, testScanID)
+	total, err := registeredServices[idx].fn(context.Background(), acct, saRegion, st, testScanID)
 	return total, err
 }
 

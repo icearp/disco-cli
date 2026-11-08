@@ -23,13 +23,13 @@ func init() {
 // list ops are scope-wide; disco scans at subscription scope (blueprints can
 // also live at management-group scope, out of per-sub reach — deferred).
 // Blueprint definitions are proxy resources without location/tags.
-func scanBlueprint(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBlueprint(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	scope := "/subscriptions/" + sub.ID
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			bpClient, err := armblueprint.NewBlueprintsClient(cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armblueprint:NewBlueprintsClient: %w", err)
+				return 0, fmt.Errorf("armblueprint:NewBlueprintsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armblueprint:Blueprints.List", TypeBlueprintBlueprint, sub, st, scanID,
 				bpClient.NewListPager(scope, nil),
@@ -38,10 +38,10 @@ func scanBlueprint(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			asClient, err := armblueprint.NewAssignmentsClient(cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armblueprint:NewAssignmentsClient: %w", err)
+				return 0, fmt.Errorf("armblueprint:NewAssignmentsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armblueprint:Assignments.List", TypeBlueprintAssignment, sub, st, scanID,
 				asClient.NewListPager(scope, nil),

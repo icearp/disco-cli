@@ -22,25 +22,25 @@ func init() {
 // pools: Reserved Instances, dedicated-host reservations, Capacity Blocks,
 // self-owned FPGA images, and public IPv4 / IPv6 address pools. These are
 // billing or address-allocation records with no outbound resource edges (edge-less).
-func scanEC2Inventory(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2Inventory(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanReservedInstances(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanHostReservations(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanCapacityBlocks(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanFpgaImages(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanPublicIpv4Pools(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanIpv6Pools(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -48,13 +48,13 @@ func scanEC2Inventory(ctx context.Context, client ec2API, acct *account, region 
 
 // scanReservedInstances — DescribeReservedInstances returns the full set in one
 // call (no paginator). Cancelled/retired RIs remain listable for ~a year.
-func scanReservedInstances(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanReservedInstances(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	out, perr := client.DescribeReservedInstances(ctx, &ec2.DescribeReservedInstancesInput{})
 	if perr != nil {
 		if isAccessDenied(perr) {
-			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeReservedInstances", acct.ID, region, perr)
+			return 0, skipIfAccessDenied(st, "ec2:DescribeReservedInstances", acct.ID, region, perr)
 		}
-		return 0, 0, fmt.Errorf("ec2:DescribeReservedInstances: %w", perr)
+		return 0, fmt.Errorf("ec2:DescribeReservedInstances: %w", perr)
 	}
 	var batch []*store.Resource
 	for _, ri := range out.ReservedInstances {
@@ -77,16 +77,16 @@ func scanReservedInstances(ctx context.Context, client ec2API, acct *account, re
 		})
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 reserved-instances: %w", uerr)
+		return 0, fmt.Errorf("upsert ec2 reserved-instances: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanHostReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHostReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeHostReservations", acct, region, st,
 		ec2.NewDescribeHostReservationsPaginator(client, &ec2.DescribeHostReservationsInput{}),
@@ -116,7 +116,7 @@ func scanHostReservations(ctx context.Context, client ec2API, acct *account, reg
 	)
 }
 
-func scanCapacityBlocks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCapacityBlocks(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeCapacityBlocks", acct, region, st,
 		ec2.NewDescribeCapacityBlocksPaginator(client, &ec2.DescribeCapacityBlocksInput{}),
@@ -148,7 +148,7 @@ func scanCapacityBlocks(ctx context.Context, client ec2API, acct *account, regio
 
 // scanFpgaImages discovers self-owned Amazon FPGA Images. Public/Marketplace
 // AFIs are unbounded and not ours to audit (same ownership filter as AMIs).
-func scanFpgaImages(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFpgaImages(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeFpgaImages", acct, region, st,
 		ec2.NewDescribeFpgaImagesPaginator(client, &ec2.DescribeFpgaImagesInput{Owners: []string{"self"}}),
@@ -177,7 +177,7 @@ func scanFpgaImages(ctx context.Context, client ec2API, acct *account, region st
 	)
 }
 
-func scanPublicIpv4Pools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPublicIpv4Pools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribePublicIpv4Pools", acct, region, st,
 		ec2.NewDescribePublicIpv4PoolsPaginator(client, &ec2.DescribePublicIpv4PoolsInput{}),
@@ -205,7 +205,7 @@ func scanPublicIpv4Pools(ctx context.Context, client ec2API, acct *account, regi
 	)
 }
 
-func scanIpv6Pools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIpv6Pools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeIpv6Pools", acct, region, st,
 		ec2.NewDescribeIpv6PoolsPaginator(client, &ec2.DescribeIpv6PoolsInput{}),

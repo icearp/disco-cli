@@ -83,11 +83,11 @@ type apprunnerAPI interface {
 // service phase stored. Every listing but the custom domains (which have no
 // ARN) is written a page at a time with each row's tags read
 // (appRunnerTags), and the tag denials of the whole scan are one warning.
-func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := apprunner.NewFromConfig(acct.cfg, func(o *apprunner.Options) { o.Region = region })
 	tags := appRunnerTags(client).sharingDenials()
 	var services []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "apprunner", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "apprunner", 0, []hostPhase{
 		{op: appRunnerListServicesOp, run: func(p *phaseTotals) (failed bool) {
 			services, failed = scanAppRunnerServices(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -107,12 +107,12 @@ func scanAppRunner(ctx context.Context, acct *account, region string, st *store.
 		{op: "apprunner:ListConnections", run: func(p *phaseTotals) bool {
 			return scanAppRunnerConnections(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, appRunnerDescribeCustomDomainsOp, func() (int, int, error) {
+		countedPhase(0, appRunnerDescribeCustomDomainsOp, func() (int, error) {
 			return scanAppRunnerCustomDomains(ctx, client, acct, region, st, scanID, services)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // appRunnerTags reads a row's tags with ListTagsForResource, sent the row's
@@ -182,17 +182,17 @@ func isAppRunnerServiceGone(err error) bool {
 //
 // The response's DNSTarget and VpcDNSTargets describe the service, not one
 // domain, so they are not stored on the domain rows.
-func scanAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string, services []childParent) (int, int, error) {
+func scanAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string, services []childParent) (int, error) {
 	return childFanOutStoredSkipNotReady(ctx, st, acct, region, appRunnerDescribeCustomDomainsOp, services, isAppRunnerServiceGone, byParentARN,
 		"service(s)", "a service in a status such as CREATE_FAILED, DELETED or OPERATION_IN_PROGRESS may refuse the call",
 		[]string{"InvalidRequestException"},
-		func(ctx context.Context, svc childParent) (int, int, error) {
+		func(ctx context.Context, svc childParent) (int, error) {
 			return storeAppRunnerCustomDomains(ctx, client, acct, region, st, scanID, svc)
 		})
 }
 
 // storeAppRunnerCustomDomains stores one service's custom domains a page at a time.
-func storeAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string, svc childParent) (total, inserted int, err error) {
+func storeAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string, svc childParent) (total int, err error) {
 	pager := apprunner.NewDescribeCustomDomainsPaginator(client,
 		&apprunner.DescribeCustomDomainsInput{ServiceArn: &svc.arn},
 		func(o *apprunner.DescribeCustomDomainsPaginatorOptions) {
@@ -203,7 +203,7 @@ func storeAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct 
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var children []containedChild
 		for _, d := range out.CustomDomains {
@@ -218,14 +218,13 @@ func storeAppRunnerCustomDomains(ctx context.Context, client apprunnerAPI, acct 
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}})
 		}
-		t, i, err := upsertContained(st, appRunnerDescribeCustomDomainsOp, children)
+		t, err := upsertContained(st, appRunnerDescribeCustomDomainsOp, children)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanAppRunnerConnections stores the source-code provider connections

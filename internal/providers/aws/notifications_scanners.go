@@ -36,62 +36,57 @@ type notifsAPI interface {
 
 // Notifications is a global service, called once in its home region
 // (homeRegion; us-east-1 for aws).
-func scanNotifications(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNotifications(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("notifications")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := notifications.NewFromConfig(acct.cfg, func(o *notifications.Options) { o.Region = region })
 
-	configARNs, t, i, ferr := scanNotifConfigs(ctx, client, acct, region, st, scanID)
+	configARNs, t, ferr := scanNotifConfigs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanNotifHubs(ctx, client, acct, region, st, scanID)
+	t, ferr = scanNotifHubs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, carn := range configARNs {
-		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) {
+		for _, phase := range []func() (int, error){
+			func() (int, error) {
 				return scanNotifChannelAssociations(ctx, client, acct, region, st, scanID, carn)
 			},
-			func() (int, int, error) { return scanNotifEventRules(ctx, client, acct, region, st, scanID, carn) },
-			func() (int, int, error) { return scanNotifOUAssocs(ctx, client, acct, region, st, scanID, carn) },
+			func() (int, error) { return scanNotifEventRules(ctx, client, acct, region, st, scanID, carn) },
+			func() (int, error) { return scanNotifOUAssocs(ctx, client, acct, region, st, scanID, carn) },
 		} {
-			t, i, perr := phase()
+			t, perr := phase()
 			if perr != nil {
-				return total, inserted, perr
+				return total, perr
 			}
 			total += t
-			inserted += i
 		}
 	}
 
-	mgmdARNs, t, i, ferr := scanNotifManagedConfigs(ctx, client, acct, region, st, scanID)
+	mgmdARNs, t, ferr := scanNotifManagedConfigs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 	for _, marn := range mgmdARNs {
-		t, i, perr := scanNotifManagedChannelAssocs(ctx, client, acct, region, st, scanID, marn)
+		t, perr := scanNotifManagedChannelAssocs(ctx, client, acct, region, st, scanID, marn)
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanNotifConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanNotifConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := notifications.NewListNotificationConfigurationsPaginator(client, &notifications.ListNotificationConfigurationsInput{})
 	var batch []*store.Resource
 	var arns []string
@@ -100,9 +95,9 @@ func scanNotifConfigs(ctx context.Context, client notifsAPI, acct *account, regi
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListNotificationConfigurations", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("notifications:ListNotificationConfigurations: %w", perr)
+			return nil, 0, fmt.Errorf("notifications:ListNotificationConfigurations: %w", perr)
 		}
 		for _, c := range out.NotificationConfigurations {
 			arn := sv(c.Arn)
@@ -121,18 +116,18 @@ func scanNotifConfigs(ctx context.Context, client notifsAPI, acct *account, regi
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "notifications notification-configurations")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "notifications notification-configurations")
+	return arns, t, err
 }
 
-func scanNotifHubs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNotifHubs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.ListNotificationHubs(ctx, &notifications.ListNotificationHubsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
 			_ = skipIfAccessDenied(st, "notifications:ListNotificationHubs", acct.ID, region, err)
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("notifications:ListNotificationHubs: %w", err)
+		return 0, fmt.Errorf("notifications:ListNotificationHubs: %w", err)
 	}
 	var batch []*store.Resource
 	for _, h := range out.NotificationHubs {
@@ -151,7 +146,7 @@ func scanNotifHubs(ctx context.Context, client notifsAPI, acct *account, region 
 	return upsertBatch(st, batch, "notifications notification-hubs")
 }
 
-func scanNotifChannelAssociations(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, int, error) {
+func scanNotifChannelAssociations(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, error) {
 	carn := configARN
 	pager := notifications.NewListChannelsPaginator(client, &notifications.ListChannelsInput{NotificationConfigurationArn: &carn})
 	var batch []*store.Resource
@@ -160,9 +155,9 @@ func scanNotifChannelAssociations(ctx context.Context, client notifsAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListChannels", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("notifications:ListChannels: %w", perr)
+			return 0, fmt.Errorf("notifications:ListChannels: %w", perr)
 		}
 		for _, channelARN := range out.Channels {
 			if channelARN == "" {
@@ -180,7 +175,7 @@ func scanNotifChannelAssociations(ctx context.Context, client notifsAPI, acct *a
 	return upsertBatch(st, batch, "notifications channel-associations")
 }
 
-func scanNotifEventRules(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, int, error) {
+func scanNotifEventRules(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, error) {
 	carn := configARN
 	pager := notifications.NewListEventRulesPaginator(client, &notifications.ListEventRulesInput{NotificationConfigurationArn: &carn})
 	var batch []*store.Resource
@@ -189,9 +184,9 @@ func scanNotifEventRules(ctx context.Context, client notifsAPI, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListEventRules", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("notifications:ListEventRules: %w", perr)
+			return 0, fmt.Errorf("notifications:ListEventRules: %w", perr)
 		}
 		for _, e := range out.EventRules {
 			arn := sv(e.Arn)
@@ -212,7 +207,7 @@ func scanNotifEventRules(ctx context.Context, client notifsAPI, acct *account, r
 	return upsertBatch(st, batch, "notifications event-rules")
 }
 
-func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, int, error) {
+func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, configARN string) (int, error) {
 	carn := configARN
 	pager := notifications.NewListOrganizationalUnitsPaginator(client, &notifications.ListOrganizationalUnitsInput{NotificationConfigurationArn: &carn})
 	var batch []*store.Resource
@@ -221,9 +216,9 @@ func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, reg
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListOrganizationalUnits", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("notifications:ListOrganizationalUnits: %w", perr)
+			return 0, fmt.Errorf("notifications:ListOrganizationalUnits: %w", perr)
 		}
 		for _, ouID := range out.OrganizationalUnits {
 			if ouID == "" {
@@ -241,7 +236,7 @@ func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, reg
 	return upsertBatch(st, batch, "notifications ou-associations")
 }
 
-func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	// ManagedNotificationConfigurations are AWS-managed (not user-created),
 	// flagged ManagedByProvider, and serve as parent context for the
 	// ManagedNotificationAdditionalChannelAssociation child fan-out.
@@ -253,9 +248,9 @@ func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *accoun
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListManagedNotificationConfigurations", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("notifications:ListManagedNotificationConfigurations: %w", perr)
+			return nil, 0, fmt.Errorf("notifications:ListManagedNotificationConfigurations: %w", perr)
 		}
 		for _, c := range out.ManagedNotificationConfigurations {
 			arn := sv(c.Arn)
@@ -274,11 +269,11 @@ func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *accoun
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "notifications managed-notification-configurations")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "notifications managed-notification-configurations")
+	return arns, t, err
 }
 
-func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, mcARN string) (int, int, error) {
+func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, mcARN string) (int, error) {
 	marn := mcARN
 	pager := notifications.NewListManagedNotificationChannelAssociationsPaginator(client, &notifications.ListManagedNotificationChannelAssociationsInput{ManagedNotificationConfigurationArn: &marn})
 	var batch []*store.Resource
@@ -287,9 +282,9 @@ func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "notifications:ListManagedNotificationChannelAssociations", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("notifications:ListManagedNotificationChannelAssociations: %w", perr)
+			return 0, fmt.Errorf("notifications:ListManagedNotificationChannelAssociations: %w", perr)
 		}
 		for _, a := range out.ChannelAssociations {
 			cid := sv(a.ChannelIdentifier)

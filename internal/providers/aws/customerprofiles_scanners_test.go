@@ -334,7 +334,9 @@ func cpClient(h map[string]func(in any) (any, error)) *customerprofiles.Client {
 func TestScanCPAll_StoresEveryTypeWithTags(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := scanCPAll(context.Background(), cpClient(cpHandlers(t, map[string]int{})), newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCPAll(context.Background(), cpClient(cpHandlers(t, map[string]int{})), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -429,7 +431,7 @@ func TestCPListChildren_ErrorBranches(t *testing.T) {
 				scopes = append(scopes, w.Scope)
 				prev(w)
 			}
-			total, _, err := scanCPCalcAttrDefs(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
+			total, err := scanCPCalcAttrDefs(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
 			if c.wantErr == nil && err != nil || c.wantErr != nil && !errors.Is(err, c.wantErr) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -473,7 +475,7 @@ func TestCPListChildren_FailedWriteWarnsNothing(t *testing.T) {
 		closeStore()
 		return serve(in)
 	}}
-	_, _, err := scanCPCalcAttrDefs(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
+	_, err := scanCPCalcAttrDefs(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, []string{"d1", "d2"})
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -513,7 +515,7 @@ func TestScanCPDomains_GetDomainErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := recordWarnings(st)
 			var errs phaseErrs
-			names, total, _, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
+			names, total, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
 			if werr != nil {
 				t.Fatalf("write err = %v", werr)
 			}
@@ -579,7 +581,7 @@ func TestScanCPDomains_ListErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := recordWarnings(st)
 			var errs phaseErrs
-			names, _, _, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
+			names, _, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
 			if werr != nil {
 				t.Fatalf("write err = %v", werr)
 			}
@@ -636,7 +638,7 @@ func TestScanCPDomains_FailedWriteWarnsNothing(t *testing.T) {
 	var n int
 	st.OnWarn = func(store.ScanWarning) { n++ }
 	var errs phaseErrs
-	_, _, _, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
+	_, _, werr := scanCPDomains(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, &errs)
 	if !errors.Is(werr, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", werr)
 	}
@@ -655,7 +657,7 @@ func TestScanCPAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 			h := cpHandlers(t, map[string]int{})
 			h[c.op] = func(any) (any, error) { return nil, bad }
 			st := newTestStore(t)
-			_, _, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, bad) {
 				t.Fatalf("err = %v, want the %s error", err, c.op)
 			}
@@ -674,7 +676,7 @@ func TestScanCPAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 			return listed(in)
 		}
 		st := newTestStore(t)
-		_, _, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+		_, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 		if !errors.Is(err, bad) {
 			t.Fatalf("err = %v, want the ListDomains error", err)
 		}
@@ -703,7 +705,7 @@ func TestScanCPAll_StoreWriteStopsPhases(t *testing.T) {
 				closeStore()
 				return serve(in)
 			}
-			_, _, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v, want ErrStoreWrite", err)
 			}
@@ -724,7 +726,7 @@ func TestScanCPAll_TransientBesideHardError(t *testing.T) {
 	h[cases[1].op] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cases[0].scanOp)
-	_, _, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanCPAll(context.Background(), cpClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v, want outcomeError; err = %v", got, err)
 	}

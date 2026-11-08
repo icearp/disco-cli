@@ -27,16 +27,16 @@ type trustedAdvisorAPI interface {
 // Business/Enterprise Support; Basic/Developer accounts get "Access denied
 // due to support level" and surface as (not available to this account) —
 // can't self-enable without upgrading support.
-func scanTrustedAdvisor(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrustedAdvisor(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 	region, err := acct.homeRegion("trustedadvisor")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := trustedadvisor.NewFromConfig(acct.cfg, func(o *trustedadvisor.Options) { o.Region = region })
 	return scanTrustedAdvisorChecks(ctx, client, acct, region, st, scanID)
 }
 
-func scanTrustedAdvisorChecks(ctx context.Context, client trustedAdvisorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTrustedAdvisorChecks(ctx context.Context, client trustedAdvisorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := trustedadvisor.NewListChecksPaginator(client, &trustedadvisor.ListChecksInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -46,12 +46,12 @@ func scanTrustedAdvisorChecks(ctx context.Context, client trustedAdvisorAPI, acc
 			// Basic/Developer returns "Access denied due to support level" — not
 			// self-enableable → (account: not entitled), not disabled.
 			if isAPIErrorWithMessage(perr, "AccessDeniedException", "support level") {
-				return 0, 0, markServiceNotEntitled(perr)
+				return 0, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "trustedadvisor:ListChecks", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "trustedadvisor:ListChecks", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("trustedadvisor:ListChecks: %w", perr)
+			return 0, fmt.Errorf("trustedadvisor:ListChecks: %w", perr)
 		}
 		for _, c := range out.CheckSummaries {
 			arn := sv(c.Arn)

@@ -278,7 +278,7 @@ func pzHandlers(c *pzCalls) map[string]func(in any) (any, error) {
 
 // pzScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func pzScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func pzScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, pzDenied)
 	return scanPersonalize(ctx, acct, testRegion, st, testScanID)
@@ -325,7 +325,9 @@ func TestScanPersonalize_StoresTagsOfEveryTaggableType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newPZCalls()
 
-	total, inserted, err := pzScan(context.Background(), st, pzHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := pzScan(context.Background(), counted, pzHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -385,16 +387,16 @@ func TestScanPersonalize_StoresTagsOfEveryTaggableType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanPersonalize_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := pzScan(context.Background(), st, pzHandlers(newPZCalls())); err != nil {
+	if _, err := pzScan(context.Background(), st, pzHandlers(newPZCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := pzScan(context.Background(), st, pzHandlers(newPZCalls()))
+	total, err := pzScan(context.Background(), st, pzHandlers(newPZCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -434,7 +436,7 @@ func TestScanPersonalize_TagReadFailures(t *testing.T) {
 				arn := pzARN(x.kind, "x1")
 				calls.errs[arn] = c.err
 
-				total, _, err := pzScan(context.Background(), st, pzHandlers(calls))
+				total, err := pzScan(context.Background(), st, pzHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -482,7 +484,7 @@ func TestScanPersonalize_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[pzARN(kind, "x2")] = pzDenied
 	}
 
-	total, _, err := pzScan(context.Background(), st, pzHandlers(calls))
+	total, err := pzScan(context.Background(), st, pzHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -504,7 +506,7 @@ func TestScanPersonalize_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[pzARN("campaign", "x1")] = pzThrottle
 	calls.errs[pzARN("recommender", "x2")] = pzInvalid
 
-	_, _, err := pzScan(context.Background(), st, pzHandlers(calls))
+	_, err := pzScan(context.Background(), st, pzHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -523,7 +525,7 @@ func TestScanPersonalize_FailedWriteStopsScan(t *testing.T) {
 	calls := newPZCalls()
 	calls.errs[pzARN("solution", "x1")] = pzDenied
 
-	total, _, err := pzScan(context.Background(), st, pzHandlers(calls))
+	total, err := pzScan(context.Background(), st, pzHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -553,7 +555,7 @@ func TestScanPersonalize_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers[op] = failOnCall(2, pzInvalid, handlers[op])
 			l := pzListingOf(t, op)
 
-			total, _, err := pzScan(context.Background(), st, handlers)
+			total, err := pzScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidInputException")
 			if total != pzTestTotal-1 {
@@ -582,7 +584,7 @@ func TestScanPersonalize_RepeatedTokenKeepsPages(t *testing.T) {
 				return l.out(sdkaws.String("same"), l.elem(sdkaws.String(pzARN(l.kind, id)), pzName(l, id))), nil
 			}
 
-			total, _, err := pzScan(context.Background(), st, handlers)
+			total, err := pzScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -614,7 +616,7 @@ func TestScanPersonalize_ElementWithoutARN(t *testing.T) {
 				return l.out(nil, l.elem(nil, pzName(l, "orphan"))), nil
 			}
 
-			total, _, err := pzScan(context.Background(), st, handlers)
+			total, err := pzScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -662,7 +664,9 @@ func TestScanPersonalize_EmptyListing(t *testing.T) {
 				return l.out(nil), nil
 			}
 
-			total, inserted, err := pzScan(context.Background(), st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := pzScan(context.Background(), counted, handlers)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -708,7 +712,7 @@ func TestScanPersonalize_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(pzHandlers(calls), pzDenied)
 
-			if _, _, err := scanPersonalize(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanPersonalize(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := calls.readARNs(); !slices.Equal(got, want) {
@@ -737,7 +741,7 @@ func TestScanPersonalize_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := pzScan(ctx, st, handlers)
+	_, err := pzScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -764,7 +768,7 @@ func TestScanPersonalize_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := pzHandlers(newPZCalls())
 		handlers["ListFilters"] = func(any) (any, error) { return nil, nx }
-		total, _, err := pzScan(context.Background(), st, handlers)
+		total, err := pzScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != pzTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, pzTestTotal-2)
@@ -774,7 +778,7 @@ func TestScanPersonalize_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newPZCalls()
 		calls.errs[pzARN("filter", "x2")] = nx
-		_, _, err := pzScan(context.Background(), st, pzHandlers(calls))
+		_, err := pzScan(context.Background(), st, pzHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -782,7 +786,7 @@ func TestScanPersonalize_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanPersonalize(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanPersonalize(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -801,7 +805,7 @@ func TestScanPersonalize_FirstPageDenial(t *testing.T) {
 			handlers := pzHandlers(newPZCalls())
 			handlers[l.op] = func(any) (any, error) { return nil, pzDenied }
 
-			total, _, err := pzScan(context.Background(), st, handlers)
+			total, err := pzScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}

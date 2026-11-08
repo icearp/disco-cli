@@ -179,7 +179,7 @@ func TestScanDLM_UsesAccountPartition(t *testing.T) {
 					return &dlm.GetLifecyclePoliciesOutput{Policies: []dlmtypes.LifecyclePolicySummary{{PolicyId: ptrStr("policy-1")}}}, nil
 				},
 			}, errors.New("unexpected op"))
-			if _, _, err := scanDLM(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanDLM(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanDLM: %v", err)
 			}
 			want := partitionARN(pf.partition, "dlm", pf.region, "policy/policy-1")
@@ -201,7 +201,7 @@ func TestKMSCustomKeyStore_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 			client := kms.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{
 				"DescribeCustomKeyStores": {{Output: &kms.DescribeCustomKeyStoresOutput{CustomKeyStores: []kmstypes.CustomKeyStoresListEntry{kmsHSMStore()}}}},
 			}), pf.region))
-			if _, _, err := scanKMSCustomKeyStores(context.Background(), client, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanKMSCustomKeyStores(context.Background(), client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanKMSCustomKeyStores: %v", err)
 			}
 			storeARN := partitionARN(pf.partition, "kms", pf.region, "custom-key-store/"+kmsHSMStoreID)
@@ -308,7 +308,7 @@ func TestCodeDeploy_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 			if _, failed := scanCDApplications(ctx, client, acct, pf.region, st, testScanID, rowTagReader{op: cdTagsOp, read: func(context.Context, *store.Resource) (*string, error) { return nil, nil }}, &p); failed || len(p.errs) > 0 {
 				t.Fatalf("scanCDApplications: failed %v, errors %v", failed, p.errs)
 			}
-			if _, _, err := scanCDDeploymentConfigs(ctx, client, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCDDeploymentConfigs(ctx, client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanCDDeploymentConfigs: %v", err)
 			}
 			app := storedRowID(t, st, TypeCodeDeployApplication, partitionARN(pf.partition, "codedeploy", pf.region, "application:app"))
@@ -335,10 +335,10 @@ func TestDAX_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 				"DescribeSubnetGroups":    {{Output: &dax.DescribeSubnetGroupsOutput{SubnetGroups: []daxtypes.SubnetGroup{{SubnetGroupName: ptrStr("sg")}}}}},
 			}), pf.region))
 			ctx := context.Background()
-			if _, _, err := scanDAXParameterGroups(ctx, client, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanDAXParameterGroups(ctx, client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanDAXParameterGroups: %v", err)
 			}
-			if _, _, err := scanDAXSubnetGroups(ctx, client, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanDAXSubnetGroups(ctx, client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanDAXSubnetGroups: %v", err)
 			}
 			pg := storedRowID(t, st, TypeDAXParameterGroup, partitionARN(pf.partition, "dax", pf.region, "parameter-group/pg"))
@@ -368,7 +368,7 @@ func TestDMSSubnetGroup_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 			}), pf.region))
 			var p phaseTotals
 			scanDMSReplicationSubnetGroups(context.Background(), client, acct, pf.region, st, testScanID, dmsTags(client), &p)
-			if _, _, err := p.result(st, acct, pf.region); err != nil {
+			if _, err := p.result(st, acct, pf.region); err != nil {
 				t.Fatalf("scanDMSReplicationSubnetGroups: %v", err)
 			}
 			rsg := storedRowID(t, st, TypeDMSReplicationSubnetGroup, partitionARN(pf.partition, "dms", pf.region, "subgrp:rsg"))
@@ -402,13 +402,13 @@ func TestIdentityStoreMembership_ScannerAndResolverAgreeOnPartition(t *testing.T
 				}}}}},
 			}), pf.region))
 			ctx := context.Background()
-			if _, _, err := scanIdentityStoreUsers(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
+			if _, err := scanIdentityStoreUsers(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
 				t.Fatalf("scanIdentityStoreUsers: %v", err)
 			}
-			if _, _, err := scanIdentityStoreGroups(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
+			if _, err := scanIdentityStoreGroups(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
 				t.Fatalf("scanIdentityStoreGroups: %v", err)
 			}
-			if _, _, err := scanIdentityStoreGroupMemberships(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
+			if _, err := scanIdentityStoreGroupMemberships(ctx, client, acct, pf.region, storeID, owner, st, testScanID); err != nil {
 				t.Fatalf("scanIdentityStoreGroupMemberships: %v", err)
 			}
 			idARN := func(res string) string { return "arn:" + pf.partition + ":identitystore::" + owner + ":" + res }
@@ -606,7 +606,7 @@ func TestRoute53AliasToS3Website_ScannerAndResolverAgreeOnPartition(t *testing.T
 				return &s3.GetBucketLocationOutput{LocationConstraint: s3types.BucketLocationConstraint(pf.region)}, nil
 			}
 			acct.cfg = s3StubConfig(h)
-			if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+			if _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 				t.Fatalf("scanS3: %v", err)
 			}
 			bucket := storedRowID(t, st, TypeS3Bucket, "arn:"+pf.partition+":s3:::"+site)

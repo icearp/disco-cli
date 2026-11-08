@@ -51,7 +51,7 @@ func TestScanLambdaVersions_ProvisionedConcurrencyCandidates(t *testing.T) {
 		fns = append(fns, lambdaFunctionSummary{name: name, arn: lambdaFnARN(name)})
 	}
 
-	candidates, total, _, err := scanLambdaVersions(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
+	candidates, total, err := scanLambdaVersions(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -335,7 +335,7 @@ func lambdaHandlers(c *lambdaCalls) map[string]func(in any) (any, error) {
 
 // lambdaScan runs the scan's real entry point against handlers; an op they
 // do not answer is denied.
-func lambdaScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func lambdaScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lambdaDenied)
 	return scanLambda(ctx, acct, testRegion, st, testScanID)
@@ -375,7 +375,9 @@ func TestScanLambda_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newLambdaCalls()
 
-	total, inserted, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := lambdaScan(context.Background(), counted, lambdaHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -415,7 +417,9 @@ func TestScanLambda_StoresTagsOfEveryType(t *testing.T) {
 		t.Errorf("Lambda MicroVMs ListTags sent %v; want %v", got, wantImages)
 	}
 
-	total, inserted, err = lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls()))
+	counted, upserts = countUpserts(st)
+	total, err = lambdaScan(context.Background(), counted, lambdaHandlers(newLambdaCalls()))
+	inserted = upserts()
 	if err != nil || total != lambdaRowCount || inserted != 0 {
 		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, lambdaRowCount)
 	}
@@ -425,7 +429,7 @@ func TestScanLambda_StoresTagsOfEveryType(t *testing.T) {
 func TestScanLambda_PageCaps(t *testing.T) {
 	t.Parallel()
 	calls := newLambdaCalls()
-	if _, _, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls)); err != nil {
+	if _, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, want := range map[string]int32{
@@ -456,7 +460,7 @@ func TestScanLambda_FunctionsWrittenPageByPage(t *testing.T) {
 		}
 		return list(in)
 	}
-	if _, _, err := lambdaScan(context.Background(), st, handlers); err != nil {
+	if _, err := lambdaScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !storedFirst {
@@ -496,7 +500,7 @@ func TestScanLambda_TagReadFailures(t *testing.T) {
 					calls.tagErrs[arn] = c.err
 					calls.tagsError[arn] = true // a function's tags fall back to ListTags
 
-					total, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+					total, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
 					if c.outcome < 0 {
 						if err != nil {
 							t.Fatalf("err = %v; want nil", err)
@@ -551,7 +555,7 @@ func TestScanLambda_TagDenialsWarnOnce(t *testing.T) {
 		calls.tagErrs[lambdaTaggedARN(kind)] = lambdaDenied
 	}
 	calls.tagsError[lambdaTaggedARN("function")] = true
-	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
+	if _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 {
@@ -570,7 +574,7 @@ func TestScanLambda_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagsError[lambdaTaggedARN("function")] = true
 	calls.tagErrs[lambdaBareARN("code-signing-config")] = lambdaInvalid
 
-	_, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+	_, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValueException")
 	if *warns != 1 {
@@ -610,7 +614,7 @@ func TestScanLambda_GetFunction(t *testing.T) {
 				calls.getErrs[image] = c.err
 			}
 
-			_, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+			_, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -674,7 +678,7 @@ func lambdaFunctionTagReads(calls *lambdaCalls) []string {
 func TestScanLambda_FunctionAttributesFromListing(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
+	if _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	decode := func(s string) map[string]any {
@@ -722,7 +726,7 @@ func TestScanLambda_FunctionTagsErrorFallsBackToListTags(t *testing.T) {
 	calls := newLambdaCalls()
 	calls.tagsError[lambdaTaggedARN("function")] = true
 
-	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
+	if _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := lambdaFunctionTagReads(calls); !slices.Equal(got, []string{lambdaTaggedARN("function")}) {
@@ -755,7 +759,7 @@ func TestScanLambda_GetFunctionDeniedTagsFromListTags(t *testing.T) {
 	calls.getErrs[lambdaBareARN("function")] = lambdaDenied
 	calls.tagErrs[lambdaBareARN("function")] = lambdaDenied
 
-	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
+	if _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := lambdaRowOf(t, st, TypeLambdaFunction, lambdaTaggedARN("function"))
@@ -782,7 +786,7 @@ func TestScanLambda_GetFunctionDeniedTagsFromListTags(t *testing.T) {
 func TestScanLambda_NameAndStatus(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
+	if _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	cpARN := lambdaTaggedARN("capacity-provider")
@@ -822,7 +826,7 @@ func TestScanLambda_OtherPartitionARNs(t *testing.T) {
 		calls.record("ListMicrovmImages", in)
 		return &lambdamicrovms.ListMicrovmImagesOutput{Items: []lambdamicrovmstypes.MicrovmImageSummary{{ImageArn: &cn, Name: sdkaws.String("cn-image")}}}, nil
 	}
-	if _, _, err := lambdaScan(context.Background(), newTestStore(t), handlers); err != nil {
+	if _, err := lambdaScan(context.Background(), newTestStore(t), handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !slices.Equal(calls.getARNs, []string{gov}) {
@@ -846,7 +850,7 @@ func TestScanLambda_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return nil, lambdaInvalid
 	}
 
-	total, _, err := lambdaScan(context.Background(), st, handlers)
+	total, err := lambdaScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValueException")
 	if want := lambdaRowCount - 4; total != want {
@@ -871,7 +875,7 @@ func TestScanLambda_RepeatedMarkerKeepsPage(t *testing.T) {
 	handlers["ListFunctions"] = func(any) (any, error) {
 		return &lambda.ListFunctionsOutput{Functions: []lambdatypes.FunctionConfiguration{lambdaFn("function-tagged", lambdatypes.PackageTypeZip)}, NextMarker: sdkaws.String("m")}, nil
 	}
-	_, _, err := lambdaScan(context.Background(), st, handlers)
+	_, err := lambdaScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -896,7 +900,7 @@ func TestScanLambda_ElementWithoutARNWarns(t *testing.T) {
 			calls := newLambdaCalls()
 			calls.noARN[op] = true
 
-			total, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+			total, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -934,7 +938,7 @@ func TestScanLambda_CapacityProvidersRegionGap(t *testing.T) {
 			warns := countWarnings(st)
 			handlers := lambdaHandlers(newLambdaCalls())
 			handlers["ListCapacityProviders"] = c.page
-			_, _, err := lambdaScan(context.Background(), st, handlers)
+			_, err := lambdaScan(context.Background(), st, handlers)
 			if c.wantErr {
 				assertAPICode(t, err, "NotFoundException")
 				if _, ok := lambdaRowOf(t, st, TypeLambdaCapacityProvider, lambdaTaggedARN("capacity-provider")); !ok {
@@ -960,7 +964,7 @@ func TestScanLambda_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls.tagErrs[lambdaTaggedARN("function")] = lambdaDenied
 	calls.getErr = lambdaDenied
 
-	_, _, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
+	_, err := lambdaScan(context.Background(), st, lambdaHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -992,7 +996,7 @@ func TestScanLambda_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := lambdaScan(ctx, st, handlers)
+	_, err := lambdaScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1019,7 +1023,7 @@ func TestScanLambda_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := lambdaHandlers(newLambdaCalls())
 		handlers["ListEventSourceMappings"] = func(any) (any, error) { return nil, nx }
-		total, _, err := lambdaScan(context.Background(), st, handlers)
+		total, err := lambdaScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != lambdaRowCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, lambdaRowCount-2)
@@ -1028,13 +1032,13 @@ func TestScanLambda_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		calls := newLambdaCalls()
 		calls.tagErrs[lambdaBareARN("code-signing-config")] = nx
-		_, _, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls))
+		_, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("GetFunction after the listing", func(t *testing.T) {
 		calls := newLambdaCalls()
 		calls.getErrs[lambdaBareARN("function")] = nx
-		_, _, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls))
+		_, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1042,7 +1046,7 @@ func TestScanLambda_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanLambda(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanLambda(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -1082,7 +1086,7 @@ func TestScanLambda_PhasesWiredAndIndependent(t *testing.T) {
 			if tc.failOp != "" {
 				handlers[tc.failOp] = func(any) (any, error) { return nil, lambdaInvalid }
 			}
-			_, _, err := lambdaScan(context.Background(), st, handlers)
+			_, err := lambdaScan(context.Background(), st, handlers)
 			if (tc.failOp != "") != isAPIErrorCode(err, "InvalidParameterValueException") {
 				t.Fatalf("err = %v; want the failed phase's error = %v", err, tc.failOp != "")
 			}

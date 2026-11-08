@@ -47,7 +47,9 @@ func TestScanBQConnections_HappyPath(t *testing.T) {
 	})
 	svc := fakeBQConnectionService(t, srv)
 
-	total, inserted, err := scanBQConnectionsIn(t.Context(), svc, p, st, testScanID, []string{"us-central1", "us-east1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanBQConnectionsIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1", "us-east1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBQConnectionsIn: %v", err)
 	}
@@ -79,7 +81,9 @@ func TestScanBQConnections_PermissionDeniedWarnsAndContinues(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, deniedBody)
 	svc := fakeBQConnectionService(t, srv)
 
-	total, inserted, err := scanBQConnectionsIn(t.Context(), svc, p, st, testScanID, []string{"us-central1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanBQConnectionsIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBQConnectionsIn: expected nil error on permission-denied warn-and-skip, got %v", err)
 	}
@@ -96,7 +100,7 @@ func TestScanBQConnections_APINotEnabledSentinel(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, notEnabledBody)
 	svc := fakeBQConnectionService(t, srv)
 
-	_, _, err := scanBQConnectionsIn(t.Context(), svc, p, st, testScanID, []string{"us-central1"})
+	_, err := scanBQConnectionsIn(t.Context(), svc, p, st, testScanID, []string{"us-central1"})
 	if err == nil {
 		t.Fatalf("scanBQConnectionsIn: expected errServiceDisabled sentinel, got nil")
 	}
@@ -121,7 +125,9 @@ func TestScanBQConnections_MultiRegionAccumulates(t *testing.T) {
 	})
 	svc := fakeBQConnectionService(t, srv)
 
-	total, inserted, err := scanBQConnectionsIn(t.Context(), svc, p, st, testScanID, []string{"us-central1", "us-east1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanBQConnectionsIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1", "us-east1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBQConnectionsIn: %v", err)
 	}

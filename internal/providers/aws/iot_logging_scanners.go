@@ -25,13 +25,13 @@ type iotLoggingAPI interface {
 // whether a write failed.
 func scanIoTLogging(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
 	return runIoTPhases(p,
-		iotCounted("iot:GetV2LoggingOptions", func() (int, int, error) {
+		iotCounted("iot:GetV2LoggingOptions", func() (int, error) {
 			return scanIoTLoggingOptions(ctx, client, acct, region, st, scanID)
 		}),
-		iotCounted("iot:ListV2LoggingLevels", func() (int, int, error) {
+		iotCounted("iot:ListV2LoggingLevels", func() (int, error) {
 			return scanIoTResourceSpecificLogging(ctx, client, acct, region, st, scanID)
 		}),
-		iotCounted("iot:DescribeEncryptionConfiguration", func() (int, int, error) {
+		iotCounted("iot:DescribeEncryptionConfiguration", func() (int, error) {
 			return scanIoTEncryptionConfiguration(ctx, client, acct, region, st, scanID)
 		}),
 	)
@@ -39,18 +39,18 @@ func scanIoTLogging(ctx context.Context, client iotLoggingAPI, acct *account, re
 
 // scanIoTLoggingOptions emits one row per region — V2 logging is a
 // per-region singleton (DefaultLogLevel + RoleArn).
-func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetV2LoggingOptions(ctx, &iot.GetV2LoggingOptionsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "iot:GetV2LoggingOptions", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "iot:GetV2LoggingOptions", acct.ID, region, err)
 		}
 		// NotConfiguredException = SetV2LoggingOptions never called for this
 		// account/region (default state); treat as no-op.
 		if isAPIErrorCode(err, "NotConfiguredException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("iot:GetV2LoggingOptions: %w", err)
+		return 0, fmt.Errorf("iot:GetV2LoggingOptions: %w", err)
 	}
 	arn := arnFor(acct.partition(), "iot", region, acct.ID, "logging")
 	name := "logging"
@@ -65,16 +65,16 @@ func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *acco
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot logging: %w", uerr)
+		return 0, fmt.Errorf("upsert iot logging: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // scanIoTResourceSpecificLogging emits one row per (target type, target name)
 // pair returned by ListV2LoggingLevels.
-func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := iot.NewListV2LoggingLevelsPaginator(client, &iot.ListV2LoggingLevelsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -82,14 +82,14 @@ func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iot:ListV2LoggingLevels", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
 			// NotConfiguredException = SetV2LoggingOptions never called
 			// (default state). No levels to enumerate.
 			if isAPIErrorCode(perr, "NotConfiguredException") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("iot:ListV2LoggingLevels: %w", perr)
+			return 0, fmt.Errorf("iot:ListV2LoggingLevels: %w", perr)
 		}
 		for _, l := range out.LogTargetConfigurations {
 			if l.LogTarget == nil {
@@ -116,24 +116,24 @@ func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, a
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot resource-specific-logging: %w", uerr)
+		return 0, fmt.Errorf("upsert iot resource-specific-logging: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanIoTEncryptionConfiguration emits one row per region — encryption
 // config is a per-region singleton.
-func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.DescribeEncryptionConfiguration(ctx, &iot.DescribeEncryptionConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "iot:DescribeEncryptionConfiguration", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "iot:DescribeEncryptionConfiguration", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("iot:DescribeEncryptionConfiguration: %w", err)
+		return 0, fmt.Errorf("iot:DescribeEncryptionConfiguration: %w", err)
 	}
 	arn := arnFor(acct.partition(), "iot", region, acct.ID, "encryption-configuration")
 	name := "encryption-configuration"
@@ -148,9 +148,9 @@ func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, a
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot encryption-configuration: %w", uerr)
+		return 0, fmt.Errorf("upsert iot encryption-configuration: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }

@@ -37,7 +37,7 @@ func assertOneWarningNaming(t *testing.T, warns []store.ScanWarning, op, key str
 	}
 }
 
-func scanCogPools(ctx context.Context, f *cogFake, st *store.Store) (cognitoStoredParents, int, int, error) {
+func scanCogPools(ctx context.Context, f *cogFake, st *store.Store) (cognitoStoredParents, int, error) {
 	return scanCognitoUserPoolsAndClients(ctx, f.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
@@ -62,7 +62,9 @@ func TestScanCognitoUserPools_StoresDescribedPoolsWithTags(t *testing.T) {
 	f.morePools = [][]cognitoidptypes.UserPoolDescriptionType{{{Id: sdkaws.String("us-east-1_untagged")}}}
 	f.poolTags = map[string]map[string]string{"us-east-1_tagged": {"env": "prod", "team": "id"}}
 
-	stored, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	stored, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 2 || inserted != 2 {
 		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, inserted, err)
 	}
@@ -117,7 +119,9 @@ func TestScanCognitoUserPools_DescribeFailures(t *testing.T) {
 			f.clients[pool] = []string{"c1"}
 			f.errs["DescribeUserPool "+pool] = bcmPCAPIErr(tc.code, "x")
 
-			stored, total, inserted, err := scanCogPools(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			stored, total, err := scanCogPools(context.Background(), f, counted)
+			inserted := upserts()
 			if !tc.wantErr(err) {
 				t.Errorf("err = %v; want %s handled as %s", err, tc.code, tc.name)
 			}
@@ -165,7 +169,7 @@ func TestScanCognitoUserPools_DeniedCodesShareOneWarning(t *testing.T) {
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{{Id: sdkaws.String("us-east-1_a")}, {Id: sdkaws.String("us-east-1_b")}}
 	f.errs["DescribeUserPool us-east-1_a"] = bcmPCAPIErr("AccessDeniedException", "x")
 	f.errs["DescribeUserPool us-east-1_b"] = bcmPCAPIErr("NotAuthorizedException", "x")
-	if _, total, _, err := scanCogPools(context.Background(), f, st); err != nil || total != 2 {
+	if _, total, err := scanCogPools(context.Background(), f, st); err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
 	if *warns != 1 {
@@ -196,7 +200,9 @@ func TestScanCognitoUserPools_ListFailures(t *testing.T) {
 			f.morePools = [][]cognitoidptypes.UserPoolDescriptionType{{{Id: sdkaws.String("us-east-1_second")}}}
 			f.errs["ListUserPools "+tc.failToken] = bcmPCAPIErr(tc.code, "x")
 
-			_, total, inserted, err := scanCogPools(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			_, total, err := scanCogPools(context.Background(), f, counted)
+			inserted := upserts()
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -216,8 +222,9 @@ func TestScanCognitoUserPools_EmptyIDWarns(t *testing.T) {
 	warns := recordWarnings(st)
 	f := newCogFake()
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{{Name: sdkaws.String("pool-without-id")}, {Id: sdkaws.String("us-east-1_ok")}}
-	if _, total, inserted, err := scanCogPools(context.Background(), f, st); err != nil || total != 1 || inserted != 1 {
-		t.Fatalf("scan = %d, %d, %v; want 1, 1, nil", total, inserted, err)
+	counted, upserts := countUpserts(st)
+	if _, total, err := scanCogPools(context.Background(), f, counted); err != nil || total != 1 || upserts() != 1 {
+		t.Fatalf("scan = %d, %d, %v; want 1, 1, nil", total, upserts(), err)
 	}
 	assertOneWarningNaming(t, *warns, "cognito-idp:ListUserPools", "pool-without-id")
 }
@@ -234,7 +241,9 @@ func TestScanCognitoUserPools_StoreWriteFailureStops(t *testing.T) {
 	f.errs["DescribeUserPool us-east-1_denied"] = bcmPCAPIErr("AccessDeniedException", "x")
 	f.errs["DescribeUserPool us-east-1_slow"] = bcmPCAPIErr("TooManyRequestsException", "x")
 	f.bodiless = "us-east-1_empty"
-	stored, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	stored, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) || isTransientNetworkError(err) {
 		t.Errorf("err = %v; want only the store write failure", err)
 	}
@@ -256,7 +265,7 @@ func TestScanCognitoUserPools_ContextStop(t *testing.T) {
 	f := newCogFake()
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{{Id: sdkaws.String("us-east-1_a")}}
 	f.afterList = cancel
-	_, total, _, err := scanCogPools(ctx, f, st)
+	_, total, err := scanCogPools(ctx, f, st)
 	if !errors.Is(err, context.Canceled) || total != 0 {
 		t.Errorf("scan = %d, %v; want 0 and the cancellation", total, err)
 	}
@@ -327,7 +336,7 @@ func (f *idPoolFake) client() *cognitoidentity.Client {
 	}, bcmPCAPIErr("AccessDeniedException", "User: x is not authorized to perform: cognito-identity:Op")))
 }
 
-func scanIDPools(ctx context.Context, f *idPoolFake, st *store.Store) ([]string, int, int, error) {
+func scanIDPools(ctx context.Context, f *idPoolFake, st *store.Store) ([]string, int, error) {
 	return scanCognitoIdentityPools(ctx, f.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
@@ -352,7 +361,9 @@ func TestScanCognitoIdentityPools_StoresDescribedPoolsWithTags(t *testing.T) {
 		[]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:untagged")})
 	f.tags["us-east-1:tagged"] = map[string]string{"env": "prod"}
 
-	ids, total, inserted, err := scanIDPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	ids, total, err := scanIDPools(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 2 || inserted != 2 || !reflect.DeepEqual(ids, []string{"us-east-1:tagged", "us-east-1:untagged"}) {
 		t.Fatalf("scan = %v, %d, %d, %v; want both pools, 2, 2, nil", ids, total, inserted, err)
 	}
@@ -412,7 +423,9 @@ func TestScanCognitoIdentityPools_ReadFailures(t *testing.T) {
 			f.tags[pool] = map[string]string{"env": "prod"}
 			f.errs[tc.op+" "+pool] = bcmPCAPIErr(tc.code, "x")
 
-			ids, total, inserted, err := scanIDPools(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			ids, total, err := scanIDPools(context.Background(), f, counted)
+			inserted := upserts()
 			if !tc.wantErr(err) {
 				t.Errorf("err = %v; want %s handled as %s", err, tc.code, tc.name)
 			}
@@ -479,7 +492,9 @@ func TestScanCognitoIdentityPools_ListFailures(t *testing.T) {
 				[]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:second")})
 			f.errs["ListIdentityPools "+tc.failToken] = bcmPCAPIErr(tc.code, "x")
 
-			_, total, inserted, err := scanIDPools(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			_, total, err := scanIDPools(context.Background(), f, counted)
+			inserted := upserts()
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -500,7 +515,9 @@ func TestScanCognitoIdentityPools_EmptyIDWarns(t *testing.T) {
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{
 		{IdentityPoolName: sdkaws.String("pool-without-id")}, idPoolShort("us-east-1:ok"),
 	})
-	ids, total, inserted, err := scanIDPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	ids, total, err := scanIDPools(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 1 || inserted != 1 || !reflect.DeepEqual(ids, []string{"us-east-1:ok"}) {
 		t.Fatalf("scan = %v, %d, %d, %v; want [us-east-1:ok], 1, 1, nil", ids, total, inserted, err)
 	}
@@ -515,7 +532,9 @@ func TestScanCognitoIdentityPools_StoreWriteFailureStops(t *testing.T) {
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:denied"), idPoolShort("us-east-1:slow")})
 	f.errs["DescribeIdentityPool us-east-1:denied"] = bcmPCAPIErr("AccessDeniedException", "x")
 	f.errs["GetIdentityPoolRoles us-east-1:slow"] = bcmPCAPIErr("TooManyRequestsException", "x")
-	ids, total, inserted, err := scanIDPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	ids, total, err := scanIDPools(context.Background(), f, counted)
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) || isTransientNetworkError(err) {
 		t.Errorf("err = %v; want only the store write failure", err)
 	}
@@ -534,7 +553,7 @@ func TestScanCognitoIdentityPools_ContextStop(t *testing.T) {
 	defer cancel()
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:a")})
 	f.afterList = cancel
-	ids, total, _, err := scanIDPools(ctx, f, st)
+	ids, total, err := scanIDPools(ctx, f, st)
 	if !errors.Is(err, context.Canceled) || total != 0 || len(ids) != 0 {
 		t.Errorf("scan = %v, %d, %v; want nothing and the cancellation", ids, total, err)
 	}
@@ -548,7 +567,9 @@ func TestScanCognitoAll_IdentityPoolsRunAfterPoolPhaseFailure(t *testing.T) {
 	f := newCogFake()
 	f.errs["ListUserPools "] = bcmPCAPIErr("InvalidParameterException", "bad")
 	idf := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:a")})
-	total, inserted, err := scanCognitoAll(context.Background(), f.client(), idf.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCognitoAll(context.Background(), f.client(), idf.client(), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	// The identity pool and the role attachment the extended phase reads for it.
 	if !isAPIErrorCode(err, "InvalidParameterException") || total != 2 || inserted != 2 {
 		t.Errorf("scan = %d, %d, %v; want 2, 2 and the ListUserPools InvalidParameterException", total, inserted, err)
@@ -568,7 +589,7 @@ func TestScanCognitoAll_StoreWriteFailureStopsLaterPhases(t *testing.T) {
 			refuseStoreWrites(t, st, refused)
 			f := cogTopLevelFake()
 			idf := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:a")})
-			_, _, err := scanCognitoAll(context.Background(), f.client(), idf.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanCognitoAll(context.Background(), f.client(), idf.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Errorf("err = %v; want the store write failure", err)
 			}
@@ -593,7 +614,9 @@ func TestScanCognitoUserPools_ClientListingErrorKeepsPool(t *testing.T) {
 	f.clients["us-east-1_ok"] = []string{"c1"}
 	f.errs["ListUserPoolClients us-east-1_failing"] = bcmPCAPIErr("InvalidParameterException", "x")
 
-	stored, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	stored, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("err = %v; want the ListUserPoolClients InvalidParameterException", err)
 	}
@@ -617,7 +640,9 @@ func TestScanCognitoUserPools_TransientDemotedBesideHardError(t *testing.T) {
 	f.errs["DescribeUserPool us-east-1_slow"] = bcmPCAPIErr("TooManyRequestsException", "x")
 	f.errs["DescribeUserPool us-east-1_bad"] = bcmPCAPIErr("InvalidParameterException", "x")
 
-	_, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "InvalidParameterException") || isAPIErrorCode(err, "TooManyRequestsException") {
 		t.Errorf("outcome = %d, err = %v; want outcomeError (%d) with only the InvalidParameterException", got, err, outcomeError)
 	}
@@ -635,7 +660,9 @@ func TestScanCognitoIdentityPools_TransientDemotedBesideHardError(t *testing.T) 
 	f.errs["DescribeIdentityPool us-east-1:slow"] = bcmPCAPIErr("TooManyRequestsException", "x")
 	f.errs["GetIdentityPoolRoles us-east-1:bad"] = bcmPCAPIErr("ResourceConflictException", "x")
 
-	_, total, inserted, err := scanIDPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanIDPools(context.Background(), f, counted)
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ResourceConflictException") || isAPIErrorCode(err, "TooManyRequestsException") {
 		t.Errorf("outcome = %d, err = %v; want outcomeError (%d) with only the ResourceConflictException", got, err, outcomeError)
 	}
@@ -656,7 +683,9 @@ func TestScanCognitoUserPools_NoBodyKeptAndWarned(t *testing.T) {
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{listed, {Id: sdkaws.String("us-east-1_ok")}}
 	f.bodiless = "us-east-1_empty"
 
-	_, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 2 || inserted != 2 {
 		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, inserted, err)
 	}
@@ -685,7 +714,9 @@ func TestScanCognitoUserPools_ClientTransientWarnedUnderItsOp(t *testing.T) {
 	f.errs["ListUserPoolClients us-east-1_slow"] = bcmPCAPIErr("TooManyRequestsException", "x")
 	f.errs["DescribeUserPool us-east-1_bad"] = bcmPCAPIErr("InvalidParameterException", "x")
 
-	_, total, inserted, err := scanCogPools(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanCogPools(context.Background(), f, counted)
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeError || isAPIErrorCode(err, "TooManyRequestsException") {
 		t.Errorf("outcome = %d, err = %v; want outcomeError (%d) without the throttle", got, err, outcomeError)
 	}

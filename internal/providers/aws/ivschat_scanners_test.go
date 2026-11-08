@@ -37,7 +37,9 @@ func ivsChatTestClient() *ivschat.Client {
 func TestScanIVSChatRooms_ReadsListedTags(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := scanIVSChatRooms(context.Background(), ivsChatTestClient(), newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanIVSChatRooms(context.Background(), ivsChatTestClient(), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -54,7 +56,9 @@ func TestScanIVSChatRooms_ReadsListedTags(t *testing.T) {
 func TestScanIVSChatLoggingConfigs_ReadsListedTags(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := scanIVSChatLoggingConfigs(context.Background(), ivsChatTestClient(), newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanIVSChatLoggingConfigs(context.Background(), ivsChatTestClient(), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

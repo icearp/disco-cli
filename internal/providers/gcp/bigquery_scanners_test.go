@@ -77,7 +77,9 @@ func TestScanBigQuery_ModelsRoutinesRowAccessPoliciesChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeBigQueryService(t, srv)
 
-	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigQueryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigQueryWithClient: %v", err)
 	}
@@ -187,7 +189,9 @@ func TestScanBigQuery_RowAccessPolicyGetIamPolicyDeniedStillStoresPolicy(t *test
 	t.Cleanup(srv.Close)
 	svc := fakeBigQueryService(t, srv)
 
-	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigQueryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigQueryWithClient: %v", err)
 	}
@@ -262,7 +266,7 @@ func TestScanBigQuery_RowAccessPolicyGetIamPolicyHardErrorPropagates(t *testing.
 	t.Cleanup(srv.Close)
 	svc := fakeBigQueryService(t, srv)
 
-	_, _, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	_, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
 	if err == nil {
 		t.Fatalf("scanBigQueryWithClient: expected a real GetIamPolicy 500 error to propagate, got nil")
 	}
@@ -316,7 +320,9 @@ func TestScanBigQuery_RowAccessPoliciesPermissionDeniedContinuesToModels(t *test
 	t.Cleanup(srv.Close)
 	svc := fakeBigQueryService(t, srv)
 
-	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigQueryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigQueryWithClient: %v", err)
 	}
@@ -389,7 +395,9 @@ func TestScanBigQuery_RowAccessPoliciesAPINotEnabledShapeDoesNotDisableWholeServ
 	t.Cleanup(srv.Close)
 	svc := fakeBigQueryService(t, srv)
 
-	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigQueryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigQueryWithClient: expected nil error (must not escalate to disabled sentinel), got %v", err)
 	}
@@ -416,7 +424,9 @@ func TestScanBigQuery_DatasetsListPermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeBigQueryService(t, srv)
 
-	total, inserted, err := scanBigQueryWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBigQueryWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBigQueryWithClient (denied): expected nil error, got %v", err)
 	}

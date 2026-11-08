@@ -315,7 +315,7 @@ func gaHandlers(c *gaCalls) map[string]func(in any) (any, error) {
 
 // gaScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func gaScan(st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func gaScan(st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, gaTestDenied)
 	return scanGlobalAccelerator(context.Background(), acct, "", st, testScanID)
@@ -372,7 +372,9 @@ func TestScanGlobalAccelerator_StoresEveryTypeWithTags(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGACalls()
-	total, inserted, err := gaScan(st, gaHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := gaScan(counted, gaHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGlobalAccelerator: %v", err)
 	}
@@ -498,16 +500,16 @@ func TestScanGlobalAccelerator_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanGlobalAccelerator_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := gaScan(st, gaHandlers(newGACalls())); err != nil {
+	if _, err := gaScan(st, gaHandlers(newGACalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := gaScan(st, gaHandlers(newGACalls()))
+	total, err := gaScan(st, gaHandlers(newGACalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -564,7 +566,7 @@ func TestScanGlobalAccelerator_TagReadFailures(t *testing.T) {
 				warns := bacWarnings(st, gaTestTagsOp)
 				calls := newGACalls()
 				calls.errs[k.arn] = c.err
-				total, _, err := gaScan(st, gaHandlers(calls))
+				total, err := gaScan(st, gaHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -614,7 +616,7 @@ func TestScanGlobalAccelerator_TagDenialsWarnOncePerScan(t *testing.T) {
 	for _, d := range denied {
 		calls.errs[d.arn] = gaTestDenied
 	}
-	total, _, err := gaScan(st, gaHandlers(calls))
+	total, err := gaScan(st, gaHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -640,7 +642,7 @@ func TestScanGlobalAccelerator_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls := newGACalls()
 	calls.errs[gaTestCRAcc1] = gaTestThrottle
 	calls.errs[gaTestAtt2] = gaTestInvalid
-	_, _, err := gaScan(st, gaHandlers(calls))
+	_, err := gaScan(st, gaHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArgumentException")
 	if *warns != 1 {
@@ -680,7 +682,7 @@ func TestScanGlobalAccelerator_FailedWriteStopsScan(t *testing.T) {
 			refuseStoreWrites(t, st, c.typ)
 			calls := newGACalls()
 			calls.errs[c.firstRow] = gaTestDenied
-			total, _, err := gaScan(st, gaHandlers(calls))
+			total, err := gaScan(st, gaHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -725,7 +727,7 @@ func TestScanGlobalAccelerator_LaterPageFailureKeepsPages(t *testing.T) {
 			calls := newGACalls()
 			h := gaHandlers(calls)
 			h[c.op] = gaFailTokenPages(gaTestInvalid, h[c.op])
-			total, _, err := gaScan(st, h)
+			total, err := gaScan(st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidArgumentException")
 			if total != c.wantTotal {
@@ -749,7 +751,7 @@ func TestScanGlobalAccelerator_RepeatedTokenKeepsPages(t *testing.T) {
 			st := newTestStore(t)
 			calls := newGACalls()
 			calls.repeat = op
-			total, _, err := gaScan(st, gaHandlers(calls))
+			total, err := gaScan(st, gaHandlers(calls))
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -795,7 +797,7 @@ func TestScanGlobalAccelerator_ChildListingFailures(t *testing.T) {
 				warns := countOpWarnings(st, "globalaccelerator:"+p.op)
 				h := gaHandlers(newGACalls())
 				h[p.op] = gaFailParent(p.parent, c.err, h[p.op])
-				total, _, err := gaScan(st, h)
+				total, err := gaScan(st, h)
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -840,7 +842,7 @@ func TestScanGlobalAccelerator_LaterPageDeniedKeepsPages(t *testing.T) {
 			warns := countOpWarnings(st, "globalaccelerator:"+c.op)
 			h := gaHandlers(newGACalls())
 			h[c.op] = gaFailTokenPages(gaTestDenied, h[c.op])
-			total, _, err := gaScan(st, h)
+			total, err := gaScan(st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -862,7 +864,7 @@ func TestScanGlobalAccelerator_FailedListingRunsLaterPhases(t *testing.T) {
 	calls := newGACalls()
 	h := gaHandlers(calls)
 	h["ListAccelerators"] = func(any) (any, error) { return nil, gaTestInvalid }
-	total, _, err := gaScan(st, h)
+	total, err := gaScan(st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArgumentException")
 	// The 2 accelerators, 2 listeners and 2 endpoint groups are lost.
@@ -891,7 +893,7 @@ func TestScanGlobalAccelerator_TransientPhaseDemotedBesideHardError(t *testing.T
 		h := gaHandlers(newGACalls())
 		h[op] = func(any) (any, error) { return nil, opErr }
 		h[hardOp] = func(any) (any, error) { return nil, gaTestInvalid }
-		_, _, err := gaScan(st, h)
+		_, err := gaScan(st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidArgumentException")
 		got := map[string]int{}
@@ -936,7 +938,9 @@ func TestScanGlobalAccelerator_EmptyAccount(t *testing.T) {
 	h["ListCrossAccountAttachments"] = func(any) (any, error) { return &globalaccelerator.ListCrossAccountAttachmentsOutput{}, nil }
 	h["ListCustomRoutingAccelerators"] = func(any) (any, error) { return &globalaccelerator.ListCustomRoutingAcceleratorsOutput{}, nil }
 	h["ListByoipCidrs"] = func(any) (any, error) { return &globalaccelerator.ListByoipCidrsOutput{}, nil }
-	total, inserted, err := gaScan(st, h)
+	counted, upserts := countUpserts(st)
+	total, err := gaScan(counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -967,7 +971,7 @@ func TestScanGlobalAccelerator_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanGlobalAccelerator(context.Background(), acct, "", st, testScanID)
+		_, err := scanGlobalAccelerator(context.Background(), acct, "", st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -977,7 +981,7 @@ func TestScanGlobalAccelerator_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := gaHandlers(newGACalls())
 		h["ListByoipCidrs"] = func(any) (any, error) { return nil, nx }
-		total, _, err := gaScan(st, h)
+		total, err := gaScan(st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != gaTestTotal-2 {
 			t.Errorf("total = %d; want %d", total, gaTestTotal-2)
@@ -987,7 +991,7 @@ func TestScanGlobalAccelerator_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGACalls()
 		calls.errs[gaTestStd1] = nx
-		total, _, err := gaScan(st, gaHandlers(calls))
+		total, err := gaScan(st, gaHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != gaTestTotal {
 			t.Errorf("total = %d; want %d", total, gaTestTotal)

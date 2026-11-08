@@ -94,7 +94,7 @@ func TestScanM2Datasets_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1", "app-2"))
+	total, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1", "app-2"))
 	if err != nil {
 		t.Fatalf("scanM2Datasets: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestScanM2Datasets_Empty(t *testing.T) {
 	client := newM2TestClient(map[string]func(any) (any, error){
 		"ListDataSets": m2DataSetsHandler(&calls, nil, nil),
 	})
-	total, _, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
+	total, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -183,7 +183,7 @@ func TestScanM2Datasets_PerApplicationErrors(t *testing.T) {
 					"app-3": {{m2DataSet("DS3")}},
 				}, map[string]error{"app-1": tc.err, "app-2": tc.err}),
 			})
-			total, _, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1", "app-2", "app-3"))
+			total, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1", "app-2", "app-3"))
 			if tc.wantErr {
 				if !isAPIErrorCode(err, "ServiceQuotaExceededException") {
 					t.Errorf("err = %v; want ServiceQuotaExceededException", err)
@@ -222,7 +222,7 @@ func TestScanM2Datasets_PageSizeRejectedFails(t *testing.T) {
 			client := newM2TestClient(map[string]func(any) (any, error){
 				"ListDataSets": m2DataSetsHandler(&calls, nil, map[string]error{"app-1": m2ValidationOn(field)}),
 			})
-			_, _, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
+			_, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
 			if got := classifyServiceError(err); got != outcomeError || *warns != 0 {
 				t.Errorf("err = %v (outcome %v), warnings = %d; want outcomeError and no warning", err, got, *warns)
 			}
@@ -240,7 +240,7 @@ func TestScanM2Datasets_SkipKeepsEarlierPages(t *testing.T) {
 			"app-1": {{m2DataSet("DS1")}, {m2DataSet("DS2")}},
 		}, map[string]error{"app-1/p2": apiErr("ValidationException", "x")}),
 	})
-	total, _, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
+	total, err := scanM2Datasets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, m2Apps(t, st, "app-1"))
 	if err != nil || total != 1 {
 		t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -431,7 +431,7 @@ func (f *m2Fixture) handlers() map[string]func(in any) (any, error) {
 
 // m2Scan runs the scan's real entry point against handlers in the fixture's
 // partition and region; every op they do not answer is denied.
-func m2Scan(ctx context.Context, st *store.Store, f *m2Fixture, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func m2Scan(ctx context.Context, st *store.Store, f *m2Fixture, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(handlers, m2Denied)
@@ -457,7 +457,9 @@ func TestScanM2_StoresTagsOfApplicationsAndEnvironments(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newM2Fixture()
 
-	total, inserted, err := m2Scan(context.Background(), st, f, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := m2Scan(context.Background(), counted, f, f.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -546,10 +548,12 @@ func TestScanM2_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newM2Fixture()
-	if _, _, err := m2Scan(context.Background(), st, f, f.handlers()); err != nil {
+	if _, err := m2Scan(context.Background(), st, f, f.handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := m2Scan(context.Background(), st, f, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := m2Scan(context.Background(), counted, f, f.handlers())
+	inserted := upserts()
 	if err != nil || total != m2TestTotal || inserted != 0 {
 		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, m2TestTotal)
 	}
@@ -564,7 +568,7 @@ func TestScanM2_Empty(t *testing.T) {
 	f := newM2Fixture()
 	f.apps, f.envs = nil, nil
 
-	total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+	total, err := m2Scan(context.Background(), st, f, f.handlers())
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -621,7 +625,7 @@ func TestScanM2_TagReadFailures(t *testing.T) {
 			}
 			f.errs[arn] = c.err
 
-			total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+			total, err := m2Scan(context.Background(), st, f, f.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -678,7 +682,7 @@ func TestScanM2_TagDenialsWarnOncePerScan(t *testing.T) {
 	f.errs[f.appARN("app-bare")] = m2Denied
 	f.errs[f.envARN("env-tagged")] = m2Denied
 
-	total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+	total, err := m2Scan(context.Background(), st, f, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -700,7 +704,7 @@ func TestScanM2_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs[f.appARN("app-bare")] = m2Throttled
 	f.errs[f.envARN("env-tagged")] = m2TestBad
 
-	_, _, err := m2Scan(context.Background(), st, f, f.handlers())
+	_, err := m2Scan(context.Background(), st, f, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -719,7 +723,7 @@ func TestScanM2_FailedWriteStopsScan(t *testing.T) {
 	f := newM2Fixture()
 	f.errs[f.envARN("env-tagged")] = m2Denied
 
-	total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+	total, err := m2Scan(context.Background(), st, f, f.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -762,7 +766,7 @@ func TestScanM2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			f := newM2Fixture()
 			f.listErrs[c.key] = c.err
 
-			total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+			total, err := m2Scan(context.Background(), st, f, f.handlers())
 			if c.warnOp == "" {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ValidationException")
@@ -804,7 +808,7 @@ func TestScanM2_RepeatedTokenKeepsPages(t *testing.T) {
 		return &m2.ListApplicationsOutput{Applications: []m2types.ApplicationSummary{f.app("app-bare")}, NextToken: sdkaws.String("p2")}, nil
 	}
 
-	total, _, err := m2Scan(context.Background(), st, f, handlers)
+	total, err := m2Scan(context.Background(), st, f, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -838,7 +842,7 @@ func TestScanM2_ElementsWithoutIdentifier(t *testing.T) {
 	f.envs[1] = append(f.envs[1], noARNEnv)
 	f.deployments["app-bare"][0] = append(f.deployments["app-bare"][0], m2types.DeploymentSummary{})
 
-	total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+	total, err := m2Scan(context.Background(), st, f, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -884,7 +888,7 @@ func TestScanM2_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newM2FixtureIn(c.partition, c.region)
-			if _, _, err := m2Scan(context.Background(), st, f, f.handlers()); err != nil {
+			if _, err := m2Scan(context.Background(), st, f, f.handlers()); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := f.sortedTagARNs(); !slices.Equal(got, f.allTagARNs()) {
@@ -917,7 +921,7 @@ func TestScanM2_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := m2Scan(ctx, st, f, handlers)
+	_, err := m2Scan(ctx, st, f, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -956,7 +960,7 @@ func TestScanM2_NXDOMAIN(t *testing.T) {
 			f := newM2Fixture()
 			handlers := f.handlers()
 			handlers[c.op] = func(any) (any, error) { return nil, nx }
-			total, _, err := m2Scan(context.Background(), st, f, handlers)
+			total, err := m2Scan(context.Background(), st, f, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			if total != c.wantTotal {
 				t.Errorf("total = %d; want %d", total, c.wantTotal)
@@ -967,7 +971,7 @@ func TestScanM2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := newM2Fixture()
 		f.errs[f.appARN("app-tagged")] = nx
-		_, _, err := m2Scan(context.Background(), st, f, f.handlers())
+		_, err := m2Scan(context.Background(), st, f, f.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -975,7 +979,7 @@ func TestScanM2_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		f := newM2Fixture()
 		f.listErrs["ListApplications"] = nx
-		_, _, err := m2Scan(context.Background(), st, f, f.handlers())
+		_, err := m2Scan(context.Background(), st, f, f.handlers())
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1012,7 +1016,7 @@ func TestScanM2_DeploymentFailuresPerApplication(t *testing.T) {
 			f := newM2Fixture()
 			f.listErrs[c.key] = c.err
 
-			total, _, err := m2Scan(context.Background(), st, f, f.handlers())
+			total, err := m2Scan(context.Background(), st, f, f.handlers())
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ValidationException")
@@ -1052,7 +1056,7 @@ func TestScanM2_DatasetPhaseRunsLast(t *testing.T) {
 			return inner(in)
 		}
 	}
-	if _, _, err := m2Scan(context.Background(), st, f, h); err != nil {
+	if _, err := m2Scan(context.Background(), st, f, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := f.dataSets.distinct(); !slices.Equal(got, []string{"app-bare", "app-tagged"}) {
@@ -1077,7 +1081,7 @@ func TestScanM2_TransientDemotedBesideHardError(t *testing.T) {
 			handlers := f.handlers()
 			handlers["ListDataSets"] = func(any) (any, error) { return nil, m2QuotaErr }
 
-			_, _, err := m2Scan(context.Background(), st, f, handlers)
+			_, err := m2Scan(context.Background(), st, f, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ServiceQuotaExceededException")
 			if got := m2WarnOps(warns()); !slices.Equal(got, []string{c.op}) {

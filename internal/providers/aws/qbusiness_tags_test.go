@@ -263,7 +263,7 @@ var qbTestListOps = []string{
 
 // qbScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func qbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func qbScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, qbDenied)
 	return scanQBusiness(ctx, acct, testRegion, st, testScanID)
@@ -289,7 +289,9 @@ func TestScanQBusiness_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newQBCalls()
 
-	total, inserted, err := qbScan(context.Background(), st, qbHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := qbScan(context.Background(), counted, qbHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -363,7 +365,9 @@ func TestScanQBusiness_EmptyListing(t *testing.T) {
 		return &qbusiness.ListApplicationsOutput{}, nil
 	}
 
-	total, inserted, err := qbScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := qbScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -377,16 +381,16 @@ func TestScanQBusiness_EmptyListing(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanQBusiness_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := qbScan(context.Background(), st, qbHandlers(newQBCalls())); err != nil {
+	if _, err := qbScan(context.Background(), st, qbHandlers(newQBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := qbScan(context.Background(), st, qbHandlers(newQBCalls()))
+	total, err := qbScan(context.Background(), st, qbHandlers(newQBCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -434,7 +438,7 @@ func TestScanQBusiness_TagReadFailures(t *testing.T) {
 				calls := newQBCalls()
 				calls.errs[x.arn] = c.err
 
-				total, _, err := qbScan(context.Background(), st, qbHandlers(calls))
+				total, err := qbScan(context.Background(), st, qbHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -484,7 +488,7 @@ func TestScanQBusiness_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := qbScan(context.Background(), st, qbHandlers(calls))
+	total, err := qbScan(context.Background(), st, qbHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -506,7 +510,7 @@ func TestScanQBusiness_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[qbTestARNPrefix+"application/a1/index/i1"] = qbThrottle
 	calls.errs[qbTestARNPrefix+"application/a2/plugin/p1"] = qbBadInput
 
-	_, _, err := qbScan(context.Background(), st, qbHandlers(calls))
+	_, err := qbScan(context.Background(), st, qbHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -525,7 +529,7 @@ func TestScanQBusiness_FailedWriteStopsScan(t *testing.T) {
 	calls := newQBCalls()
 	calls.errs[qbTestARNPrefix+"application/a1/index/i1"] = qbDenied
 
-	total, _, err := qbScan(context.Background(), st, qbHandlers(calls))
+	total, err := qbScan(context.Background(), st, qbHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -551,7 +555,7 @@ func TestScanQBusiness_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 	handlers := qbHandlers(calls)
 	handlers["ListApplications"] = failOnCall(2, qbBadInput, handlers["ListApplications"])
 
-	total, _, err := qbScan(context.Background(), st, handlers)
+	total, err := qbScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if want := qbTestTotal - (1 + qbTestPerApp); total != want {
@@ -581,7 +585,7 @@ func TestScanQBusiness_RepeatedTokenKeepsPages(t *testing.T) {
 		return &qbusiness.ListPluginsOutput{NextToken: sdkaws.String("same"), Plugins: []qbtypes.Plugin{{PluginId: &id}}}, nil
 	}
 
-	total, _, err := qbScan(context.Background(), st, handlers)
+	total, err := qbScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -637,7 +641,7 @@ func TestScanQBusiness_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := qbScan(context.Background(), st, handlers)
+				total, err := qbScan(context.Background(), st, handlers)
 				if c.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -712,7 +716,7 @@ func TestScanQBusiness_ElementWithoutID(t *testing.T) {
 				return c.answer, nil
 			}
 
-			total, _, err := qbScan(context.Background(), st, handlers)
+			total, err := qbScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -759,7 +763,7 @@ func TestScanQBusiness_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, qbDenied)
 
-			if _, _, err := scanQBusiness(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanQBusiness(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			read := calls.readARNs()
@@ -792,7 +796,7 @@ func TestScanQBusiness_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := qbScan(ctx, st, handlers)
+	_, err := qbScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -819,7 +823,7 @@ func TestScanQBusiness_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := qbHandlers(newQBCalls())
 		handlers["ListPlugins"] = func(any) (any, error) { return nil, nx }
-		total, _, err := qbScan(context.Background(), st, handlers)
+		total, err := qbScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != qbTestTotal-4 {
 			t.Errorf("total = %d; want the %d other rows counted", total, qbTestTotal-4)
@@ -829,7 +833,7 @@ func TestScanQBusiness_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newQBCalls()
 		calls.errs[qbTestARNPrefix+"application/a2/retriever/r2"] = nx
-		_, _, err := qbScan(context.Background(), st, qbHandlers(calls))
+		_, err := qbScan(context.Background(), st, qbHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -837,7 +841,7 @@ func TestScanQBusiness_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanQBusiness(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanQBusiness(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -852,7 +856,7 @@ func TestScanQBusiness_PhaseOrder(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
-	if _, _, err := qbScan(context.Background(), st, qbHandlers(calls)); err != nil {
+	if _, err := qbScan(context.Background(), st, qbHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	calls.mu.Lock()
@@ -898,7 +902,7 @@ func TestScanQBusiness_FailedApplicationHasNoChatControls(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := qbScan(context.Background(), st, handlers)
+	total, err := qbScan(context.Background(), st, handlers)
 	if err != nil || total != qbTestTotal-1 {
 		t.Fatalf("total, err = %d, %v; want %d, nil", total, err, qbTestTotal-1)
 	}
@@ -927,7 +931,7 @@ func TestScanQBusiness_ChatResponseConfigurationTagReadSendsListedARN(t *testing
 		return out, err
 	}
 
-	if _, _, err := qbScan(context.Background(), st, handlers); err != nil {
+	if _, err := qbScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	read := calls.readARNs()

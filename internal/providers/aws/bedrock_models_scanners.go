@@ -131,7 +131,7 @@ func scanBedrockCustomModelDeployments(ctx context.Context, client bedrockAPI, a
 // endpoints. Their tags are not read: the Service Reference lists no
 // endpoint resource of bedrock's ListTagsForResource, and its
 // TaggableResourcesArn pattern does not accept an endpoint ARN.
-func scanBedrockMarketplaceModelEndpoints(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockMarketplaceModelEndpoints(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "bedrock:ListMarketplaceModelEndpoints",
 		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.MarketplaceModelEndpointSummary, *string, error) {
 			out, err := client.ListMarketplaceModelEndpoints(ctx, &bedrock.ListMarketplaceModelEndpointsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})

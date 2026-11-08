@@ -55,7 +55,7 @@ func runPricingPlanManager(t *testing.T, st *store.Store, handlers map[string]fu
 	// A config region other than the pin, so the recorded region proves the
 	// client overrides it.
 	acct.cfg.Region = "eu-west-1"
-	total, _, err := registeredServices[idx].fn(context.Background(), acct, "", st, testScanID)
+	total, err := registeredServices[idx].fn(context.Background(), acct, "", st, testScanID)
 	return total, &regions, err
 }
 

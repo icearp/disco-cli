@@ -25,7 +25,7 @@ const (
 // op answers a parent without Insights, so it stores nothing. The op does not
 // model EventDataStoreNotFoundException, but a store deleted since listing is
 // a vanished parent like a deleted trail, so it is skipped the same way.
-func scanCloudTrailInsightSelectors(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, parents cloudTrailParents) (int, int, error) {
+func scanCloudTrailInsightSelectors(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, parents cloudTrailParents) (int, error) {
 	return cloudTrailConfigFanOut(ctx, st, acct, region, cloudTrailInsightSelectorsOp, parents.insightTrails, parents.insightEventDataStores,
 		[]string{"InsightNotEnabledException", "TrailNotFoundException", "EventDataStoreNotFoundException"},
 		func(ctx context.Context, p childParent, trail bool) (*store.Resource, error) {
@@ -55,7 +55,7 @@ func getCloudTrailInsightSelectors(ctx context.Context, client cloudtrailAPI, in
 // {parentARN}/event-configuration. A store whose category the op does not
 // serve, or whose status (pending deletion) it refuses, is an expected state
 // no IAM change fixes, so it is skipped silently like a vanished parent.
-func scanCloudTrailEventConfigurations(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, parents cloudTrailParents) (int, int, error) {
+func scanCloudTrailEventConfigurations(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, parents cloudTrailParents) (int, error) {
 	return cloudTrailConfigFanOut(ctx, st, acct, region, cloudTrailEventConfigurationOp, parents.trails, parents.eventDataStores,
 		[]string{
 			"EventDataStoreNotFoundException", "TrailNotFoundException",
@@ -131,7 +131,7 @@ func warnCloudTrailParentRefused(st *store.Store, op string, acct *account, regi
 func cloudTrailConfigFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, trails, eventDataStores []childParent,
 	goneCodes []string, get func(ctx context.Context, p childParent, trail bool) (*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var (
 		transient transientTally
 		denyOnce  sync.Once
@@ -160,7 +160,7 @@ func cloudTrailConfigFanOut(
 		}
 		return false
 	}
-	run := func(parents []childParent, trail bool) (int, int, error) {
+	run := func(parents []childParent, trail bool) (int, error) {
 		return childFanOut(ctx, st, acct, region, op, parents, isSkip, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			r, err := get(ctx, p, trail)
 			switch {
@@ -176,10 +176,10 @@ func cloudTrailConfigFanOut(
 			}
 		})
 	}
-	t1, i1, err1 := run(trails, true)
-	t2, i2, err2 := run(eventDataStores, false)
+	t1, err1 := run(trails, true)
+	t2, err2 := run(eventDataStores, false)
 	transient.warnSkipped(st, op, acct, region)
-	return t1 + t2, i1 + i2, errors.Join(err1, err2)
+	return t1 + t2, errors.Join(err1, err2)
 }
 
 const (
@@ -269,9 +269,9 @@ func storeCTLakeItems(ctx context.Context, st *store.Store, acct *account, regio
 			failed.add(r.NativeID, dErr)
 		}
 	}
-	total, inserted, err := storeReadRows(st, acct, region, listOp, batch, listErr, tagWarn)
+	total, err := storeReadRows(st, acct, region, listOp, batch, listErr, tagWarn)
 	err = failed.settle(st, acct, region, listOp, detailOp, err)
-	if tagErrs.addPhase(p, ctListTagsOp, listOp, total, inserted, err) {
+	if tagErrs.addPhase(p, ctListTagsOp, listOp, total, err) {
 		return nil, true
 	}
 	for _, r := range batch {
@@ -392,7 +392,7 @@ func scanCTDashboards(ctx context.Context, client cloudtrailAPI, acct *account, 
 // after the SDK's retries, are skipped with one warning per cause. Any other
 // error ends the reads and is returned after the policies read before it are
 // stored.
-func scanCTResourcePolicies(ctx context.Context, client cloudtrailAPI, targets []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCTResourcePolicies(ctx context.Context, client cloudtrailAPI, targets []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "cloudtrail:GetResourcePolicy"
 	var (
 		batch     []*store.Resource

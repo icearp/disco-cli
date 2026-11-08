@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanStorageActions discovers Azure Storage Actions storage tasks.
-func scanStorageActions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageActions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armstorageactions.NewStorageTasksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armstorageactions:NewStorageTasksClient: %w", err)
+		return 0, fmt.Errorf("armstorageactions:NewStorageTasksClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armstorageactions:StorageTasks.ListBySubscription", TypeStorageActionsTask, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

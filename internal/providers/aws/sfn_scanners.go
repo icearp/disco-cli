@@ -50,11 +50,11 @@ const (
 // write and ctx's end do, and so does a first phase that stores nothing and
 // fails only with NXDOMAIN, since the region does not serve Step Functions
 // (runHostPhases). The tag reads' denials are one warning for the whole scan.
-func scanSFN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSFN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := sfn.NewFromConfig(acct.cfg, sfnClientOptions(region))
 	tags := sfnTags(client).sharingDenials()
 	var machines []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "sfn", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "sfn", 0, []hostPhase{
 		{op: sfnListStateMachinesOp, run: func(p *phaseTotals) bool {
 			var failed bool
 			machines, failed = scanSFNStateMachines(ctx, client, acct, region, st, scanID, tags, p)
@@ -71,7 +71,7 @@ func scanSFN(ctx context.Context, acct *account, region string, st *store.Store,
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // sfnClientOptions pins the client to region and makes it retry

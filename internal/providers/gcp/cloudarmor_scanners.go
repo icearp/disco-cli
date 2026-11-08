@@ -22,15 +22,15 @@ func init() {
 // walk. Rules embedded per policy as `rules[]` survive into AttributesJSON;
 // not split into their own scanner — cardinality is bounded (~200/policy)
 // and rules are meaningless without their owning policy.
-func scanCloudArmor(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudArmor(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("compute client: %w", err)
+		return 0, fmt.Errorf("compute client: %w", err)
 	}
 	return runPaginated(ctx, st, p, "compute:securityPolicies.aggregatedList",
 		svc.SecurityPolicies.AggregatedList(p.ID),
-		func(page *compute.SecurityPoliciesAggregatedList) (int, int, error) {
+		func(page *compute.SecurityPoliciesAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)

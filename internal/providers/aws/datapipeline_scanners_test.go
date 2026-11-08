@@ -102,7 +102,7 @@ func dpTwoPageStub() *stubDataPipeline {
 	}
 }
 
-func scanDPWith(t *testing.T, st *store.Store, stub *stubDataPipeline) (int, int, error) {
+func scanDPWith(t *testing.T, st *store.Store, stub *stubDataPipeline) (int, error) {
 	t.Helper()
 	return scanDataPipelinePipelines(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 }
@@ -114,7 +114,9 @@ func TestScanDataPipelinePipelines_StoresDescriptionsWithTags(t *testing.T) {
 	describeWarns := countOpWarnings(st, dataPipelineDescribeOp)
 	stub := dpTwoPageStub()
 	stub.desc["df-2"] = dptypes.PipelineDescription{Name: ptrStr("df-2")}
-	total, inserted, err := scanDPWith(t, st, stub)
+	counted, upserts := countUpserts(st)
+	total, err := scanDPWith(t, counted, stub)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataPipelinePipelines: %v", err)
 	}
@@ -173,7 +175,7 @@ func TestScanDataPipelinePipelines_ListErrorKeepsEarlierPages(t *testing.T) {
 			listWarns := countOpWarnings(st, dataPipelineListOp)
 			stub := dpTwoPageStub()
 			stub.listErr = map[string]error{"m2": c.err}
-			total, _, err := scanDPWith(t, st, stub)
+			total, err := scanDPWith(t, st, stub)
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -215,7 +217,7 @@ func TestScanDataPipelinePipelines_GoneBatchDescribedPerID(t *testing.T) {
 			describeWarns := countOpWarnings(st, dataPipelineDescribeOp)
 			stub := dpTwoPageStub()
 			stub.gone, stub.describeErr = gone, c.describeErr
-			total, _, err := scanDPWith(t, st, stub)
+			total, err := scanDPWith(t, st, stub)
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -256,7 +258,7 @@ func TestScanDataPipelinePipelines_DescribeErrorKeepsOtherBatches(t *testing.T) 
 			describeWarns := countOpWarnings(st, dataPipelineDescribeOp)
 			stub := dpTwoPageStub()
 			stub.describeErr = map[string]error{"df-1": c.err}
-			total, _, err := scanDPWith(t, st, stub)
+			total, err := scanDPWith(t, st, stub)
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -277,7 +279,7 @@ func TestScanDataPipelinePipelines_ClosedToNewCustomers(t *testing.T) {
 	t.Parallel()
 	closed := apiErr("AccessDeniedException", "")
 	st := newTestStore(t)
-	_, _, err := scanDPWith(t, st, &stubDataPipeline{listErr: map[string]error{"": closed}})
+	_, err := scanDPWith(t, st, &stubDataPipeline{listErr: map[string]error{"": closed}})
 	if !errors.Is(err, errServiceNotEntitled) {
 		t.Errorf("first page closed: err = %v, want errServiceNotEntitled", err)
 	}
@@ -285,7 +287,7 @@ func TestScanDataPipelinePipelines_ClosedToNewCustomers(t *testing.T) {
 	st = newTestStore(t)
 	stub := dpTwoPageStub()
 	stub.listErr = map[string]error{"m2": closed}
-	total, _, err := scanDPWith(t, st, stub)
+	total, err := scanDPWith(t, st, stub)
 	if err != nil || total != 1 {
 		t.Errorf("later page closed: total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -296,7 +298,7 @@ func TestScanDataPipelinePipelines_RepeatedMarker(t *testing.T) {
 	st := newTestStore(t)
 	stub := dpTwoPageStub()
 	stub.pages["m2"].Marker = ptrStr("m2")
-	total, _, err := scanDPWith(t, st, stub)
+	total, err := scanDPWith(t, st, stub)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -309,7 +311,9 @@ func TestScanDataPipelinePipelines_None(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubDataPipeline{}
-	total, inserted, err := scanDPWith(t, st, stub)
+	counted, upserts := countUpserts(st)
+	total, err := scanDPWith(t, counted, stub)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("got (%d,%d,%v), want (0,0,nil)", total, inserted, err)
 	}
@@ -327,7 +331,7 @@ func TestScanDataPipelinePipelines_StoreWriteFailureWarnsNothing(t *testing.T) {
 	stub := dpTwoPageStub()
 	stub.describeErr = map[string]error{"df-26": dpTestDenied}
 	stub.onDescribe = closeStore
-	_, _, err := scanDPWith(t, st, stub)
+	_, err := scanDPWith(t, st, stub)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -366,7 +370,7 @@ func TestScanDataPipelinePipelines_StopsDescribingWhenContextDone(t *testing.T) 
 					cancel()
 				}
 			}
-			total, _, err := scanDataPipelinePipelines(ctx, stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanDataPipelinePipelines(ctx, stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v, want context.Canceled", err)
 			}

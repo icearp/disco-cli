@@ -159,7 +159,7 @@ func bedrockVersionRow(acct *account, region, scanID, typ, what string, parentAR
 // guardrail's ARN, since GuardrailArn's pattern admits no version, so its
 // NativeID is that ARN and the version. A guardrail ResourceNotFoundException
 // says was deleted since it was listed is skipped; a denial is warned about.
-func scanBedrockGuardrailVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, guardrailIDs []string) (int, int, error) {
+func scanBedrockGuardrailVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, guardrailIDs []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrock:ListGuardrails", []string{"ResourceNotFoundException"}, guardrailIDs,
 		func(ctx context.Context, id string, token *string) ([]bedrocktypes.GuardrailSummary, *string, error) {
 			out, err := client.ListGuardrails(ctx, &bedrock.ListGuardrailsInput{GuardrailIdentifier: &id, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
@@ -182,7 +182,7 @@ func scanBedrockGuardrailVersions(ctx context.Context, client bedrockAPI, acct *
 // version's tags are not read, since a doubled suffix would send the tag op
 // an ARN naming no resource. A policy ResourceNotFoundException says was
 // deleted since it was listed is skipped; a denial is warned about.
-func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyARNs []string) (int, int, error) {
+func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyARNs []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrock:ListAutomatedReasoningPolicies", []string{"ResourceNotFoundException"}, policyARNs,
 		func(ctx context.Context, arn string, token *string) ([]bedrocktypes.AutomatedReasoningPolicySummary, *string, error) {
 			out, err := client.ListAutomatedReasoningPolicies(ctx, &bedrock.ListAutomatedReasoningPoliciesInput{PolicyArn: &arn, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
@@ -201,7 +201,7 @@ func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *a
 // descriptor flags the rows ManagedByProvider: it's an AWS-owned catalog,
 // hidden from default queries. A refusal by an SCP's explicit deny ends the
 // listing silently.
-func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "bedrock:ListFoundationModels",
 		bacPages(isSCPExplicitDeny, func(ctx context.Context, _ *string) ([]bedrocktypes.FoundationModelSummary, *string, error) {
 			out, err := client.ListFoundationModels(ctx, &bedrock.ListFoundationModelsInput{})
@@ -219,7 +219,7 @@ func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *a
 // configurations, those read before a failed page included. The element
 // carries no ARN; its NativeID is built from ConfigId. A first page refused by
 // an SCP's explicit deny ends the listing silently.
-func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "bedrock:ListEnforcedGuardrailsConfiguration",
 		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]bedrocktypes.AccountEnforcedGuardrailOutputConfiguration, *string, error) {
 			out, err := client.ListEnforcedGuardrailsConfiguration(ctx, &bedrock.ListEnforcedGuardrailsConfigurationInput{NextToken: token})

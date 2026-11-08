@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanHealthImaging discovers HealthImaging (Medical Imaging) datastores.
-func scanHealthImaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHealthImaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := medicalimaging.NewFromConfig(acct.cfg, func(o *medicalimaging.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanHealthImaging(ctx context.Context, acct *account, region string, st *st
 		out, err := client.ListDatastores(ctx, &medicalimaging.ListDatastoresInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "medical-imaging:ListDatastores", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "medical-imaging:ListDatastores", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("medical-imaging:ListDatastores: %w", err)
+			return 0, fmt.Errorf("medical-imaging:ListDatastores: %w", err)
 		}
 		for _, d := range out.DatastoreSummaries {
 			arn := sv(d.DatastoreArn)

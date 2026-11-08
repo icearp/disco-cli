@@ -35,7 +35,7 @@ func eksAssociatedAccessPolicyNativeID(partition, region, acct string, entry eks
 // scanEKSAssociatedAccessPolicies lists the access policies associated with
 // each access entry stored this scan. The policies themselves are AWS-owned
 // catalogue items disco does not scan, so the association has no edge to them.
-func scanEKSAssociatedAccessPolicies(ctx context.Context, client eksChildAPI, acct *account, region string, st *store.Store, scanID string, entries []eksAccessEntryRef) (int, int, error) {
+func scanEKSAssociatedAccessPolicies(ctx context.Context, client eksChildAPI, acct *account, region string, st *store.Store, scanID string, entries []eksAccessEntryRef) (int, error) {
 	parents := make([]childParent, 0, len(entries))
 	byID := make(map[string]eksAccessEntryRef, len(entries))
 	for _, e := range entries {
@@ -79,7 +79,7 @@ func listEKSAssociatedAccessPolicies(ctx context.Context, client eksChildAPI, ac
 // (the signing CA and, during a rotation, its successor) and describes each
 // one: only the full CA carries its validity period and public certificate.
 // A denied or vanished describe drops that CA alone; the denial warns once.
-func scanEKSCertificateAuthorities(ctx context.Context, client eksChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
+func scanEKSCertificateAuthorities(ctx context.Context, client eksChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, error) {
 	describeErrs := &fanOutErrs{st: st, acct: acct, region: region, op: "eks:DescribeCertificateAuthority", isSkip: isEKSNotFound}
 	return childFanOut(ctx, st, acct, region, "eks:ListCertificateAuthorities", clusters, isEKSNotFound,
 		func(ctx context.Context, c childParent) ([]*store.Resource, error) {

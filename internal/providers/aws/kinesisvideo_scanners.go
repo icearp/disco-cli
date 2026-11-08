@@ -54,7 +54,7 @@ type kinesisVideoAPI interface {
 // phase that stores nothing and fails only with NXDOMAIN (runHostPhases).
 // Each listing is written a page at a time, and each tag op's denials are
 // one warning for the whole scan.
-func scanKinesisVideo(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKinesisVideo(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := kinesisvideo.NewFromConfig(acct.cfg, kvsClientOptions(region))
 	return runHostPhases(ctx, st, acct, region, "kinesis-video", 0, []hostPhase{
 		{op: kvsListStreamsOp, run: func(p *phaseTotals) bool {

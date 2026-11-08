@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanIoTOperations discovers Azure IoT Operations instances.
-func scanIoTOperations(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTOperations(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armiotoperations.NewInstanceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armiotoperations:NewInstanceClient: %w", err)
+		return 0, fmt.Errorf("armiotoperations:NewInstanceClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armiotoperations:Instance.ListBySubscription", TypeIoTOperationsInstance, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

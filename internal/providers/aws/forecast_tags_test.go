@@ -196,7 +196,7 @@ func fcHandlers(c *fcCalls) map[string]func(in any) (any, error) {
 
 // fcScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func fcScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func fcScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, fcDenied)
 	return scanForecast(ctx, acct, testRegion, st, testScanID)
@@ -231,7 +231,9 @@ func TestScanForecast_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newFCCalls()
 
-	total, inserted, err := fcScan(context.Background(), st, fcHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := fcScan(context.Background(), counted, fcHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -292,16 +294,16 @@ func TestScanForecast_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanForecast_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := fcScan(context.Background(), st, fcHandlers(newFCCalls())); err != nil {
+	if _, err := fcScan(context.Background(), st, fcHandlers(newFCCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := fcScan(context.Background(), st, fcHandlers(newFCCalls()))
+	total, err := fcScan(context.Background(), st, fcHandlers(newFCCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -341,7 +343,7 @@ func TestScanForecast_TagReadFailures(t *testing.T) {
 				arn := fcARN(x.kind, "x1")
 				calls.errs[arn] = c.err
 
-				total, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+				total, err := fcScan(context.Background(), st, fcHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -389,7 +391,7 @@ func TestScanForecast_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[fcARN(kind, "x2")] = fcDenied
 	}
 
-	total, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+	total, err := fcScan(context.Background(), st, fcHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -411,7 +413,7 @@ func TestScanForecast_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[fcARN("forecast", "x1")] = fcThrottle
 	calls.errs[fcARN("monitor", "x2")] = fcInvalid
 
-	_, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+	_, err := fcScan(context.Background(), st, fcHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -449,7 +451,7 @@ func TestScanForecast_DescribeFailures(t *testing.T) {
 				arn := fcARN(x.kind, "x1")
 				calls.describeErrs[arn] = c.err
 
-				total, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+				total, err := fcScan(context.Background(), st, fcHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -511,7 +513,7 @@ func TestScanForecast_FailedWriteStopsScan(t *testing.T) {
 	calls := newFCCalls()
 	calls.errs[fcARN("predictor", "x1")] = fcDenied
 
-	total, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+	total, err := fcScan(context.Background(), st, fcHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -541,7 +543,7 @@ func TestScanForecast_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers[op] = failOnCall(2, fcInvalid, handlers[op])
 			l := fcListingOf(t, op)
 
-			total, _, err := fcScan(context.Background(), st, handlers)
+			total, err := fcScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidInputException")
 			if total != fcTestTotal-1 {
@@ -569,7 +571,7 @@ func TestScanForecast_RepeatedTokenKeepsPages(t *testing.T) {
 		return l.out(sdkaws.String("same"), sdkaws.String(fcARN(l.kind, id)), sdkaws.String("name-"+id)), nil
 	}
 
-	total, _, err := fcScan(context.Background(), st, handlers)
+	total, err := fcScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -601,7 +603,7 @@ func TestScanForecast_ElementWithoutARN(t *testing.T) {
 				return l.out(nil, nil, c.name), nil
 			}
 
-			total, _, err := fcScan(context.Background(), st, handlers)
+			total, err := fcScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -642,7 +644,7 @@ func TestScanForecast_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(fcHandlers(calls), fcDenied)
 
-			if _, _, err := scanForecast(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanForecast(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := calls.readARNs(); !slices.Equal(got, want) {
@@ -671,7 +673,7 @@ func TestScanForecast_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := fcScan(ctx, st, handlers)
+	_, err := fcScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -698,7 +700,7 @@ func TestScanForecast_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := fcHandlers(newFCCalls())
 		handlers["ListMonitors"] = func(any) (any, error) { return nil, nx }
-		total, _, err := fcScan(context.Background(), st, handlers)
+		total, err := fcScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != fcTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, fcTestTotal-2)
@@ -708,7 +710,7 @@ func TestScanForecast_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newFCCalls()
 		calls.errs[fcARN("monitor", "x2")] = nx
-		_, _, err := fcScan(context.Background(), st, fcHandlers(calls))
+		_, err := fcScan(context.Background(), st, fcHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -716,7 +718,7 @@ func TestScanForecast_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanForecast(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanForecast(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -746,7 +748,7 @@ func TestScanForecast_FirstPageDenials(t *testing.T) {
 				handlers := fcHandlers(newFCCalls())
 				handlers[l.op] = func(any) (any, error) { return nil, c.err }
 
-				total, _, err := fcScan(context.Background(), st, handlers)
+				total, err := fcScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}

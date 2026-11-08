@@ -83,11 +83,11 @@ func athenaCapacityReservationARN(partition, region, accountID, name string) str
 // the workgroup phase stored. Workgroups, data catalogs and capacity
 // reservations, the types Athena tags, have their tags read per row
 // (athenaTags), and the tag denials of the whole scan are one warning.
-func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
 	tags := athenaTags(client).sharingDenials()
 	var workGroups athenaWorkGroupParents
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "athena", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "athena", 0, []hostPhase{
 		{op: athenaListWorkGroupsOp, run: func(p *phaseTotals) bool {
 			return scanAthenaWorkGroups(ctx, client, acct, region, st, scanID, tags, &workGroups, p)
 		}},
@@ -103,12 +103,12 @@ func scanAthena(ctx context.Context, acct *account, region string, st *store.Sto
 		{op: athenaListPreparedStatementsOp, run: func(p *phaseTotals) bool {
 			return scanAthenaPreparedStatements(ctx, client, acct, region, st, scanID, workGroups.names, p)
 		}},
-		countedPhase(0, athenaNotebookOp, func() (int, int, error) {
+		countedPhase(0, athenaNotebookOp, func() (int, error) {
 			return scanAthenaNotebooks(ctx, client, acct, region, st, scanID, workGroups.spark)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // athenaTags reads a row's tags with ListTagsForResource, sent the row's
@@ -330,7 +330,7 @@ func explainAthenaNotebookRefusal(ctx context.Context, client athenaAPI, workGro
 // observed live), and any other refusal fails the phase. A workgroup whose
 // call still fails transiently after the SDK's retries is skipped, keeping its
 // siblings' rows, and the skips are reported in one warning.
-func scanAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workGroups []childParent) (int, int, error) {
+func scanAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workGroups []childParent) (int, error) {
 	var disabledOnce sync.Once
 	skipWorkGroup := func(err error) bool {
 		switch {
@@ -433,8 +433,8 @@ func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account
 			}
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "athena named-queries")
-	return p.addPhase(athenaListNamedQueriesOp, total, inserted, err)
+	total, err := upsertBatch(st, batch, "athena named-queries")
+	return p.addPhase(athenaListNamedQueriesOp, total, err)
 }
 
 // scanAthenaPreparedStatements lists each workgroup's prepared statements and
@@ -490,8 +490,8 @@ func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *a
 			}
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "athena prepared-statements")
-	return p.addPhase(athenaListPreparedStatementsOp, total, inserted, err)
+	total, err := upsertBatch(st, batch, "athena prepared-statements")
+	return p.addPhase(athenaListPreparedStatementsOp, total, err)
 }
 
 // scanAthenaDataCatalogs stores the data catalogs under the ARN built from

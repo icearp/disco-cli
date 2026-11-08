@@ -56,11 +56,11 @@ var itmNotFound = []string{"ResourceNotFoundException"}
 // its tag read fails them with whatever code the service sends, and that
 // error is returned. One deleted before its tag read is dropped as not
 // found and is no parent.
-func scanIoTTwinMaker(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTTwinMaker(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iottwinmaker.NewFromConfig(acct.cfg, func(o *iottwinmaker.Options) { o.Region = region })
 	tags := itmTags(client).sharingDenials()
 	var workspaces []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "iottwinmaker", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "iottwinmaker", 0, []hostPhase{
 		{op: "iottwinmaker:ListWorkspaces", run: func(p *phaseTotals) (failed bool) {
 			workspaces, failed = scanIoTTMWorkspaces(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -79,7 +79,7 @@ func scanIoTTwinMaker(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // itmTags reads a row's tags with ListTagsForResource, sent the row's

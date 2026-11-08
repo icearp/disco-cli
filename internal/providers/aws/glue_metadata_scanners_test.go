@@ -47,7 +47,7 @@ func TestScanGlueResourcePolicy_StoresCatalogPolicy(t *testing.T) {
 		asked = in.(*glue.GetResourcePolicyInput).ResourceArn
 		return gluePolicyHandler(in)
 	}})
-	total, _, err := scanGlueResourcePolicy(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGlueResourcePolicy(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestScanGlueResourcePolicy_Errors(t *testing.T) {
 				}
 				return &glue.GetResourcePolicyOutput{PolicyHash: ptrStr("h1")}, nil
 			}})
-			total, _, err := scanGlueResourcePolicy(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanGlueResourcePolicy(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if c.wantErr != isAPIErrorCode(err, "InvalidInputException") || (!c.wantErr && err != nil) {
 				t.Fatalf("err = %v, want InvalidInputException: %v", err, c.wantErr)
 			}
@@ -119,7 +119,7 @@ func TestScanGlueAssetTypes_StoresEveryPage(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := glueStubClient(map[string]func(any) (any, error){"ListAssetTypes": glueAssetTypesHandler})
-	total, _, err := scanGlueAssetTypes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGlueAssetTypes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestScanGlueGlossaries_StoresEveryPageAndReturnsParents(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaries": glueGlossariesHandler})
-	parents, total, _, err := scanGlueGlossaries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	parents, total, err := scanGlueGlossaries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -186,14 +186,14 @@ func TestGlueMetadataListPhases_Errors(t *testing.T) {
 		{
 			op: "ListAssetTypes", typ: TypeGlueAssetType, empty: &glue.ListAssetTypesOutput{},
 			run: func(ctx context.Context, c glueAPI, st *store.Store) (int, error) {
-				total, _, err := scanGlueAssetTypes(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
+				total, err := scanGlueAssetTypes(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
 				return total, err
 			},
 		},
 		{
 			op: "ListGlossaries", typ: TypeGlueGlossary, empty: &glue.ListGlossariesOutput{},
 			run: func(ctx context.Context, c glueAPI, st *store.Store) (int, error) {
-				_, total, _, err := scanGlueGlossaries(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
+				_, total, err := scanGlueGlossaries(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
 				return total, err
 			},
 		},
@@ -262,7 +262,7 @@ func TestScanGlueGlossaryTerms_ListsEveryGlossaryUnderItsParent(t *testing.T) {
 	parents := seedGlueGlossaries(t, st)
 	calls := &parentCalls{}
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaryTerms": glueTermsHandler(calls, "", nil)})
-	total, _, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestScanGlueGlossaryTerms_DeniedGlossaryWarnsOnceAndKeepsSiblings(t *testin
 	parents := seedGlueGlossaries(t, st)
 	warns := countOpWarnings(st, "glue:ListGlossaryTerms")
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaryTerms": glueTermsHandler(&parentCalls{}, "g1", glueDenied)})
-	total, _, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestScanGlueGlossaryTerms_OtherErrorPropagates(t *testing.T) {
 	st := newTestStore(t)
 	parents := seedGlueGlossaries(t, st)
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaryTerms": glueTermsHandler(&parentCalls{}, "g2", glueBadInput)})
-	if _, _, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidInputException") {
+	if _, err := scanGlueGlossaryTerms(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidInputException") {
 		t.Fatalf("err = %v, want InvalidInputException", err)
 	}
 }
@@ -340,7 +340,7 @@ func TestScanGlue_NewPhasesStoreRows(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(glueServiceHandlers(), glueDenied)
-	if _, _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanGlue: %v", err)
 	}
 	for typ, id := range map[string]string{
@@ -367,7 +367,7 @@ func TestScanGlue_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, glueBadInput }
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, glueDenied)
-			if _, _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidInputException") {
+			if _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidInputException") {
 				t.Fatalf("err = %v, want InvalidInputException", err)
 			}
 			if len(rowsByNativeID(t, st, TypeGlueUserDefinedFunction)) != 1 {
@@ -389,7 +389,7 @@ func TestScanGlue_NoDatabasesStillRunsIndependentPhases(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, glueDenied)
-	if _, _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanGlue(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanGlue: %v", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeGlueJob)); n != 1 {

@@ -20,10 +20,10 @@ func init() {
 
 // scanHybridConnectivity discovers Arc public-cloud connectors (multicloud
 // onboarding roots), sub-wide via armhybridconnectivity.
-func scanHybridConnectivity(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHybridConnectivity(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armhybridconnectivity.NewPublicCloudConnectorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridconnectivity:NewPublicCloudConnectorsClient: %w", err)
+		return 0, fmt.Errorf("armhybridconnectivity:NewPublicCloudConnectorsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armhybridconnectivity:PublicCloudConnectors.ListBySubscription", TypeHybridConnectivityPublicCloud, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

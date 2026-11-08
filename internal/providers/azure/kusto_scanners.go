@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanKusto discovers Azure Data Explorer (Kusto) clusters.
-func scanKusto(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKusto(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armkusto.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armkusto:NewClustersClient: %w", err)
+		return 0, fmt.Errorf("armkusto:NewClustersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armkusto:Clusters.List", TypeKustoCluster, sub, st, scanID,
 		client.NewListPager(nil),

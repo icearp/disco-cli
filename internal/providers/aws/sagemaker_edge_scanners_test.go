@@ -108,7 +108,9 @@ func testScanSageMakerEdge(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, fleetARN, devARN, imgARN)
-	total, inserted, err := scanSageMakerEdge(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerEdge(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
@@ -132,7 +134,9 @@ func TestScanSageMakerEdgeEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerEdge{}
-	total, inserted, err := scanSageMakerEdge(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerEdge(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -180,7 +184,7 @@ func TestScanSageMakerImageAliases_PaginatesEachScannedImage(t *testing.T) {
 		},
 		errs: map[string]error{"gone": apiErr("ResourceNotFound", "image not found")},
 	}
-	total, _, err := scanSageMakerImageAliases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerImageAliases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -200,7 +204,7 @@ func TestScanSageMakerImageAliases_NoAliases(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("img1"), testRegion, "{}", "img1")
-	total, _, err := scanSageMakerImageAliases(context.Background(), &stubSMAliases{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerImageAliases(context.Background(), &stubSMAliases{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -212,7 +216,7 @@ func TestScanSageMakerImageAliases_AccessDeniedWarns(t *testing.T) {
 	warnings := countSMWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("img1"), testRegion, "{}", "img1")
 	stub := &stubSMAliases{errs: map[string]error{"img1": apiErr("AccessDeniedException", "denied")}}
-	total, _, err := scanSageMakerImageAliases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerImageAliases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -266,7 +270,7 @@ func TestScanSageMakerImageVersions_FailedImageKeepsOthers(t *testing.T) {
 		"gone":   apiErr("ResourceNotFound", "gone"),
 		"bad":    apiErr("ValidationException", "bad"),
 	}, nil)
-	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if isAPIErrorCode(err, "AccessDeniedException", "ResourceNotFound") {
 		t.Errorf("err = %v; want neither the denial nor the vanished image", err)
@@ -286,7 +290,7 @@ func TestScanSageMakerImageVersions_ThrottledImageReturned(t *testing.T) {
 		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN(name), testRegion, "{}", name)
 	}
 	client := smImageVersionClient(t, map[string]error{"slow": apiErr("ThrottlingException", "Rate exceeded")}, nil)
-	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err == nil || !everyMember(err, func(m error) bool { return isAPIErrorCode(m, "ThrottlingException") }) {
 		t.Errorf("err = %v; want only the throttled listing", err)
 	}
@@ -300,7 +304,7 @@ func TestScanSageMakerImageVersions_DeniedDescribeKeptFromListing(t *testing.T) 
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
 	client := smImageVersionClient(t, nil, apiErr("AccessDeniedException", "denied"))
-	if _, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	arn := smTestARN("image-version", "ok/1")
@@ -320,7 +324,7 @@ func TestScanSageMakerImageVersions_HardDescribeErrorReturned(t *testing.T) {
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
 	client := smImageVersionClient(t, nil, apiErr("ValidationException", "bad"))
-	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	assertSMIDs(t, st, TypeSageMakerImageVersion, smTestARN("image-version", "ok/1"))
 }

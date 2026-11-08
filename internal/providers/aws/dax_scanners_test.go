@@ -34,7 +34,7 @@ func TestScanDAXPhases_SilentSkipOnDAXV3Gap(t *testing.T) {
 	t.Parallel()
 	daxV3 := apiErr("InvalidParameterValueException", "Access Denied to API Version: DAX_V3")
 
-	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, int, error){
+	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, error){
 		"clusters":         scanDAXClusters,
 		"parameter-groups": scanDAXParameterGroups,
 		"subnet-groups":    scanDAXSubnetGroups,
@@ -46,8 +46,10 @@ func TestScanDAXPhases_SilentSkipOnDAXV3Gap(t *testing.T) {
 			warned := false
 			st.OnWarn = func(store.ScanWarning) { warned = true }
 
-			total, inserted, err := phase(
-				context.Background(), stubDAX{err: daxV3}, newTestAccount(testAccountID), "ca-central-1", st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := phase(
+				context.Background(), stubDAX{err: daxV3}, newTestAccount(testAccountID), "ca-central-1", counted, testScanID)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("DAX_V3 gap must not surface an error, got %v", err)
 			}
@@ -68,7 +70,7 @@ func TestScanDAXPhases_UnrelatedInvalidParameterStillErrors(t *testing.T) {
 	t.Parallel()
 	other := apiErr("InvalidParameterValueException", "Invalid subnet group name")
 
-	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, int, error){
+	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, error){
 		"clusters":         scanDAXClusters,
 		"parameter-groups": scanDAXParameterGroups,
 		"subnet-groups":    scanDAXSubnetGroups,
@@ -78,7 +80,7 @@ func TestScanDAXPhases_UnrelatedInvalidParameterStillErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
 
-			if _, _, err := phase(
+			if _, err := phase(
 				context.Background(), stubDAX{err: other}, newTestAccount(testAccountID), "ca-central-1", st, testScanID); err == nil {
 				t.Fatal("unrelated InvalidParameterValueException must surface as an error")
 			}

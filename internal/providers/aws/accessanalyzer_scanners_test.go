@@ -28,7 +28,9 @@ func TestScanAccessAnalyzerAnalyzers_ReadsTags(t *testing.T) {
 	}
 	st := newTestStore(t)
 	client := accessanalyzer.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
-	total, inserted, refs, err := scanAccessAnalyzerAnalyzers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, refs, err := scanAccessAnalyzerAnalyzers(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanAccessAnalyzerAnalyzers: %v", err)
 	}

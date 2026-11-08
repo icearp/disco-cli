@@ -24,12 +24,12 @@ func init() {
 // services are deferred: workspace rows alone unlock the diagnostic-settings
 // edge target (resource → workspace) once that resolver lands; sub-resources
 // add inventory volume but few cross-edges.
-func scanOperationalInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOperationalInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armoperationalinsights.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armoperationalinsights:NewWorkspacesClient: %w", err)
+				return 0, fmt.Errorf("armoperationalinsights:NewWorkspacesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armoperationalinsights:Workspaces.List", TypeOpInsightsWorkspace, sub, st, scanID,
 				client.NewListPager(nil),
@@ -40,10 +40,10 @@ func scanOperationalInsights(ctx context.Context, sub *subscription, cred azcore
 					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			clClient, err := armoperationalinsights.NewClustersClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armoperationalinsights:NewClustersClient: %w", err)
+				return 0, fmt.Errorf("armoperationalinsights:NewClustersClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armoperationalinsights:Clusters.List", TypeOpInsightsCluster, sub, st, scanID,
 				clClient.NewListPager(nil),

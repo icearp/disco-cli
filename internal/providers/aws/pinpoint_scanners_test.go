@@ -356,7 +356,9 @@ func runPPCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[s
 	warns := recordWarnings(st)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ppDenied)
-	total, inserted, err := scanPinpoint(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanPinpoint(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	return ppRun{total: total, inserted: inserted, err: err, warns: *warns, calls: calls.distinct()}
 }
 

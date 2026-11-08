@@ -85,7 +85,7 @@ func (p *tsiBackupPages) handler(pageTwoErr error) func(in any) (any, error) {
 
 func scanTSIBackupsWith(st *store.Store, parents map[string]string, handler func(in any) (any, error)) (int, error) {
 	client := timestreaminfluxdb.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListDbBackups": handler}, tsiDenied))
-	total, _, err := scanTSInfluxBackups(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanTSInfluxBackups(context.Background(), client, parents, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -514,7 +514,7 @@ func tsFixture() (*tsCalls, map[string]func(any) (any, error)) {
 
 // tsScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func tsScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func tsScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, tsiDenied)
 	return scanTimestream(ctx, acct, testRegion, st, testScanID)
@@ -562,7 +562,9 @@ func TestScanTimestream_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	c, h := tsFixture()
 
-	total, inserted, err := tsScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := tsScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -629,7 +631,7 @@ func TestScanTimestream_GovCloudARNsReachTagOps(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, tsiDenied)
 
-	total, _, err := scanTimestream(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanTimestream(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 7 {
 		t.Fatalf("scan = %d, %v; want 7, nil", total, err)
 	}
@@ -672,7 +674,7 @@ func TestScanTimestream_EmptyListings(t *testing.T) {
 	h["ListDbParameterGroups"] = func(any) (any, error) { return &timestreaminfluxdb.ListDbParameterGroupsOutput{}, nil }
 	h["ListDbBackups"] = func(any) (any, error) { return &timestreaminfluxdb.ListDbBackupsOutput{}, nil }
 
-	total, _, err := tsScan(context.Background(), st, h)
+	total, err := tsScan(context.Background(), st, h)
 	if err != nil || total != 0 || *warns != 0 {
 		t.Errorf("scan = %d, %v, %d warnings; want 0, nil, 0", total, err, *warns)
 	}
@@ -717,7 +719,7 @@ func TestScanTimestream_TagReadFailures(t *testing.T) {
 					c, h := tsFixture()
 					c.errs[target.arn] = tc.err
 
-					total, _, err := tsScan(context.Background(), st, h)
+					total, err := tsScan(context.Background(), st, h)
 					if tc.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -776,7 +778,7 @@ func TestScanTimestream_TagDenialsWarnOncePerOp(t *testing.T) {
 		c.errs[arn] = tsiDenied
 	}
 
-	if _, _, err := tsScan(context.Background(), st, h); err != nil {
+	if _, err := tsScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if *live != 1 || *influx != 1 {
@@ -794,7 +796,7 @@ func TestScanTimestream_TagThrottleDemotedBesideHardError(t *testing.T) {
 	c.errs[c.db1()] = tsThrottled
 	c.errs[c.query()] = tsiValidation
 
-	_, _, err := tsScan(context.Background(), st, h)
+	_, err := tsScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -815,7 +817,7 @@ func TestScanTimestream_QueryTagPagesRepeatToken(t *testing.T) {
 		return c.listTags(in)
 	}
 
-	_, _, err := tsScan(context.Background(), st, h)
+	_, err := tsScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -910,7 +912,7 @@ func TestScanTimestream_DetailReadFailures(t *testing.T) {
 						want++
 					}
 
-					total, _, err := tsScan(context.Background(), st, h)
+					total, err := tsScan(context.Background(), st, h)
 					if tc.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -1024,7 +1026,7 @@ func TestScanTimestream_ListFailureKeepsOtherListings(t *testing.T) {
 			_, h := tsFixture()
 			h[tc.op] = failOnCall(tc.failCall, tsiValidation, h[tc.op])
 
-			total, _, err := tsScan(context.Background(), st, h)
+			total, err := tsScan(context.Background(), st, h)
 			assertAPICode(t, err, "ValidationException")
 			if stored := countStoredRows(t, st); total != tsTotal-tc.lost || stored != tsTotal-tc.lost {
 				t.Errorf("total = %d, stored rows = %d; want %d", total, stored, tsTotal-tc.lost)
@@ -1053,7 +1055,7 @@ func TestScanTimestream_RepeatedTokenKeepsPages(t *testing.T) {
 		return &timestreamwrite.ListDatabasesOutput{Databases: []tswtypes.Database{c.database("db1")}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := tsScan(context.Background(), st, h)
+	_, err := tsScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1088,7 +1090,7 @@ func TestScanTimestream_ElementWithoutARNWarns(t *testing.T) {
 			c, h := tsFixture()
 			h[tc.op] = func(any) (any, error) { return tc.out, nil }
 
-			if _, _, err := tsScan(context.Background(), st, h); err != nil {
+			if _, err := tsScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, tc.key) {
@@ -1111,7 +1113,7 @@ func TestScanTimestream_FailedWriteStopsWithoutWarning(t *testing.T) {
 	c, h := tsFixture()
 	c.errs[c.table()] = tsiDenied
 
-	_, _, err := tsScan(context.Background(), st, h)
+	_, err := tsScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1135,7 +1137,7 @@ func TestScanTimestream_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := tsScan(ctx, st, h)
+	_, err := tsScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1165,7 +1167,7 @@ func TestScanTimestream_NXDOMAIN(t *testing.T) {
 		c, h := tsFixture()
 		h["ListDatabases"] = nx
 		h["ListScheduledQueries"] = nx
-		total, _, err := tsScan(context.Background(), st, h)
+		total, err := tsScan(context.Background(), st, h)
 		if err != nil || total != 7 {
 			t.Errorf("scan = %d, %v; want 7 InfluxDB rows, nil", total, err)
 		}
@@ -1182,7 +1184,7 @@ func TestScanTimestream_NXDOMAIN(t *testing.T) {
 		h["ListDbInstances"] = func(any) (any, error) { return &timestreaminfluxdb.ListDbInstancesOutput{}, nil }
 		h["ListDbParameterGroups"] = func(any) (any, error) { return &timestreaminfluxdb.ListDbParameterGroupsOutput{}, nil }
 		h["ListDbBackups"] = func(any) (any, error) { return &timestreaminfluxdb.ListDbBackupsOutput{}, nil }
-		total, _, err := tsScan(context.Background(), st, h)
+		total, err := tsScan(context.Background(), st, h)
 		if err != nil || total != 0 {
 			t.Errorf("scan = %d, %v; want 0, nil", total, err)
 		}
@@ -1193,7 +1195,9 @@ func TestScanTimestream_NXDOMAIN(t *testing.T) {
 		for _, op := range []string{"ListDatabases", "ListScheduledQueries", "ListDbClusters"} {
 			h[op] = nx
 		}
-		total, inserted, err := tsScan(context.Background(), st, h)
+		counted, upserts := countUpserts(st)
+		total, err := tsScan(context.Background(), counted, h)
+		inserted := upserts()
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || inserted != 0 {
 			t.Errorf("total, inserted = %d, %d; want 0, 0", total, inserted)
@@ -1203,7 +1207,7 @@ func TestScanTimestream_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		c, h := tsFixture()
 		c.errs[c.db1()] = tsNXDOMAIN
-		total, _, err := tsScan(context.Background(), st, h)
+		total, err := tsScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != tsTotal {
 			t.Errorf("total = %d; want %d", total, tsTotal)
@@ -1223,7 +1227,7 @@ func TestScanTimestream_StoresBackupsUnderSources(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanTimestream(context.Background(), acct, "us-east-1", st, testScanID)
+	total, err := scanTimestream(context.Background(), acct, "us-east-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanTimestream: %v", err)
 	}
@@ -1284,7 +1288,7 @@ func TestScanTimestream_LiveAnalyticsClosedStillScansInflux(t *testing.T) {
 				maps.Copy(h, o)
 			}
 
-			total, _, err := tsScan(context.Background(), st, h)
+			total, err := tsScan(context.Background(), st, h)
 			switch {
 			case tc.wantNotEntitled:
 				assertGlueOutcome(t, err, outcomeNotEntitled)
@@ -1316,7 +1320,9 @@ func TestScanTimestream_LiveAnalyticsClosedRescanCountsInflux(t *testing.T) {
 	for scan, wantInserted := range []int{7, 0} {
 		_, h := tsFixture()
 		h["ListDatabases"] = func(any) (any, error) { return nil, tsClosed }
-		total, inserted, err := tsScan(context.Background(), st, h)
+		counted, upserts := countUpserts(st)
+		total, err := tsScan(context.Background(), counted, h)
+		inserted := upserts()
 		if err != nil || total != 7 || inserted != wantInserted {
 			t.Errorf("scan %d = %d, %d, %v; want 7, %d, nil", scan+1, total, inserted, err, wantInserted)
 		}
@@ -1334,7 +1340,7 @@ func TestScanTimestream_ClosureOnLaterPageWarns(t *testing.T) {
 	c, h := tsFixture()
 	h["ListDatabases"] = failOnCall(2, tsClosed, h["ListDatabases"])
 
-	total, _, err := tsScan(context.Background(), st, h)
+	total, err := tsScan(context.Background(), st, h)
 	if err != nil || total != tsTotal-1 {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, tsTotal-1)
 	}
@@ -1362,7 +1368,7 @@ func TestScanTimestream_DeniedListingWarnsUnderItsOp(t *testing.T) {
 	c, h := tsFixture()
 	h["ListDatabases"] = func(any) (any, error) { return nil, tsiDenied }
 
-	total, _, err := tsScan(context.Background(), st, h)
+	total, err := tsScan(context.Background(), st, h)
 	if err != nil || total != tsTotal-2 {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, tsTotal-2)
 	}
@@ -1396,7 +1402,7 @@ func TestScanTimestream_AmbiguousSourceIDGetsNoPair(t *testing.T) {
 		return &timestreaminfluxdb.GetDbInstanceOutput{Arn: &arn, Id: &id}, nil
 	}
 
-	if _, _, err := tsScan(context.Background(), st, h); err != nil {
+	if _, err := tsScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scanTimestream: %v", err)
 	}
 	rels, err := st.RelationshipsTo(store.ResourceID("aws", testAccountID, tsiBackup1ARN))

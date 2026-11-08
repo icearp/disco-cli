@@ -61,14 +61,14 @@ type kmsKeyAttrs struct {
 // transient error is demoted to a warning only beside a hard error: joined, it
 // would be buried in the hard error instead of reported under its op; the
 // counts are summed.
-func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := kms.NewFromConfig(acct.cfg, func(o *kms.Options) { o.Region = region })
-	t, i, cerr := scanKMSCustomKeyStores(ctx, client, acct, region, st, scanID)
-	total, inserted, kerr := scanKMSKeys(ctx, client, acct, region, st, scanID)
+	t, cerr := scanKMSCustomKeyStores(ctx, client, acct, region, st, scanID)
+	total, kerr := scanKMSKeys(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add("kms", kerr)
 	errs.add("kms:DescribeCustomKeyStores", cerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // kmsCustomKeyStoreNativeID synthesises an ARN-shaped id for a custom key
@@ -80,7 +80,7 @@ func kmsCustomKeyStoreNativeID(partition, region, accountID, storeID string) str
 }
 
 // scanKMSCustomKeyStores lists the region's CloudHSM and external key stores.
-func scanKMSCustomKeyStores(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKMSCustomKeyStores(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := kms.NewDescribeCustomKeyStoresPaginator(client, &kms.DescribeCustomKeyStoresInput{},
 		func(o *kms.DescribeCustomKeyStoresPaginatorOptions) { o.Limit = 1000; o.StopOnDuplicateToken = true })
 	return pageScan(ctx, "kms:DescribeCustomKeyStores", acct, region, st,
@@ -109,32 +109,30 @@ func scanKMSCustomKeyStores(ctx context.Context, client kmsAPI, acct *account, r
 }
 
 // scanKMSKeys scans keys, grants and aliases.
-func scanKMSKeys(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKMSKeys(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := kms.NewListKeysPaginator(client, &kms.ListKeysInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kms:ListKeys", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "kms:ListKeys", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("kms:ListKeys: %w", err)
+			return 0, fmt.Errorf("kms:ListKeys: %w", err)
 		}
-		t, i, perr := scanKMSKeyPage(ctx, client, acct, region, st, scanID, page.Keys)
+		t, perr := scanKMSKeyPage(ctx, client, acct, region, st, scanID, page.Keys)
 		total += t
-		inserted += i
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	t, i, perr := scanKMSAliases(ctx, client, acct, region, st, scanID)
+	t, perr := scanKMSAliases(ctx, client, acct, region, st, scanID)
 	total += t
-	inserted += i
-	return total, inserted, perr
+	return total, perr
 }
 
 // scanKMSKeyPage fans out per-key Describe/Policy/Rotation/Grants over one
 // ListKeys page and persists the resulting key + grant resources.
-func scanKMSKeyPage(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string, keys []types.KeyListEntry) (total, inserted int, err error) {
+func scanKMSKeyPage(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string, keys []types.KeyListEntry) (total int, err error) {
 	var (
 		mu         sync.Mutex
 		batch      []*store.Resource
@@ -160,28 +158,26 @@ func scanKMSKeyPage(ctx context.Context, client kmsAPI, acct *account, region st
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) > 0 {
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			return 0, 0, fmt.Errorf("upsert KMS keys: %w", uerr)
+			return 0, fmt.Errorf("upsert KMS keys: %w", uerr)
 		}
 		total += len(batch)
-		inserted += n
 	}
 	if len(grantBatch) > 0 {
-		n, uerr := st.UpsertResources(grantBatch)
+		_, uerr := st.UpsertResources(grantBatch)
 		if uerr != nil {
-			return total, inserted, fmt.Errorf("upsert KMS grants: %w", uerr)
+			return total, fmt.Errorf("upsert KMS grants: %w", uerr)
 		}
 		total += len(grantBatch)
-		inserted += n
 		if cerr := st.RecordHierarchyBatch(grantPairs); cerr != nil {
-			return total, inserted, fmt.Errorf("closure KMS grants: %w", cerr)
+			return total, fmt.Errorf("closure KMS grants: %w", cerr)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // describeKMSKey fetches one key's metadata + policy + rotation status, then
@@ -294,15 +290,15 @@ func listKMSGrants(ctx context.Context, client kmsAPI, acct *account, region, sc
 }
 
 // scanKMSAliases pages ListAliases for the region and upserts aliases.
-func scanKMSAliases(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKMSAliases(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	aliasPager := kms.NewListAliasesPaginator(client, &kms.ListAliasesInput{})
 	for aliasPager.HasMorePages() {
 		page, perr := aliasPager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "kms:ListAliases", acct.ID, region, perr)
+				return total, skipIfAccessDenied(st, "kms:ListAliases", acct.ID, region, perr)
 			}
-			return total, inserted, fmt.Errorf("kms:ListAliases: %w", perr)
+			return total, fmt.Errorf("kms:ListAliases: %w", perr)
 		}
 		var batch []*store.Resource
 		for _, a := range page.Aliases {
@@ -329,13 +325,12 @@ func scanKMSAliases(ctx context.Context, client kmsAPI, acct *account, region st
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert KMS aliases: %w", uerr)
+				return total, fmt.Errorf("upsert KMS aliases: %w", uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

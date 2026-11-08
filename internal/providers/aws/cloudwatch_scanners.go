@@ -66,17 +66,17 @@ type cloudwatchAPI interface {
 // stream listings are written a page at a time with each row's tags read
 // (cwTags), and the tag denials of the whole scan are one warning. Dashboards
 // are global and scanned once per account (scanCloudWatchDashboards).
-func scanCloudWatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudWatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
 	tags := cwTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "cloudwatch", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "cloudwatch", 0, []hostPhase{
 		{op: cwDescribeAlarmsOp, run: func(p *phaseTotals) bool {
 			return scanCWAlarms(ctx, client, acct, region, st, scanID, tags, p)
 		}},
 		{op: cwListAlarmMuteRulesOp, run: func(p *phaseTotals) bool {
 			return scanCWAlarmMuteRules(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "cloudwatch:DescribeAnomalyDetectors", func() (int, int, error) {
+		countedPhase(0, "cloudwatch:DescribeAnomalyDetectors", func() (int, error) {
 			return scanCWAnomalyDetectors(ctx, client, acct, region, st, scanID)
 		}),
 		{op: cwDescribeInsightOp, run: func(p *phaseTotals) bool {
@@ -85,12 +85,12 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 		{op: cwListMetricStreamsOp, run: func(p *phaseTotals) bool {
 			return scanCWMetricStreams(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "cloudwatch:GetOTelEnrichment", func() (int, int, error) {
+		countedPhase(0, "cloudwatch:GetOTelEnrichment", func() (int, error) {
 			return scanCWOTelEnrichment(ctx, client, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // cwTags reads a row's tags with ListTagsForResource, sent the row's
@@ -187,7 +187,7 @@ func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *accou
 // NativeID is derived from the metric coordinates because the API does not
 // expose an ARN: "<Namespace>/<MetricName>/<Stat>" for single-metric detectors,
 // or "<first-query-id>" for metric-math detectors.
-func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := cloudwatch.NewDescribeAnomalyDetectorsPaginator(client, &cloudwatch.DescribeAnomalyDetectorsInput{
 		MaxResults: sdkaws.Int32(100),
 	})
@@ -195,9 +195,9 @@ func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *acc
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeAnomalyDetectors", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "cloudwatch:DescribeAnomalyDetectors", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("cloudwatch:DescribeAnomalyDetectors: %w", err)
+			return 0, fmt.Errorf("cloudwatch:DescribeAnomalyDetectors: %w", err)
 		}
 		var batch []*store.Resource
 		for _, d := range out.AnomalyDetectors {
@@ -216,15 +216,14 @@ func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *acc
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch anomaly detectors: %w", err)
+				return 0, fmt.Errorf("upsert CloudWatch anomaly detectors: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // anomalyDetectorID produces a stable NativeID string for an anomaly detector.
@@ -313,18 +312,18 @@ func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *accoun
 // per (account, region). The API has no List op — GetOTelEnrichment returns
 // a Status (Running/Stopped). Synth NativeID:
 // arn:{p}:cloudwatch:{r}:{a}:otel-enrichment.
-func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.GetOTelEnrichment(ctx, &cloudwatch.GetOTelEnrichmentInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "cloudwatch:GetOTelEnrichment", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "cloudwatch:GetOTelEnrichment", acct.ID, region, err)
 		}
 		// Soft skip: `InvalidAction` ("Operation not supported") fires where the
 		// OTel enrichment op isn't deployed.
 		if isAPIErrorCode(err, "ValidationException", "UnknownOperationException", "InvalidAction") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("cloudwatch:GetOTelEnrichment: %w", err)
+		return 0, fmt.Errorf("cloudwatch:GetOTelEnrichment: %w", err)
 	}
 	arn := arnFor(acct.partition(), "cloudwatch", region, acct.ID, "otel-enrichment")
 	name := "otel-enrichment"

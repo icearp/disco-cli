@@ -82,7 +82,7 @@ func isGameLiftDenied(err error) bool {
 	return isAccessDenied(err) || isAPIErrorCode(err, glUnauthorizedCodes...)
 }
 
-func scanGameLift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGameLift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := gamelift.NewFromConfig(acct.cfg, func(o *gamelift.Options) { o.Region = region })
 	return scanGameLiftIn(ctx, client, acct, region, st, scanID)
 }
@@ -102,17 +102,17 @@ func scanGameLift(ctx context.Context, acct *account, region string, st *store.S
 // GameLift is region-unavailable). Past that point the endpoint answered or
 // rows were stored, so every NXDOMAIN is a failure of this scan
 // (lateNXDOMAIN).
-func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p    phaseTotals
 		tags = glTags(client, glNotFoundCodes)
 		// fleets is the attributes of the fleets the fleet phase stored.
 		fleets []gltypes.FleetAttributes
 	)
-	counted := func(op string, run func() (int, int, error)) func(p *phaseTotals) bool {
+	counted := func(op string, run func() (int, error)) func(p *phaseTotals) bool {
 		return func(p *phaseTotals) bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
+			t, err := run()
+			return p.addPhase(op, t, err)
 		}
 	}
 	phases := []func(p *phaseTotals) (storeWriteFailed bool){
@@ -140,13 +140,13 @@ func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, regi
 			return scanGLMatchmakingRuleSets(ctx, client, acct, region, st, scanID, tags, p)
 		},
 		func(p *phaseTotals) bool { return scanGLScripts(ctx, client, acct, region, st, scanID, tags, p) },
-		counted("gamelift:ListCompute", func() (int, int, error) {
+		counted("gamelift:ListCompute", func() (int, error) {
 			return scanGLComputes(ctx, client, acct, region, st, scanID, fleets)
 		}),
-		counted("gamelift:DescribeScalingPolicies", func() (int, int, error) {
+		counted("gamelift:DescribeScalingPolicies", func() (int, error) {
 			return scanGLScalingPolicies(ctx, client, acct, region, st, scanID, fleets)
 		}),
-		counted("gamelift:DescribeVpcPeeringConnections", func() (int, int, error) {
+		counted("gamelift:DescribeVpcPeeringConnections", func() (int, error) {
 			return scanGLVpcPeeringConnections(ctx, client, acct, region, st, scanID, fleets)
 		}),
 	}
@@ -162,7 +162,7 @@ func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, regi
 		}
 		if n == 0 && p.total == total {
 			if err := glListingUnreachable(p.errs[before:]); err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 		}
 		for i := before; i < len(p.errs); i++ {
@@ -579,7 +579,7 @@ func gameLiftFleetParents(fleets []gltypes.FleetAttributes, keep func(gltypes.Fl
 // (RegisterCompute). The computes ListCompute returns for an EC2 fleet are its
 // managed instances, which GameLift launches and terminates as the fleet
 // scales, so EC2 fleets are not queried.
-func scanGLComputes(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, int, error) {
+func scanGLComputes(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, error) {
 	parents := gameLiftFleetParents(fleets, func(f gltypes.FleetAttributes) bool { return f.ComputeType == gltypes.ComputeTypeAnywhere })
 	// ListCompute models no not-found error, so no fleet's error is skipped.
 	return glChildFanOut(ctx, st, acct, region, "gamelift:ListCompute", parents, func(error) bool { return false },
@@ -616,7 +616,7 @@ func scanGLComputes(ctx context.Context, client gameLiftAPI, acct *account, regi
 // Location, the op returns the policies of every fleet location, while
 // PutScalingPolicy takes no location, so only the home-region entry (or one
 // naming no location) is kept.
-func scanGLScalingPolicies(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, int, error) {
+func scanGLScalingPolicies(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, error) {
 	parents := gameLiftFleetParents(fleets, func(f gltypes.FleetAttributes) bool { return f.ComputeType != gltypes.ComputeTypeAnywhere })
 	return glChildFanOut(ctx, st, acct, region, "gamelift:DescribeScalingPolicies", parents, isGameLiftNotFound,
 		func(ctx context.Context, fleet childParent) ([]*store.Resource, error) {
@@ -655,9 +655,9 @@ func scanGLScalingPolicies(ctx context.Context, client gameLiftAPI, acct *accoun
 func glChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var denied skipTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, parents, isSkip,
+	total, err := childFanOut(ctx, st, acct, region, op, parents, isSkip,
 		func(ctx context.Context, fleet childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, fleet)
 			if isGameLiftDenied(err) {
@@ -669,7 +669,7 @@ func glChildFanOut(
 	if !errors.Is(err, store.ErrStoreWrite) {
 		denied.warnDeniedIn(st, op, acct, region, "fleets' listings")
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // isGameLiftNotFound matches a fleet deleted between DescribeFleetAttributes
@@ -687,13 +687,13 @@ func isGameLiftNotFound(err error) bool {
 // the fleet ARN built from the id, the same shape the fleet row is keyed by. A
 // pending connection with no id yet is skipped. The op lists the whole account's connections at once; each is
 // linked under its fleet only when the fleet phase stored that fleet.
-func scanGLVpcPeeringConnections(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, int, error) {
+func scanGLVpcPeeringConnections(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string, fleets []gltypes.FleetAttributes) (int, error) {
 	out, err := client.DescribeVpcPeeringConnections(ctx, &gamelift.DescribeVpcPeeringConnectionsInput{})
 	if err != nil {
 		if isGameLiftDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "gamelift:DescribeVpcPeeringConnections", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "gamelift:DescribeVpcPeeringConnections", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("gamelift:DescribeVpcPeeringConnections: %w", err)
+		return 0, fmt.Errorf("gamelift:DescribeVpcPeeringConnections: %w", err)
 	}
 	stored := make(map[string]bool, len(fleets))
 	for _, f := range fleets {
@@ -722,9 +722,9 @@ func scanGLVpcPeeringConnections(ctx context.Context, client gameLiftAPI, acct *
 		})
 		fleetARNs = append(fleetARNs, fleetARN)
 	}
-	total, inserted, err := upsertBatch(st, batch, "gamelift vpc-peering-connections")
+	total, err := upsertBatch(st, batch, "gamelift vpc-peering-connections")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	var pairs [][2]string
 	for i, r := range batch {
@@ -733,7 +733,7 @@ func scanGLVpcPeeringConnections(ctx context.Context, client gameLiftAPI, acct *
 		}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure gamelift vpc-peering-connections: %w", err)
+		return 0, fmt.Errorf("closure gamelift vpc-peering-connections: %w", err)
 	}
-	return total, inserted, nil
+	return total, nil
 }

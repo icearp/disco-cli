@@ -151,7 +151,7 @@ func scanKSStreamsWith(st *store.Store, tableARNs map[cassandraTableKey]string, 
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	scanCassandraStreams(context.Background(), keyspacesstreams.NewFromConfig(cfg), tableARNs, acct, testRegion, st, testScanID, cassandraTags(keyspaces.NewFromConfig(cfg)), &p)
-	total, _, err := p.result(st, acct, testRegion)
+	total, err := p.result(st, acct, testRegion)
 	return total, err
 }
 
@@ -397,7 +397,7 @@ func recordKSGetTables(handlers map[string]func(any) (any, error)) *parentCalls 
 	return &calls
 }
 
-func ksScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func ksScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ksDenied)
 	return scanCassandra(ctx, acct, testRegion, st, testScanID)
@@ -414,7 +414,9 @@ func TestScanCassandra_StoresTagsOfEachType(t *testing.T) {
 	handlers := cassandraScanHandlers(&streams, tags, nil)
 	getTables := recordKSGetTables(handlers)
 
-	total, inserted, err := ksScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := ksScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCassandra: %v", err)
 	}
@@ -465,15 +467,15 @@ func TestScanCassandra_StoresTagsOfEachType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCassandra_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	for i := range 2 {
 		var streams ksStreamPages
-		total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), nil))
+		total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), nil))
 		if err != nil || total != ksScanTotal {
 			t.Errorf("scan %d: total = %d, err = %v; want %d, nil", i+1, total, err, ksScanTotal)
 		}
@@ -488,7 +490,7 @@ func TestScanCassandra_NoKeyspaces(t *testing.T) {
 	tags := newKSTagStub()
 	var streams ksStreamPages
 	var tableCalls parentCalls
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, map[string]func(any) (any, error){
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, map[string]func(any) (any, error){
 		"ListKeyspaces": func(any) (any, error) { return &keyspaces.ListKeyspacesOutput{}, nil },
 		"ListTables": func(in any) (any, error) {
 			tableCalls.add(sv(in.(*keyspaces.ListTablesInput).KeyspaceName))
@@ -529,7 +531,7 @@ func TestScanCassandra_SystemKeyspaceNotRead(t *testing.T) {
 		return listTables(in)
 	}
 
-	if _, _, err := ksScan(context.Background(), st, handlers); err != nil {
+	if _, err := ksScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scanCassandra: %v", err)
 	}
 	if got := tags.sentARNs(); !slices.Equal(got, ksAllTagged()) {
@@ -590,7 +592,7 @@ func TestScanCassandra_TagReadFailures(t *testing.T) {
 			tags := newKSTagStub()
 			tags.errs[c.arn] = c.err
 
-			total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
+			total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -646,7 +648,7 @@ func TestScanCassandra_NotFoundParentsListNoChildren(t *testing.T) {
 			tableCalls.add(sv(in.(*keyspaces.ListTablesInput).KeyspaceName))
 			return listTables(in)
 		}
-		if _, _, err := ksScan(context.Background(), st, handlers); err != nil {
+		if _, err := ksScan(context.Background(), st, handlers); err != nil {
 			t.Fatalf("scanCassandra: %v", err)
 		}
 		if n := len(tableCalls.distinct()); n != 0 || len(rowsByNativeID(t, st, TypeCassandraType)) != 0 {
@@ -658,7 +660,7 @@ func TestScanCassandra_NotFoundParentsListNoChildren(t *testing.T) {
 		var streams ksStreamPages
 		tags := newKSTagStub()
 		tags.errs[ksTable1ARN] = ksGone
-		if _, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil)); err != nil {
+		if _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil)); err != nil {
 			t.Fatalf("scanCassandra: %v", err)
 		}
 		rels, err := st.RelationshipsTo(store.ResourceID("aws", testAccountID, ksStream1ARN))
@@ -681,7 +683,7 @@ func TestScanCassandra_TagDenialsWarnOncePerScan(t *testing.T) {
 	for _, arn := range ksAllTagged() {
 		tags.errs[arn] = ksDenied
 	}
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
 	if err != nil || total != ksScanTotal || *warns != 1 {
 		t.Errorf("err, total, warnings = %v, %d, %d; want nil, %d, 1", err, total, *warns, ksScanTotal)
 	}
@@ -697,7 +699,7 @@ func TestScanCassandra_TagThrottleDemotedBesideHardError(t *testing.T) {
 	tags := newKSTagStub()
 	tags.errs[ksTable1ARN] = ksThrottle
 	tags.errs[ksStream1ARN] = ksValidation
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, nil))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != ksScanTotal || *warns != 1 {
@@ -729,7 +731,7 @@ func TestScanCassandra_TagPages(t *testing.T) {
 			return &keyspaces.ListTagsForResourceOutput{}, nil
 		},
 	})
-	_, _, err := ksScan(context.Background(), st, handlers)
+	_, err := ksScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -776,7 +778,7 @@ func TestScanCassandra_GetTableFailures(t *testing.T) {
 				return getTable(in)
 			}
 
-			_, _, err := ksScan(context.Background(), st, handlers)
+			_, err := ksScan(context.Background(), st, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -877,7 +879,7 @@ func TestScanCassandra_ListTablesPerKeyspace(t *testing.T) {
 				return &keyspaces.ListTablesOutput{Tables: []keyspacestypes.TableSummary{t4}, NextToken: c.page2Token}, nil
 			}
 
-			_, _, err := ksScan(context.Background(), st, handlers)
+			_, err := ksScan(context.Background(), st, handlers)
 			if c.wantErr != nil {
 				c.wantErr(t, err)
 			} else if err != nil {
@@ -966,7 +968,7 @@ func TestScanCassandra_ListKeyspacesPages(t *testing.T) {
 				}, NextToken: c.page2Token}, nil
 			}
 
-			_, _, err := ksScan(context.Background(), st, handlers)
+			_, err := ksScan(context.Background(), st, handlers)
 			if c.wantErr != nil {
 				c.wantErr(t, err)
 			} else if err != nil {
@@ -1010,7 +1012,7 @@ func TestScanCassandra_ListKeyspacesDenied(t *testing.T) {
 	warns := bacWarnings(st, "cassandra:ListKeyspaces")
 	var streams ksStreamPages
 	var tableCalls parentCalls
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
 		"ListKeyspaces": func(any) (any, error) { return nil, ksDenied },
 		"ListTables": func(in any) (any, error) {
 			tableCalls.add(sv(in.(*keyspaces.ListTablesInput).KeyspaceName))
@@ -1050,7 +1052,7 @@ func TestScanCassandra_UnnamedTableKeepsSummary(t *testing.T) {
 		tables.Tables = append(tables.Tables, keyspacestypes.TableSummary{KeyspaceName: ptrStr("ks1"), ResourceArn: ptrStr(noNameARN)})
 		return tables, nil
 	}
-	if _, _, err := ksScan(context.Background(), st, handlers); err != nil {
+	if _, err := ksScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scanCassandra: %v", err)
 	}
 	if got := getTables.distinct(); !slices.Equal(got, []string{"ks1/t1", "ks1/t2"}) {
@@ -1091,7 +1093,7 @@ func TestScanCassandra_GovARNsReachTagOp(t *testing.T) {
 		"ListTagsForResource": tags.handler,
 	}, ksDenied)
 
-	if _, _, err := scanCassandra(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanCassandra(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanCassandra: %v", err)
 	}
 	want := []string{ksARN, tableARN, streamARN}
@@ -1114,7 +1116,7 @@ func TestScanCassandra_FailedWriteStopsWithoutTagWarning(t *testing.T) {
 	var tableCalls parentCalls
 	tags := newKSTagStub()
 	tags.errs[ksKeyspaceARN] = ksDenied
-	_, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, map[string]func(any) (any, error){
+	_, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, tags, map[string]func(any) (any, error){
 		"ListTables": func(in any) (any, error) {
 			tableCalls.add(sv(in.(*keyspaces.ListTablesInput).KeyspaceName))
 			return &keyspaces.ListTablesOutput{}, nil
@@ -1143,7 +1145,7 @@ func TestScanCassandra_ContextEndReportedOnce(t *testing.T) {
 			return nil, context.Canceled
 		},
 	})
-	_, _, err := ksScan(ctx, st, handlers)
+	_, err := ksScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1176,7 +1178,7 @@ func TestScanCassandra_StoresStreamsUnderTables(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanCassandra(context.Background(), acct, "us-east-1", st, testScanID)
+	total, err := scanCassandra(context.Background(), acct, "us-east-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanCassandra: %v", err)
 	}
@@ -1213,7 +1215,7 @@ func TestScanCassandra_PhaseErrorKeepsOtherPhases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			var streams ksStreamPages
-			total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){tc.failOp: fail}))
+			total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){tc.failOp: fail}))
 			assertAPICode(t, err, "ValidationException")
 			if total != tc.wantTotal {
 				t.Errorf("total = %d, want %d", total, tc.wantTotal)
@@ -1235,7 +1237,7 @@ func TestScanCassandra_StreamsNXDOMAINKeepsOtherPhases(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
 	var streams ksStreamPages
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
 		"ListStreams": func(any) (any, error) {
 			return nil, &net.DNSError{Err: "no such host", Name: "cassandra-streams.us-east-1.api.aws", IsNotFound: true}
 		},
@@ -1260,7 +1262,7 @@ func TestScanCassandra_LoneStreamsThrottleMarksPartial(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
 	var streams ksStreamPages
-	total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
+	total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
 		"ListStreams": func(any) (any, error) { return nil, ksThrottle },
 	}))
 	if got := classifyServiceError(err); got != outcomeTransient {
@@ -1280,7 +1282,7 @@ func TestScanCassandra_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
 			var streams ksStreamPages
-			total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
+			total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
 				op: func(any) (any, error) {
 					return nil, &net.DNSError{Err: "no such host", Name: "cassandra.us-east-1.amazonaws.com", IsNotFound: true}
 				},
@@ -1302,7 +1304,7 @@ func TestScanCassandra_KeyspacesNXDOMAINSkipsStreams(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
 	var streams ksStreamPages
-	_, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
+	_, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), map[string]func(any) (any, error){
 		"ListKeyspaces": func(any) (any, error) {
 			return nil, &net.DNSError{Err: "no such host", Name: "cassandra.us-east-1.amazonaws.com", IsNotFound: true}
 		},

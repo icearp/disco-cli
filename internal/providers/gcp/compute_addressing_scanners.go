@@ -23,10 +23,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeGlobalPublicDelegatedPrefix, Service: "compute"})
 }
 
-func scanComputeAddresses(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeAddresses(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:addresses.aggregatedList",
 		svc.Addresses.AggregatedList(p.ID),
-		func(page *compute.AddressAggregatedList) (int, int, error) {
+		func(page *compute.AddressAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -49,10 +49,10 @@ func scanComputeAddresses(ctx context.Context, svc *compute.Service, p *project,
 		})
 }
 
-func scanComputeGlobalAddresses(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeGlobalAddresses(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:globalAddresses.list",
 		svc.GlobalAddresses.List(p.ID),
-		func(page *compute.AddressList) (int, int, error) {
+		func(page *compute.AddressList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, a := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -68,10 +68,10 @@ func scanComputeGlobalAddresses(ctx context.Context, svc *compute.Service, p *pr
 		})
 }
 
-func scanComputePublicAdvertisedPrefixes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputePublicAdvertisedPrefixes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:publicAdvertisedPrefixes.list",
 		svc.PublicAdvertisedPrefixes.List(p.ID),
-		func(page *compute.PublicAdvertisedPrefixList) (int, int, error) {
+		func(page *compute.PublicAdvertisedPrefixList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, pp := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -91,10 +91,10 @@ func scanComputePublicAdvertisedPrefixes(ctx context.Context, svc *compute.Servi
 // (regional) and GlobalPublicDelegatedPrefix (global) via a single
 // AggregatedList call — same combined-scope shape as
 // scanComputeInstanceTemplates in Wave 2.
-func scanComputePublicDelegatedPrefixes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputePublicDelegatedPrefixes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:publicDelegatedPrefixes.aggregatedList",
 		svc.PublicDelegatedPrefixes.AggregatedList(p.ID),
-		func(page *compute.PublicDelegatedPrefixAggregatedList) (int, int, error) {
+		func(page *compute.PublicDelegatedPrefixAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeGlobalPublicDelegatedPrefix

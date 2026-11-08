@@ -83,37 +83,36 @@ func greengrassV1RegionSupported(acct *account, region string) bool {
 	return sdkTableAllows("aws:greengrass", region)
 }
 
-func scanGreengrass(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGreengrass(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if !greengrassV1RegionSupported(acct, region) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	client := greengrass.NewFromConfig(acct.cfg, func(o *greengrass.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanGGConnector(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGCore(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGDevice(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGFunction(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGLogger(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGResource(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGSubscription(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanGGGroups(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanGGConnector(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGCore(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGDevice(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGFunction(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGLogger(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGResource(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGSubscription(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanGGGroups(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, ferr := phase()
+		t, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // All 7 *Definition list ops use NextToken with manual loops. Each kind
 // reuses the same per-page handler shape.
 
-func scanGGConnector(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "ConnectorDefinitions", TypeGreengrassConnectorDefinition,
+func scanGGConnector(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "ConnectorDefinitions", TypeGreengrassConnectorDefinition,
 		func(token *string) (*greengrass.ListConnectorDefinitionsOutput, error) {
 			return client.ListConnectorDefinitions(ctx, &greengrass.ListConnectorDefinitionsInput{NextToken: token})
 		},
@@ -121,9 +120,9 @@ func scanGGConnector(ctx context.Context, client greengrassAPI, acct *account, r
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "ConnectorDefinitionVersions", TypeGreengrassConnectorDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "ConnectorDefinitionVersions", TypeGreengrassConnectorDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListConnectorDefinitionVersions(ctx, &greengrass.ListConnectorDefinitionVersionsInput{ConnectorDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -131,11 +130,11 @@ func scanGGConnector(ctx context.Context, client greengrassAPI, acct *account, r
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGCore(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "CoreDefinitions", TypeGreengrassCoreDefinition,
+func scanGGCore(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "CoreDefinitions", TypeGreengrassCoreDefinition,
 		func(token *string) (*greengrass.ListCoreDefinitionsOutput, error) {
 			return client.ListCoreDefinitions(ctx, &greengrass.ListCoreDefinitionsInput{NextToken: token})
 		},
@@ -143,9 +142,9 @@ func scanGGCore(ctx context.Context, client greengrassAPI, acct *account, region
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "CoreDefinitionVersions", TypeGreengrassCoreDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "CoreDefinitionVersions", TypeGreengrassCoreDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListCoreDefinitionVersions(ctx, &greengrass.ListCoreDefinitionVersionsInput{CoreDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -153,11 +152,11 @@ func scanGGCore(ctx context.Context, client greengrassAPI, acct *account, region
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGDevice(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "DeviceDefinitions", TypeGreengrassDeviceDefinition,
+func scanGGDevice(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "DeviceDefinitions", TypeGreengrassDeviceDefinition,
 		func(token *string) (*greengrass.ListDeviceDefinitionsOutput, error) {
 			return client.ListDeviceDefinitions(ctx, &greengrass.ListDeviceDefinitionsInput{NextToken: token})
 		},
@@ -165,9 +164,9 @@ func scanGGDevice(ctx context.Context, client greengrassAPI, acct *account, regi
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "DeviceDefinitionVersions", TypeGreengrassDeviceDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "DeviceDefinitionVersions", TypeGreengrassDeviceDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListDeviceDefinitionVersions(ctx, &greengrass.ListDeviceDefinitionVersionsInput{DeviceDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -175,11 +174,11 @@ func scanGGDevice(ctx context.Context, client greengrassAPI, acct *account, regi
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGFunction(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "FunctionDefinitions", TypeGreengrassFunctionDefinition,
+func scanGGFunction(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "FunctionDefinitions", TypeGreengrassFunctionDefinition,
 		func(token *string) (*greengrass.ListFunctionDefinitionsOutput, error) {
 			return client.ListFunctionDefinitions(ctx, &greengrass.ListFunctionDefinitionsInput{NextToken: token})
 		},
@@ -187,9 +186,9 @@ func scanGGFunction(ctx context.Context, client greengrassAPI, acct *account, re
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "FunctionDefinitionVersions", TypeGreengrassFunctionDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "FunctionDefinitionVersions", TypeGreengrassFunctionDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListFunctionDefinitionVersions(ctx, &greengrass.ListFunctionDefinitionVersionsInput{FunctionDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -197,11 +196,11 @@ func scanGGFunction(ctx context.Context, client greengrassAPI, acct *account, re
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGLogger(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "LoggerDefinitions", TypeGreengrassLoggerDefinition,
+func scanGGLogger(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "LoggerDefinitions", TypeGreengrassLoggerDefinition,
 		func(token *string) (*greengrass.ListLoggerDefinitionsOutput, error) {
 			return client.ListLoggerDefinitions(ctx, &greengrass.ListLoggerDefinitionsInput{NextToken: token})
 		},
@@ -209,9 +208,9 @@ func scanGGLogger(ctx context.Context, client greengrassAPI, acct *account, regi
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "LoggerDefinitionVersions", TypeGreengrassLoggerDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "LoggerDefinitionVersions", TypeGreengrassLoggerDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListLoggerDefinitionVersions(ctx, &greengrass.ListLoggerDefinitionVersionsInput{LoggerDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -219,11 +218,11 @@ func scanGGLogger(ctx context.Context, client greengrassAPI, acct *account, regi
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGResource(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "ResourceDefinitions", TypeGreengrassResourceDefinition,
+func scanGGResource(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "ResourceDefinitions", TypeGreengrassResourceDefinition,
 		func(token *string) (*greengrass.ListResourceDefinitionsOutput, error) {
 			return client.ListResourceDefinitions(ctx, &greengrass.ListResourceDefinitionsInput{NextToken: token})
 		},
@@ -231,9 +230,9 @@ func scanGGResource(ctx context.Context, client greengrassAPI, acct *account, re
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "ResourceDefinitionVersions", TypeGreengrassResourceDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "ResourceDefinitionVersions", TypeGreengrassResourceDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListResourceDefinitionVersions(ctx, &greengrass.ListResourceDefinitionVersionsInput{ResourceDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -241,11 +240,11 @@ func scanGGResource(ctx context.Context, client greengrassAPI, acct *account, re
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGSubscription(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	defs, t1, i1, err := ggListDefs(ctx, acct, region, st, scanID, "SubscriptionDefinitions", TypeGreengrassSubscriptionDefinition,
+func scanGGSubscription(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	defs, t1, err := ggListDefs(ctx, acct, region, st, scanID, "SubscriptionDefinitions", TypeGreengrassSubscriptionDefinition,
 		func(token *string) (*greengrass.ListSubscriptionDefinitionsOutput, error) {
 			return client.ListSubscriptionDefinitions(ctx, &greengrass.ListSubscriptionDefinitionsInput{NextToken: token})
 		},
@@ -253,9 +252,9 @@ func scanGGSubscription(ctx context.Context, client greengrassAPI, acct *account
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	t2, i2, err := scanGGVersions(ctx, acct, region, st, scanID, "SubscriptionDefinitionVersions", TypeGreengrassSubscriptionDefinitionVersion, defs,
+	t2, err := scanGGVersions(ctx, acct, region, st, scanID, "SubscriptionDefinitionVersions", TypeGreengrassSubscriptionDefinitionVersion, defs,
 		func(defID, token *string) (versOut, error) {
 			out, e := client.ListSubscriptionDefinitionVersions(ctx, &greengrass.ListSubscriptionDefinitionVersionsInput{SubscriptionDefinitionId: defID, NextToken: token})
 			if e != nil {
@@ -263,10 +262,10 @@ func scanGGSubscription(ctx context.Context, client greengrassAPI, acct *account
 			}
 			return versOut{Versions: out.Versions, NextToken: out.NextToken}, nil
 		})
-	return t1 + t2, i1 + i2, err
+	return t1 + t2, err
 }
 
-func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var ids []string
 	var token *string
@@ -274,9 +273,9 @@ func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, regi
 		out, err := client.ListGroups(ctx, &greengrass.ListGroupsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "greengrass:ListGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "greengrass:ListGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("greengrass:ListGroups: %w", err)
+			return 0, fmt.Errorf("greengrass:ListGroups: %w", err)
 		}
 		for _, g := range out.Groups {
 			arn := sv(g.Arn)
@@ -300,9 +299,9 @@ func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, regi
 		}
 		token = out.NextToken
 	}
-	t1, i1, err := upsertBatch(st, batch, "greengrass groups")
+	t1, err := upsertBatch(st, batch, "greengrass groups")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	var vbatch []*store.Resource
@@ -315,7 +314,7 @@ func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, regi
 				if isAccessDenied(verr) {
 					break
 				}
-				return t1, i1, fmt.Errorf("greengrass:ListGroupVersions %s: %w", gid, verr)
+				return t1, fmt.Errorf("greengrass:ListGroupVersions %s: %w", gid, verr)
 			}
 			for _, v := range out.Versions {
 				arn := sv(v.Arn)
@@ -338,6 +337,6 @@ func scanGGGroups(ctx context.Context, client greengrassAPI, acct *account, regi
 			vtoken = out.NextToken
 		}
 	}
-	t2, i2, err := upsertBatch(st, vbatch, "greengrass group-versions")
-	return t1 + t2, i1 + i2, err
+	t2, err := upsertBatch(st, vbatch, "greengrass group-versions")
+	return t1 + t2, err
 }

@@ -204,7 +204,7 @@ func cplHandlers(calls *cplCalls) map[string]func(in any) (any, error) {
 
 // cplScan runs the service scan entry point against handlers; an op without a
 // handler is denied.
-func cplScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func cplScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cplDenied)
 	return scanCodePipeline(ctx, acct, testRegion, st, testScanID)
@@ -259,7 +259,9 @@ func TestScanCodePipeline_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls cplCalls
-	total, inserted, err := cplScan(context.Background(), st, cplHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := cplScan(context.Background(), counted, cplHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -371,17 +373,17 @@ func TestScanCodePipeline_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCodePipeline_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls cplCalls
-	if _, _, err := cplScan(context.Background(), st, cplHandlers(&calls)); err != nil {
+	if _, err := cplScan(context.Background(), st, cplHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+	total, err := cplScan(context.Background(), st, cplHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -401,7 +403,9 @@ func TestScanCodePipeline_Empty(t *testing.T) {
 	h["ListPipelines"] = func(any) (any, error) { return &codepipeline.ListPipelinesOutput{}, nil }
 	h["ListActionTypes"] = func(any) (any, error) { return &codepipeline.ListActionTypesOutput{}, nil }
 	h["ListWebhooks"] = func(any) (any, error) { return &codepipeline.ListWebhooksOutput{}, nil }
-	total, inserted, err := cplScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := cplScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -445,7 +449,7 @@ func TestScanCodePipeline_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := cplCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+			total, err := cplScan(context.Background(), st, cplHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -513,7 +517,7 @@ func TestScanCodePipeline_TagPagesFail(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := cplScan(context.Background(), st, h)
+			total, err := cplScan(context.Background(), st, h)
 			if !c.is(err) {
 				t.Fatalf("err = %v; want the failed page's error", err)
 			}
@@ -534,7 +538,7 @@ func TestScanCodePipeline_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := cplCalls{tagErrs: map[string]error{cplTestPipeA: cplDenied, cplTestActionB: cplDenied}}
-	total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+	total, err := cplScan(context.Background(), st, cplHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -553,7 +557,7 @@ func TestScanCodePipeline_TagThrottleDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cplListTagsOp)
 	calls := cplCalls{tagErrs: map[string]error{cplTestPipeA: cplThrottle, cplTestActionB: cplBadARN}}
-	_, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+	_, err := cplScan(context.Background(), st, cplHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArnException")
 	if *warns != 1 {
@@ -578,7 +582,7 @@ func TestScanCodePipeline_WebhookThrottleDemotedUnderItsOp(t *testing.T) {
 			return list(in)
 		}
 	}
-	_, _, err := cplScan(context.Background(), st, h)
+	_, err := cplScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if got := amWarnings(warns()); !slices.Equal(got, []string{cplListWebhooksOp}) {
@@ -610,7 +614,7 @@ func TestScanCodePipeline_GetPipelineFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := cplCalls{getErrs: c.errs}
-			total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+			total, err := cplScan(context.Background(), st, cplHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -674,7 +678,7 @@ func TestScanCodePipeline_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := cplScan(context.Background(), st, h)
+			total, err := cplScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			want := cplWithout(tc.lost)
@@ -713,7 +717,7 @@ func TestScanCodePipeline_ListDeniedWarnsAndContinues(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := cplScan(context.Background(), st, h); err != nil {
+			if _, err := cplScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := cplStored(t, st), cplWithout(tc.lost...); !slices.Equal(got, want) {
@@ -747,7 +751,7 @@ func TestScanCodePipeline_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := cplCalls{tagErrs: c.tagErrs, getErrs: c.getErrs}
-			total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+			total, err := cplScan(context.Background(), st, cplHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -788,7 +792,7 @@ func TestScanCodePipeline_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := cplScan(context.Background(), st, h); err != nil {
+	if _, err := cplScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -825,7 +829,7 @@ func TestScanCodePipeline_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := cplScan(context.Background(), st, h)
+			total, err := cplScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -893,7 +897,7 @@ func TestScanCodePipeline_ElementWithoutIdentifier(t *testing.T) {
 			{Definition: &cptypes.WebhookDefinition{Name: sdkaws.String("no-arn")}}, {Arn: &cplTestHookA},
 		}}, nil
 	}
-	if _, _, err := cplScan(context.Background(), st, h); err != nil {
+	if _, err := cplScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := cplStored(t, st), cplSorted(cplTestPipeA, cplTestActionA, cplTestHookA); !slices.Equal(got, want) {
@@ -936,7 +940,7 @@ func TestScanCodePipeline_ActionTypePartialIDNamed(t *testing.T) {
 			h["ListActionTypes"] = func(any) (any, error) {
 				return &codepipeline.ListActionTypesOutput{ActionTypes: []cptypes.ActionType{c.el}}, nil
 			}
-			if _, _, err := cplScan(context.Background(), st, h); err != nil {
+			if _, err := cplScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := rowsByNativeID(t, st, TypeCodePipelineCustomActionType); len(got) != 0 {
@@ -980,7 +984,7 @@ func TestScanCodePipeline_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, cplDenied)
-			if _, _, err := scanCodePipeline(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCodePipeline(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := calls.tagARNs.distinct(), cplSorted(pipe, action); !slices.Equal(got, want) {
@@ -1014,7 +1018,7 @@ func TestScanCodePipeline_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := cplScan(ctx, st, h)
+	_, err := cplScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1043,7 +1047,7 @@ func TestScanCodePipeline_NXDOMAIN(t *testing.T) {
 			var calls cplCalls
 			h := cplHandlers(&calls)
 			h[op] = func(any) (any, error) { return nil, nx }
-			total, _, err := cplScan(context.Background(), st, h)
+			total, err := cplScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			if want := cplTestTotal - 2; total != want {
 				t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1053,7 +1057,7 @@ func TestScanCodePipeline_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := cplCalls{tagErrs: map[string]error{cplTestActionB: nx}}
-		_, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
+		_, err := cplScan(context.Background(), st, cplHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1061,7 +1065,7 @@ func TestScanCodePipeline_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanCodePipeline(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanCodePipeline(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

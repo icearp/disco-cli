@@ -48,7 +48,7 @@ const evsPageLimit = 100
 
 // scanEVS discovers Elastic VMware Service (EVS) environments and their hosts,
 // VLANs, connectors and VM entitlements.
-func scanEVS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEVS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := evs.NewFromConfig(acct.cfg, func(o *evs.Options) { o.Region = region })
 	return scanEVSAll(ctx, client, acct, region, st, scanID)
 }
@@ -58,7 +58,7 @@ func scanEVS(ctx context.Context, acct *account, region string, st *store.Store,
 // vCenter connectors the connector phase stored, one at a time: a phase's
 // error does not stop the later ones; a failed write and ctx's end do
 // (runHostPhases).
-func scanEVSAll(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEVSAll(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		envs     []childParent
 		vcenters []evsConnectorParent
@@ -68,18 +68,18 @@ func scanEVSAll(ctx context.Context, client evsAPI, acct *account, region string
 			envs, failed = scanEVSEnvironments(ctx, client, acct, region, st, scanID, p)
 			return failed
 		}},
-		countedPhase(0, evsListEnvironmentHostsOp, func() (int, int, error) {
+		countedPhase(0, evsListEnvironmentHostsOp, func() (int, error) {
 			return scanEVSHosts(ctx, client, acct, region, st, scanID, envs)
 		}),
-		countedPhase(0, evsListEnvironmentVlansOp, func() (int, int, error) {
+		countedPhase(0, evsListEnvironmentVlansOp, func() (int, error) {
 			return scanEVSVlans(ctx, client, acct, region, st, scanID, envs)
 		}),
-		countedPhase(0, evsListEnvironmentConnectorsOp, func() (int, int, error) {
-			t, i, found, err := scanEVSConnectors(ctx, client, acct, region, st, scanID, envs)
+		countedPhase(0, evsListEnvironmentConnectorsOp, func() (int, error) {
+			t, found, err := scanEVSConnectors(ctx, client, acct, region, st, scanID, envs)
 			vcenters = found
-			return t, i, err
+			return t, err
 		}),
-		countedPhase(0, evsListVMEntitlementsOp, func() (int, int, error) {
+		countedPhase(0, evsListVMEntitlementsOp, func() (int, error) {
 			return scanEVSVMEntitlements(ctx, client, acct, region, st, scanID, vcenters)
 		}),
 	})
@@ -185,14 +185,14 @@ func evsVMEntitlementNativeID(connectorNativeID string, typ evstypes.Entitlement
 func evsChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	return childFanOutSkipNotReady(ctx, st, acct, region, op, parents, isGone, byParentID,
 		"parent(s)", "the parent may not be ready (creating, failed or deleting)", list)
 }
 
 // scanEVSHosts stores each environment's hosts that are not deleted.
-func scanEVSHosts(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, int, error) {
+func scanEVSHosts(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, error) {
 	return evsChildFanOut(ctx, st, acct, region, evsListEnvironmentHostsOp, envs, func(ctx context.Context, env childParent) ([]*store.Resource, error) {
 		pager := evs.NewListEnvironmentHostsPaginator(client,
 			&evs.ListEnvironmentHostsInput{EnvironmentId: sdkaws.String(env.id)},
@@ -224,7 +224,7 @@ func scanEVSHosts(ctx context.Context, client evsAPI, acct *account, region stri
 // VlanId, which the model documents as the VLAN's unique id; the function name
 // is free text the model neither requires nor constrains, so it is only the
 // row's name.
-func scanEVSVlans(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, int, error) {
+func scanEVSVlans(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, error) {
 	return evsChildFanOut(ctx, st, acct, region, evsListEnvironmentVlansOp, envs, func(ctx context.Context, env childParent) ([]*store.Resource, error) {
 		pager := evs.NewListEnvironmentVlansPaginator(client,
 			&evs.ListEnvironmentVlansInput{EnvironmentId: sdkaws.String(env.id)},
@@ -260,12 +260,12 @@ type evsConnectorParent struct {
 // scanEVSConnectors stores each environment's connectors that are not deleted
 // and returns the vCenter ones, the only type CreateEntitlement accepts. It
 // returns none when the phase fails, since their rows were not stored.
-func scanEVSConnectors(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, int, []evsConnectorParent, error) {
+func scanEVSConnectors(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, envs []childParent) (int, []evsConnectorParent, error) {
 	var (
 		mu       sync.Mutex
 		vcenters []evsConnectorParent
 	)
-	t, i, err := evsChildFanOut(ctx, st, acct, region, evsListEnvironmentConnectorsOp, envs, func(ctx context.Context, env childParent) ([]*store.Resource, error) {
+	t, err := evsChildFanOut(ctx, st, acct, region, evsListEnvironmentConnectorsOp, envs, func(ctx context.Context, env childParent) ([]*store.Resource, error) {
 		pager := evs.NewListEnvironmentConnectorsPaginator(client,
 			&evs.ListEnvironmentConnectorsInput{EnvironmentId: sdkaws.String(env.id)},
 			func(o *evs.ListEnvironmentConnectorsPaginatorOptions) { o.Limit = evsPageLimit })
@@ -301,9 +301,9 @@ func scanEVSConnectors(ctx context.Context, client evsAPI, acct *account, region
 		return rows, nil
 	})
 	if err != nil {
-		return t, i, nil, err
+		return t, nil, err
 	}
-	return t, i, vcenters, nil
+	return t, vcenters, nil
 }
 
 // scanEVSVMEntitlements stores the VM entitlements of each vCenter connector,
@@ -311,7 +311,7 @@ func scanEVSConnectors(ctx context.Context, client evsAPI, acct *account, region
 // failed connector is handled as evsChildFanOut describes; ResourceNotFound
 // there means the connector or its environment was deleted since listing.
 // Entitlements whose status is DELETED are not stored.
-func scanEVSVMEntitlements(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, connectors []evsConnectorParent) (int, int, error) {
+func scanEVSVMEntitlements(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, connectors []evsConnectorParent) (int, error) {
 	parents := make([]childParent, len(connectors))
 	byNativeID := make(map[string]evsConnectorParent, len(connectors))
 	for i, c := range connectors {

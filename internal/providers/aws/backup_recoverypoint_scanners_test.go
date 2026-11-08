@@ -55,7 +55,7 @@ func TestScanBackup_ChildListingFailsForOneParent(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := bkScan(context.Background(), st, h)
+				total, err := bkScan(context.Background(), st, h)
 				if c.code != "" {
 					assertGlueOutcome(t, err, outcomeError)
 					assertAPICode(t, err, c.code)
@@ -86,7 +86,7 @@ func TestScanBackup_RecoveryPointsOnlyOfVaultsListedThisScan(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	calls := newBKCalls()
-	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
+	if _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := calls.sortedParents("ListRecoveryPointsByBackupVault"); !slices.Equal(got, []string{"vault-bare", "vault-tagged"}) {
@@ -104,7 +104,7 @@ func TestScanBackup_LegalHoldWithoutTitleNamedByARN(t *testing.T) {
 	h["ListLegalHolds"] = func(any) (any, error) {
 		return &backup.ListLegalHoldsOutput{LegalHolds: []backuptypes.LegalHold{{LegalHoldArn: &arn, CreationDate: &bkStart}}}, nil
 	}
-	if _, _, err := bkScan(context.Background(), st, h); err != nil {
+	if _, err := bkScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := bkRowOf(t, st, TypeBackupLegalHold, arn)
@@ -180,7 +180,7 @@ func TestScanBackup_RecoveryPointPagesWrittenAsRead(t *testing.T) {
 				return nil, c.err
 			}
 
-			_, _, err := bkScan(ctx, st, h)
+			_, err := bkScan(ctx, st, h)
 			if !c.isWanted(err) {
 				t.Fatalf("err = %v; want %s's", err, c.name)
 			}
@@ -226,7 +226,7 @@ func TestScanBackup_RecoveryPointTagFailuresWarnOncePerPhase(t *testing.T) {
 			for _, arn := range failing {
 				calls.errs[arn] = c.err
 			}
-			total, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+			total, err := bkScan(context.Background(), st, bkHandlers(calls))
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -255,7 +255,7 @@ func TestScanBackup_RecoveryPointTagFailuresWarnOncePerPhase(t *testing.T) {
 		// vault is read first has its refusal tallied before writes fail.
 		calls.errs[bkRecoveryPointARN("vault-tagged", "tagged")] = bkBadInput
 		calls.errs[bkRecoveryPointARN("vault-bare", "tagged")] = bkBadInput
-		_, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+		_, err := bkScan(context.Background(), st, bkHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -272,7 +272,7 @@ func TestScanBackup_RecoveryPointTagFailuresWarnOncePerPhase(t *testing.T) {
 	t.Run("refused vault ARN", func(t *testing.T) {
 		calls := newBKCalls()
 		calls.errs[bkVaultARN("vault-tagged")] = bkBadInput
-		_, _, err := bkScan(context.Background(), newTestStore(t), bkHandlers(calls))
+		_, err := bkScan(context.Background(), newTestStore(t), bkHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidParameterValueException")
 	})

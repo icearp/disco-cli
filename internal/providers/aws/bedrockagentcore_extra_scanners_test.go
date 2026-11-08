@@ -109,7 +109,7 @@ func bacABTest(id string) bacdatatypes.ABTestSummary {
 type bacTaggedPhase func(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool
 
 // runBACPhase runs one tagged phase alone and returns its result.
-func runBACPhase(st *store.Store, stub *stubBAC, phase bacTaggedPhase) (int, int, error) {
+func runBACPhase(st *store.Store, stub *stubBAC, phase bacTaggedPhase) (int, error) {
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
 	phase(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
@@ -118,7 +118,7 @@ func runBACPhase(st *store.Store, stub *stubBAC, phase bacTaggedPhase) (int, int
 
 // runBACCapacityProviders runs the capacity-provider phase alone and returns
 // its result.
-func runBACCapacityProviders(st *store.Store, stub *stubBAC) (int, int, error) {
+func runBACCapacityProviders(st *store.Store, stub *stubBAC) (int, error) {
 	return runBACPhase(st, stub, scanBACCapacityProviders)
 }
 
@@ -128,12 +128,12 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
-		run  func(st *store.Store) (int, int, error)
+		run  func(st *store.Store) (int, error)
 		want []bacWant
 	}{
 		{
 			name: "capacity providers",
-			run: func(st *store.Store) (int, int, error) {
+			run: func(st *store.Store) (int, error) {
 				stub := &stubBAC{capacityPages: [][]bactypes.CapacityProviderSummary{
 					{bacCapacityProvider("a"), bacCapacityProvider("")}, {bacCapacityProvider("b")},
 				}}
@@ -146,7 +146,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 		},
 		{
 			name: "consent portals",
-			run: func(st *store.Store) (int, int, error) {
+			run: func(st *store.Store) (int, error) {
 				stub := &stubBAC{portalPages: [][]bactypes.ConsentPortalSummary{
 					{bacConsentPortal("a"), bacConsentPortal("")}, {bacConsentPortal("b")},
 				}}
@@ -159,7 +159,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 		},
 		{
 			name: "ab tests",
-			run: func(st *store.Store) (int, int, error) {
+			run: func(st *store.Store) (int, error) {
 				stub := &stubBACData{abPages: [][]bacdatatypes.ABTestSummary{
 					{bacABTest("a"), bacABTest("")}, {bacABTest("b")},
 				}}
@@ -174,7 +174,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := tc.run(st)
+			total, err := tc.run(st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -192,14 +192,14 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 // a first-page region gap is silent, any other code propagates.
 func TestScanBACAccountLists_Errors(t *testing.T) {
 	t.Parallel()
-	scanners := map[string]func(st *store.Store, err error) (int, int, error){
-		"capacity providers": func(st *store.Store, err error) (int, int, error) {
+	scanners := map[string]func(st *store.Store, err error) (int, error){
+		"capacity providers": func(st *store.Store, err error) (int, error) {
 			return runBACCapacityProviders(st, &stubBAC{capacityErr: err})
 		},
-		"consent portals": func(st *store.Store, err error) (int, int, error) {
+		"consent portals": func(st *store.Store, err error) (int, error) {
 			return runBACPhase(st, &stubBAC{portalErr: err}, scanBACConsentPortals)
 		},
-		"ab tests": func(st *store.Store, err error) (int, int, error) {
+		"ab tests": func(st *store.Store, err error) (int, error) {
 			return scanBACABTests(context.Background(), &stubBACData{abErr: err}, newTestAccount(testAccountID), testRegion, st, testScanID)
 		},
 	}
@@ -219,7 +219,7 @@ func TestScanBACAccountLists_Errors(t *testing.T) {
 			t.Run(name+"/"+tc.name, func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countWarnings(st)
-				total, _, err := run(st, tc.err)
+				total, err := run(st, tc.err)
 				if tc.wantCode == "" && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -261,7 +261,7 @@ var bacTestGateways = []childParent{
 // optional error served after them.
 type bacGatewayChildCase struct {
 	name, seg, rtype, idKey string
-	run                     func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, int, error)
+	run                     func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, error)
 }
 
 func bacGatewayChildCases() []bacGatewayChildCase {
@@ -269,7 +269,7 @@ func bacGatewayChildCases() []bacGatewayChildCase {
 	return []bacGatewayChildCase{
 		{
 			name: "rules", seg: "/rule/", rtype: TypeBedrockAgentCoreGatewayRule, idKey: "RuleId",
-			run: func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, int, error) {
+			run: func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, error) {
 				stub := &stubBAC{rulePages: map[string][][]bactypes.GatewayRuleDetail{}, ruleErr: errs}
 				for gid, ps := range pages {
 					for _, ids := range ps {
@@ -285,7 +285,7 @@ func bacGatewayChildCases() []bacGatewayChildCase {
 		},
 		{
 			name: "rate limits", seg: "/rate-limit/", rtype: TypeBedrockAgentCoreGatewayRateLimit, idKey: "RateLimitId",
-			run: func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, int, error) {
+			run: func(st *store.Store, pages map[string][][]string, errs map[string]error) (int, error) {
 				stub := &stubBAC{limitPages: map[string][][]bactypes.GatewayRateLimitDetail{}, limitErr: errs}
 				for gid, ps := range pages {
 					for _, ids := range ps {
@@ -312,7 +312,7 @@ func TestScanBACGatewayChildren_FanOut(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countWarnings(st)
-			total, _, err := tc.run(st,
+			total, err := tc.run(st,
 				map[string][][]string{"gw-a": {{"x1", ""}, {"x2"}}, "gw-c": {{"x3"}}},
 				map[string]error{"gw-b": apiErr("ResourceNotFoundException", "gone")})
 			if err != nil {
@@ -365,7 +365,7 @@ func TestScanBACGatewayChildren_Errors(t *testing.T) {
 				if tc.pagesA != nil {
 					pages["gw-a"] = tc.pagesA
 				}
-				total, _, err := sc.run(st, pages, tc.errs)
+				total, err := sc.run(st, pages, tc.errs)
 				if tc.wantCode == "" && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}

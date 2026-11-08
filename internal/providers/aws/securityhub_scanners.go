@@ -81,12 +81,12 @@ const (
 // security controls stored before it. The hub and the taggable extended
 // types have their tags read per row (shTags), and the tag denials of the
 // whole scan are one warning.
-func scanSecurityHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecurityHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := securityhub.NewFromConfig(acct.cfg, func(o *securityhub.Options) { o.Region = region })
 
 	hub, err := shHubRow(ctx, client, acct, region, st, scanID)
 	if hub == nil {
-		return 0, 0, err
+		return 0, err
 	}
 	hubARN := hub.NativeID
 	tags := shTags(client).sharingDenials()
@@ -98,33 +98,33 @@ func scanSecurityHub(ctx context.Context, acct *account, region string, st *stor
 		{op: shDescribeHubOp, run: func(p *phaseTotals) bool {
 			return storeRowsTags(ctx, st, acct, region, shDescribeHubOp, []*store.Resource{hub}, nil, nil, tags, p)
 		}},
-		countedPhase(0, "securityhub:GetInsights", func() (int, int, error) {
+		countedPhase(0, "securityhub:GetInsights", func() (int, error) {
 			return scanSecurityHubInsights(ctx, client, acct, region, hubARN, st, scanID)
 		}),
-		countedPhase(0, "securityhub:GetEnabledStandards", func() (int, int, error) {
-			t, i, stored, err := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID)
+		countedPhase(0, "securityhub:GetEnabledStandards", func() (int, error) {
+			t, stored, err := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID)
 			standards = stored
-			return t, i, err
+			return t, err
 		}),
-		countedPhase(0, "securityhub:ListEnabledProductsForImport", func() (int, int, error) {
+		countedPhase(0, "securityhub:ListEnabledProductsForImport", func() (int, error) {
 			return scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID)
 		}),
 	}
 	phases = append(phases, shExtendedPhases(ctx, client, acct, region, st, scanID, tags, &controls)...)
 	phases = append(phases,
-		countedPhase(0, "securityhub:DescribeActionTargets", func() (int, int, error) {
+		countedPhase(0, "securityhub:DescribeActionTargets", func() (int, error) {
 			return scanSecurityHubActionTargets(ctx, client, acct, region, hubARN, st, scanID)
 		}),
-		countedPhase(0, "securityhub:ListMembers", func() (int, int, error) {
+		countedPhase(0, "securityhub:ListMembers", func() (int, error) {
 			return scanSecurityHubMembers(ctx, client, acct, region, hubARN, st, scanID)
 		}),
-		countedPhase(0, shListControlAssociationsOp, func() (int, int, error) {
+		countedPhase(0, shListControlAssociationsOp, func() (int, error) {
 			return scanSecurityHubControlAssociations(ctx, client, acct, region, standards, controls, st, scanID)
 		}),
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "securityhub", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "securityhub", 0, phases)
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // isSecurityHubNotEnabled reports whether err means Security Hub isn't
@@ -204,7 +204,7 @@ func shHubRow(ctx context.Context, client securityhubAPI, acct *account, region 
 	}, nil
 }
 
-func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := securityhub.NewGetInsightsPaginator(client, &securityhub.GetInsightsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -212,12 +212,12 @@ func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "securityhub:GetInsights", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isSecurityHubNotEnabled(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:GetInsights: %w", perr)
+			return 0, fmt.Errorf("securityhub:GetInsights: %w", perr)
 		}
 		for _, in := range out.Insights {
 			arn := sv(in.InsightArn)
@@ -239,19 +239,19 @@ func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *a
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "insights")
+	uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "insights")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanSecurityHubStandards stores the account's standards subscriptions and
 // returns the StandardsArn of each one stored, for
 // scanSecurityHubControlAssociations.
-func scanSecurityHubStandards(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, standards []string, err error) {
+func scanSecurityHubStandards(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total int, standards []string, err error) {
 	pager := securityhub.NewGetEnabledStandardsPaginator(client, &securityhub.GetEnabledStandardsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -259,12 +259,12 @@ func scanSecurityHubStandards(ctx context.Context, client securityhubAPI, acct *
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "securityhub:GetEnabledStandards", acct.ID, region, perr)
-				return 0, 0, nil, nil
+				return 0, nil, nil
 			}
 			if isSecurityHubNotEnabled(perr) {
-				return 0, 0, nil, nil
+				return 0, nil, nil
 			}
-			return 0, 0, nil, fmt.Errorf("securityhub:GetEnabledStandards: %w", perr)
+			return 0, nil, fmt.Errorf("securityhub:GetEnabledStandards: %w", perr)
 		}
 		for _, s := range out.StandardsSubscriptions {
 			arn := sv(s.StandardsSubscriptionArn)
@@ -290,16 +290,16 @@ func scanSecurityHubStandards(ctx context.Context, client securityhubAPI, acct *
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil, nil
+		return 0, nil, nil
 	}
-	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "standards subscriptions")
+	uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "standards subscriptions")
 	if uerr != nil {
-		return 0, 0, nil, uerr
+		return 0, nil, uerr
 	}
-	return len(batch), n, standards, nil
+	return len(batch), standards, nil
 }
 
-func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := securityhub.NewListEnabledProductsForImportPaginator(client, &securityhub.ListEnabledProductsForImportInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -307,12 +307,12 @@ func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "securityhub:ListEnabledProductsForImport", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isSecurityHubNotEnabled(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListEnabledProductsForImport: %w", perr)
+			return 0, fmt.Errorf("securityhub:ListEnabledProductsForImport: %w", perr)
 		}
 		for _, arn := range out.ProductSubscriptions {
 			if arn == "" {
@@ -332,19 +332,19 @@ func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *a
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "product subscriptions")
+	uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "product subscriptions")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanSecurityHubActionTargets stores the custom actions that send findings to
 // EventBridge. A denial, or the hub found disabled, partway through pagination
 // keeps the pages already read.
-func scanSecurityHubActionTargets(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubActionTargets(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := securityhub.NewDescribeActionTargetsPaginator(client, &securityhub.DescribeActionTargetsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -357,7 +357,7 @@ func scanSecurityHubActionTargets(ctx context.Context, client securityhubAPI, ac
 			if isSecurityHubNotEnabled(perr) {
 				break
 			}
-			return 0, 0, fmt.Errorf("securityhub:DescribeActionTargets: %w", perr)
+			return 0, fmt.Errorf("securityhub:DescribeActionTargets: %w", perr)
 		}
 		for _, a := range out.ActionTargets {
 			arn := sv(a.ActionTargetArn)
@@ -378,13 +378,13 @@ func scanSecurityHubActionTargets(ctx context.Context, client securityhubAPI, ac
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "action targets")
+	uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "action targets")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // securityHubMemberNativeID keys a member account under the administrator's
@@ -402,7 +402,7 @@ func securityHubMemberNativeID(hubARN, memberAccountID string) string {
 // when the hub is not enabled, so the not-enabled skip here only covers a hub
 // disabled mid-scan. A denial or that skip partway through pagination keeps
 // the pages already read.
-func scanSecurityHubMembers(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubMembers(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := securityhub.NewListMembersPaginator(client, &securityhub.ListMembersInput{OnlyAssociated: sdkaws.Bool(false)})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -415,7 +415,7 @@ func scanSecurityHubMembers(ctx context.Context, client securityhubAPI, acct *ac
 			if isSecurityHubNotEnabled(perr) {
 				break
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListMembers: %w", perr)
+			return 0, fmt.Errorf("securityhub:ListMembers: %w", perr)
 		}
 		for _, m := range out.Members {
 			memberAcct := sv(m.AccountId)
@@ -440,13 +440,13 @@ func scanSecurityHubMembers(ctx context.Context, client securityhubAPI, acct *ac
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "members")
+	uerr := upsertSecurityHubChildren(st, hubARN, acct, batch, "members")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 const (
@@ -524,10 +524,10 @@ func (k *shControlFanOutSkips) warn(st *store.Store, op string, acct *account, r
 // subscription means no call. A control id missing from the stored control
 // rows has no parent to sit under and is skipped with one warning. The op
 // lists nothing for a subscription that is NOT_READY_FOR_UPDATES.
-func scanSecurityHubControlAssociations(ctx context.Context, client securityhubAPI, acct *account, region string, standards []string, controls []childParent, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubControlAssociations(ctx context.Context, client securityhubAPI, acct *account, region string, standards []string, controls []childParent, st *store.Store, scanID string) (total int, err error) {
 	ids, err := listSecurityHubSubscribedControlIDs(ctx, client, st, acct, region, standards)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	stored := make(map[string]childParent, len(controls))
 	for _, c := range controls {
@@ -550,7 +550,7 @@ func scanSecurityHubControlAssociations(ctx context.Context, client securityhubA
 		})
 	}
 	var skips shControlFanOutSkips
-	total, inserted, err = childFanOut(ctx, st, acct, region, shListControlAssociationsOp, parents, neverSkip,
+	total, err = childFanOut(ctx, st, acct, region, shListControlAssociationsOp, parents, neverSkip,
 		func(ctx context.Context, control childParent) ([]*store.Resource, error) {
 			rows, err := listSecurityHubControlAssociations(ctx, client, acct, region, control, scanID)
 			if skips.drop(control.id, err) {
@@ -559,7 +559,7 @@ func scanSecurityHubControlAssociations(ctx context.Context, client securityhubA
 			return rows, err
 		})
 	skips.warn(st, shListControlAssociationsOp, acct, region, "security control(s)", "skipped", "their association rows are not stored")
-	return total, inserted, err
+	return total, err
 }
 
 // listSecurityHubSubscribedControlIDs returns the distinct SecurityControlIds
@@ -650,10 +650,10 @@ func listSecurityHubControlAssociations(ctx context.Context, client securityhubA
 
 // upsertSecurityHubChildren persists hub children and links each to the
 // per-region hub via the contains closure. Mirrors upsertMacieChildren.
-func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, batch []*store.Resource, kind string) (int, error) {
-	n, err := st.UpsertResources(batch)
+func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, batch []*store.Resource, kind string) error {
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, fmt.Errorf("upsert securityhub %s: %w", kind, err)
+		return fmt.Errorf("upsert securityhub %s: %w", kind, err)
 	}
 	parentID := store.ResourceID("aws", acct.ID, hubARN)
 	pairs := make([][2]string, len(batch))
@@ -661,7 +661,7 @@ func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, ba
 		pairs[i] = [2]string{c.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, fmt.Errorf("closure securityhub %s: %w", kind, err)
+		return fmt.Errorf("closure securityhub %s: %w", kind, err)
 	}
-	return n, nil
+	return nil
 }

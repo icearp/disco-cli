@@ -56,7 +56,7 @@ var fdNotFound = []string{"ResourceNotFoundException"}
 // Every listing sends the maximum of its op's maxResults range trait; the
 // docs give no range of their own.
 
-func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := frauddetector.NewFromConfig(acct.cfg, func(o *frauddetector.Options) { o.Region = region })
 	return scanFraudDetectorIn(ctx, client, acct, region, st, scanID)
 }
@@ -68,7 +68,7 @@ func scanFraudDetector(ctx context.Context, acct *account, region string, st *st
 // readEachKey's own bound is the bound on the reads in flight. An account
 // the service is closed to is reported not entitled when a listing says so
 // before any listing answered with an item or an error (fdGate).
-func scanFraudDetectorIn(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFraudDetectorIn(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		gate              fdGate
 		tags              = fdTags(client)
@@ -124,11 +124,11 @@ func scanFraudDetectorIn(ctx context.Context, client fraudDetectorAPI, acct *acc
 			return scanFDModelVersions(ctx, client, acct, region, st, scanID, models, modelTypes, tags, p)
 		}),
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "frauddetector", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "frauddetector", 0, phases)
 	if gate.err != nil {
-		return total, inserted, markServiceNotEntitled(gate.err)
+		return total, markServiceNotEntitled(gate.err)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // fdGate records the closed-to-new-customers answer (isClosedToNewCustomers)

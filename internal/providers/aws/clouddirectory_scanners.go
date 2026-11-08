@@ -30,34 +30,32 @@ type cloudDirectoryAPI interface {
 
 // scanCloudDirectory discovers directories, account-level development / published
 // schemas, and the schemas applied to each directory (per-directory fan-out).
-func scanCloudDirectory(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudDirectory(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := clouddirectory.NewFromConfig(acct.cfg, func(o *clouddirectory.Options) { o.Region = region })
 
-	dirARNs, t, i, ferr := scanCDDirectories(ctx, client, acct, region, st, scanID)
+	dirARNs, t, ferr := scanCDDirectories(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanCDDevelopmentSchemas(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanCDPublishedSchemas(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanCDAppliedSchemas(ctx, client, dirARNs, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanCDDevelopmentSchemas(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanCDPublishedSchemas(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanCDAppliedSchemas(ctx, client, dirARNs, acct, region, st, scanID) },
 	} {
-		t, i, ferr = phase()
+		t, ferr = phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanCDDirectories lists directories and returns their ARNs for the applied-
 // schema fan-out.
-func scanCDDirectories(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanCDDirectories(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var arns []string
 	var batch []*store.Resource
 	pager := clouddirectory.NewListDirectoriesPaginator(client, &clouddirectory.ListDirectoriesInput{})
@@ -65,9 +63,9 @@ func scanCDDirectories(ctx context.Context, client cloudDirectoryAPI, acct *acco
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return arns, 0, 0, skipIfAccessDenied(st, "clouddirectory:ListDirectories", acct.ID, region, perr)
+				return arns, 0, skipIfAccessDenied(st, "clouddirectory:ListDirectories", acct.ID, region, perr)
 			}
-			return arns, 0, 0, fmt.Errorf("clouddirectory:ListDirectories: %w", perr)
+			return arns, 0, fmt.Errorf("clouddirectory:ListDirectories: %w", perr)
 		}
 		for _, d := range out.Directories {
 			arn := sv(d.DirectoryArn)
@@ -84,8 +82,8 @@ func scanCDDirectories(ctx context.Context, client cloudDirectoryAPI, acct *acco
 			})
 		}
 	}
-	t, i, e := upsertBatch(st, batch, "clouddirectory directories")
-	return arns, t, i, e
+	t, e := upsertBatch(st, batch, "clouddirectory directories")
+	return arns, t, e
 }
 
 // schemaNameFromARN returns the trailing path segment of a schema ARN for a
@@ -97,16 +95,16 @@ func schemaNameFromARN(arn string) string {
 	return arn
 }
 
-func scanCDDevelopmentSchemas(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCDDevelopmentSchemas(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	pager := clouddirectory.NewListDevelopmentSchemaArnsPaginator(client, &clouddirectory.ListDevelopmentSchemaArnsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "clouddirectory:ListDevelopmentSchemaArns", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "clouddirectory:ListDevelopmentSchemaArns", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("clouddirectory:ListDevelopmentSchemaArns: %w", perr)
+			return 0, fmt.Errorf("clouddirectory:ListDevelopmentSchemaArns: %w", perr)
 		}
 		for _, arn := range out.SchemaArns {
 			batch = append(batch, cdSchemaResource(TypeCloudDirectoryDevelopmentSchema, arn, "", acct, region, scanID))
@@ -115,16 +113,16 @@ func scanCDDevelopmentSchemas(ctx context.Context, client cloudDirectoryAPI, acc
 	return upsertBatch(st, batch, "clouddirectory development-schemas")
 }
 
-func scanCDPublishedSchemas(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCDPublishedSchemas(ctx context.Context, client cloudDirectoryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	pager := clouddirectory.NewListPublishedSchemaArnsPaginator(client, &clouddirectory.ListPublishedSchemaArnsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "clouddirectory:ListPublishedSchemaArns", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "clouddirectory:ListPublishedSchemaArns", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("clouddirectory:ListPublishedSchemaArns: %w", perr)
+			return 0, fmt.Errorf("clouddirectory:ListPublishedSchemaArns: %w", perr)
 		}
 		for _, arn := range out.SchemaArns {
 			batch = append(batch, cdSchemaResource(TypeCloudDirectoryPublishedSchema, arn, "", acct, region, scanID))
@@ -136,9 +134,9 @@ func scanCDPublishedSchemas(ctx context.Context, client cloudDirectoryAPI, acct 
 // scanCDAppliedSchemas fans out per directory — ListAppliedSchemaArns requires a
 // DirectoryArn. Each applied schema carries the owning directory ARN so the
 // resolver can wire it back.
-func scanCDAppliedSchemas(ctx context.Context, client cloudDirectoryAPI, dirARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCDAppliedSchemas(ctx context.Context, client cloudDirectoryAPI, dirARNs []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if len(dirARNs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, dirARN := range dirARNs {
@@ -154,7 +152,7 @@ func scanCDAppliedSchemas(ctx context.Context, client cloudDirectoryAPI, dirARNs
 				if isAPIErrorCode(perr, "ResourceNotFoundException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("clouddirectory:ListAppliedSchemaArns d=%s: %w", d, perr)
+				return 0, fmt.Errorf("clouddirectory:ListAppliedSchemaArns d=%s: %w", d, perr)
 			}
 			for _, arn := range out.SchemaArns {
 				batch = append(batch, cdSchemaResource(TypeCloudDirectoryAppliedSchema, arn, d, acct, region, scanID))

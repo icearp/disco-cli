@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanAVS discovers Azure VMware Solution private clouds.
-func scanAVS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAVS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armavs.NewPrivateCloudsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armavs:NewPrivateCloudsClient: %w", err)
+		return 0, fmt.Errorf("armavs:NewPrivateCloudsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armavs:PrivateClouds.ListInSubscription", TypeAVSPrivateCloud, sub, st, scanID,
 		client.NewListInSubscriptionPager(nil),

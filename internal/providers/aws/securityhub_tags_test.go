@@ -195,12 +195,12 @@ func shTagHandlers(c *shTagCalls) map[string]func(in any) (any, error) {
 
 // shTagScanIn runs the scan's real entry point for acct in region against
 // handlers; every op they do not answer is denied.
-func shTagScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func shTagScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, shDenied)
 	return scanSecurityHub(ctx, acct, region, st, testScanID)
 }
 
-func shTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func shTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return shTagScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers)
 }
 
@@ -252,7 +252,9 @@ func TestScanSecurityHub_StoresTagsOfEveryTaggedType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newSHTagCalls()
 
-	total, inserted, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := shTagScan(context.Background(), counted, shTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -320,7 +322,7 @@ func TestScanSecurityHub_UntaggedHubs(t *testing.T) {
 	delete(calls.tags, shHubARN(testRegion))
 	delete(calls.tags, shTestHubV2ARN)
 
-	if _, _, err := shTagScan(context.Background(), st, shTagHandlers(calls)); err != nil {
+	if _, err := shTagScan(context.Background(), st, shTagHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for typ, arn := range map[string]string{TypeSecurityHubHub: shHubARN(testRegion), TypeSecurityHubHubV2: shTestHubV2ARN} {
@@ -354,7 +356,7 @@ func TestScanSecurityHub_NameFallbacks(t *testing.T) {
 		return &securityhub.ListConnectorsV2Output{Connectors: []securityhubtypes.ConnectorSummary{{ConnectorArn: &connector, ConnectorId: sdkaws.String("c-id")}}}, nil
 	}
 
-	if _, _, err := shTagScan(context.Background(), st, handlers); err != nil {
+	if _, err := shTagScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, c := range []struct{ typ, arn, name string }{
@@ -369,16 +371,16 @@ func TestScanSecurityHub_NameFallbacks(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSecurityHub_TaggedRescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls())); err != nil {
+	if _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls()))
+	total, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -413,7 +415,7 @@ func TestScanSecurityHub_TagReadFailures(t *testing.T) {
 				calls := newSHTagCalls()
 				calls.errs[row.arn] = c.err
 
-				total, _, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+				total, err := shTagScan(context.Background(), st, shTagHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -464,7 +466,7 @@ func TestScanSecurityHub_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = shDenied
 	}
 
-	total, _, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+	total, err := shTagScan(context.Background(), st, shTagHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -495,7 +497,7 @@ func TestScanSecurityHub_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[shHubARN(testRegion)] = shThrottle
 	calls.errs[shTagKindOf(t, "ListConnectorsV2").arn("bare")] = shBadInput
 
-	_, _, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+	_, err := shTagScan(context.Background(), st, shTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -517,7 +519,7 @@ func TestScanSecurityHub_FailedTaggedWriteStopsScan(t *testing.T) {
 			calls := newSHTagCalls()
 			calls.errs[k.arn("tagged")] = shDenied
 
-			total, _, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+			total, err := shTagScan(context.Background(), st, shTagHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -554,7 +556,7 @@ func TestScanSecurityHub_TaggedListFailureKeepsPagesAndLaterPhases(t *testing.T)
 	k := shTagKindOf(t, "ListAutomationRules")
 	handlers[k.op] = failOnCall(2, shBadInput, handlers[k.op])
 
-	total, _, err := shTagScan(context.Background(), st, handlers)
+	total, err := shTagScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if total != shTagTestTotal-1 {
@@ -584,7 +586,7 @@ func TestScanSecurityHub_RepeatedTokenKeepsPages(t *testing.T) {
 				arn, name := k.arn(suffix), k.name(suffix)
 				return k.page(&arn, &name, sdkaws.String("same")), nil
 			}
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -631,7 +633,7 @@ func TestScanSecurityHub_ElementWithoutARNWarns(t *testing.T) {
 			handlers := shTagHandlers(calls)
 			handlers[c.op] = c.answer
 
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -663,7 +665,7 @@ func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			handlers := shTagHandlers(newSHTagCalls())
 			handlers[k.op] = func(any) (any, error) { return nil, shNotEnabled }
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -683,7 +685,7 @@ func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			handlers := shTagHandlers(newSHTagCalls())
 			handlers[op] = func(any) (any, error) { return nil, shNotFound }
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -700,7 +702,7 @@ func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		handlers := shTagHandlers(newSHTagCalls())
 		handlers["DescribeSecurityHubV2"] = func(any) (any, error) { return nil, shNotFound }
-		total, _, err := shTagScan(context.Background(), st, handlers)
+		total, err := shTagScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -716,7 +718,7 @@ func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
 		handlers := shTagHandlers(newSHTagCalls())
 		k := shTagKindOf(t, "ListConfigurationPolicies")
 		handlers[k.op] = failOnCall(2, shNotEnabled, handlers[k.op])
-		total, _, err := shTagScan(context.Background(), st, handlers)
+		total, err := shTagScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidAccessException")
 		if total != shTagTestTotal-1 {
@@ -741,7 +743,7 @@ func TestScanSecurityHub_DeniedTaggedListingWarnsUnderItsOp(t *testing.T) {
 				handlers := shTagHandlers(newSHTagCalls())
 				handlers[k.op] = failOnCall(call, shDenied, handlers[k.op])
 
-				total, _, err := shTagScan(context.Background(), st, handlers)
+				total, err := shTagScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -770,7 +772,7 @@ func TestScanSecurityHub_DeniedTaggedListingWarnsUnderItsOp(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		handlers := shTagHandlers(newSHTagCalls())
 		handlers["DescribeSecurityHubV2"] = func(any) (any, error) { return nil, shDenied }
-		total, _, err := shTagScan(context.Background(), st, handlers)
+		total, err := shTagScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -803,7 +805,7 @@ func TestScanSecurityHub_HubV2HardError(t *testing.T) {
 			handlers := shTagHandlers(newSHTagCalls())
 			handlers["DescribeSecurityHubV2"] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, c.outcome)
 			assertAPICode(t, err, c.code)
 			if total != shTagTestTotal-1 {
@@ -833,7 +835,7 @@ func TestScanSecurityHub_HubUsesReturnedHubArn(t *testing.T) {
 	calls.tags[returned] = map[string]string{"hub": "returned"}
 	handlers["DescribeHub"] = func(any) (any, error) { return &securityhub.DescribeHubOutput{HubArn: &returned}, nil }
 
-	if _, _, err := shTagScan(context.Background(), st, handlers); err != nil {
+	if _, err := shTagScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	hubs := rowsByNativeID(t, st, TypeSecurityHubHub)
@@ -870,7 +872,7 @@ func TestScanSecurityHub_HubGate(t *testing.T) {
 			handlers := shTagHandlers(calls)
 			handlers["DescribeHub"] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := shTagScan(context.Background(), st, handlers)
+			total, err := shTagScan(context.Background(), st, handlers)
 			if c.disabled {
 				assertGlueOutcome(t, err, outcomeDisabled)
 			} else if err != nil {
@@ -914,7 +916,7 @@ func TestScanSecurityHub_TagReadsKeepPartitionARNs(t *testing.T) {
 				return &securityhub.ListConnectorsV2Output{Connectors: []securityhubtypes.ConnectorSummary{{ConnectorArn: &connector, Name: sdkaws.String("c-p")}}}, nil
 			}
 
-			if _, _, err := shTagScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
+			if _, err := shTagScanIn(context.Background(), st, partitionAccount(pf.partition), pf.region, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, want := range []string{hubARN, connector} {
@@ -947,7 +949,7 @@ func TestScanSecurityHub_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := shTagScan(ctx, st, handlers)
+	_, err := shTagScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -974,7 +976,7 @@ func TestScanSecurityHub_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := shTagHandlers(newSHTagCalls())
 		handlers["ListConnectorsV2"] = func(any) (any, error) { return nil, nx }
-		total, _, err := shTagScan(context.Background(), st, handlers)
+		total, err := shTagScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != shTagTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, shTagTestTotal-2)
@@ -984,7 +986,7 @@ func TestScanSecurityHub_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newSHTagCalls()
 		calls.errs[shTagKindOf(t, "ListAggregatorsV2").arn("bare")] = nx
-		_, _, err := shTagScan(context.Background(), st, shTagHandlers(calls))
+		_, err := shTagScan(context.Background(), st, shTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -992,7 +994,7 @@ func TestScanSecurityHub_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

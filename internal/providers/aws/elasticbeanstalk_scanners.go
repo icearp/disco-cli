@@ -48,7 +48,7 @@ const (
 // application versions, custom platform versions and saved configuration
 // templates in one region. Solution stacks are not scanned: they are AWS's
 // catalog of platforms, whose ARNs name no account, not account resources.
-func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := elasticbeanstalk.NewFromConfig(acct.cfg, func(o *elasticbeanstalk.Options) { o.Region = region })
 	return scanElasticBeanstalkAll(ctx, client, acct, region, st, scanID)
 }
@@ -59,10 +59,10 @@ func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st 
 // runs last, over the applications the first phase stored. Every row has its
 // tags read (beanstalkTagReader), and the tag denials of the whole scan are
 // one warning.
-func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := beanstalkTagReader(client).sharingDenials()
 	var apps []beanstalkApplication
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "elasticbeanstalk", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "elasticbeanstalk", 0, []hostPhase{
 		{op: "elasticbeanstalk:DescribeApplications", run: func(p *phaseTotals) bool {
 			var failed bool
 			apps, failed = scanBeanstalkApplications(ctx, client, acct, region, st, scanID, tags, p)
@@ -82,7 +82,7 @@ func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, ac
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // beanstalkTagReader reads a row's tags with ListTagsForResource, sent the

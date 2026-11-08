@@ -52,7 +52,9 @@ func TestScanDataprocIn_AllSixSecondaryTypesBasic(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeDataprocService(t, srv.URL, srv.Client())
 
-	total, inserted, err := scanDataprocIn(t.Context(), svc, p, st, testScanID, []string{"us-central1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanDataprocIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataprocIn: %v", err)
 	}
@@ -110,7 +112,9 @@ func TestScanDataprocIn_JobWithoutReferenceSkipped(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeDataprocService(t, srv.URL, srv.Client())
 
-	total, inserted, err := scanDataprocIn(t.Context(), svc, p, st, testScanID, []string{"us-central1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanDataprocIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataprocIn: %v", err)
 	}
@@ -159,7 +163,9 @@ func TestScanDataprocIn_PartialRegionDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeDataprocService(t, srv.URL, srv.Client())
 
-	total, inserted, err := scanDataprocIn(t.Context(), svc, p, st, testScanID, []string{"us-central1", "us-east1"})
+	counted, upserts := countUpserts(st)
+	total, err := scanDataprocIn(t.Context(), svc, p, counted, testScanID, []string{"us-central1", "us-east1"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDataprocIn: %v", err)
 	}

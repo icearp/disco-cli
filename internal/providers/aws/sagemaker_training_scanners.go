@@ -36,21 +36,21 @@ type sagemakerTrainingAPI interface {
 // scanSageMakerTraining runs all Training/Notebook phases for one region:
 // notebook instances, their lifecycle configs, code repositories, and
 // processing jobs.
-func scanSageMakerTraining(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerTraining(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListNotebookInstances", func() (int, int, error) { return scanSageMakerNotebookInstances(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListNotebookInstanceLifecycleConfigs", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListNotebookInstances", func() (int, error) { return scanSageMakerNotebookInstances(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListNotebookInstanceLifecycleConfigs", func() (int, error) {
 			return scanSageMakerNotebookInstanceLifecycleConfigs(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListCodeRepositories", func() (int, int, error) { return scanSageMakerCodeRepositories(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListProcessingJobs", func() (int, int, error) { return scanSageMakerProcessingJobs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListCodeRepositories", func() (int, error) { return scanSageMakerCodeRepositories(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListProcessingJobs", func() (int, error) { return scanSageMakerProcessingJobs(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
 // scanSageMakerNotebookInstances lists notebook instances then fans out
 // DescribeNotebookInstance for full body (RoleArn, KmsKeyId, NetworkInterfaceId,
 // SubnetId, SecurityGroups, DefaultCodeRepository).
-func scanSageMakerNotebookInstances(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerNotebookInstances(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.NotebookInstanceSummary]{
 		listOp: "sagemaker:ListNotebookInstances", describeOp: "sagemaker:DescribeNotebookInstance",
 		list: func(ctx context.Context, token *string) ([]smtypes.NotebookInstanceSummary, *string, error) {
@@ -96,7 +96,7 @@ func scanSageMakerNotebookInstances(ctx context.Context, client sagemakerTrainin
 // scanSageMakerNotebookInstanceLifecycleConfigs lists lifecycle configs then
 // fans out DescribeNotebookInstanceLifecycleConfig for full body (OnCreate,
 // OnStart script content).
-func scanSageMakerNotebookInstanceLifecycleConfigs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerNotebookInstanceLifecycleConfigs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.NotebookInstanceLifecycleConfigSummary]{
 		listOp: "sagemaker:ListNotebookInstanceLifecycleConfigs", describeOp: "sagemaker:DescribeNotebookInstanceLifecycleConfig",
 		list: func(ctx context.Context, token *string) ([]smtypes.NotebookInstanceLifecycleConfigSummary, *string, error) {
@@ -141,7 +141,7 @@ func scanSageMakerNotebookInstanceLifecycleConfigs(ctx context.Context, client s
 
 // scanSageMakerCodeRepositories lists git code repositories then fans out
 // DescribeCodeRepository for full body (GitConfig.RepositoryUrl, SecretArn).
-func scanSageMakerCodeRepositories(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerCodeRepositories(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.CodeRepositorySummary]{
 		listOp: "sagemaker:ListCodeRepositories", describeOp: "sagemaker:DescribeCodeRepository",
 		list: func(ctx context.Context, token *string) ([]smtypes.CodeRepositorySummary, *string, error) {
@@ -185,7 +185,7 @@ func scanSageMakerCodeRepositories(ctx context.Context, client sagemakerTraining
 // scanSageMakerProcessingJobs lists processing jobs then fans out
 // DescribeProcessingJob for full body (ProcessingResources, NetworkConfig,
 // AppSpecification, RoleArn, ProcessingInputs/Outputs).
-func scanSageMakerProcessingJobs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerProcessingJobs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ProcessingJobSummary]{
 		listOp: "sagemaker:ListProcessingJobs", describeOp: "sagemaker:DescribeProcessingJob", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.ProcessingJobSummary, *string, error) {

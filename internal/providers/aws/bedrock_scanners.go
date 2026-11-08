@@ -92,7 +92,7 @@ const (
 // bedrockdataautomation models document for every listing sent one here.
 const bedrockPageCap int32 = 1000
 
-func scanBedrock(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBedrock(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	bclient := bedrock.NewFromConfig(acct.cfg, func(o *bedrock.Options) { o.Region = region })
 	aclient := bedrockagent.NewFromConfig(acct.cfg, func(o *bedrockagent.Options) { o.Region = region })
 	bdaClient := bda.NewFromConfig(acct.cfg, func(o *bda.Options) { o.Region = region })
@@ -120,14 +120,14 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 			guardrails, stop = scanBedrockGuardrails(ctx, bclient, acct, region, st, scanID, btags, p)
 			return stop
 		}},
-		countedPhase(bedrockHost, "bedrock:ListGuardrails(versions)", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListGuardrails(versions)", func() (int, error) {
 			return scanBedrockGuardrailVersions(ctx, bclient, acct, region, st, scanID, childParentIDs(guardrails))
 		}),
 		{"bedrock:ListAutomatedReasoningPolicies", bedrockHost, func(p *phaseTotals) (stop bool) {
 			policies, stop = scanBedrockARPolicies(ctx, bclient, acct, region, st, scanID, btags, p)
 			return stop
 		}},
-		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicies(versions)", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicies(versions)", func() (int, error) {
 			return scanBedrockARPolicyVersions(ctx, bclient, acct, region, st, scanID, childParentIDs(policies))
 		}),
 		{"bedrock:ListPromptRouters", bedrockHost, func(p *phaseTotals) bool {
@@ -136,10 +136,10 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrock:ListInferenceProfiles", bedrockHost, func(p *phaseTotals) bool {
 			return scanBedrockInferenceProfiles(ctx, bclient, acct, region, st, scanID, btags, p)
 		}},
-		countedPhase(bedrockHost, "bedrock:ListEnforcedGuardrailsConfiguration", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListEnforcedGuardrailsConfiguration", func() (int, error) {
 			return scanBedrockEnforcedGuardrails(ctx, bclient, acct, region, st, scanID)
 		}),
-		countedPhase(bedrockHost, "bedrock:ListFoundationModels", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListFoundationModels", func() (int, error) {
 			return scanBedrockFoundationModels(ctx, bclient, acct, region, st, scanID)
 		}),
 		{"bedrockagent:ListAgents", bedrockAgentHost, func(p *phaseTotals) (stop bool) {
@@ -163,7 +163,7 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrockagent:ListFlowAliases", bedrockAgentHost, func(p *phaseTotals) bool {
 			return scanBedrockFlowAliases(ctx, aclient, acct, region, st, scanID, flows, atags, p)
 		}},
-		countedPhase(bedrockAgentHost, "bedrockagent:ListFlowVersions", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListFlowVersions", func() (int, error) {
 			return scanBedrockFlowVersions(ctx, aclient, acct, region, st, scanID, childParentIDs(flows))
 		}),
 		{"bedrockagent:ListPrompts", bedrockAgentHost, func(p *phaseTotals) (stop bool) {
@@ -185,7 +185,7 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrock:ListCustomModelDeployments", bedrockHost, func(p *phaseTotals) bool {
 			return scanBedrockCustomModelDeployments(ctx, bclient, acct, region, st, scanID, btags, p)
 		}},
-		countedPhase(bedrockHost, "bedrock:ListMarketplaceModelEndpoints", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListMarketplaceModelEndpoints", func() (int, error) {
 			return scanBedrockMarketplaceModelEndpoints(ctx, bclient, acct, region, st, scanID)
 		}),
 		{"bedrockdataautomation:ListBlueprints", bedrockDAHost, func(p *phaseTotals) bool {
@@ -199,19 +199,19 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		}},
 		// The per-parent child fan-outs run last: they make one call per agent
 		// or policy, so they are the likeliest to fail.
-		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentVersions", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentVersions", func() (int, error) {
 			return scanBedrockAgentVersions(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentActionGroups", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentActionGroups", func() (int, error) {
 			return scanBedrockAgentActionGroups(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentKnowledgeBases", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentKnowledgeBases", func() (int, error) {
 			return scanBedrockAgentKnowledgeBases(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentCollaborators", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentCollaborators", func() (int, error) {
 			return scanBedrockAgentCollaborators(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicyTestCases", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicyTestCases", func() (int, error) {
 			return scanBedrockARPolicyTestCases(ctx, bclient, acct, region, st, scanID, childParentIDs(policies))
 		}),
 	}
@@ -223,7 +223,7 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 // agent or data-automation host skips that host's phases silently. The
 // phases run one at a time, so readRowTags's own bound is the bound on the
 // tag reads in flight.
-func scanBedrockClients(ctx context.Context, bclient bedrockAPI, aclient bedrockAgentAPI, dclient bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockClients(ctx context.Context, bclient bedrockAPI, aclient bedrockAgentAPI, dclient bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runHostPhases(ctx, st, acct, region, "bedrock", bedrockHost, bedrockPhases(ctx, bclient, aclient, dclient, acct, region, st, scanID))
 }
 

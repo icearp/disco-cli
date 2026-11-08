@@ -30,7 +30,7 @@ type efpPhase struct {
 	// request is the parent, MaxResults and NextToken a call sent.
 	request                      func(in any) (parent string, size int32, token *string)
 	page1, page2, parent2, empty any
-	run                          func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run                          func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	rows                         map[string]mexRow
 	// noKey is the key the warning about the element without its key names.
 	noKey string
@@ -151,7 +151,9 @@ func TestScanEC2LateTaggedFanOut_StoresRows(t *testing.T) {
 			efpSeed(t, st, ph)
 			warns := recordWarnings(st)
 			var calls parentCalls
-			total, inserted, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: efpHandler(ph, &calls, nil, nil)})
+			counted, upserts := countUpserts(st)
+			total, err := elxRun(ph.run, counted, map[string]func(any) (any, error){ph.sdkOp: efpHandler(ph, &calls, nil, nil)})
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -176,11 +178,11 @@ func TestScanEC2LateTaggedFanOut_Empty(t *testing.T) {
 			st := newTestStore(t)
 			var calls atomic.Int32
 			h := map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { calls.Add(1); return ph.empty, nil }}
-			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 0 {
+			if total, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 0 {
 				t.Fatalf("no parents: total, calls, err = %d, %d, %v; want 0, 0, nil", total, calls.Load(), err)
 			}
 			efpSeed(t, st, ph)
-			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 2 {
+			if total, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 2 {
 				t.Fatalf("empty parents: total, calls, err = %d, %d, %v; want 0, 2, nil", total, calls.Load(), err)
 			}
 		})
@@ -216,7 +218,7 @@ func TestScanEC2LateTaggedFanOut_PerParentErrors(t *testing.T) {
 				efpSeed(t, st, ph)
 				warnings := countOpWarnings(st, ph.op)
 				var calls parentCalls
-				total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: efpHandler(ph, &calls, c.fail, c.fail2)})
+				total, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: efpHandler(ph, &calls, c.fail, c.fail2)})
 				switch {
 				case c.wantErr == nil && err != nil:
 					t.Fatalf("err = %v, want nil", err)
@@ -251,7 +253,7 @@ func TestScanEC2LateTaggedFanOut_RepeatedToken(t *testing.T) {
 			st := newTestStore(t)
 			tgxSeedParent(t, st, ph.parentType, ph.parentARN(efpParent1), testRegion, "available", testScanID)
 			calls := 0
-			_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
+			_, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
 				calls++
 				if calls > 3 {
 					return nil, errElxTest
@@ -325,7 +327,7 @@ func TestScanEC2_LateTaggedFanOutAfterOlderCategories(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfigCtx(ctxHandlers, elxDenied)
-			_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, errElxTest) {
 				t.Fatalf("err = %v, want the %s error", err, failed.sdkOp)
 			}

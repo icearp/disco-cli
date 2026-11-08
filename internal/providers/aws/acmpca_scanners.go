@@ -41,30 +41,30 @@ func acmpcaPermissionNativeID(caARN, principal string) string {
 // needed only for tag-less access, is skipped. Phase 2: per-CA
 // ListPermissions surfaces CreatePermission grants (only `acm.amazonaws.com`
 // is currently a valid principal per AWS docs).
-func scanACMPCA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanACMPCA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := acmpca.NewFromConfig(acct.cfg, func(o *acmpca.Options) { o.Region = region })
-	caTotal, caInserted, caARNs, err := scanACMPCACertificateAuthorities(ctx, client, acct, region, st, scanID)
+	caTotal, caARNs, err := scanACMPCACertificateAuthorities(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return caTotal, caInserted, err
+		return caTotal, err
 	}
-	pTotal, pInserted, err := scanACMPCAPermissions(ctx, client, acct, region, st, scanID, caARNs)
+	pTotal, err := scanACMPCAPermissions(ctx, client, acct, region, st, scanID, caARNs)
 	if err != nil {
-		return caTotal + pTotal, caInserted + pInserted, err
+		return caTotal + pTotal, err
 	}
-	return caTotal + pTotal, caInserted + pInserted, nil
+	return caTotal + pTotal, nil
 }
 
 // scanACMPCACertificateAuthorities holds the testable scan body; returns the
 // CA ARNs scanned for use by the Permissions phase.
-func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, caARNs []string, err error) {
+func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string) (total int, caARNs []string, err error) {
 	pager := acmpca.NewListCertificateAuthoritiesPaginator(client, &acmpca.ListCertificateAuthoritiesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, caARNs, skipIfAccessDenied(st, "acm-pca:ListCertificateAuthorities", acct.ID, region, err)
+				return 0, caARNs, skipIfAccessDenied(st, "acm-pca:ListCertificateAuthorities", acct.ID, region, err)
 			}
-			return 0, 0, caARNs, fmt.Errorf("acm-pca:ListCertificateAuthorities: %w", err)
+			return 0, caARNs, fmt.Errorf("acm-pca:ListCertificateAuthorities: %w", err)
 		}
 		var (
 			mu    sync.Mutex
@@ -103,30 +103,29 @@ func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acc
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, caARNs, err
+			return 0, caARNs, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, caARNs, fmt.Errorf("upsert ACM-PCA CAs: %w", err)
+				return 0, caARNs, fmt.Errorf("upsert ACM-PCA CAs: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 			for _, r := range batch {
 				caARNs = append(caARNs, r.NativeID)
 			}
 		}
 	}
-	return total, inserted, caARNs, nil
+	return total, caARNs, nil
 }
 
 // scanACMPCAPermissions enumerates per-CA CreatePermission grants. Permission
 // records have no AWS-issued ARN; NativeID synthesized via
 // acmpcaPermissionNativeID. Each permission is hierarchy-closure-wired to its
 // parent CA.
-func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string, caARNs []string) (total, inserted int, err error) {
+func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string, caARNs []string) (total int, err error) {
 	if len(caARNs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	type pendingPerm struct {
 		caARN string
@@ -177,18 +176,18 @@ func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account,
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(pending) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batch := make([]*store.Resource, len(pending))
 	for i, pp := range pending {
 		batch[i] = pp.res
 	}
-	n, err := st.UpsertResources(batch)
+	_, err = st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert ACM-PCA permissions: %w", err)
+		return 0, fmt.Errorf("upsert ACM-PCA permissions: %w", err)
 	}
 	pairs := make([][2]string, len(pending))
 	for i, pp := range pending {
@@ -196,7 +195,7 @@ func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account,
 		pairs[i] = [2]string{pp.res.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure acm-pca permissions: %w", err)
+		return 0, fmt.Errorf("closure acm-pca permissions: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

@@ -35,41 +35,38 @@ type detectiveAPI interface {
 // empty ListGraphs result, ending the scan after phase 1. Per-phase
 // AccessDenied is tolerated so a partial IAM grant (graphs but not members)
 // still yields useful coverage.
-func scanDetective(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDetective(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := detective.NewFromConfig(acct.cfg, func(o *detective.Options) { o.Region = region })
 
 	// Phase 1: behavior graphs (paginator).
-	graphARNs, t, i, ferr := scanDetectiveGraphs(ctx, client, acct, region, st, scanID)
+	graphARNs, t, ferr := scanDetectiveGraphs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return 0, 0, ferr
+		return 0, ferr
 	}
 	total += t
-	inserted += i
 	if len(graphARNs) == 0 {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase 2: member accounts per graph (paginator + fan-out).
 	{
-		t, i, ferr := scanDetectiveMembers(ctx, client, acct, region, st, scanID, graphARNs)
+		t, ferr := scanDetectiveMembers(ctx, client, acct, region, st, scanID, graphARNs)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 3: organization admin accounts (per-region delegated admins).
 	{
-		t, i, ferr := scanDetectiveOrgAdmins(ctx, client, acct, region, st, scanID)
+		t, ferr := scanDetectiveOrgAdmins(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	return total, inserted, nil
+	return total, nil
 }
 
 // detectiveMemberNativeID synthesises a member identifier — the Detective API
@@ -81,7 +78,7 @@ func detectiveMemberNativeID(graphArn, accountID string) string {
 	return fmt.Sprintf("%s/member/%s", graphArn, accountID)
 }
 
-func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (graphARNs []string, total, inserted int, err error) {
+func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (graphARNs []string, total int, err error) {
 	pager := detective.NewListGraphsPaginator(client, &detective.ListGraphsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -89,9 +86,9 @@ func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "detective:ListGraphs", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("detective:ListGraphs: %w", perr)
+			return nil, 0, fmt.Errorf("detective:ListGraphs: %w", perr)
 		}
 		for _, g := range out.GraphList {
 			arn := sv(g.Arn)
@@ -112,16 +109,16 @@ func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account
 		}
 	}
 	if len(batch) == 0 {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert detective graphs: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert detective graphs: %w", uerr)
 	}
-	return graphARNs, len(batch), n, nil
+	return graphARNs, len(batch), nil
 }
 
-func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string, graphARNs []string) (total, inserted int, err error) {
+func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string, graphARNs []string) (total int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
@@ -131,7 +128,7 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 	g, gctx := errgroup.WithContext(ctx)
 	for _, graphArn := range graphARNs {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -173,17 +170,17 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert detective members: %w", uerr)
+		return 0, fmt.Errorf("upsert detective members: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure detective members: %w", err)
+		return 0, fmt.Errorf("closure detective members: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

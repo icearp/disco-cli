@@ -25,12 +25,12 @@ type licenseManagerLinuxSubscriptionsAPI interface {
 	ListRegisteredSubscriptionProviders(context.Context, *licensemanagerlinuxsubscriptions.ListRegisteredSubscriptionProvidersInput, ...func(*licensemanagerlinuxsubscriptions.Options)) (*licensemanagerlinuxsubscriptions.ListRegisteredSubscriptionProvidersOutput, error)
 }
 
-func scanLicenseManagerLinuxSubscriptions(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLicenseManagerLinuxSubscriptions(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := licensemanagerlinuxsubscriptions.NewFromConfig(acct.cfg, func(o *licensemanagerlinuxsubscriptions.Options) { o.Region = region })
 	return scanLicenseManagerLinuxSubscriptionsEntities(ctx, client, acct, region, st, scanID)
 }
 
-func scanLicenseManagerLinuxSubscriptionsEntities(ctx context.Context, client licenseManagerLinuxSubscriptionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLicenseManagerLinuxSubscriptionsEntities(ctx context.Context, client licenseManagerLinuxSubscriptionsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := licensemanagerlinuxsubscriptions.NewListRegisteredSubscriptionProvidersPaginator(client, &licensemanagerlinuxsubscriptions.ListRegisteredSubscriptionProvidersInput{})
 	for p.HasMorePages() {
@@ -39,12 +39,12 @@ func scanLicenseManagerLinuxSubscriptionsEntities(ctx context.Context, client li
 			// Account not onboarded to Linux subscriptions (discovery disabled) —
 			// the whole service is inert, so mark it disabled instead of erroring.
 			if isAPIErrorWithMessage(err, "ValidationException", "onboarded to Linux subscriptions") {
-				return 0, 0, markServiceDisabled(err)
+				return 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "license-manager-linux-subscriptions:ListRegisteredSubscriptionProviders", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "license-manager-linux-subscriptions:ListRegisteredSubscriptionProviders", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("license-manager-linux-subscriptions:ListRegisteredSubscriptionProviders: %w", err)
+			return 0, fmt.Errorf("license-manager-linux-subscriptions:ListRegisteredSubscriptionProviders: %w", err)
 		}
 		for _, sp := range out.RegisteredSubscriptionProviders {
 			arn := sv(sp.SubscriptionProviderArn)

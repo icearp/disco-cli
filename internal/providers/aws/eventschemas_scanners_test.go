@@ -206,7 +206,9 @@ func scanESTopLevel(t *testing.T, st *store.Store, fail map[string]map[string]er
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(esHandlers(newESFixture(), fail, calls), esForbidden)
-	run.total, run.inserted, run.err = scanEventSchemas(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	run.total, run.err = scanEventSchemas(context.Background(), acct, testRegion, counted, testScanID)
+	run.inserted = upserts()
 	return run
 }
 
@@ -480,7 +482,7 @@ func TestScanEventSchemas_SchemasNotFoundFailsPhase(t *testing.T) {
 
 // esRunWith runs scanEventSchemas under ctx with the fixture's handlers,
 // each passed through wrap first.
-func esRunWith(ctx context.Context, st *store.Store, wrap func(op string, h func(in any) (any, error)) func(in any) (any, error)) (int, int, error) {
+func esRunWith(ctx context.Context, st *store.Store, wrap func(op string, h func(in any) (any, error)) func(in any) (any, error)) (int, error) {
 	h := esHandlers(newESFixture(), nil, newESCalls())
 	for op, fn := range h {
 		h[op] = wrap(op, fn)
@@ -501,7 +503,7 @@ func TestScanEventSchemas_ContextEndStopsPolicyPhase(t *testing.T) {
 		mu    sync.Mutex
 		reads int
 	)
-	_, _, err := esRunWith(ctx, st, func(op string, h func(in any) (any, error)) func(in any) (any, error) {
+	_, err := esRunWith(ctx, st, func(op string, h func(in any) (any, error)) func(in any) (any, error) {
 		return func(in any) (any, error) {
 			if op == "GetResourcePolicy" {
 				t.Errorf("GetResourcePolicy called after the context ended")
@@ -530,7 +532,7 @@ func TestScanEventSchemas_DiscovererWriteFailureStops(t *testing.T) {
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeEventSchemasDiscoverer)
 	var calls parentCalls
-	_, _, err := esRunWith(context.Background(), st, func(op string, h func(in any) (any, error)) func(in any) (any, error) {
+	_, err := esRunWith(context.Background(), st, func(op string, h func(in any) (any, error)) func(in any) (any, error) {
 		return func(in any) (any, error) {
 			calls.add(op)
 			return h(in)

@@ -59,11 +59,11 @@ const (
 // the reserved node (scanMemDBReservedNodes) has its tags read per row
 // (memDBTags), and the tag denials of the whole scan are one warning. The
 // Describe ops model no page cap, so no MaxResults is sent.
-func scanMemoryDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMemoryDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := memorydb.NewFromConfig(acct.cfg, func(o *memorydb.Options) { o.Region = region })
 	var notReady memDBClustersNotReady
 	tags := notReady.tags(memDBTags(client)).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "memorydb", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "memorydb", 0, []hostPhase{
 		{op: "memorydb:DescribeACLs", run: func(p *phaseTotals) bool {
 			return scanMemDBACLs(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -73,13 +73,13 @@ func scanMemoryDB(ctx context.Context, acct *account, region string, st *store.S
 		{op: "memorydb:DescribeMultiRegionClusters", run: func(p *phaseTotals) bool {
 			return scanMemDBMultiRegionClusters(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "memorydb:DescribeMultiRegionParameterGroups", func() (int, int, error) {
+		countedPhase(0, "memorydb:DescribeMultiRegionParameterGroups", func() (int, error) {
 			return scanMemDBMultiRegionParameterGroups(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "memorydb:DescribeParameterGroups", run: func(p *phaseTotals) bool {
 			return scanMemDBParameterGroups(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "memorydb:DescribeReservedNodes", func() (int, int, error) {
+		countedPhase(0, "memorydb:DescribeReservedNodes", func() (int, error) {
 			return scanMemDBReservedNodes(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "memorydb:DescribeSnapshots", run: func(p *phaseTotals) bool {
@@ -98,7 +98,7 @@ func scanMemoryDB(ctx context.Context, acct *account, region string, st *store.S
 	if !errors.Is(err, store.ErrStoreWrite) {
 		notReady.warn(st, acct, region)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // memDBTags reads a row's tags with ListTags, sent the row's NativeID, the
@@ -278,7 +278,7 @@ func scanMemDBParameterGroups(ctx context.Context, client memorydbAPI, acct *acc
 // reservednode under ListTags and ListTags models no not-found for it, so a
 // tag read is not known to work; a refusal would fail every scan of an
 // account with reserved nodes. The listing returns no tags either.
-func scanMemDBReservedNodes(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMemDBReservedNodes(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "memorydb:DescribeReservedNodes",
 		func(ctx context.Context, token *string) ([]memorydbtypes.ReservedNode, *string, error) {
 			out, err := client.DescribeReservedNodes(ctx, &memorydb.DescribeReservedNodesInput{NextToken: token})
@@ -325,7 +325,7 @@ func scanMemDBSnapshots(ctx context.Context, client memorydbAPI, acct *account, 
 // region listing it stores it; with no Region and the same element, the
 // later stores change nothing. A region without multi-region support rejects
 // the first page as multi-region clusters do (memDBMultiRegionGap).
-func scanMemDBMultiRegionParameterGroups(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMemDBMultiRegionParameterGroups(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "memorydb:DescribeMultiRegionParameterGroups",
 		firstPageGapPages(memDBMultiRegionGap, func(ctx context.Context, token *string) ([]memorydbtypes.MultiRegionParameterGroup, *string, error) {
 			out, err := client.DescribeMultiRegionParameterGroups(ctx, &memorydb.DescribeMultiRegionParameterGroupsInput{NextToken: token})

@@ -116,7 +116,7 @@ func scanAutoScalingWith(t *testing.T, st *store.Store, handlers map[string]func
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, asTestDenied)
-	total, _, err := scanAutoScaling(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAutoScaling(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -723,7 +723,7 @@ func TestScanAutoScalingLifecycleHooks_StopsWhenContextDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	client := autoscaling.NewFromConfig(opStubConfig(asHandlers(&asCallLog{}), asTestDenied))
-	_, _, err := scanAutoScalingLifecycleHooks(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"web"})
+	_, err := scanAutoScalingLifecycleHooks(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"web"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}

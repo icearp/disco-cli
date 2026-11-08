@@ -105,7 +105,7 @@ func TestScanServerlessRepoApplicationVersions_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
+	total, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
 	if err != nil {
 		t.Fatalf("scanServerlessRepoApplicationVersions: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestScanServerlessRepoApplicationVersions_Empty(t *testing.T) {
 	client := newSARTestClient(map[string]func(any) (any, error){
 		"ListApplicationVersions": sarVersionsHandler(&calls, &maxItems, nil, nil),
 	})
-	total, _, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1"))
+	total, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1"))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -190,7 +190,7 @@ func TestScanServerlessRepoApplicationVersions_PerApplicationErrors(t *testing.T
 					sarAppARN("app3"): {{sarVersion("3.0.0")}},
 				}, map[string]error{sarAppARN("app1"): tc.err, sarAppARN("app2"): tc.err}),
 			})
-			total, _, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
+			total, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -224,7 +224,7 @@ func TestScanServerlessRepoApplicationVersions_SecondPageFailureDropsApplication
 			sarAppARN("app2"): {{sarVersion("2.0.0")}},
 		}, map[string]error{sarAppARN("app1") + "/p2": apiErr("TooManyRequestsException", "Rate exceeded")}),
 	})
-	total, _, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2"))
+	total, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2"))
 	if err != nil || *warns != 1 {
 		t.Fatalf("err, warnings = %v, %d; want nil, 1", err, *warns)
 	}
@@ -248,7 +248,7 @@ func TestScanServerlessRepoApplicationVersions_RepeatedTokenStops(t *testing.T) 
 			return &serverlessapplicationrepository.ListApplicationVersionsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1"))
+	_, err := scanServerlessRepoApplicationVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1"))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -267,7 +267,7 @@ func TestScanServerlessRepoApplicationPolicies_StoredAndEmptySkipped(t *testing.
 		}, nil),
 	})
 
-	total, _, err := scanServerlessRepoApplicationPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
+	total, err := scanServerlessRepoApplicationPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
 	if err != nil {
 		t.Fatalf("scanServerlessRepoApplicationPolicies: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestScanServerlessRepoApplicationPolicies_PerApplicationErrors(t *testing.T
 					sarAppARN("app3"): {sarStatement("s3")},
 				}, map[string]error{sarAppARN("app1"): tc.err, sarAppARN("app2"): tc.err}),
 			})
-			total, _, err := scanServerlessRepoApplicationPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
+			total, err := scanServerlessRepoApplicationPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, sarApps(t, st, "app1", "app2", "app3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -386,7 +386,7 @@ func TestScanServerlessRepoAll_ChildrenOfStoredApplications(t *testing.T) {
 	var versionCalls, policyCalls parentCalls
 	client := newSARTestClient(sarTopLevelHandlers(st, &versionCalls, &policyCalls))
 
-	total, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestScanServerlessRepoAll_ApplicationPageError(t *testing.T) {
 			failSARListApplicationsPage(h, tc.page, tc.err)
 			client := newSARTestClient(h)
 
-			total, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -494,7 +494,7 @@ func TestScanServerlessRepoApplications_RepeatedTokenStops(t *testing.T) {
 			return &serverlessapplicationrepository.ListApplicationsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, _, err := scanServerlessRepoApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, _, err := scanServerlessRepoApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -513,7 +513,7 @@ func TestScanServerlessRepoAll_ChildPhasesIndependent(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }
 			client := newSARTestClient(h)
 
-			total, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "BadRequestException") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v; want a hard BadRequestException", err)
 			}
@@ -536,7 +536,7 @@ func TestScanServerlessRepoAll_TransientDoesNotMaskHardError(t *testing.T) {
 	h["GetApplicationPolicy"] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }
 	client := newSARTestClient(h)
 
-	_, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "BadRequestException") {
 		t.Errorf("err = %v; want the policy phase's BadRequestException", err)
 	}
@@ -561,7 +561,7 @@ func TestScanServerlessRepoAll_ApplicationTransientDoesNotMaskHardError(t *testi
 	h["GetApplicationPolicy"] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }
 	client := newSARTestClient(h)
 
-	total, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "BadRequestException") || classifyServiceError(err) != outcomeError {
 		t.Errorf("err = %v; want a hard BadRequestException", err)
 	}
@@ -610,7 +610,7 @@ func TestScanServerlessRepoAll_ApplicationWriteErrorRunsNoChildPhase(t *testing.
 	}
 	client := newSARTestClient(h)
 
-	_, _, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanServerlessRepoAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || classifyServiceError(err) != outcomeStoreWrite {
 		t.Errorf("err = %v (outcome %v); want store.ErrStoreWrite classified outcomeStoreWrite", err, classifyServiceError(err))
 	}

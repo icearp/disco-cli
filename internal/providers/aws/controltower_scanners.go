@@ -78,7 +78,7 @@ func isControlTowerNotEnabled(err error) bool {
 	return isAccessDenied(err) || isAPIErrorCode(err, "ValidationException")
 }
 
-func scanControlTower(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanControlTower(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := controltower.NewFromConfig(acct.cfg, func(o *controltower.Options) { o.Region = region })
 	return scanControlTowerAll(ctx, client, acct, region, st, scanID)
 }
@@ -95,10 +95,10 @@ func scanControlTower(ctx context.Context, acct *account, region string, st *sto
 // makes the scan return markServiceDisabled with nothing stored
 // (ctowerNotEnabledGap); after the landing-zone listing gives that answer the
 // baselines are not listed.
-func scanControlTowerAll(ctx context.Context, client controltowerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanControlTowerAll(ctx context.Context, client controltowerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := ctowerTags(client).sharingDenials()
 	var disabled error
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "controltower", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "controltower", 0, []hostPhase{
 		{op: ctowerListLandingZones, run: func(p *phaseTotals) bool {
 			return scanControlTowerLandingZones(ctx, client, acct, region, st, scanID, ctowerNotEnabledGap(p, &disabled), tags, p)
 		}},
@@ -113,9 +113,9 @@ func scanControlTowerAll(ctx context.Context, client controltowerAPI, acct *acco
 	// err is set when ctx ended after the landing-zone listing was refused:
 	// the stop is reported rather than the sentinel.
 	if disabled != nil && err == nil {
-		return 0, 0, disabled
+		return 0, disabled
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // ctowerNotEnabledGap is a phase's firstPageGapPages test: while no phase

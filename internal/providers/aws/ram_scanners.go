@@ -38,7 +38,7 @@ const (
 	ramPageCap = 500
 )
 
-func scanRAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ram.NewFromConfig(acct.cfg, func(o *ram.Options) { o.Region = region })
 	return scanRAMAll(ctx, client, acct, region, st, scanID)
 }
@@ -52,18 +52,18 @@ func scanRAM(ctx context.Context, acct *account, region string, st *store.Store,
 // demotes a transient one to a warning only beside a hard one, so a throttle
 // on one phase is reported under its op instead of buried in the other's hard
 // error.
-func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
-	shares, t, i, err := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(ramResourceSharesOp, t, i, err) {
+	shares, t, err := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(ramResourceSharesOp, t, err) {
 		return phases.result(st, acct, region)
 	}
-	t, i, err = scanRAMPermissions(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(ramPermissionsOp, t, i, err) {
+	t, err = scanRAMPermissions(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(ramPermissionsOp, t, err) {
 		return phases.result(st, acct, region)
 	}
-	t, i, err = scanRAMResourceShareAssociations(ctx, client, acct, region, st, scanID, shares)
-	phases.addPhase(ramAssociationsOp, t, i, err)
+	t, err = scanRAMResourceShareAssociations(ctx, client, acct, region, st, scanID, shares)
+	phases.addPhase(ramAssociationsOp, t, err)
 	return phases.result(st, acct, region)
 }
 
@@ -71,9 +71,9 @@ func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string
 // a failed page included, and returns the ARNs of the rows it built; the
 // caller stops before using them when their write failed. The listing leaves
 // every filter but ResourceOwner unset, so it reads every owned share.
-func scanRAMResourceShares(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (map[string]bool, int, int, error) {
+func scanRAMResourceShares(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (map[string]bool, int, error) {
 	shares := map[string]bool{}
-	total, inserted, err := storeTokenList(ctx, st, acct, region, ramResourceSharesOp,
+	total, err := storeTokenList(ctx, st, acct, region, ramResourceSharesOp,
 		func(ctx context.Context, token *string) ([]types.ResourceShare, *string, error) {
 			out, err := client.GetResourceShares(ctx, &ram.GetResourceSharesInput{
 				ResourceOwner: types.ResourceOwnerSelf,
@@ -98,14 +98,14 @@ func scanRAMResourceShares(ctx context.Context, client ramAPI, acct *account, re
 				AttributesJSON: mustJSON(s), TagsJSON: kvTagsJSON(s.Tags, ramTagKV), DiscoveredBy: scanID,
 			}, "", ""
 		})
-	return shares, total, inserted, err
+	return shares, total, err
 }
 
 // scanRAMPermissions stores the region's customer-managed permissions and,
 // from one region only (RAM's once-region, onceRegion), the AWS-managed
 // catalogue. PermissionType and ResourceType are left unset, so the listing
 // reads both kinds for every resource type.
-func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ramPermissionsOp,
 		func(ctx context.Context, token *string) ([]types.ResourceSharePermissionSummary, *string, error) {
 			out, err := client.ListPermissions(ctx, &ram.ListPermissionsInput{MaxResults: sdkaws.Int32(ramPageCap), NextToken: token})
@@ -176,7 +176,7 @@ func ramShareAssociationNativeID(shareARN, kind, entity string) string {
 // applied: the op's SDK doc says it covers "resource shares that you own", and
 // RAM shares are regional, so every row is taken to belong to an owned share
 // in this region. Neither is verified against a live account.
-func scanRAMResourceShareAssociations(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string, shares map[string]bool) (int, int, error) {
+func scanRAMResourceShareAssociations(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string, shares map[string]bool) (int, error) {
 	var children []containedChild
 	for _, k := range ramAssociationKinds {
 		pager := ram.NewGetResourceShareAssociationsPaginator(client,

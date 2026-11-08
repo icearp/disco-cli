@@ -260,7 +260,7 @@ func fmsHandlers(calls *fmsCalls) map[string]func(in any) (any, error) {
 
 // fmsScan runs scanFMS in testRegion against h, recording every op called
 // in calls.ops.
-func fmsScan(ctx context.Context, st *store.Store, calls *fmsCalls, h map[string]func(in any) (any, error)) (int, int, error) {
+func fmsScan(ctx context.Context, st *store.Store, calls *fmsCalls, h map[string]func(in any) (any, error)) (int, error) {
 	recorded := make(map[string]func(in any) (any, error), len(h))
 	for op, answer := range h {
 		recorded[op] = func(in any) (any, error) {
@@ -355,7 +355,9 @@ func TestScanFMS_StoresEveryRowWithTags(t *testing.T) {
 	st := newTestStore(t)
 	warns := fmsWarningsByOp(st)
 	var calls fmsCalls
-	total, inserted, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := fmsScan(context.Background(), counted, &calls, fmsHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFMS: %v", err)
 	}
@@ -465,7 +467,9 @@ func TestScanFMS_Empty(t *testing.T) {
 	h["GetNotificationChannel"] = func(any) (any, error) { return nil, fmsGone }
 	h["ListAppsLists"] = func(any) (any, error) { return &fms.ListAppsListsOutput{}, nil }
 	h["ListProtocolsLists"] = func(any) (any, error) { return &fms.ListProtocolsListsOutput{}, nil }
-	total, inserted, err := fmsScan(context.Background(), st, &calls, h)
+	counted, upserts := countUpserts(st)
+	total, err := fmsScan(context.Background(), counted, &calls, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -510,7 +514,7 @@ func TestScanFMS_MemberReadFailure(t *testing.T) {
 				}
 				return list(in)
 			}
-			_, _, err := fmsScan(context.Background(), st, &calls, h)
+			_, err := fmsScan(context.Background(), st, &calls, h)
 			if tc.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -567,7 +571,7 @@ func TestScanFMS_MemberRepeatedTokenKeepsSetWithoutMembers(t *testing.T) {
 	h["ListResourceSetResources"] = func(any) (any, error) {
 		return &fms.ListResourceSetResourcesOutput{Items: []fmstypes.Resource{fmsMember("arn:aws:ec2:us-east-1:123456789012:vpc/vpc-a")}, NextToken: sdkaws.String("same")}, nil
 	}
-	_, _, err := fmsScan(context.Background(), st, &calls, h)
+	_, err := fmsScan(context.Background(), st, &calls, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -612,7 +616,7 @@ func TestScanFMS_RepeatedTokenKeepsPages(t *testing.T) {
 			var calls fmsCalls
 			h := fmsHandlers(&calls)
 			h[l.op] = func(any) (any, error) { return l.page(sdkaws.String("same")), nil }
-			_, _, err := fmsScan(context.Background(), st, &calls, h)
+			_, err := fmsScan(context.Background(), st, &calls, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -651,7 +655,7 @@ func TestScanFMS_LaterPageFailureKeepsPages(t *testing.T) {
 					}
 					return l.page(sdkaws.String("next")), nil
 				}
-				_, _, err := fmsScan(context.Background(), st, &calls, h)
+				_, err := fmsScan(context.Background(), st, &calls, h)
 				wantWarns := map[string]int{}
 				if tc.denial {
 					wantWarns["fms:"+l.op] = 1
@@ -700,7 +704,7 @@ func TestScanFMS_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := fmsScan(context.Background(), st, &calls, h); err != nil {
+	if _, err := fmsScan(context.Background(), st, &calls, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, l := range fmsListings {
@@ -750,7 +754,7 @@ func TestScanFMS_GetPolicyFailure(t *testing.T) {
 				}
 				return get(in)
 			}
-			_, _, err := fmsScan(context.Background(), st, &calls, h)
+			_, err := fmsScan(context.Background(), st, &calls, h)
 			if tc.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -805,7 +809,7 @@ func TestScanFMS_TransientDoesNotMaskMemberError(t *testing.T) {
 	h["ListPolicies"] = func(any) (any, error) { return nil, fmsThrottled }
 	h["ListResourceSetResources"] = func(any) (any, error) { return nil, apiErr("InvalidOperationException", "no") }
 
-	total, _, err := fmsScan(context.Background(), st, &calls, h)
+	total, err := fmsScan(context.Background(), st, &calls, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidOperationException")
 	if *warns != 1 {
@@ -840,7 +844,7 @@ func TestScanFMS_TransientKeyWithHardKeyFails(t *testing.T) {
 				}
 				return nil, apiErr("InvalidOperationException", "no")
 			}
-			_, _, err := fmsScan(context.Background(), st, &calls, h)
+			_, err := fmsScan(context.Background(), st, &calls, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidOperationException")
 		})
@@ -890,14 +894,14 @@ func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 			st := newTestStore(t)
 			var calls fmsCalls
 			if tc.rescan {
-				if _, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls)); err != nil {
+				if _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls)); err != nil {
 					t.Fatalf("first scan: %v", err)
 				}
 			}
 			warns := countOpWarnings(st, tc.warnOp)
 			h := fmsHandlers(&calls)
 			maps.Copy(h, tc.override)
-			total, _, err := fmsScan(context.Background(), st, &calls, h)
+			total, err := fmsScan(context.Background(), st, &calls, h)
 			if errors.Is(err, errServiceDisabled) {
 				t.Fatalf("err = %v; want no disabled sentinel", err)
 			}
@@ -941,7 +945,7 @@ func TestScanFMS_NotEnabled(t *testing.T) {
 			var calls fmsCalls
 			h := fmsHandlers(&calls)
 			h["ListPolicies"] = tc.list
-			total, _, err := fmsScan(context.Background(), st, &calls, h)
+			total, err := fmsScan(context.Background(), st, &calls, h)
 			if !errors.Is(err, errServiceDisabled) || total != 0 {
 				t.Fatalf("total, err = %d, %v; want 0, errServiceDisabled", total, err)
 			}
@@ -987,7 +991,7 @@ func TestScanFMS_TagReadFailures(t *testing.T) {
 				st := newTestStore(t)
 				warns := rhWarnRecorder(st)
 				calls := fmsCalls{tagErrs: map[string]error{arn: c.err}}
-				total, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+				total, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1038,7 +1042,7 @@ func TestScanFMS_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls := fmsCalls{tagErrs: map[string]error{
 		fmsPolicyARN("p2"): fmsDenied, fmsSetARN("rs2"): fmsDenied, fmsAppsARN("a2"): fmsDenied, fmsProtoARN("l2"): fmsDenied,
 	}}
-	total, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+	total, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1057,7 +1061,7 @@ func TestScanFMS_TagThrottleDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "fms:ListTagsForResource")
 	calls := fmsCalls{tagErrs: map[string]error{fmsPolicyARN("p1"): fmsThrottled, fmsProtoARN("l2"): apiErr("InvalidInputException", "bad arn")}}
-	_, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+	_, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -1090,7 +1094,7 @@ func TestScanFMS_FailedWriteStopsScan(t *testing.T) {
 			warns := fmsWarningsByOp(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := fmsCalls{tagErrs: map[string]error{fmsPolicyARN("p1"): fmsDenied}}
-			total, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+			total, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1122,7 +1126,7 @@ func TestScanFMS_FailedLaterPageWriteSendsNoWarning(t *testing.T) {
 		t.Fatalf("create trigger: %v", err)
 	}
 	var calls fmsCalls
-	total, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+	total, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1162,7 +1166,7 @@ func TestScanFMS_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, fmsDenied)
-			if _, _, err := scanFMS(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanFMS(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := slices.Sorted(slices.Values([]string{
@@ -1201,7 +1205,7 @@ func TestScanFMS_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := fmsScan(ctx, st, &calls, h)
+	_, err := fmsScan(ctx, st, &calls, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1231,7 +1235,7 @@ func TestScanFMS_NXDOMAIN(t *testing.T) {
 		var calls fmsCalls
 		h := fmsHandlers(&calls)
 		h["ListAppsLists"] = func(any) (any, error) { return nil, nx }
-		total, _, err := fmsScan(context.Background(), st, &calls, h)
+		total, err := fmsScan(context.Background(), st, &calls, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := fmsTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1240,13 +1244,13 @@ func TestScanFMS_NXDOMAIN(t *testing.T) {
 	t.Run("a tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := fmsCalls{tagErrs: map[string]error{fmsProtoARN("l2"): nx}}
-		_, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
+		_, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
-		_, _, err := scanFMS(context.Background(), &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(nil, nx)}, testRegion, st, testScanID)
+		_, err := scanFMS(context.Background(), &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(nil, nx)}, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1337,7 +1341,9 @@ func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
 	h := fmsRegionalHandlers(map[string]string{regions[0]: fmsAdmin, regions[1]: fmsAdmin}, &seen)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, fmsDenied)}
 	for _, region := range regions {
-		total, inserted, err := entry.fn(context.Background(), acct, region, st, testScanID)
+		counted, upserts := countUpserts(st)
+		total, err := entry.fn(context.Background(), acct, region, counted, testScanID)
+		inserted := upserts()
 		if err != nil || total != 5 || inserted != 5 {
 			t.Fatalf("fn(%s) = %d, %d, %v; want 5, 5, nil (policy, resource set, channel, apps list, protocols list)", region, total, inserted, err)
 		}
@@ -1416,10 +1422,12 @@ func TestScanFMS_NonAdminPerRegion(t *testing.T) {
 			var seen parentCalls
 			h := fmsRegionalHandlers(map[string]string{adminRegion: fmsAdmin, region: tc.mode}, &seen)
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, fmsDenied)}
-			if total, _, err := entry.fn(context.Background(), acct, adminRegion, st, testScanID); err != nil || total != 5 {
+			if total, err := entry.fn(context.Background(), acct, adminRegion, st, testScanID); err != nil || total != 5 {
 				t.Fatalf("fn(%s) = %d, %v; want 5, nil", adminRegion, total, err)
 			}
-			total, inserted, err := entry.fn(context.Background(), acct, region, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := entry.fn(context.Background(), acct, region, counted, testScanID)
+			inserted := upserts()
 			if errors.Is(err, errServiceDisabled) != tc.wantDisabled || !tc.wantDisabled && err != nil {
 				t.Errorf("fn(%s) err = %v; want disabled sentinel %v", region, err, tc.wantDisabled)
 			}
@@ -1475,7 +1483,7 @@ func TestScanFMS_NotificationChannelErrors(t *testing.T) {
 			var calls fmsCalls
 			h := fmsHandlers(&calls)
 			h["GetNotificationChannel"] = func(any) (any, error) { return nil, tc.err }
-			total, _, err := fmsScan(context.Background(), st, &calls, h)
+			total, err := fmsScan(context.Background(), st, &calls, h)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -1518,7 +1526,9 @@ func TestScanFMS_ListsWithoutARN(t *testing.T) {
 		}
 		return &fms.ListProtocolsListsOutput{ProtocolsLists: []fmstypes.ProtocolsListDataSummary{{ListArn: sdkaws.String(fmsProtoARN("l2"))}}}, nil
 	}
-	total, inserted, err := fmsScan(context.Background(), st, &calls, h)
+	counted, upserts := countUpserts(st)
+	total, err := fmsScan(context.Background(), counted, &calls, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanFMS: %v", err)
 	}

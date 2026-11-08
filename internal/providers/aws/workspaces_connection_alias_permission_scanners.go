@@ -54,7 +54,7 @@ func isWSAliasGone(err error) bool { return isAPIErrorCode(err, "ResourceNotFoun
 // filtered on State. An alias whose call still fails transiently after the
 // SDK's retries is skipped with one summary warning. Each skip keeps its
 // siblings' rows.
-func scanWSConnectionAliasPermissions(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, aliases []childParent) (int, int, error) {
+func scanWSConnectionAliasPermissions(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, aliases []childParent) (int, error) {
 	codes := []skipCode{{
 		code: "OperationNotSupportedException",
 		why:  "modeled for DescribeConnectionAliasPermissions; its meaning on this call is unverified",

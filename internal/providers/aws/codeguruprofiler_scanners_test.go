@@ -36,7 +36,9 @@ func TestScanCodeGuruProfiler_ReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, inserted, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCodeGuruProfiler: %v", err)
 	}
@@ -92,7 +94,7 @@ func TestScanCodeGuruProfiler_LaterPageFailsKeepsRows(t *testing.T) {
 			warns := countOpWarnings(st, cgpListOp)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-			total, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
 			if !c.wantErr(err) {
 				t.Fatalf("err = %v, unexpected for %s", err, c.name)
 			}
@@ -125,7 +127,7 @@ func TestScanCodeGuruProfiler_RepeatedTokenKeepsRows(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -154,7 +156,7 @@ func TestScanCodeGuruProfiler_DeniedLaterPageWriteFails(t *testing.T) {
 	warns := countOpWarnings(st, cgpListOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -180,7 +182,7 @@ func TestScanCodeGuruProfiler_EmptyARNWarnsOnce(t *testing.T) {
 	warns := countOpWarnings(st, cgpListOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -210,7 +212,7 @@ func TestScanCodeGuruProfiler_WriteFailsNoEmptyARNWarning(t *testing.T) {
 	warns := countOpWarnings(st, cgpListOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}

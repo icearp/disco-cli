@@ -159,8 +159,8 @@ func (e *kafkaChildErrs) warn(st *store.Store, acct *account, region string) {
 func kafkaChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region string, errs *kafkaChildErrs, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
-	t, i, err := childFanOut(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+) (int, error) {
+	t, err := childFanOut(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		rows, err := list(ctx, p)
 		if err != nil && errs.tallied(p.id, err, len(rows) > 0) {
 			return rows, nil
@@ -168,7 +168,7 @@ func kafkaChildFanOut(
 		return rows, err
 	})
 	errs.warn(st, acct, region)
-	return t, i, err
+	return t, err
 }
 
 // scanKafkaTopics stores every cluster's topics a page at a time, since a
@@ -177,23 +177,23 @@ func kafkaChildFanOut(
 // Its OutOfSyncReplicaCount is kept as reported, so a topic's row changes
 // while its replicas lag; it is real state, not a value rotated per read.
 // A topic without a TopicArn is not stored.
-func scanKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	errs := &kafkaChildErrs{op: kafkaListTopicsOp, gone: neverSkip}
 	parents := kafkaParents(clusters, func(kafkaCluster) bool { return true })
-	t, i, err := childFanOutStored(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) (int, int, error) {
-		t, i, err := storeKafkaTopics(ctx, client, acct, region, st, scanID, p)
+	t, err := childFanOutStored(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) (int, error) {
+		t, err := storeKafkaTopics(ctx, client, acct, region, st, scanID, p)
 		if err != nil && errs.tallied(p.id, err, t > 0) {
-			return t, i, nil
+			return t, nil
 		}
-		return t, i, err
+		return t, err
 	})
 	errs.warn(st, acct, region)
-	return t, i, err
+	return t, err
 }
 
 // storeKafkaTopics stores one cluster's topics, each page as it arrives, and
 // returns the counts of the pages stored before any error.
-func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, cluster childParent) (total, inserted int, err error) {
+func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, cluster childParent) (total int, err error) {
 	parentID := store.ResourceID("aws", acct.ID, cluster.arn)
 	pager := kafka.NewListTopicsPaginator(client,
 		&kafka.ListTopicsInput{ClusterArn: sdkaws.String(cluster.arn)},
@@ -201,7 +201,7 @@ func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, 
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		children := make([]containedChild, 0, len(out.Topics))
 		for _, topic := range out.Topics {
@@ -217,14 +217,13 @@ func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, 
 				ManagedByProvider: kafkaSystemTopics[sv(topic.TopicName)],
 			}})
 		}
-		t, i, err := upsertContained(st, kafkaListTopicsOp, children)
+		t, err := upsertContained(st, kafkaListTopicsOp, children)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanKafkaChannels stores the channels of every Express cluster, the only
@@ -240,7 +239,7 @@ func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, 
 // does not read as an untagged channel; a NotFoundException there (in the
 // op's model) means the channel was deleted and it is not stored, and any
 // other failure stores it without tags, with one warning saying so.
-func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	errs := &kafkaChildErrs{op: kafkaListChannelsOp, gone: isKafkaGone}
 	parents := kafkaParents(clusters, func(c kafkaCluster) bool { return c.express })
 	var (
@@ -249,7 +248,7 @@ func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account,
 		describeTransient transientTally
 		tagsUnread        skipTally
 	)
-	t, i, err := kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
+	t, err := kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
 		// A listing that failed after its first page returns the channels it
 		// read with its error; they are described and returned with it, and
 		// kafkaChildFanOut decides whether they are stored.
@@ -325,7 +324,7 @@ func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account,
 			})
 		}
 	}
-	return t, i, err
+	return t, err
 }
 
 // listKafkaChannels lists one cluster's channels that carry a ChannelArn. On
@@ -356,7 +355,7 @@ func listKafkaChannels(ctx context.Context, client kafkaChildAPI, clusterARN str
 // client account lists as aws:kafka:vpc-connection, carrying the client
 // account (Owner) that view lacks. A connection without a VpcConnectionArn is
 // not stored.
-func scanKafkaClientVpcConnections(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaClientVpcConnections(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	errs := &kafkaChildErrs{op: kafkaListClientVpcConnectionsOp, gone: neverSkip}
 	parents := kafkaParents(clusters, func(kafkaCluster) bool { return true })
 	return kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
@@ -388,7 +387,7 @@ func scanKafkaClientVpcConnections(ctx context.Context, client kafkaChildAPI, ac
 
 // scanKafkaNodes stores the nodes of every provisioned cluster; a serverless
 // cluster exposes no brokers. A node without a NodeARN is not stored.
-func scanKafkaNodes(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaNodes(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	errs := &kafkaChildErrs{op: kafkaListNodesOp, gone: isKafkaGone}
 	parents := kafkaParents(clusters, func(c kafkaCluster) bool { return c.clusterType == kafkatypes.ClusterTypeProvisioned })
 	return kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {

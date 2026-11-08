@@ -69,7 +69,7 @@ const (
 // Grants, access point and Storage Lens group rows have their tags read with
 // ListTagsForResource, whose denials are one warning for the scan; Storage
 // Lens configurations with GetStorageLensConfigurationTagging.
-func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := newS3ControlClient(acct.cfg, region)
 	tags := s3controlTags(client, acct.ID).sharingDenials()
 	// Each policy read is its own phase, so its errors are reported under
@@ -97,11 +97,11 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 		{op: "s3control:ListStorageLensGroups", run: func(p *phaseTotals) bool {
 			return scanStorageLensGroups(ctx, acct, region, client, st, scanID, tags, p)
 		}},
-		countedPhase(0, "s3control:ListAccessPointsForObjectLambda", func() (total, inserted int, err error) {
-			objectLambdaAPs, total, inserted, err = scanS3ObjectLambdaAccessPoints(ctx, acct, region, client, st, scanID)
-			return total, inserted, err
+		countedPhase(0, "s3control:ListAccessPointsForObjectLambda", func() (total int, err error) {
+			objectLambdaAPs, total, err = scanS3ObjectLambdaAccessPoints(ctx, acct, region, client, st, scanID)
+			return total, err
 		}),
-		countedPhase(0, "s3control:GetAccessPointPolicyForObjectLambda", func() (int, int, error) {
+		countedPhase(0, "s3control:GetAccessPointPolicyForObjectLambda", func() (int, error) {
 			return scanS3ObjectLambdaAccessPointPolicies(ctx, acct, region, client, objectLambdaAPs, st, scanID)
 		}),
 	}
@@ -112,17 +112,17 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 	// accounts in other partitions make no MRAP call.
 	if region == "us-west-2" {
 		phases = append(phases,
-			countedPhase(0, "s3control:ListMultiRegionAccessPoints", func() (total, inserted int, err error) {
-				mraps, total, inserted, err = scanMultiRegionAccessPoints(ctx, acct, client, st, scanID)
-				return total, inserted, err
+			countedPhase(0, "s3control:ListMultiRegionAccessPoints", func() (total int, err error) {
+				mraps, total, err = scanMultiRegionAccessPoints(ctx, acct, client, st, scanID)
+				return total, err
 			}),
-			countedPhase(0, "s3control:GetMultiRegionAccessPointPolicy", func() (int, int, error) {
+			countedPhase(0, "s3control:GetMultiRegionAccessPointPolicy", func() (int, error) {
 				return scanMRAPPolicies(ctx, acct, client, mraps, st, scanID)
 			}))
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "s3control", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "s3control", 0, phases)
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // s3controlTags reads a row's tags with ListTagsForResource, sent the row's
@@ -242,16 +242,16 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 // scanMultiRegionAccessPoints stores all Multi-Region Access Points (global,
 // control plane routed through us-west-2 for aws accounts) and returns those
 // stored, whose policies scanMRAPPolicies reads.
-func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.MultiRegionAccessPointReport, total, inserted int, err error) {
+func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.MultiRegionAccessPointReport, total int, err error) {
 	var mraps []s3ctypes.MultiRegionAccessPointReport
 	p := s3control.NewListMultiRegionAccessPointsPaginator(client, &s3control.ListMultiRegionAccessPointsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
+				return nil, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
 			}
-			return nil, 0, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
+			return nil, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
 		}
 		mraps = append(mraps, out.AccessPoints...)
 	}
@@ -274,18 +274,17 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3co
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("upsert S3 multi-region access points: %w", err)
+			return nil, 0, fmt.Errorf("upsert S3 multi-region access points: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 	}
-	return mraps, total, inserted, nil
+	return mraps, total, nil
 }
 
 // scanMRAPPolicies fetches the policy for each MRAP concurrently.
-func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, mraps []s3ctypes.MultiRegionAccessPointReport, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, mraps []s3ctypes.MultiRegionAccessPointReport, st *store.Store, scanID string) (total int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
@@ -330,15 +329,14 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, m
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 MRAP policies: %w", err)
+			return 0, fmt.Errorf("upsert S3 MRAP policies: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }

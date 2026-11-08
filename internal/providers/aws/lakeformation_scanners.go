@@ -43,7 +43,7 @@ type lakeformationAPI interface {
 // data-cells filters, data-lake settings, permissions, LF-tags and opt-ins in
 // one region. ListResources returns the full ResourceInfo body (RoleArn,
 // ResourceArn, federation flags) so no Describe fan-out needed.
-func scanLakeFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLakeFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := lakeformation.NewFromConfig(acct.cfg, func(o *lakeformation.Options) { o.Region = region })
 	return scanLakeFormationAll(ctx, client, acct, region, st, scanID)
 }
@@ -53,33 +53,31 @@ func scanLakeFormation(ctx context.Context, acct *account, region string, st *st
 // rows. Each side's transient error is demoted to a warning only beside a hard
 // error: joined, it would be buried in the hard error instead of reported under
 // its op.
-func scanLakeFormationAll(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, err := scanLakeFormationCatalog(ctx, client, acct, region, st, scanID)
-	t, i, oerr := scanLFOptIns(ctx, client, acct, region, st, scanID)
+func scanLakeFormationAll(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, err := scanLakeFormationCatalog(ctx, client, acct, region, st, scanID)
+	t, oerr := scanLFOptIns(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add("lakeformation", err)
 	errs.add(lfOptInOp, oerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
-func scanLakeFormationCatalog(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanLakeFormationResources(ctx, client, acct, region, st, scanID)
+func scanLakeFormationCatalog(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	t, ferr := scanLakeFormationResources(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	t, i, ferr = scanLakeFormationExtended(ctx, client, acct, region, st, scanID)
+	t, ferr = scanLakeFormationExtended(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanLakeFormationResources holds the testable scan body.
-func scanLakeFormationResources(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLakeFormationResources(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := lakeformation.NewListResourcesPaginator(client, &lakeformation.ListResourcesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -87,9 +85,9 @@ func scanLakeFormationResources(ctx context.Context, client lakeformationAPI, ac
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "lakeformation:ListResources", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("lakeformation:ListResources: %w", perr)
+			return 0, fmt.Errorf("lakeformation:ListResources: %w", perr)
 		}
 		for _, r := range out.ResourceInfoList {
 			arn := sv(r.ResourceArn)
@@ -109,13 +107,13 @@ func scanLakeFormationResources(ctx context.Context, client lakeformationAPI, ac
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert lakeformation resources: %w", uerr)
+		return 0, fmt.Errorf("upsert lakeformation resources: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // lfOptInPageLimit is the model's PageSize maximum for ListLakeFormationOptIns.
@@ -124,7 +122,7 @@ const lfOptInPageLimit = 1000
 // scanLFOptIns lists the principal-resource pairs that opted in to Lake
 // Formation permission enforcement. A denial or error after some pages keeps
 // the rows of the pages already listed.
-func scanLFOptIns(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLFOptIns(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := lakeformation.NewListLakeFormationOptInsPaginator(client, &lakeformation.ListLakeFormationOptInsInput{},
 		func(o *lakeformation.ListLakeFormationOptInsPaginatorOptions) {
 			o.Limit = lfOptInPageLimit

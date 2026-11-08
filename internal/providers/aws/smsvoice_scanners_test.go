@@ -187,7 +187,7 @@ func svHandlers(c *svCalls) map[string]func(any) (any, error) {
 
 // svScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func svScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func svScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, svDenied)
 	return scanSMSVoice(ctx, acct, testRegion, st, testScanID)
@@ -211,7 +211,9 @@ func TestScanSMSVoice_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newSVCalls()
 
-	total, inserted, err := svScan(context.Background(), st, svHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := svScan(context.Background(), counted, svHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -294,7 +296,7 @@ func TestScanSMSVoice_EmptyStatusStoresNil(t *testing.T) {
 				}
 				return nil, errors.New("test: unexpected kind")
 			}
-			if _, _, err := svScan(context.Background(), st, handlers); err != nil {
+			if _, err := svScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := svRowOf(t, st, k.typ, arn)
@@ -341,7 +343,7 @@ func TestScanSMSVoice_TagReadFailures(t *testing.T) {
 					calls := newSVCalls()
 					calls.errs[arn] = c.err
 
-					total, _, err := svScan(context.Background(), st, svHandlers(calls))
+					total, err := svScan(context.Background(), st, svHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -403,7 +405,7 @@ func TestScanSMSVoice_SharedRowTagRead(t *testing.T) {
 				handlers := svHandlers(calls)
 				handlers[k.op] = func(any) (any, error) { return k.page(&foreign, svID(k, "shared"), nil), nil }
 
-				_, _, err := svScan(context.Background(), st, handlers)
+				_, err := svScan(context.Background(), st, handlers)
 				if c.wantErr {
 					assertGlueOutcome(t, err, outcomeError)
 					assertAPICode(t, err, "ValidationException")
@@ -441,7 +443,7 @@ func TestScanSMSVoice_UnsharedTypeForeignRowNotFoundDropped(t *testing.T) {
 	handlers := svHandlers(calls)
 	handlers[k.op] = func(any) (any, error) { return k.page(&foreign, svID(k, "foreign"), nil), nil }
 
-	if _, _, err := svScan(context.Background(), st, handlers); err != nil {
+	if _, err := svScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if _, ok := svRowOf(t, st, k.typ, foreign); ok {
@@ -483,7 +485,7 @@ func TestScanSMSVoice_NameFallbacks(t *testing.T) {
 			}
 			handlers[k.op] = func(any) (any, error) { return out, nil }
 
-			if _, _, err := svScan(context.Background(), st, handlers); err != nil {
+			if _, err := svScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := svRowOf(t, st, k.typ, arn)
@@ -507,7 +509,7 @@ func TestScanSMSVoice_ElementWithoutIdentifierWarnsWithKey(t *testing.T) {
 	k := svKindOf(t, "DescribePools")
 	handlers[k.op] = func(any) (any, error) { return k.page(nil, "", nil), nil }
 
-	if _, _, err := svScan(context.Background(), st, handlers); err != nil {
+	if _, err := svScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warns) != 1 {
@@ -529,7 +531,7 @@ func TestScanSMSVoice_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[svARN(svKindOf(t, "DescribeSenderIds"), "tagged")] = svThrottle
 	calls.errs[svARN(svKindOf(t, "DescribeConfigurationSets"), "bare")] = svValidation
 
-	_, _, err := svScan(context.Background(), st, svHandlers(calls))
+	_, err := svScan(context.Background(), st, svHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -549,7 +551,7 @@ func TestScanSMSVoice_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := svHandlers(newSVCalls())
 			delete(handlers, k.op)
 
-			total, _, err := svScan(context.Background(), st, handlers)
+			total, err := svScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -576,7 +578,7 @@ func TestScanSMSVoice_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newSVCalls()
 	calls.errs[svARN(svKindOf(t, "DescribeConfigurationSets"), "tagged")] = svDenied
 
-	_, _, err := svScan(context.Background(), st, svHandlers(calls))
+	_, err := svScan(context.Background(), st, svHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -597,7 +599,7 @@ func TestScanSMSVoice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	k := svKindOf(t, "DescribePhoneNumbers")
 	handlers[k.op] = failOnCall(2, svValidation, handlers[k.op])
 
-	total, _, err := svScan(context.Background(), st, handlers)
+	total, err := svScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != svTotalCount-1 {
@@ -625,7 +627,7 @@ func TestScanSMSVoice_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(sdkaws.String(svARN(k, suffix)), svID(k, suffix), sdkaws.String("same")), nil
 	}
 
-	total, _, err := svScan(context.Background(), st, handlers)
+	total, err := svScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -650,7 +652,7 @@ func TestScanSMSVoice_ElementWithoutARNWarns(t *testing.T) {
 			handlers := svHandlers(newSVCalls())
 			handlers[k.op] = func(any) (any, error) { return k.page(nil, svID(k, "no-arn"), nil), nil }
 
-			total, _, err := svScan(context.Background(), st, handlers)
+			total, err := svScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -690,7 +692,7 @@ func TestScanSMSVoice_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, svDenied)
 
-	if _, _, err := scanSMSVoice(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanSMSVoice(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(calls.tagARNs)
@@ -726,7 +728,7 @@ func TestScanSMSVoice_ContextEndStopsOnce(t *testing.T) {
 		return pools(in)
 	}
 
-	_, _, err := svScan(ctx, st, handlers)
+	_, err := svScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -755,7 +757,7 @@ func TestScanSMSVoice_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := svHandlers(newSVCalls())
 		handlers["DescribeRcsAgents"] = func(any) (any, error) { return nil, nx }
-		total, _, err := svScan(context.Background(), st, handlers)
+		total, err := svScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != svTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, svTotalCount-2)
@@ -765,7 +767,7 @@ func TestScanSMSVoice_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newSVCalls()
 		calls.errs[svARN(svKindOf(t, "DescribeConfigurationSets"), "bare")] = nx
-		_, _, err := svScan(context.Background(), st, svHandlers(calls))
+		_, err := svScan(context.Background(), st, svHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -773,7 +775,7 @@ func TestScanSMSVoice_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanSMSVoice(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSMSVoice(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

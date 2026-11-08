@@ -47,10 +47,10 @@ const (
 // AWS may refuse every TNB op as deprecated (403, "All API operations are
 // blocked"); each phase then fails alike and dispatch reports the service as
 // blocked, not as an error (isServiceBlocked).
-func scanTnb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTnb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := tnb.NewFromConfig(acct.cfg, func(o *tnb.Options) { o.Region = region })
 	tags := tnbTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "tnb", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "tnb", 0, []hostPhase{
 		{op: "tnb:ListSolFunctionPackages", run: func(p *phaseTotals) bool {
 			return scanTnbFunctionPackages(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -68,7 +68,7 @@ func scanTnb(ctx context.Context, acct *account, region string, st *store.Store,
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // tnbTags reads a row's tags with ListTagsForResource, sent the row's

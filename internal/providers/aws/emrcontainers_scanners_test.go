@@ -210,7 +210,9 @@ func runEMRCFixture(t *testing.T, st *store.Store, f emrcFixture, fail map[strin
 	var calls, ops parentCalls
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(emrcHandlers(f, fail, &calls, &ops), emrcDenied)
-	total, inserted, err := scanEMRContainers(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanEMRContainers(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	return emrcRun{total: total, inserted: inserted, err: err, warns: *warns, endpointCalls: calls.distinct(), ops: ops.distinct()}
 }
 

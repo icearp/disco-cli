@@ -15,19 +15,19 @@ func init() {
 
 // scanEC2ComputeExtra discovers Spot instance requests and instance event
 // windows (scheduled-event maintenance windows).
-func scanEC2ComputeExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2ComputeExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSpotInstanceRequests(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanInstanceEventWindows(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanSpotInstanceRequests(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSpotInstanceRequests(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSpotInstanceRequests", acct, region, st,
 		ec2.NewDescribeSpotInstanceRequestsPaginator(client, &ec2.DescribeSpotInstanceRequestsInput{}),
@@ -57,7 +57,7 @@ func scanSpotInstanceRequests(ctx context.Context, client ec2API, acct *account,
 	)
 }
 
-func scanInstanceEventWindows(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInstanceEventWindows(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeInstanceEventWindows", acct, region, st,
 		ec2.NewDescribeInstanceEventWindowsPaginator(client, &ec2.DescribeInstanceEventWindowsInput{}),

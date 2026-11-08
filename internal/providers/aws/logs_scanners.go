@@ -86,7 +86,7 @@ type logsS3TableIntegrationLister interface {
 // that order, one listing of phase 1 at a time (runHostPhases): a listing's
 // error does not stop the later ones; a failed write and ctx's end do. The
 // tag denials of the whole scan are one warning (sharingDenials).
-func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := cwlogs.NewFromConfig(acct.cfg, func(o *cwlogs.Options) { o.Region = region })
 	obs := observabilityadmin.NewFromConfig(acct.cfg, func(o *observabilityadmin.Options) { o.Region = region })
 	tags := logsTags(client).sharingDenials()
@@ -95,38 +95,38 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 		groups       []store.Resource
 		groupsDenied bool
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "logs", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "logs", 0, []hostPhase{
 		{op: logsDescribeLogGroupsOp, run: func(p *phaseTotals) bool {
 			return scanLogsLogGroups(ctx, client, acct, region, st, scanID, tags, &groupsDenied, p)
 		}},
-		countedPhase(0, "logs:DescribeAccountPolicies", func() (int, int, error) {
+		countedPhase(0, "logs:DescribeAccountPolicies", func() (int, error) {
 			return scanLogsAccountPolicies(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, logsDescribeDeliveriesOp, func() (int, int, error) {
+		countedPhase(0, logsDescribeDeliveriesOp, func() (int, error) {
 			return scanLogsDeliveries(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, logsDescribeDeliveryDestinationsOp, func() (int, int, error) {
+		countedPhase(0, logsDescribeDeliveryDestinationsOp, func() (int, error) {
 			return scanLogsDeliveryDestinations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, logsDescribeDeliverySourcesOp, func() (int, int, error) {
+		countedPhase(0, logsDescribeDeliverySourcesOp, func() (int, error) {
 			return scanLogsDeliverySources(ctx, client, acct, region, st, scanID)
 		}),
 		{op: logsDescribeDestinationsOp, run: func(p *phaseTotals) bool {
 			return scanLogsDestinations(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "logs:ListIntegrations", func() (int, int, error) {
+		countedPhase(0, "logs:ListIntegrations", func() (int, error) {
 			return scanLogsIntegrations(ctx, client, acct, region, st, scanID)
 		}),
 		{op: logsListLogAnomalyDetectorsOp, run: func(p *phaseTotals) bool {
 			return scanLogsLogAnomalyDetectors(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "logs:DescribeMetricFilters", func() (int, int, error) {
+		countedPhase(0, "logs:DescribeMetricFilters", func() (int, error) {
 			return scanLogsMetricFilters(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "logs:DescribeQueryDefinitions", func() (int, int, error) {
+		countedPhase(0, "logs:DescribeQueryDefinitions", func() (int, error) {
 			return scanLogsQueryDefinitions(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "logs:DescribeResourcePolicies", func() (int, int, error) {
+		countedPhase(0, "logs:DescribeResourcePolicies", func() (int, error) {
 			return scanLogsResourcePolicies(ctx, client, acct, region, st, scanID)
 		}),
 		{op: logsListScheduledQueriesOp, run: func(p *phaseTotals) bool {
@@ -143,18 +143,18 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 				p.errs.add("logs", storeReadError("load log groups for phase 2", err))
 				return true
 			}
-			t, n, err := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID)
-			return addOpErrsPhase(p, "logs:DescribeLogStreams", t, n, err)
+			t, err := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID)
+			return addOpErrsPhase(p, "logs:DescribeLogStreams", t, err)
 		}},
-		countedPhase(0, "logs:ListSyslogConfigurations", func() (int, int, error) {
+		countedPhase(0, "logs:ListSyslogConfigurations", func() (int, error) {
 			return scanLogsSyslogConfigurations(ctx, client, acct, region, groups, st, scanID)
 		}),
-		countedPhase(0, "logs:ListSourcesForS3TableIntegration", func() (int, int, error) {
+		countedPhase(0, "logs:ListSourcesForS3TableIntegration", func() (int, error) {
 			return scanLogsS3TableSources(ctx, client, obs, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // Op labels of the listings whose rows carry tags.
@@ -242,25 +242,25 @@ func logsRow(what, arn, name string, r *store.Resource) (*store.Resource, string
 // (else loadLogGroupsForRegion runs once per scanner for the same rows).
 // Each scanner's error is returned under its own op (opErrs) for scanLogs to
 // join.
-func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (int, int, error) {
+func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (int, error) {
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	phase2 := []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{"logs:DescribeLogStreams", func() (int, int, error) {
+		{"logs:DescribeLogStreams", func() (int, error) {
 			return scanLogsLogStreams(ctx, client, acct, region, groups, st, scanID)
 		}},
-		{"logs:DescribeSubscriptionFilters", func() (int, int, error) {
+		{"logs:DescribeSubscriptionFilters", func() (int, error) {
 			return scanLogsSubscriptionFilters(ctx, client, acct, region, groups, st, scanID)
 		}},
-		{"logs:GetTransformer", func() (int, int, error) {
+		{"logs:GetTransformer", func() (int, error) {
 			return scanLogsTransformers(ctx, client, acct, region, groups, st, scanID)
 		}},
-		{"logs:DescribeIndexPolicies", func() (int, int, error) {
+		{"logs:DescribeIndexPolicies", func() (int, error) {
 			return scanLogsIndexPolicies(ctx, client, acct, region, groups, st, scanID)
 		}},
 	}
@@ -271,9 +271,9 @@ func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, regi
 	)
 	for _, phase := range phase2 {
 		wg.Go(func() {
-			t, n, err := phase.fn()
+			t, err := phase.fn()
 			mu.Lock()
-			p.addPhase(phase.op, t, n, err)
+			p.addPhase(phase.op, t, err)
 			mu.Unlock()
 		})
 	}
@@ -318,7 +318,7 @@ func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, reg
 
 // scanLogsAccountPolicies discovers all CloudWatch Logs account-level policies.
 // The API requires a PolicyType parameter, so iterate every known type.
-func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	for _, pt := range logsTypes.PolicyType("").Values() {
 		var nextToken *string
 		for {
@@ -330,7 +330,7 @@ func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *accoun
 				if isAccessDenied(err) {
 					break // skip inaccessible policy types
 				}
-				return total, inserted, fmt.Errorf("logs:DescribeAccountPolicies(%s): %w", pt, err)
+				return total, fmt.Errorf("logs:DescribeAccountPolicies(%s): %w", pt, err)
 			}
 			var batch []*store.Resource
 			for _, p := range out.AccountPolicies {
@@ -349,12 +349,11 @@ func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert account policies: %w", err)
+					return total, fmt.Errorf("upsert account policies: %w", err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 			nextToken = out.NextToken
 			if nextToken == nil {
@@ -367,7 +366,7 @@ func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *accoun
 
 // scanLogsDeliveries stores the region's deliveries with the tags each
 // element carries.
-func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, logsDescribeDeliveriesOp,
 		func(ctx context.Context, token *string) ([]logsTypes.Delivery, *string, error) {
 			out, err := client.DescribeDeliveries(ctx, &cwlogs.DescribeDeliveriesInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
@@ -388,7 +387,7 @@ func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, re
 
 // scanLogsDeliveryDestinations stores the region's delivery destinations with
 // the tags each element carries.
-func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, logsDescribeDeliveryDestinationsOp,
 		func(ctx context.Context, token *string) ([]logsTypes.DeliveryDestination, *string, error) {
 			out, err := client.DescribeDeliveryDestinations(ctx, &cwlogs.DescribeDeliveryDestinationsInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
@@ -409,7 +408,7 @@ func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *a
 
 // scanLogsDeliverySources stores the region's delivery sources with the tags
 // each element carries.
-func scanLogsDeliverySources(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLogsDeliverySources(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, logsDescribeDeliverySourcesOp,
 		func(ctx context.Context, token *string) ([]logsTypes.DeliverySource, *string, error) {
 			out, err := client.DescribeDeliverySources(ctx, &cwlogs.DescribeDeliverySourcesInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
@@ -452,16 +451,16 @@ func scanLogsDestinations(ctx context.Context, client cwlogsAPI, acct *account, 
 
 // scanLogsIntegrations discovers all CloudWatch Logs integrations, fetching
 // full details for each via GetIntegration concurrently.
-func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.ListIntegrations(ctx, &cwlogs.ListIntegrationsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "logs:ListIntegrations", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "logs:ListIntegrations", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("logs:ListIntegrations: %w", err)
+		return 0, fmt.Errorf("logs:ListIntegrations: %w", err)
 	}
 	if len(out.IntegrationSummaries) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	// Fetch each integration's full details concurrently.
@@ -506,16 +505,16 @@ func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, 
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert integrations: %w", err)
+			return 0, fmt.Errorf("upsert integrations: %w", err)
 		}
-		return len(batch), n, nil
+		return len(batch), nil
 	}
-	return 0, 0, nil
+	return 0, nil
 }
 
 // scanLogsLogAnomalyDetectors stores the region's log anomaly detectors a
@@ -543,15 +542,15 @@ func scanLogsLogAnomalyDetectors(ctx context.Context, client cwlogsAPI, acct *ac
 // scanLogsMetricFilters discovers all CloudWatch Logs metric filters in the
 // region (no log-group filter — retrieves all at once); records hierarchy
 // closure so each filter points back to its log group.
-func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := cwlogs.NewDescribeMetricFiltersPaginator(client, &cwlogs.DescribeMetricFiltersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeMetricFilters", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "logs:DescribeMetricFilters", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeMetricFilters: %w", err)
+			return total, fmt.Errorf("logs:DescribeMetricFilters: %w", err)
 		}
 		var batch []*store.Resource
 		for _, f := range page.MetricFilters {
@@ -571,9 +570,9 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert metric filters: %w", err)
+				return total, fmt.Errorf("upsert metric filters: %w", err)
 			}
 			// Build closure pairs: filter child → log group parent.
 			pairs := make([][2]string, 0, len(batch))
@@ -585,10 +584,9 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 				pairs = append(pairs, [2]string{r.ID, parentID})
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return total, inserted, fmt.Errorf("hierarchy closure for metric filters: %w", err)
+				return total, fmt.Errorf("hierarchy closure for metric filters: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -596,7 +594,7 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 
 // scanLogsQueryDefinitions discovers all CloudWatch Logs Insights saved query
 // definitions using manual NextToken pagination.
-func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.DescribeQueryDefinitions(ctx, &cwlogs.DescribeQueryDefinitionsInput{
@@ -604,9 +602,9 @@ func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *accou
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeQueryDefinitions", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "logs:DescribeQueryDefinitions", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeQueryDefinitions: %w", err)
+			return total, fmt.Errorf("logs:DescribeQueryDefinitions: %w", err)
 		}
 		var batch []*store.Resource
 		for _, q := range out.QueryDefinitions {
@@ -625,12 +623,11 @@ func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert query definitions: %w", err)
+				return total, fmt.Errorf("upsert query definitions: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		nextToken = out.NextToken
 		if nextToken == nil {
@@ -642,7 +639,7 @@ func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *accou
 
 // scanLogsResourcePolicies discovers all CloudWatch Logs resource policies
 // using manual NextToken pagination.
-func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.DescribeResourcePolicies(ctx, &cwlogs.DescribeResourcePoliciesInput{
@@ -650,9 +647,9 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeResourcePolicies", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "logs:DescribeResourcePolicies", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeResourcePolicies: %w", err)
+			return total, fmt.Errorf("logs:DescribeResourcePolicies: %w", err)
 		}
 		var batch []*store.Resource
 		for _, p := range out.ResourcePolicies {
@@ -673,12 +670,11 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert resource policies: %w", err)
+				return total, fmt.Errorf("upsert resource policies: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		nextToken = out.NextToken
 		if nextToken == nil {
@@ -763,12 +759,12 @@ func loadLogGroupsForRegion(acct *account, region string, st *store.Store, scanI
 // concurrent calls to N distinct groups consume N independent buckets. Within
 // one group the paginator is sequential, so per-group TPS stays ≤ 1.
 // Account-wide pressure is absorbed by the SDK's adaptive retry (aws_config.go).
-func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total int, err error) {
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
-	var t, n atomic.Int64
+	var t atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
 	sem := semaphore.NewWeighted(fanoutMed)
 
@@ -778,20 +774,19 @@ func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, re
 				return err
 			}
 			defer sem.Release(1)
-			tt, nn, err := scanLogStreamsForGroup(gctx, client, acct, region, grp, st, scanID)
+			tt, err := scanLogStreamsForGroup(gctx, client, acct, region, grp, st, scanID)
 			t.Add(int64(tt))
-			n.Add(int64(nn))
 			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return int(t.Load()), int(n.Load()), err
+		return int(t.Load()), err
 	}
-	return int(t.Load()), int(n.Load()), nil
+	return int(t.Load()), nil
 }
 
 // scanLogStreamsForGroup paginates log streams for one log group and upserts them.
-func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total int, err error) {
 	lgName := ""
 	if grp.Name != nil {
 		lgName = *grp.Name
@@ -803,9 +798,9 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, nil // skip inaccessible log groups
+				return total, nil // skip inaccessible log groups
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeLogStreams(%s): %w", lgName, err)
+			return total, fmt.Errorf("logs:DescribeLogStreams(%s): %w", lgName, err)
 		}
 		var (
 			batch []*store.Resource
@@ -827,18 +822,17 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert log streams for %s: %w", lgName, err)
+				return total, fmt.Errorf("upsert log streams for %s: %w", lgName, err)
 			}
 			for _, r := range batch {
 				pairs = append(pairs, [2]string{r.ID, grp.ID})
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return total, inserted, fmt.Errorf("hierarchy closure for log streams (%s): %w", lgName, err)
+				return total, fmt.Errorf("hierarchy closure for log streams (%s): %w", lgName, err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -847,12 +841,12 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 // scanLogsSubscriptionFilters fetches subscription filters for every log
 // group. Concurrency: fanoutMed — DescribeSubscriptionFilters' 5 TPS limit
 // is per-log-group; same rationale as scanLogsLogStreams above.
-func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total int, err error) {
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
-	var t, n atomic.Int64
+	var t atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
 	sem := semaphore.NewWeighted(fanoutMed)
 
@@ -862,20 +856,19 @@ func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *ac
 				return err
 			}
 			defer sem.Release(1)
-			tt, nn, err := scanSubscriptionFiltersForGroup(gctx, client, acct, region, grp, st, scanID)
+			tt, err := scanSubscriptionFiltersForGroup(gctx, client, acct, region, grp, st, scanID)
 			t.Add(int64(tt))
-			n.Add(int64(nn))
 			return err
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return int(t.Load()), int(n.Load()), err
+		return int(t.Load()), err
 	}
-	return int(t.Load()), int(n.Load()), nil
+	return int(t.Load()), nil
 }
 
 // scanSubscriptionFiltersForGroup paginates subscription filters for one log group.
-func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total int, err error) {
 	lgName := ""
 	if grp.Name != nil {
 		lgName = *grp.Name
@@ -887,9 +880,9 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, nil
+				return total, nil
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeSubscriptionFilters(%s): %w", lgName, err)
+			return total, fmt.Errorf("logs:DescribeSubscriptionFilters(%s): %w", lgName, err)
 		}
 		var (
 			batch []*store.Resource
@@ -911,18 +904,17 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert subscription filters for %s: %w", lgName, err)
+				return total, fmt.Errorf("upsert subscription filters for %s: %w", lgName, err)
 			}
 			for _, r := range batch {
 				pairs = append(pairs, [2]string{r.ID, grp.ID})
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return total, inserted, fmt.Errorf("hierarchy closure for subscription filters (%s): %w", lgName, err)
+				return total, fmt.Errorf("hierarchy closure for subscription filters (%s): %w", lgName, err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -932,13 +924,13 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 // one per group); groups without one return ResourceNotFoundException,
 // skipped. Concurrency: fanoutMed — GetTransformer is per-log-group like the
 // other phase-2 APIs.
-func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total int, err error) {
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	var (
-		t, n  atomic.Int64
+		t     atomic.Int64
 		mu    sync.Mutex
 		batch []*store.Resource
 		pairs [][2]string
@@ -990,20 +982,19 @@ func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, 
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return int(t.Load()), int(n.Load()), err
+		return int(t.Load()), err
 	}
 	if len(batch) > 0 {
 		// IDs were pre-computed before collection; pairs are already correct.
-		ins, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return int(t.Load()), int(n.Load()), fmt.Errorf("upsert transformers: %w", err)
+			return int(t.Load()), fmt.Errorf("upsert transformers: %w", err)
 		}
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return int(t.Load()), int(n.Load()), fmt.Errorf("hierarchy closure for transformers: %w", err)
+			return int(t.Load()), fmt.Errorf("hierarchy closure for transformers: %w", err)
 		}
-		n.Add(int64(ins))
 	}
-	return int(t.Load()), int(n.Load()), nil
+	return int(t.Load()), nil
 }
 
 // isLogsParentGone matches a log group or S3 Table integration deleted between
@@ -1021,14 +1012,14 @@ func isLogsParentGone(err error) bool {
 // policy is stored as soon as it is read, and groups still throttled after
 // the SDK's retries are skipped and reported in one warning, so one slow group
 // cannot cost the others' rows.
-func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (int, int, error) {
+func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (int, error) {
 	const op = "logs:DescribeIndexPolicies"
 	parents := make([]childParent, 0, len(groups))
 	names := make(map[string]*string, len(groups))
 	for _, g := range groups {
 		var attrs struct{ LogGroupClass logsTypes.LogGroupClass }
 		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
-			return 0, 0, fmt.Errorf("decode log group %s: %w", g.NativeID, err)
+			return 0, fmt.Errorf("decode log group %s: %w", g.NativeID, err)
 		}
 		if attrs.LogGroupClass != "" && attrs.LogGroupClass != logsTypes.LogGroupClassStandard {
 			continue
@@ -1037,12 +1028,12 @@ func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account,
 		names[g.NativeID] = g.Name
 	}
 	var transient transientTally
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isLogsParentGone,
-		func(ctx context.Context, p childParent) (int, int, error) {
+	total, err := childFanOutStored(ctx, st, acct, region, op, parents, isLogsParentGone,
+		func(ctx context.Context, p childParent) (int, error) {
 			rows, err := listLogGroupIndexPolicy(ctx, client, acct, region, p.arn, names[p.arn], scanID)
 			if isTransientNetworkError(err) {
 				transient.skipped(p.arn, err)
-				return 0, 0, nil
+				return 0, nil
 			}
 			// A listing that ended on a repeated token returns the rows it read
 			// with its error: they are stored and the error is returned with
@@ -1052,11 +1043,11 @@ func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account,
 			for i, r := range rows {
 				children[i] = containedChild{row: r, parentID: parentID}
 			}
-			t, i, uerr := upsertContained(st, op, children)
-			return t, i, errors.Join(err, uerr)
+			t, uerr := upsertContained(st, op, children)
+			return t, errors.Join(err, uerr)
 		})
 	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // listLogGroupIndexPolicy returns the index policy set on the log group itself,
@@ -1103,7 +1094,7 @@ const logsSyslogPageSize = 50
 // log group and VPC endpoint, so its NativeID is
 // {logGroupARN}:syslog-configuration:{vpcEndpointId} (":" cannot occur in a
 // log group name, so no log group shares the key).
-func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total int, err error) {
 	const op = "logs:ListSyslogConfigurations"
 	groupIDs := make(map[string]string, len(groups))
 	for _, g := range groups {
@@ -1115,11 +1106,11 @@ func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *a
 		switch {
 		case err == nil:
 		case isAccessDenied(err):
-			return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, err)
+			return total, skipIfAccessDenied(st, op, acct.ID, region, err)
 		case input.NextToken == nil && isOpNotDeployed(err):
-			return 0, 0, nil
+			return 0, nil
 		default:
-			return total, inserted, fmt.Errorf("%s: %w", op, err)
+			return total, fmt.Errorf("%s: %w", op, err)
 		}
 		var (
 			batch     []*store.Resource
@@ -1140,12 +1131,11 @@ func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *a
 			})
 			parentIDs = append(parentIDs, groupIDs[groupARN])
 		}
-		t, i, err := upsertBatch(st, batch, op)
+		t, err := upsertBatch(st, batch, op)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 		var pairs [][2]string
 		for k, r := range batch {
 			if parentIDs[k] != "" {
@@ -1153,16 +1143,16 @@ func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *a
 			}
 		}
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return total, inserted, fmt.Errorf("hierarchy closure for syslog configurations: %w", err)
+			return total, fmt.Errorf("hierarchy closure for syslog configurations: %w", err)
 		}
 		// ListSyslogConfigurations has no paginator; a repeated token would loop
 		// forever.
 		done, err := lastPage(input.NextToken, out.NextToken)
 		if err != nil {
-			return total, inserted, fmt.Errorf("%s: %w", op, err)
+			return total, fmt.Errorf("%s: %w", op, err)
 		}
 		if done {
-			return total, inserted, nil
+			return total, nil
 		}
 		input.NextToken = out.NextToken
 	}
@@ -1179,10 +1169,10 @@ const logsS3TableSourcesPageSize = 100
 // so their rows may not exist yet here. Integrations still throttled after the
 // SDK's retries are skipped and reported in one warning; the sources already
 // stored for them are kept.
-func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3TableIntegrationLister, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3TableIntegrationLister, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	integrations, err := listLogsS3TableIntegrations(ctx, obs, acct, region, st)
 	if err != nil || len(integrations) == 0 {
-		return 0, 0, err
+		return 0, err
 	}
 	parents := make([]childParent, 0, len(integrations))
 	for _, arn := range integrations {
@@ -1190,7 +1180,7 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 	}
 	const op = "logs:ListSourcesForS3TableIntegration"
 	return childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isLogsParentGone, byParentARN,
-		func(ctx context.Context, p childParent) (int, int, error) {
+		func(ctx context.Context, p childParent) (int, error) {
 			return storeLogsS3TableSources(ctx, client, acct, region, p.arn, st, scanID)
 		})
 }
@@ -1245,14 +1235,14 @@ func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrat
 }
 
 // storeLogsS3TableSources stores one integration's sources a page at a time.
-func storeLogsS3TableSources(ctx context.Context, client cwlogsAPI, acct *account, region, integrationARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func storeLogsS3TableSources(ctx context.Context, client cwlogsAPI, acct *account, region, integrationARN string, st *store.Store, scanID string) (total int, err error) {
 	pager := cwlogs.NewListSourcesForS3TableIntegrationPaginator(client,
 		&cwlogs.ListSourcesForS3TableIntegrationInput{IntegrationArn: &integrationARN},
 		func(o *cwlogs.ListSourcesForS3TableIntegrationPaginatorOptions) { o.Limit = logsS3TableSourcesPageSize })
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var batch []*store.Resource
 		for _, s := range out.Sources {
@@ -1272,14 +1262,13 @@ func storeLogsS3TableSources(ctx context.Context, client cwlogsAPI, acct *accoun
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
-		t, i, err := upsertBatch(st, batch, "logs:ListSourcesForS3TableIntegration")
+		t, err := upsertBatch(st, batch, "logs:ListSourcesForS3TableIntegration")
 		total += t
-		inserted += i
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 const logsSourceSegment = "/source/"

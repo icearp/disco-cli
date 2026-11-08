@@ -83,12 +83,12 @@ func (p *rtbLinkPaths) rtbLinkOf(arn string) rtbLinkPath {
 //
 // InboundExternalLink and OutboundExternalLink are not scanned: the SDK has
 // only Get/Create/Delete for them, no listing.
-func scanRTBFabric(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRTBFabric(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := rtbfabric.NewFromConfig(acct.cfg, func(o *rtbfabric.Options) { o.Region = region })
 	tags := rtbTags(client).sharingDenials()
 	paths := &rtbLinkPaths{byARN: map[string]rtbLinkPath{}}
 	var requesters, responders, links []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "rtbfabric", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "rtbfabric", 0, []hostPhase{
 		{op: "rtbfabric:ListRequesterGateways", run: func(p *phaseTotals) (failed bool) {
 			requesters, failed = scanRTBRequesterGateways(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -107,7 +107,7 @@ func scanRTBFabric(ctx context.Context, acct *account, region string, st *store.
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // rtbTags reads a row's tags with ListTagsForResource, sent the row's

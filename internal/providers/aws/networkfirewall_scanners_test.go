@@ -245,8 +245,9 @@ func (c nfDescribedCase) run(t *testing.T, s nfDescribedStub) nfDescribedRun {
 	r.listWarns = countOpWarnings(r.st, c.ops.list)
 	r.descWarns = countOpWarnings(r.st, c.ops.describe)
 	client := networkfirewall.NewFromConfig(cfg)
-	res := c.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, r.st, testScanID)
-	r.total, r.inserted, r.err, r.transient, r.listed = res.total, res.inserted, res.err, res.transient, res.listed
+	counted, upserts := countUpserts(r.st)
+	res := c.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	r.total, r.inserted, r.err, r.transient, r.listed = res.total, upserts(), res.err, res.transient, res.listed
 	return r
 }
 
@@ -465,7 +466,7 @@ func TestScanNetworkFirewall_PhaseErrorDoesNotStopLaterPhases(t *testing.T) {
 		"ListFirewalls": {{Err: apiErr("InvalidRequestException", "bad")}},
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-	total, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") {
 		t.Fatalf("err = %v; want the ListFirewalls InvalidRequestException", err)
 	}
@@ -490,7 +491,7 @@ func TestScanNetworkFirewall_TransientBesideHardErrorIsDemoted(t *testing.T) {
 		"DescribeContainerAssociation": {{Err: apiErr("InvalidRequestException", "bad")}},
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-	_, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 	}
@@ -526,7 +527,7 @@ func TestScanNetworkFirewall_TransientDescribeIsReturned(t *testing.T) {
 			}
 			maps.Copy(override, tc.override)
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, nfTopLevelResponses(override)), testRegion)}
-			_, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != tc.want {
 				t.Errorf("classifyServiceError(%v) = %v; want %v", err, got, tc.want)
 			}
@@ -543,7 +544,7 @@ func TestScanNetworkFirewall_TransientDescribeIsReturned(t *testing.T) {
 // nfListedCase drives a phase that stores its list elements as they are.
 type nfListedCase struct {
 	name, rtype, kind, op, arnKey string
-	scan                          func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) (int, int, error)
+	scan                          func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) (int, error)
 	listIn                        func(*testing.T, any) (*string, *int32)
 	listOut                       func([]nfListed, *string) any
 	previewGap                    bool // the proxy preview region gap ends the listing silently
@@ -636,7 +637,9 @@ func TestScanNFListedPhases(t *testing.T) {
 				cfg := opStubConfig(map[string]func(any) (any, error){
 					nfOpName(c.op): nfListHandler(t, c.op, c.kind, tc.stub, c.listIn, c.listOut),
 				}, errors.New("unexpected op"))
-				total, inserted, err := c.scan(context.Background(), networkfirewall.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
+				counted, upserts := countUpserts(st)
+				total, err := c.scan(context.Background(), networkfirewall.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, counted, testScanID)
+				inserted := upserts()
 				switch {
 				case tc.wantRepeat:
 					if !errors.Is(err, errRepeatedNextToken) {
@@ -732,7 +735,7 @@ func TestScanNFLoggingConfigurations(t *testing.T) {
 			for _, n := range tc.firewalls {
 				arns = append(arns, nfARN("firewall", n))
 			}
-			total, _, err := scanNFLoggingConfigurations(context.Background(), networkfirewall.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID, arns)
+			total, err := scanNFLoggingConfigurations(context.Background(), networkfirewall.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID, arns)
 			switch {
 			case tc.wantErrCode != "" && !isAPIErrorCode(err, tc.wantErrCode):
 				t.Fatalf("err = %v; want %s", err, tc.wantErrCode)
@@ -777,7 +780,7 @@ func TestScanNetworkFirewall_LoggingUsesFirewallsPhaseARNs(t *testing.T) {
 		}}},
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-	_, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidRequestException") {
 		t.Fatalf("err = %v; want the ListFirewalls page-two error", err)
 	}

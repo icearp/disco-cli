@@ -141,7 +141,7 @@ func sgwRunPhase(t *testing.T, st *store.Store, handlers map[string]func(any) (a
 	client := sgwTestClient(handlers)
 	var p phaseTotals
 	run(client, sgwTags(client), &p)
-	total, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	total, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	return total, err
 }
 
@@ -429,7 +429,7 @@ func sgwPolicy(gw string) sgwtypes.AutomaticTapeCreationPolicyInfo {
 func scanSGWPoliciesForTest(t *testing.T, st *store.Store, gateways []sgwtypes.GatewayInfo, list func(any) (any, error)) (int, error) {
 	t.Helper()
 	client := sgwTestClient(map[string]func(any) (any, error){"ListAutomaticTapeCreationPolicies": list})
-	total, _, err := scanSGWAutomaticTapeCreationPolicies(context.Background(), client, gateways, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSGWAutomaticTapeCreationPolicies(context.Background(), client, gateways, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -552,7 +552,7 @@ func sgwScanHandlers() map[string]func(any) (any, error) {
 
 func scanSGWForTest(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := scanStorageGatewayWith(context.Background(), sgwTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanStorageGatewayWith(context.Background(), sgwTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -824,7 +824,7 @@ func sgwHandlers(c *sgwCalls) map[string]func(in any) (any, error) {
 
 // sgwScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func sgwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func sgwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, sgwDenied)
 	return scanStorageGateway(ctx, acct, testRegion, st, testScanID)
@@ -855,7 +855,9 @@ func TestScanStorageGateway_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newSGWCalls()
 
-	total, inserted, err := sgwScan(context.Background(), st, sgwHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := sgwScan(context.Background(), counted, sgwHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -947,10 +949,12 @@ func TestScanStorageGateway_StoresTagsOfEveryType(t *testing.T) {
 func TestScanStorageGateway_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := sgwScan(context.Background(), st, sgwHandlers(newSGWCalls())); err != nil {
+	if _, err := sgwScan(context.Background(), st, sgwHandlers(newSGWCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := sgwScan(context.Background(), st, sgwHandlers(newSGWCalls()))
+	counted, upserts := countUpserts(st)
+	total, err := sgwScan(context.Background(), counted, sgwHandlers(newSGWCalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -976,7 +980,7 @@ func TestScanStorageGateway_EmptyListings(t *testing.T) {
 	for op, out := range empty {
 		handlers[op] = func(any) (any, error) { return out, nil }
 	}
-	total, _, err := sgwScan(context.Background(), st, handlers)
+	total, err := sgwScan(context.Background(), st, handlers)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -1029,7 +1033,7 @@ func TestScanStorageGateway_TagReadFailures(t *testing.T) {
 				handlers := sgwHandlers(calls)
 				handlers["DescribeNFSFileShares"] = sgwDescribeWithTags(sgwtypes.FileShareTypeNfs, sgwDescribeTagsShown)
 
-				total, _, err := sgwScan(context.Background(), st, handlers)
+				total, err := sgwScan(context.Background(), st, handlers)
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1072,7 +1076,7 @@ func TestScanStorageGateway_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = sgwDenied
 	}
 
-	total, _, err := sgwScan(context.Background(), st, sgwHandlers(calls))
+	total, err := sgwScan(context.Background(), st, sgwHandlers(calls))
 	if err != nil || total != sgwTestTotal {
 		t.Fatalf("total, err = %d, %v; want %d, nil", total, err, sgwTestTotal)
 	}
@@ -1102,7 +1106,7 @@ func TestScanStorageGateway_GatewayRefusalsWarnOnce(t *testing.T) {
 	calls.errs[vol.arn("bare")] = sgwGatewayDown
 	calls.errs[sgwKindOf(t, "ListFileSystemAssociations").arn("tagged")] = sgwGatewayDown
 
-	if _, _, err := sgwScan(context.Background(), st, sgwHandlers(calls)); err != nil {
+	if _, err := sgwScan(context.Background(), st, sgwHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 || !strings.HasPrefix((*warnings)[0].Message, "3 ") || !strings.Contains((*warnings)[0].Message, vol.arn("bare")) {
@@ -1132,7 +1136,7 @@ func TestScanStorageGateway_FailedWriteWarnsOnlyWrittenPhases(t *testing.T) {
 		}}, nil
 	}
 
-	_, _, err := sgwScan(context.Background(), st, handlers)
+	_, err := sgwScan(context.Background(), st, handlers)
 	if got := calls.sortedTagARNs(); !slices.Contains(got, pool.arn("tagged")) || !slices.Contains(got, pool.arn("bare")) {
 		t.Fatalf("ListTagsForResource ARNs = %v; want both tape pools read", got)
 	}
@@ -1159,7 +1163,7 @@ func TestScanStorageGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[sgwKindOf(t, "ListGateways").arn("tagged")] = sgwThrottle
 	calls.errs[sgwKindOf(t, "ListTapes").arn("bare")] = sgwBadParams
 
-	_, _, err := sgwScan(context.Background(), st, sgwHandlers(calls))
+	_, err := sgwScan(context.Background(), st, sgwHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, sgwTestBadParams)
 	if *warns != 1 {
@@ -1175,7 +1179,7 @@ func TestScanStorageGateway_FailedWriteStopsScan(t *testing.T) {
 	refuseStoreWrites(t, st, TypeStorageGatewayTape)
 	calls := newSGWCalls()
 
-	total, _, err := sgwScan(context.Background(), st, sgwHandlers(calls))
+	total, err := sgwScan(context.Background(), st, sgwHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1205,7 +1209,7 @@ func TestScanStorageGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers := sgwHandlers(calls)
 			handlers[k.op] = failOnCall(2, sgwBadParams, handlers[k.op])
 
-			total, _, err := sgwScan(context.Background(), st, handlers)
+			total, err := sgwScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, sgwTestBadParams)
 			if total != sgwTestTotal-1 {
@@ -1234,7 +1238,7 @@ func TestScanStorageGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 		handlers := sgwHandlers(calls)
 		handlers["ListGateways"] = func(any) (any, error) { return nil, sgwBadParams }
 
-		total, _, err := sgwScan(context.Background(), st, handlers)
+		total, err := sgwScan(context.Background(), st, handlers)
 		assertAPICode(t, err, sgwTestBadParams)
 		// Only the device and policy phases, which read per gateway, lose
 		// their rows.
@@ -1263,7 +1267,7 @@ func TestScanStorageGateway_RepeatedMarkerKeepsPages(t *testing.T) {
 				reflect.ValueOf(out).Elem().FieldByName(field).Set(reflect.ValueOf(ptrStr("p2")))
 				return out, err
 			}
-			total, _, err := sgwScan(context.Background(), st, handlers)
+			total, err := sgwScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1310,7 +1314,7 @@ func TestScanStorageGateway_TagPages(t *testing.T) {
 				}
 				return pageOf(c.second, "b", "2"), nil
 			}
-			total, _, err := sgwScan(context.Background(), st, handlers)
+			total, err := sgwScan(context.Background(), st, handlers)
 			if total != sgwTestTotal {
 				t.Errorf("total = %d; want %d", total, sgwTestTotal)
 			}
@@ -1361,7 +1365,7 @@ func TestScanStorageGateway_ElementWithoutARNWarns(t *testing.T) {
 			handlers := sgwHandlers(calls)
 			handlers[c.op] = c.answer
 
-			total, _, err := sgwScan(context.Background(), st, handlers)
+			total, err := sgwScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1408,7 +1412,7 @@ func TestScanStorageGateway_TagReadsKeepPartitionARNs(t *testing.T) {
 				return &storagegateway.ListTapesOutput{TapeInfos: []sgwtypes.TapeInfo{{TapeARN: &arn, TapeBarcode: ptrStr("TAPEP"), GatewayARN: ptrStr("g")}}}, nil
 			}
 			acct.cfg = opStubConfig(handlers, sgwDenied)
-			if _, _, err := scanStorageGateway(context.Background(), acct, region, st, testScanID); err != nil {
+			if _, err := scanStorageGateway(context.Background(), acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.sortedTagARNs(), arn) {
@@ -1437,7 +1441,7 @@ func TestScanStorageGateway_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := sgwScan(ctx, st, handlers)
+	_, err := sgwScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1464,7 +1468,7 @@ func TestScanStorageGateway_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := sgwHandlers(newSGWCalls())
 		handlers["ListTapePools"] = func(any) (any, error) { return nil, nx }
-		total, _, err := sgwScan(context.Background(), st, handlers)
+		total, err := sgwScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != sgwTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, sgwTestTotal-2)
@@ -1475,7 +1479,7 @@ func TestScanStorageGateway_NXDOMAIN(t *testing.T) {
 		warns := countOpWarnings(st, "storagegateway:DescribeNFSFileShares")
 		handlers := sgwHandlers(newSGWCalls())
 		handlers["DescribeNFSFileShares"] = func(any) (any, error) { return nil, nx }
-		total, _, err := sgwScan(context.Background(), st, handlers)
+		total, err := sgwScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != sgwTestTotal || *warns != 0 {
 			t.Errorf("total, describe warnings = %d, %d; want %d, 0", total, *warns, sgwTestTotal)
@@ -1485,7 +1489,7 @@ func TestScanStorageGateway_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newSGWCalls()
 		calls.errs[sgwKindOf(t, "ListGateways").arn("bare")] = nx
-		_, _, err := sgwScan(context.Background(), st, sgwHandlers(calls))
+		_, err := sgwScan(context.Background(), st, sgwHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1493,7 +1497,7 @@ func TestScanStorageGateway_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanStorageGateway(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanStorageGateway(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

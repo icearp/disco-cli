@@ -169,7 +169,9 @@ func runInspector2(ctx context.Context, t *testing.T, st *store.Store, handlers 
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(wrapped, errors.New("unexpected op"))
-	r.total, r.inserted, r.err = scanInspector2(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	r.total, r.err = scanInspector2(ctx, acct, testRegion, counted, testScanID)
+	r.inserted = upserts()
 	return r
 }
 

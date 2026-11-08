@@ -99,7 +99,7 @@ func scanSocialMessagingTopLevel(t *testing.T, st *store.Store, handlers map[str
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, smDenied)
-	total, _, err := scanSocialMessaging(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSocialMessaging(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

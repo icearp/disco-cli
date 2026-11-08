@@ -29,7 +29,7 @@ func shExtendedPhases(ctx context.Context, client securityhubAPI, acct *account,
 		{op: "securityhub:DescribeSecurityHubV2", run: func(p *phaseTotals) bool {
 			return scanSHHubV2(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "securityhub:DescribeOrganizationConfiguration", func() (int, int, error) {
+		countedPhase(0, "securityhub:DescribeOrganizationConfiguration", func() (int, error) {
 			return scanSHOrgConfig(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "securityhub:ListAggregatorsV2", run: func(p *phaseTotals) bool {
@@ -47,18 +47,18 @@ func shExtendedPhases(ctx context.Context, client securityhubAPI, acct *account,
 		{op: "securityhub:ListConnectorsV2", run: func(p *phaseTotals) bool {
 			return scanSHConnectorsV2(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "securityhub:ListFindingAggregators", func() (int, int, error) {
+		countedPhase(0, "securityhub:ListFindingAggregators", func() (int, error) {
 			return scanSHFindingAggregators(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "securityhub:ListConfigurationPolicyAssociations", func() (int, int, error) {
+		countedPhase(0, "securityhub:ListConfigurationPolicyAssociations", func() (int, error) {
 			return scanSHPolicyAssociations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "securityhub:ListSecurityControlDefinitions", func() (int, int, error) {
-			t, i, stored, err := scanSHSecurityControls(ctx, client, acct, region, st, scanID)
+		countedPhase(0, "securityhub:ListSecurityControlDefinitions", func() (int, error) {
+			t, stored, err := scanSHSecurityControls(ctx, client, acct, region, st, scanID)
 			*controls = stored
-			return t, i, err
+			return t, err
 		}),
-		countedPhase(0, "securityhub:DescribeStandards", func() (int, int, error) {
+		countedPhase(0, "securityhub:DescribeStandards", func() (int, error) {
 			return scanSHStandards(ctx, client, acct, region, st, scanID)
 		}),
 	}
@@ -98,13 +98,13 @@ func scanSHHubV2(ctx context.Context, client securityhubAPI, acct *account, regi
 
 // scanSHOrgConfig — only org-management account returns valid data;
 // member accounts get InvalidAccessException (treated as soft-skip).
-func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.DescribeOrganizationConfiguration(ctx, &securityhub.DescribeOrganizationConfigurationInput{})
 	if err != nil {
 		if shSoftSkip(err) {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("securityhub:DescribeOrganizationConfiguration: %w", err)
+		return 0, fmt.Errorf("securityhub:DescribeOrganizationConfiguration: %w", err)
 	}
 	arn := arnFor(acct.partition(), "securityhub", region, acct.ID, "organization-configuration")
 	name := "organization-configuration"
@@ -113,11 +113,11 @@ func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, 
 		Type: TypeSecurityHubOrganizationConfiguration, NativeID: arn,
 		Name: &name, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert securityhub organization-configuration: %w", uerr)
+		return 0, fmt.Errorf("upsert securityhub organization-configuration: %w", uerr)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // The tagged listings below share one shape: the first page refused as not
@@ -223,16 +223,16 @@ func scanSHConnectorsV2(ctx context.Context, client securityhubAPI, acct *accoun
 		}, tags, p)
 }
 
-func scanSHFindingAggregators(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSHFindingAggregators(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securityhub.NewListFindingAggregatorsPaginator(client, &securityhub.ListFindingAggregatorsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if shSoftSkip(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListFindingAggregators: %w", perr)
+			return 0, fmt.Errorf("securityhub:ListFindingAggregators: %w", perr)
 		}
 		for _, f := range out.FindingAggregators {
 			arn := sv(f.FindingAggregatorArn)
@@ -252,16 +252,16 @@ func scanSHFindingAggregators(ctx context.Context, client securityhubAPI, acct *
 
 // scanSHPolicyAssociations — TargetId/TargetType identify accounts/OUs;
 // no native ARN. Synth from (configurationPolicyId, targetType, targetId).
-func scanSHPolicyAssociations(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSHPolicyAssociations(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securityhub.NewListConfigurationPolicyAssociationsPaginator(client, &securityhub.ListConfigurationPolicyAssociationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if shSoftSkip(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListConfigurationPolicyAssociations: %w", perr)
+			return 0, fmt.Errorf("securityhub:ListConfigurationPolicyAssociations: %w", perr)
 		}
 		for _, a := range out.ConfigurationPolicyAssociationSummaries {
 			policy := sv(a.ConfigurationPolicyId)
@@ -284,7 +284,7 @@ func scanSHPolicyAssociations(ctx context.Context, client securityhubAPI, acct *
 // scanSHSecurityControls — control catalogue is AWS-managed. Mark
 // ManagedByProvider=true so the entries hide from default list / graph. It
 // returns the controls it stored as parents (id = SecurityControlId).
-func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	pager := securityhub.NewListSecurityControlDefinitionsPaginator(client, &securityhub.ListSecurityControlDefinitionsInput{})
 	var (
 		batch    []*store.Resource
@@ -294,9 +294,9 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if shSoftSkip(perr) {
-				return 0, 0, nil, nil
+				return 0, nil, nil
 			}
-			return 0, 0, nil, fmt.Errorf("securityhub:ListSecurityControlDefinitions: %w", perr)
+			return 0, nil, fmt.Errorf("securityhub:ListSecurityControlDefinitions: %w", perr)
 		}
 		for _, c := range out.SecurityControlDefinitions {
 			id := sv(c.SecurityControlId)
@@ -313,11 +313,11 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 			controls = append(controls, childParent{id: id, arn: arn})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "securityhub security-controls")
+	total, err := upsertBatch(st, batch, "securityhub security-controls")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, controls, nil
+	return total, controls, nil
 }
 
 // scanSHStandards — DescribeStandards returns the AWS-managed standards
@@ -325,7 +325,7 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 // ARN carries no region (arn:{p}:securityhub:::ruleset/...) under the same
 // NativeID, so Region comes from the ARN and is left unset when it names none;
 // the scanned region would flip the row's Region to whichever region ran last.
-func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securityhub.NewDescribeStandardsPaginator(client, &securityhub.DescribeStandardsInput{})
 	var (
 		batch []*store.Resource
@@ -335,9 +335,9 @@ func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, 
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if shSoftSkip(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("securityhub:DescribeStandards: %w", perr)
+			return 0, fmt.Errorf("securityhub:DescribeStandards: %w", perr)
 		}
 		for _, s := range out.Standards {
 			arn := sv(s.StandardsArn)

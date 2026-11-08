@@ -58,10 +58,10 @@ type ipamPrefixListResolverAttrs struct {
 // read: it no longer selects CIDRs, and whether EC2 still answers for it is
 // unverified. A resolver listed without the ARN its NativeID is, or the id
 // the rules read takes, is not stored and is warned.
-func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	resolvers, err := listIPAMPrefixListResolvers(ctx, client, acct, region, st)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	var (
 		deleted     []*store.Resource
@@ -123,8 +123,8 @@ func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *accou
 	for _, id := range slices.Sorted(maps.Keys(failed)) {
 		errs = append(errs, fmt.Errorf("%s %s: %w", ec2IPAMPrefixListResolverRulesOp, id, failed[id]))
 	}
-	total, inserted, uerr := upsertBatch(st, append(deleted, rows...), "ec2 ipam prefix list resolvers")
-	return total, inserted, errors.Join(append(errs, uerr)...)
+	total, uerr := upsertBatch(st, append(deleted, rows...), "ec2 ipam prefix list resolvers")
+	return total, errors.Join(append(errs, uerr)...)
 }
 
 // warnIPAMPrefixListResolversNotStored warns once for the resolvers t
@@ -218,7 +218,7 @@ func ipamPrefixListResolverRow(acct *account, region, scanID string, r ec2types.
 	}
 }
 
-func scanIPAMPrefixListResolverTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMPrefixListResolverTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeIpamPrefixListResolverTargets", acct, region, st,
 		ec2.NewDescribeIpamPrefixListResolverTargetsPaginator(client, &ec2.DescribeIpamPrefixListResolverTargetsInput{}),

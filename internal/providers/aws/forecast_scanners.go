@@ -60,7 +60,7 @@ const (
 // after it was listed.
 var forecastNotFound = []string{"ResourceNotFoundException"}
 
-func scanForecast(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanForecast(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := forecast.NewFromConfig(acct.cfg, func(o *forecast.Options) { o.Region = region })
 	return scanForecastAll(ctx, client, acct, region, st, scanID)
 }
@@ -76,9 +76,9 @@ func scanForecast(ctx context.Context, acct *account, region string, st *store.S
 // change lifts it. That shape of the closed answer is assumed from the
 // iotfleetwise precedent and is unverified for Forecast; if the real answer
 // carries a message, each listing warns as a denial.
-func scanForecastAll(ctx context.Context, client forecastAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanForecastAll(ctx context.Context, client forecastAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := forecastTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "forecast", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "forecast", 0, []hostPhase{
 		{op: forecastListDatasetsOp, run: func(p *phaseTotals) bool {
 			return scanForecastDatasets(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -105,7 +105,7 @@ func scanForecastAll(ctx context.Context, client forecastAPI, acct *account, reg
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // forecastTags reads a row's tags with ListTagsForResource, sent the row's

@@ -87,7 +87,7 @@ func ssmiHandlers(policyCalls *parentCalls) map[string]func(in any) (any, error)
 	}
 }
 
-func scanSSMITopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func scanSSMITopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ssmiDenied)
@@ -98,7 +98,7 @@ func TestScanSSMIncidents_StoresResourcePoliciesUnderTheirPlan(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
-	if _, _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
+	if _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
 	if got, want := policyCalls.distinct(), []string{ssmiPlanP1, ssmiPlanP2}; !slices.Equal(got, want) {
@@ -135,7 +135,7 @@ func TestScanSSMIncidents_ResourcePolicyIdentityIsScopedToItsPlan(t *testing.T) 
 	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
-	if _, _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
+	if _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
 	policies := rowsByNativeID(t, st, TypeSSMIncidentsResourcePolicy)
@@ -153,7 +153,7 @@ func TestScanSSMIncidents_NoPlansNoPolicyCalls(t *testing.T) {
 	var policyCalls parentCalls
 	h := ssmiHandlers(&policyCalls)
 	h["ListResponsePlans"] = func(any) (any, error) { return &ssmincidents.ListResponsePlansOutput{}, nil }
-	if _, _, err := scanSSMITopLevel(t, st, h); err != nil {
+	if _, err := scanSSMITopLevel(t, st, h); err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
 	if got := policyCalls.distinct(); len(got) != 0 {
@@ -191,7 +191,7 @@ func TestScanSSMIncidents_FailedResourcePolicyPlan(t *testing.T) {
 				}
 				return next(in)
 			}
-			if _, _, err := scanSSMITopLevel(t, st, h); err != nil {
+			if _, err := scanSSMITopLevel(t, st, h); err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
 			if *warns != tc.wantWarn {
@@ -216,7 +216,7 @@ func TestScanSSMIncidents_ResourcePolicyErrorAfterExistingPhases(t *testing.T) {
 		failed.Store(true)
 		return nil, ssmiBadInput
 	}
-	_, _, err := scanSSMITopLevel(t, st, h)
+	_, err := scanSSMITopLevel(t, st, h)
 	if !failed.Load() {
 		t.Fatal("GetResourcePolicies never called")
 	}
@@ -235,7 +235,9 @@ func TestScanSSMIncidents_TotalsCountEveryPhase(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
-	total, inserted, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls))
+	counted, upserts := countUpserts(st)
+	total, err := scanSSMITopLevel(t, counted, ssmiHandlers(&policyCalls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
@@ -255,7 +257,7 @@ func TestScanSSMIncidents_CallsGoToScannedRegion(t *testing.T) {
 	acct.cfg = recordCallRegions(cfg, &regions)
 	acct.scanRegions = []string{"eu-west-1"}
 
-	if _, _, err := scanSSMIncidents(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanSSMIncidents(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -291,7 +293,7 @@ func scanSSMIEachRegion(t *testing.T, st *store.Store, handlers map[string]func(
 	acct.scanRegions = scanned
 	totals := map[string]int{}
 	for _, region := range order {
-		total, _, err := scanSSMIncidents(context.Background(), acct, region, st, testScanID)
+		total, err := scanSSMIncidents(context.Background(), acct, region, st, testScanID)
 		if err != nil {
 			t.Fatalf("scanSSMIncidents(%s): %v", region, err)
 		}
@@ -437,7 +439,7 @@ func scanSSMIEachRegionCtx(t *testing.T, st *store.Store, handlers map[string]fu
 	totals := map[string]int{}
 	for _, region := range order {
 		calls.from = region
-		total, _, err := scanSSMIncidents(context.Background(), acct, region, st, testScanID)
+		total, err := scanSSMIncidents(context.Background(), acct, region, st, testScanID)
 		if err != nil {
 			t.Fatalf("scanSSMIncidents(%s): %v", region, err)
 		}
@@ -633,7 +635,7 @@ func TestScanSSMIncidents_ProbeErrorFailsScan(t *testing.T) {
 			var policyCalls parentCalls
 			h, _ := ssmiGetByRegion(ssmiRegionMapHandlers(&policyCalls, "eu-west-1", "us-west-2"), tc.errs)
 			acct := ssmiAccountCtx(h, []string{"eu-west-1", "us-west-2"})
-			total, _, err := scanSSMIncidents(context.Background(), acct, "us-west-2", st, testScanID)
+			total, err := scanSSMIncidents(context.Background(), acct, "us-west-2", st, testScanID)
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Fatalf("scanSSMIncidents(us-west-2) err = %v, want the probe's ValidationException", err)
 			}
@@ -754,7 +756,7 @@ func TestScanSSMIncidents_RegionDeniedDoesNotWarn(t *testing.T) {
 	acct.scanRegions = []string{"us-west-2", "eu-west-1"}
 	totals := map[string]int{}
 	for _, r := range acct.scanRegions {
-		total, _, err := scanSSMIncidents(context.Background(), acct, r, st, testScanID)
+		total, err := scanSSMIncidents(context.Background(), acct, r, st, testScanID)
 		if err != nil {
 			t.Fatalf("scanSSMIncidents(%s): %v", r, err)
 		}
@@ -785,7 +787,7 @@ func TestScanSSMIncidents_ReplicationSetDeletedSinceListing(t *testing.T) {
 		}
 		return get(in)
 	}
-	if _, _, err := scanSSMITopLevel(t, st, h); err != nil {
+	if _, err := scanSSMITopLevel(t, st, h); err != nil {
 		t.Fatalf("scanSSMIncidents: %v", err)
 	}
 	if got := nativeIDs(rowsByNativeID(t, st, TypeSSMIncidentsReplicationSet)); !slices.Equal(got, []string{ssmiRSetARN}) {
@@ -914,7 +916,7 @@ func TestScanSSMIncidents_GetResponsePlanErrors(t *testing.T) {
 				}
 				return next(in)
 			}
-			_, _, err := scanSSMITopLevel(t, st, h)
+			_, err := scanSSMITopLevel(t, st, h)
 			if tc.wantErr != "" {
 				assertAPICode(t, err, tc.wantErr)
 				return

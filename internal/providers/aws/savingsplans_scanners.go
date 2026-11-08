@@ -15,10 +15,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:savingsplans",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			region, err := acct.homeRegion("savingsplans")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := savingsplans.NewFromConfig(acct.cfg, func(o *savingsplans.Options) { o.Region = region })
 			return scanSavingsPlans(ctx, client, acct, region, st, scanID)
@@ -34,7 +34,7 @@ type savingsPlansAPI interface {
 
 // scanSavingsPlans lists the account's Savings Plans; region is the home its
 // client calls, which scopes any warning.
-func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	token := ""
 	for {
@@ -45,9 +45,9 @@ func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account
 		out, derr := client.DescribeSavingsPlans(ctx, in)
 		if derr != nil {
 			if isAccessDenied(derr) {
-				return total, inserted, skipIfAccessDenied(st, "savingsplans:DescribeSavingsPlans", acct.ID, region, derr)
+				return total, skipIfAccessDenied(st, "savingsplans:DescribeSavingsPlans", acct.ID, region, derr)
 			}
-			return total, inserted, fmt.Errorf("savingsplans:DescribeSavingsPlans: %w", derr)
+			return total, fmt.Errorf("savingsplans:DescribeSavingsPlans: %w", derr)
 		}
 		for _, p := range out.SavingsPlans {
 			arn := sv(p.SavingsPlanArn)

@@ -66,7 +66,7 @@ type entityResolutionAPI interface {
 // NXDOMAIN of the first listing with nothing stored (the region does not
 // serve the service) (runHostPhases). The tag denials of the whole scan are
 // one warning.
-func scanEntityResolution(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEntityResolution(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := entityresolution.NewFromConfig(acct.cfg, func(o *entityresolution.Options) { o.Region = region })
 	tags := erTags(client).sharingDenials()
 	// parents is the ARN of every row stored, the targets of the policy reads.
@@ -76,7 +76,7 @@ func scanEntityResolution(ctx context.Context, acct *account, region string, st 
 			parents = append(parents, r.NativeID)
 		}
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "entityresolution", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "entityresolution", 0, []hostPhase{
 		{op: erListIDMappingWorkflowsOp, run: func(p *phaseTotals) bool {
 			return scanERIdMappingWorkflows(ctx, client, acct, region, st, scanID, tags, stored, p)
 		}},
@@ -94,7 +94,7 @@ func scanEntityResolution(ctx context.Context, acct *account, region string, st 
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // erTags reads a row's tags with ListTagsForResource, sent the row's
@@ -276,11 +276,11 @@ func scanERPolicyStatements(ctx context.Context, client entityResolutionAPI, acc
 	if t := &transients.skipTally; t.count > 0 {
 		transient = fmt.Errorf("%s: %d resource(s) whose policy was not read, first %s: %w", erGetPolicyOp, t.count, t.first, t.err)
 	}
-	total, inserted, err := storeReadRows(st, acct, region, erGetPolicyOp, rows, nil, func() {
+	total, err := storeReadRows(st, acct, region, erGetPolicyOp, rows, nil, func() {
 		denied.warnDeniedIn(st, erGetPolicyOp, acct, region, "resource(s) whose policy was not read were")
 		invalid.warnCode(st, erGetPolicyOp, acct, region, "ValidationException", "resource(s)", erPolicyInvalidWhy)
 	})
-	return rowTagErrs{errors.Join(hard...), transient}.addPhase(p, erGetPolicyOp, erGetPolicyOp, total, inserted, err)
+	return rowTagErrs{errors.Join(hard...), transient}.addPhase(p, erGetPolicyOp, erGetPolicyOp, total, err)
 }
 
 // readERPolicy reads the policy of the resource arn names. Its row's

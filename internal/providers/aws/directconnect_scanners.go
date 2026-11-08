@@ -63,7 +63,7 @@ const dxPageLimit = 100
 // interconnects, resiliency groups and VirtualInterfaces are regional.
 // DirectConnectGateway and association objects are global; gated to one
 // region (isOnceRegion) to avoid duplicate upserts.
-func scanDirectConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDirectConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := directconnect.NewFromConfig(acct.cfg, func(o *directconnect.Options) { o.Region = region })
 	return scanDirectConnectAll(ctx, client, acct, region, st, scanID)
 }
@@ -72,30 +72,30 @@ func scanDirectConnect(ctx context.Context, acct *account, region string, st *st
 // only a store write failure stops it. The gateway associations are read for
 // the gateways the gateway phase stored, so a failed gateway listing leaves
 // them fewer gateways rather than none.
-func scanDirectConnectAll(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDirectConnectAll(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		phases phaseTotals
 		gwIDs  []string
 	)
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{dxDescribeConnectionsOp, func() (int, int, error) { return scanDXConnections(ctx, client, acct, region, st, scanID) }},
-		{dxDescribeLagsOp, func() (int, int, error) { return scanDXLags(ctx, client, acct, region, st, scanID) }},
-		{dxDescribeVirtualInterfacesOp, func() (int, int, error) { return scanDXVirtualInterfaces(ctx, client, acct, region, st, scanID) }},
-		{dxDescribeGatewaysOp, func() (t, i int, err error) {
-			gwIDs, t, i, err = scanDXGateways(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{dxDescribeConnectionsOp, func() (int, error) { return scanDXConnections(ctx, client, acct, region, st, scanID) }},
+		{dxDescribeLagsOp, func() (int, error) { return scanDXLags(ctx, client, acct, region, st, scanID) }},
+		{dxDescribeVirtualInterfacesOp, func() (int, error) { return scanDXVirtualInterfaces(ctx, client, acct, region, st, scanID) }},
+		{dxDescribeGatewaysOp, func() (t int, err error) {
+			gwIDs, t, err = scanDXGateways(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{dxDescribeGatewayAssociationsOp, func() (int, int, error) {
+		{dxDescribeGatewayAssociationsOp, func() (int, error) {
 			return scanDXGatewayAssociations(ctx, client, acct, region, st, scanID, gwIDs)
 		}},
-		{dxDescribeInterconnectsOp, func() (int, int, error) { return scanDXInterconnects(ctx, client, acct, region, st, scanID) }},
-		{dxListResiliencyGroupsOp, func() (int, int, error) { return scanDXResiliencyGroups(ctx, client, acct, region, st, scanID) }},
+		{dxDescribeInterconnectsOp, func() (int, error) { return scanDXInterconnects(ctx, client, acct, region, st, scanID) }},
+		{dxListResiliencyGroupsOp, func() (int, error) { return scanDXResiliencyGroups(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, err := phase.fn()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn()
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -113,7 +113,7 @@ func dxName(name *string, id string) *string {
 	return &s
 }
 
-func scanDXConnections(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXConnections(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dxDescribeConnectionsOp,
 		func(ctx context.Context, token *string) ([]directconnecttypes.Connection, *string, error) {
 			out, err := client.DescribeConnections(ctx, &directconnect.DescribeConnectionsInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
@@ -136,7 +136,7 @@ func scanDXConnections(ctx context.Context, client dxAPI, acct *account, region 
 		})
 }
 
-func scanDXLags(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXLags(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dxDescribeLagsOp,
 		func(ctx context.Context, token *string) ([]directconnecttypes.Lag, *string, error) {
 			out, err := client.DescribeLags(ctx, &directconnect.DescribeLagsInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
@@ -171,7 +171,7 @@ var dxVirtualInterfaceTypes = map[string]string{
 // scanDXVirtualInterfaces stores each virtual interface under the disco type
 // of its VirtualInterfaceType. One of another type has no disco type to be
 // stored under, so it is warned about instead.
-func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dxDescribeVirtualInterfacesOp,
 		func(ctx context.Context, token *string) ([]directconnecttypes.VirtualInterface, *string, error) {
 			out, err := client.DescribeVirtualInterfaces(ctx, &directconnect.DescribeVirtualInterfacesInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
@@ -202,9 +202,9 @@ func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, r
 // ids of those stored, read before a failed page included. Gateways are
 // global, so only the scan of Direct Connect's once-region (onceRegion) lists
 // them, once per account.
-func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	if !acct.isOnceRegion("directconnect", region) {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
 	gateways, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]directconnecttypes.DirectConnectGateway, *string, error) {
 		out, err := client.DescribeDirectConnectGateways(ctx, &directconnect.DescribeDirectConnectGatewaysInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
@@ -230,15 +230,15 @@ func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region str
 			AttributesJSON: mustJSON(g), TagsJSON: dxTagsJSON(g.Tags), DiscoveredBy: scanID,
 		}, "", ""
 	}, nil, &skips)
-	t, i, err := storeReadRows(st, acct, region, dxDescribeGatewaysOp, rows, listErr, func() { skips.warn(st, dxDescribeGatewaysOp, acct, region) })
-	return ids, t, i, err
+	t, err := storeReadRows(st, acct, region, dxDescribeGatewaysOp, rows, listErr, func() { skips.warn(st, dxDescribeGatewaysOp, acct, region) })
+	return ids, t, err
 }
 
 // scanDXGatewayAssociations reads the associations of each gateway
 // scanDXGateways stored. The op models no not-found error for a gateway
 // deleted since it was listed, so any per-gateway error but a denial is
 // returned after the other gateways' associations are stored.
-func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string, gwIDs []string) (int, int, error) {
+func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string, gwIDs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, dxDescribeGatewayAssociationsOp, nil, gwIDs,
 		func(ctx context.Context, gwID string, token *string) ([]directconnecttypes.DirectConnectGatewayAssociation, *string, error) {
 			out, err := client.DescribeDirectConnectGatewayAssociations(ctx, &directconnect.DescribeDirectConnectGatewayAssociationsInput{
@@ -266,7 +266,7 @@ func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account,
 // scanDXInterconnects stores the partner-owned interconnects of the region. An
 // account that is not a Direct Connect partner owns none, and the model gives
 // no distinct error for it, so any error but a denial is returned.
-func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, dxDescribeInterconnectsOp,
 		func(ctx context.Context, token *string) ([]directconnecttypes.Interconnect, *string, error) {
 			out, err := client.DescribeInterconnects(ctx, &directconnect.DescribeInterconnectsInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
@@ -316,7 +316,7 @@ type dxResiliencyGroupAttrs struct {
 // Web Services account in the current Amazon Web Services Region". That is not
 // yet confirmed against a live account; if one group were listed in two
 // regions, its row would flip Region on every scan.
-func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	summaries, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]directconnecttypes.ResiliencyGroupSummary, *string, error) {
 		out, err := client.ListResiliencyGroups(ctx, &directconnect.ListResiliencyGroupsInput{MaxResults: sdkaws.Int32(dxPageLimit), NextToken: token})
 		if err != nil {

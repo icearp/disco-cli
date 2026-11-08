@@ -71,7 +71,9 @@ func TestScanCloudBuild_FullChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v", err)
 	}
@@ -159,7 +161,9 @@ func TestScanCloudBuild_WorkerPoolsPermissionDeniedContinuesToConnections(t *tes
 	t.Cleanup(srv.Close)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v", err)
 	}
@@ -204,7 +208,9 @@ func TestScanCloudBuild_ConnectionsAPINotEnabledShapeDoesNotDisableWholeService(
 	t.Cleanup(srv.Close)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v (Connections.List's isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -239,7 +245,9 @@ func TestScanCloudBuild_GHEConfigFoundOnlyAtLocationScope(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v", err)
 	}
@@ -291,7 +299,9 @@ func TestScanCloudBuild_GHEConfigsAPINotEnabledShapeDoesNotDisableWholeService(t
 	t.Cleanup(srv.Close)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v (GithubEnterpriseConfigs' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -314,7 +324,9 @@ func TestScanCloudBuild_EmptyProjectNoLocations(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc, svc2 := fakeCloudBuildServices(t, srv)
 
-	total, inserted, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudBuildWithClient(t.Context(), svc, svc2, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudBuildWithClient: %v", err)
 	}

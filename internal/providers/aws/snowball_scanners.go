@@ -38,7 +38,7 @@ type snowballAPI interface {
 	DescribeCluster(context.Context, *snowball.DescribeClusterInput, ...func(*snowball.Options)) (*snowball.DescribeClusterOutput, error)
 }
 
-func scanSnowball(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowball(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := snowball.NewFromConfig(acct.cfg, func(o *snowball.Options) { o.Region = region })
 	return scanSnowballAll(ctx, client, acct, region, st, scanID)
 }
@@ -50,13 +50,13 @@ func scanSnowball(ctx context.Context, acct *account, region string, st *store.S
 // demoted to a warning only beside the other phase's hard error, so the
 // dispatcher neither reports that hard error as transient nor reads a lone
 // throttle as a complete scan.
-func scanSnowballAll(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowballAll(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var errs phaseErrs
-	total, inserted, err := scanSnowballClusters(ctx, client, acct, region, st, scanID)
+	total, err := scanSnowballClusters(ctx, client, acct, region, st, scanID)
 	errs.add(snowballListClustersOp, err)
-	t, i, err := scanSnowballAddressesOnce(ctx, client, acct, region, st, scanID)
+	t, err := scanSnowballAddressesOnce(ctx, client, acct, region, st, scanID)
 	errs.add(snowballDescribeAddressesOp, err)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // snowballAddressGate lets one US region at a time list the account's
@@ -97,22 +97,22 @@ func (g *snowballAddressGate) release() { <-g.slot }
 // nothing for addresses: it made no call, and the holder reports its own
 // call's outcome, so a deadline here would blame this region for a wait it
 // did not cause.
-func scanSnowballAddressesOnce(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowballAddressesOnce(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if !isSnowballUSRegion(region) {
-		_, total, inserted, err := scanSnowballAddresses(ctx, client, acct, region, region, st, scanID)
-		return total, inserted, err
+		_, total, err := scanSnowballAddresses(ctx, client, acct, region, region, st, scanID)
+		return total, err
 	}
 	gate := &acct.snowballUSAddresses
 	if !gate.acquire(ctx) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	defer gate.release()
 	if gate.done {
-		return 0, 0, nil
+		return 0, nil
 	}
-	complete, total, inserted, err := scanSnowballAddresses(ctx, client, acct, region, snowballUSAddressRegion(acct.dispatchedRegions(snowballService), region), st, scanID)
+	complete, total, err := scanSnowballAddresses(ctx, client, acct, region, snowballUSAddressRegion(acct.dispatchedRegions(snowballService), region), st, scanID)
 	gate.done = complete
-	return total, inserted, err
+	return total, err
 }
 
 // snowballUSAddressRegion is the Region stored on a US address: the first
@@ -156,7 +156,7 @@ func snowballClusterNativeID(partition, region, accountID, clusterID string) str
 // does not say which region it was created in, so rowRegion, chosen by the
 // caller, is stored as its Region; region is the region called. complete
 // reports that every page was stored.
-func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *account, region, rowRegion string, st *store.Store, scanID string) (complete bool, total, inserted int, err error) {
+func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *account, region, rowRegion string, st *store.Store, scanID string) (complete bool, total int, err error) {
 	pager := snowball.NewDescribeAddressesPaginator(client, &snowball.DescribeAddressesInput{},
 		func(o *snowball.DescribeAddressesPaginatorOptions) {
 			o.Limit = snowballPageCap
@@ -166,13 +166,13 @@ func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *accoun
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return false, total, inserted, skipIfAccessDenied(st, snowballDescribeAddressesOp, acct.ID, region, perr)
+				return false, total, skipIfAccessDenied(st, snowballDescribeAddressesOp, acct.ID, region, perr)
 			}
 			// InvalidResourceException, which the model lists for this op, is
 			// believed unreachable for an unfiltered listing (an account with
 			// no addresses is expected to get an empty list; unverified), so
 			// it stays a hard error.
-			return false, total, inserted, fmt.Errorf("%s: %w", snowballDescribeAddressesOp, perr)
+			return false, total, fmt.Errorf("%s: %w", snowballDescribeAddressesOp, perr)
 		}
 		batch := make([]*store.Resource, 0, len(out.Addresses))
 		for _, a := range out.Addresses {
@@ -186,13 +186,13 @@ func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *accoun
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
-		t, i, uerr := upsertBatch(st, batch, "snowball addresses")
-		total, inserted = total+t, inserted+i
+		t, uerr := upsertBatch(st, batch, "snowball addresses")
+		total += t
 		if uerr != nil {
-			return false, total, inserted, uerr
+			return false, total, uerr
 		}
 	}
-	return true, total, inserted, nil
+	return true, total, nil
 }
 
 // scanSnowballClusters lists the cluster ids, then reads each cluster with
@@ -201,7 +201,7 @@ func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *accoun
 // Cancelled included: the API has no delete, and the model documents no
 // retention after which a finished cluster drops out of the listing. A
 // failed listing still reads and stores the clusters listed before it.
-func scanSnowballClusters(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowballClusters(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var ids []string
 	var listErr error
 	pager := snowball.NewListClustersPaginator(client, &snowball.ListClustersInput{},
@@ -242,8 +242,8 @@ func scanSnowballClusters(ctx context.Context, client snowballAPI, acct *account
 				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			}, nil
 		})
-	total, inserted, uerr := upsertBatch(st, rows, "snowball clusters")
-	return total, inserted, errors.Join(listErr, derr, uerr)
+	total, uerr := upsertBatch(st, rows, "snowball clusters")
+	return total, errors.Join(listErr, derr, uerr)
 }
 
 // isSnowballClusterGone matches a cluster that disappeared between

@@ -65,7 +65,7 @@ type codePipelineAPI interface {
 	ListTagsForResource(context.Context, *codepipeline.ListTagsForResourceInput, ...func(*codepipeline.Options)) (*codepipeline.ListTagsForResourceOutput, error)
 }
 
-func scanCodePipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodePipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := codepipeline.NewFromConfig(acct.cfg, func(o *codepipeline.Options) { o.Region = region })
 	return scanCodePipelineAll(ctx, client, acct, region, st, scanID)
 }
@@ -78,21 +78,21 @@ func scanCodePipeline(ctx context.Context, acct *account, region string, st *sto
 // region does not serve the service) (runHostPhases). Pipelines and custom
 // action types have their tags read per row (cplTags), whose denials are one
 // warning for the scan; a webhook's tags come with its listed element.
-func scanCodePipelineAll(ctx context.Context, client codePipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodePipelineAll(ctx context.Context, client codePipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := cplTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "codepipeline", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "codepipeline", 0, []hostPhase{
 		{op: cplListPipelinesOp, run: func(p *phaseTotals) bool {
 			return scanCPPipelines(ctx, client, acct, region, st, scanID, tags, p)
 		}},
 		{op: cplListActionTypesOp, run: func(p *phaseTotals) bool {
 			return scanCPCustomActionTypes(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, cplListWebhooksOp, func() (int, int, error) {
+		countedPhase(0, cplListWebhooksOp, func() (int, error) {
 			return scanCPWebhooks(ctx, client, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // cplTagKV is a CodePipeline tag's key and value.
@@ -209,7 +209,7 @@ func scanCPCustomActionTypes(ctx context.Context, client codePipelineAPI, acct *
 
 // scanCPWebhooks stores the webhooks under their listed ARN, named by their
 // definition's name, with the tags their listed element carries.
-func scanCPWebhooks(ctx context.Context, client codePipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCPWebhooks(ctx context.Context, client codePipelineAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, cplListWebhooksOp,
 		func(ctx context.Context, token *string) ([]types.ListWebhookItem, *string, error) {
 			out, err := client.ListWebhooks(ctx, &codepipeline.ListWebhooksInput{MaxResults: sdkaws.Int32(cplPageCap), NextToken: token})

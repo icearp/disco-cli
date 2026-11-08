@@ -218,7 +218,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			total, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
 			reportServiceOutcome(st, svc.name, "global", acct.ID, writeCounts{total, int(newC.Load()), int(changedC.Load()), int(quotaNewC.Load()), int(quotaChangedC.Load())}, err)
 		})
 	}
@@ -368,7 +368,7 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			total, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
 			reportServiceOutcome(st, svc.name, region, acct.ID+"/"+region, writeCounts{total, int(newC.Load()), int(changedC.Load()), int(quotaNewC.Load()), int(quotaChangedC.Load())}, err)
 		})
 	}

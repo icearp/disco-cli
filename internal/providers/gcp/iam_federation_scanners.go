@@ -52,49 +52,45 @@ const maxConcurrentIAMFanout = 10
 // skipped — WorkforcePool and custom Role have no folder-level List
 // endpoint): WorkforcePool → Provider → ScimTenant, plus org-scoped custom
 // Roles.
-func scanIAMOrgScoped(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMOrgScoped(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := iam.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("iam client: %w", err)
+		return 0, fmt.Errorf("iam client: %w", err)
 	}
 	for _, sc := range scopes {
 		if sc.Kind != "organization" {
 			continue
 		}
-		t, n, poolNativeIDs, perr := scanIAMWorkforcePools(ctx, svc, sc, st, scanID)
+		t, poolNativeIDs, perr := scanIAMWorkforcePools(ctx, svc, sc, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
-		t, n, providerNativeIDs, perr := scanIAMWorkforceProviders(ctx, svc, sc, poolNativeIDs, st, scanID)
+		t, providerNativeIDs, perr := scanIAMWorkforceProviders(ctx, svc, sc, poolNativeIDs, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
-		t, n, perr = scanIAMWorkforceScimTenants(ctx, svc, sc, providerNativeIDs, st, scanID)
+		t, perr = scanIAMWorkforceScimTenants(ctx, svc, sc, providerNativeIDs, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
-		t, n, perr = scanIAMOrgRoles(ctx, svc, sc, st, scanID)
+		t, perr = scanIAMOrgRoles(ctx, svc, sc, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIAMWorkforcePools lists WorkforcePools for the given org scope
 // (location fixed at "locations/global" — the only location this API
 // supports today, same precedent as certificatemanager/cloudbuild). Returns
 // every scanned pool's native ID so the Provider phase can fan out.
-func scanIAMWorkforcePools(ctx context.Context, svc *iam.Service, sc orgScope, st *store.Store, scanID string) (total, inserted int, poolNativeIDs []string, err error) {
+func scanIAMWorkforcePools(ctx context.Context, svc *iam.Service, sc orgScope, st *store.Store, scanID string) (total int, poolNativeIDs []string, err error) {
 	var batch []*store.Resource
 	listErr := svc.Locations.WorkforcePools.List("locations/global").Parent(sc.Name).Pages(ctx, func(page *iam.ListWorkforcePoolsResponse) error {
 		for _, wp := range page.WorkforcePools {
@@ -118,24 +114,24 @@ func scanIAMWorkforcePools(ctx context.Context, svc *iam.Service, sc orgScope, s
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, nil, skipIfDenied(st, "iam:workforcePools.list", sc.Name, listErr)
+			return 0, nil, skipIfDenied(st, "iam:workforcePools.list", sc.Name, listErr)
 		}
-		return 0, 0, nil, listErr
+		return 0, nil, listErr
 	}
 	if len(batch) == 0 {
-		return 0, 0, poolNativeIDs, nil
+		return 0, poolNativeIDs, nil
 	}
-	t, n, uerr := upsertWithParent(st, batch, sc.Resource)
+	t, uerr := upsertWithParent(st, batch, sc.Resource)
 	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert IAM workforce pools: %w", uerr)
+		return 0, nil, fmt.Errorf("upsert IAM workforce pools: %w", uerr)
 	}
-	return t, n, poolNativeIDs, nil
+	return t, poolNativeIDs, nil
 }
 
 // scanIAMWorkforceProviders fans out WorkforcePools.Providers.List per
 // already-scanned pool. Returns every scanned provider's native ID so the
 // ScimTenant phase can fan out.
-func scanIAMWorkforceProviders(ctx context.Context, svc *iam.Service, sc orgScope, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, providerNativeIDs []string, err error) {
+func scanIAMWorkforceProviders(ctx context.Context, svc *iam.Service, sc orgScope, poolNativeIDs []string, st *store.Store, scanID string) (total int, providerNativeIDs []string, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
 		poolID := store.ResourceID("gcp", sc.Name, poolNativeID)
@@ -169,20 +165,19 @@ func scanIAMWorkforceProviders(ctx context.Context, svc *iam.Service, sc orgScop
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, poolID)
+		t, uerr := upsertWithParent(st, batch, poolID)
 		total += t
-		inserted += n
 		providerNativeIDs = append(providerNativeIDs, provNativeIDs...)
 		return uerr
 	}); err != nil {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, providerNativeIDs, nil
+	return total, providerNativeIDs, nil
 }
 
 // scanIAMWorkforceScimTenants fans out
 // WorkforcePools.Providers.ScimTenants.List per already-scanned provider.
-func scanIAMWorkforceScimTenants(ctx context.Context, svc *iam.Service, sc orgScope, providerNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMWorkforceScimTenants(ctx context.Context, svc *iam.Service, sc orgScope, providerNativeIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, providerNativeIDs, func(gctx context.Context, providerNativeID string) error {
 		providerID := store.ResourceID("gcp", sc.Name, providerNativeID)
@@ -214,21 +209,20 @@ func scanIAMWorkforceScimTenants(ctx context.Context, svc *iam.Service, sc orgSc
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, providerID)
+		t, uerr := upsertWithParent(st, batch, providerID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIAMOrgRoles lists organization-scoped custom roles.
 // OrganizationsRolesService.List only ever returns custom roles — the
 // predefined-role catalog is a separate top-level RolesService this scanner
 // never calls.
-func scanIAMOrgRoles(ctx context.Context, svc *iam.Service, sc orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMOrgRoles(ctx context.Context, svc *iam.Service, sc orgScope, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	parent := sc.Name
 	listErr := svc.Organizations.Roles.List(parent).Pages(ctx, func(page *iam.ListRolesResponse) error {
@@ -255,76 +249,69 @@ func scanIAMOrgRoles(ctx context.Context, svc *iam.Service, sc orgScope, st *sto
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, skipIfDenied(st, "iam:organizations.roles.list", parent, listErr)
+			return 0, skipIfDenied(st, "iam:organizations.roles.list", parent, listErr)
 		}
-		return 0, 0, listErr
+		return 0, listErr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	t, n, uerr := upsertWithParent(st, batch, sc.Resource)
+	t, uerr := upsertWithParent(st, batch, sc.Resource)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert IAM org roles: %w", uerr)
+		return 0, fmt.Errorf("upsert IAM org roles: %w", uerr)
 	}
-	return t, n, nil
+	return t, nil
 }
 
 // scanIAMProjectScoped runs once per project: WorkloadIdentityPool →
 // Provider, WorkloadIdentityPool → Namespace → ManagedIdentity, OauthClient
 // → Credential, and project-scoped custom Roles.
-func scanIAMProjectScoped(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMProjectScoped(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := iam.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("iam client: %w", err)
+		return 0, fmt.Errorf("iam client: %w", err)
 	}
 
-	t, n, poolNativeIDs, err := scanIAMWorkloadIdentityPools(ctx, svc, p, st, scanID)
+	t, poolNativeIDs, err := scanIAMWorkloadIdentityPools(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanIAMWorkloadIdentityProviders(ctx, svc, p, poolNativeIDs, st, scanID)
+	t, err = scanIAMWorkloadIdentityProviders(ctx, svc, p, poolNativeIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, namespaceNativeIDs, err := scanIAMWorkloadIdentityNamespaces(ctx, svc, p, poolNativeIDs, st, scanID)
+	t, namespaceNativeIDs, err := scanIAMWorkloadIdentityNamespaces(ctx, svc, p, poolNativeIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanIAMWorkloadIdentityManagedIdentities(ctx, svc, p, namespaceNativeIDs, st, scanID)
+	t, err = scanIAMWorkloadIdentityManagedIdentities(ctx, svc, p, namespaceNativeIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, oauthClientNativeIDs, err := scanIAMOauthClients(ctx, svc, p, st, scanID)
+	t, oauthClientNativeIDs, err := scanIAMOauthClients(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanIAMOauthClientCredentials(ctx, svc, p, oauthClientNativeIDs, st, scanID)
+	t, err = scanIAMOauthClientCredentials(ctx, svc, p, oauthClientNativeIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanIAMProjectRoles(ctx, svc, p, st, scanID)
+	t, err = scanIAMProjectRoles(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanIAMWorkloadIdentityPools lists WorkloadIdentityPools for the project
 // (location fixed at "locations/global"). Returns every scanned pool's
 // native ID so the Provider and Namespace phases can fan out.
-func scanIAMWorkloadIdentityPools(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total, inserted int, poolNativeIDs []string, err error) {
+func scanIAMWorkloadIdentityPools(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total int, poolNativeIDs []string, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/global", p.ID)
 	var batch []*store.Resource
 	listErr := svc.Projects.Locations.WorkloadIdentityPools.List(parent).Pages(ctx, func(page *iam.ListWorkloadIdentityPoolsResponse) error {
@@ -349,25 +336,25 @@ func scanIAMWorkloadIdentityPools(ctx context.Context, svc *iam.Service, p *proj
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, nil, skipIfDenied(st, "iam:workloadIdentityPools.list", parent, listErr)
+			return 0, nil, skipIfDenied(st, "iam:workloadIdentityPools.list", parent, listErr)
 		}
-		return 0, 0, nil, listErr
+		return 0, nil, listErr
 	}
 	if len(batch) == 0 {
-		return 0, 0, poolNativeIDs, nil
+		return 0, poolNativeIDs, nil
 	}
-	t, n, uerr := upsertWithProjClosure(p, st, batch)
+	t, uerr := upsertWithProjClosure(p, st, batch)
 	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert IAM workload identity pools: %w", uerr)
+		return 0, nil, fmt.Errorf("upsert IAM workload identity pools: %w", uerr)
 	}
-	return t, n, poolNativeIDs, nil
+	return t, poolNativeIDs, nil
 }
 
 // scanIAMWorkloadIdentityProviders fans out
 // WorkloadIdentityPools.Providers.List per already-scanned pool. Shares
 // TypeIAMProvider with the workforce-side scanner (see TypeIAMProvider's doc
 // comment in gcp_types.go).
-func scanIAMWorkloadIdentityProviders(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMWorkloadIdentityProviders(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
 		poolID := store.ResourceID("gcp", p.ID, poolNativeID)
@@ -399,21 +386,20 @@ func scanIAMWorkloadIdentityProviders(ctx context.Context, svc *iam.Service, p *
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, poolID)
+		t, uerr := upsertWithParent(st, batch, poolID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIAMWorkloadIdentityNamespaces fans out
 // WorkloadIdentityPools.Namespaces.List per already-scanned pool (a sibling
 // of Providers under the pool, not nested beneath it). Returns every
 // scanned namespace's native ID so the ManagedIdentity phase can fan out.
-func scanIAMWorkloadIdentityNamespaces(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total, inserted int, namespaceNativeIDs []string, err error) {
+func scanIAMWorkloadIdentityNamespaces(ctx context.Context, svc *iam.Service, p *project, poolNativeIDs []string, st *store.Store, scanID string) (total int, namespaceNativeIDs []string, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, poolNativeIDs, func(gctx context.Context, poolNativeID string) error {
 		poolID := store.ResourceID("gcp", p.ID, poolNativeID)
@@ -447,21 +433,20 @@ func scanIAMWorkloadIdentityNamespaces(ctx context.Context, svc *iam.Service, p 
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, poolID)
+		t, uerr := upsertWithParent(st, batch, poolID)
 		total += t
-		inserted += n
 		namespaceNativeIDs = append(namespaceNativeIDs, nsNativeIDs...)
 		return uerr
 	}); err != nil {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
-	return total, inserted, namespaceNativeIDs, nil
+	return total, namespaceNativeIDs, nil
 }
 
 // scanIAMWorkloadIdentityManagedIdentities fans out
 // WorkloadIdentityPools.Namespaces.ManagedIdentities.List per already-scanned
 // namespace.
-func scanIAMWorkloadIdentityManagedIdentities(ctx context.Context, svc *iam.Service, p *project, namespaceNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMWorkloadIdentityManagedIdentities(ctx context.Context, svc *iam.Service, p *project, namespaceNativeIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, namespaceNativeIDs, func(gctx context.Context, nsNativeID string) error {
 		nsID := store.ResourceID("gcp", p.ID, nsNativeID)
@@ -493,20 +478,19 @@ func scanIAMWorkloadIdentityManagedIdentities(ctx context.Context, svc *iam.Serv
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, nsID)
+		t, uerr := upsertWithParent(st, batch, nsID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIAMOauthClients lists OauthClients for the project (location fixed at
 // "locations/global"). Returns every scanned client's native ID so the
 // Credential phase can fan out.
-func scanIAMOauthClients(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total, inserted int, clientNativeIDs []string, err error) {
+func scanIAMOauthClients(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total int, clientNativeIDs []string, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/global", p.ID)
 	var batch []*store.Resource
 	listErr := svc.Projects.Locations.OauthClients.List(parent).Pages(ctx, func(page *iam.ListOauthClientsResponse) error {
@@ -534,25 +518,25 @@ func scanIAMOauthClients(ctx context.Context, svc *iam.Service, p *project, st *
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, nil, skipIfDenied(st, "iam:oauthClients.list", parent, listErr)
+			return 0, nil, skipIfDenied(st, "iam:oauthClients.list", parent, listErr)
 		}
-		return 0, 0, nil, listErr
+		return 0, nil, listErr
 	}
 	if len(batch) == 0 {
-		return 0, 0, clientNativeIDs, nil
+		return 0, clientNativeIDs, nil
 	}
-	t, n, uerr := upsertWithProjClosure(p, st, batch)
+	t, uerr := upsertWithProjClosure(p, st, batch)
 	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert IAM oauth clients: %w", uerr)
+		return 0, nil, fmt.Errorf("upsert IAM oauth clients: %w", uerr)
 	}
-	return t, n, clientNativeIDs, nil
+	return t, clientNativeIDs, nil
 }
 
 // scanIAMOauthClientCredentials fans out OauthClients.Credentials.List per
 // already-scanned OauthClient. Single-page `.Do()` call — no `.Pages()`
 // method on this list call (same single-page shape as sqladmin's
 // Databases/SslCerts/Users in Wave 8d).
-func scanIAMOauthClientCredentials(ctx context.Context, svc *iam.Service, p *project, clientNativeIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMOauthClientCredentials(ctx context.Context, svc *iam.Service, p *project, clientNativeIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentIAMFanout, clientNativeIDs, func(gctx context.Context, clientNativeID string) error {
 		clientID := store.ResourceID("gcp", p.ID, clientNativeID)
@@ -585,19 +569,18 @@ func scanIAMOauthClientCredentials(ctx context.Context, svc *iam.Service, p *pro
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, clientID)
+		t, uerr := upsertWithParent(st, batch, clientID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanIAMProjectRoles lists project-scoped custom roles. Same rationale as
 // scanIAMOrgRoles: ProjectsRolesService.List only ever returns custom roles.
-func scanIAMProjectRoles(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMProjectRoles(ctx context.Context, svc *iam.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var batch []*store.Resource
 	listErr := svc.Projects.Roles.List(parent).Pages(ctx, func(page *iam.ListRolesResponse) error {
@@ -624,16 +607,16 @@ func scanIAMProjectRoles(ctx context.Context, svc *iam.Service, p *project, st *
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, skipIfDenied(st, "iam:projects.roles.list", parent, listErr)
+			return 0, skipIfDenied(st, "iam:projects.roles.list", parent, listErr)
 		}
-		return 0, 0, listErr
+		return 0, listErr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	t, n, uerr := upsertWithProjClosure(p, st, batch)
+	t, uerr := upsertWithProjClosure(p, st, batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert IAM project roles: %w", uerr)
+		return 0, fmt.Errorf("upsert IAM project roles: %w", uerr)
 	}
-	return t, n, nil
+	return t, nil
 }

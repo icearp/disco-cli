@@ -102,14 +102,14 @@ type waParents struct {
 // consolidated reports (computed from the review), milestones (point-in-time
 // snapshots), profile notifications and share invitations (transient), and the
 // agent's recommendations and recommendation generations.
-func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := wellarchitected.NewFromConfig(acct.cfg, func(o *wellarchitected.Options) { o.Region = region })
 	tags := waTags(client).sharingDenials()
 	var (
 		p        waParents
 		profiles []childParent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "wellarchitected", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "wellarchitected", 0, []hostPhase{
 		{op: waListWorkloadsOp, run: func(pt *phaseTotals) bool {
 			return scanWAWorkloads(ctx, client, acct, region, st, scanID, tags, pt, &p)
 		}},
@@ -122,35 +122,35 @@ func scanWellArchitected(ctx context.Context, acct *account, region string, st *
 		{op: waListReviewTemplatesOp, run: func(pt *phaseTotals) bool {
 			return scanWAReviewTemplates(ctx, client, acct, region, st, scanID, tags, pt, &p)
 		}},
-		countedPhase(0, "wellarchitected:ListLensReviews", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListLensReviews", func() (int, error) {
 			return scanWALensReviews(ctx, client, p.workloads, acct, region, st, scanID)
 		}),
-		countedPhase(0, "wellarchitected:ListWorkloadShares", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListWorkloadShares", func() (int, error) {
 			return scanWAWorkloadShares(ctx, client, p.ownedWorkloads, acct, region, st, scanID)
 		}),
-		countedPhase(0, "wellarchitected:ListLensShares", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListLensShares", func() (int, error) {
 			return scanWALensShares(ctx, client, p.ownedLenses, acct, region, st, scanID)
 		}),
-		countedPhase(0, "wellarchitected:ListProfileShares", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListProfileShares", func() (int, error) {
 			return scanWAProfileShares(ctx, client, p.ownedProfiles, acct, region, st, scanID)
 		}),
-		countedPhase(0, "wellarchitected:ListTemplateShares", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListTemplateShares", func() (int, error) {
 			return scanWATemplateShares(ctx, client, p.ownedTemplates, acct, region, st, scanID)
 		}),
 		{op: "wellarchitected:ListAgentProfiles", run: func(pt *phaseTotals) bool {
-			t, i, listed, perr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
+			t, listed, perr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
 			profiles = listed
-			return pt.addPhase("wellarchitected:ListAgentProfiles", t, i, perr)
+			return pt.addPhase("wellarchitected:ListAgentProfiles", t, perr)
 		}},
-		countedPhase(0, "wellarchitected:ListAgentContexts", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListAgentContexts", func() (int, error) {
 			return scanWAAgentContexts(ctx, client, profiles, acct, region, st, scanID)
 		}),
-		countedPhase(0, "wellarchitected:ListAgentGoals", func() (int, int, error) {
+		countedPhase(0, "wellarchitected:ListAgentGoals", func() (int, error) {
 			return scanWAAgentGoals(ctx, client, profiles, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // waTags reads the tags of a workload, custom lens, profile or review
@@ -373,7 +373,7 @@ func isWAParentGone(err error) bool {
 // of its own and per-lens risk counts the workload summary only totals. The
 // API gives no ARN; NativeID is {workloadARN}/lens-review/{key}, key being
 // waLensReviewKey of the LensAlias GetLensReview takes.
-func scanWALensReviews(ctx context.Context, client wellArchitectedAPI, workloads []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWALensReviews(ctx context.Context, client wellArchitectedAPI, workloads []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "wellarchitected:ListLensReviews", workloads, isWAParentGone,
 		func(gctx context.Context, w childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -431,7 +431,7 @@ func waShareRow(acct *account, region, scanID, typ string, parent childParent, s
 	}
 }
 
-func scanWAWorkloadShares(ctx context.Context, client wellArchitectedAPI, workloads []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAWorkloadShares(ctx context.Context, client wellArchitectedAPI, workloads []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "wellarchitected:ListWorkloadShares", workloads, isWAParentGone,
 		func(gctx context.Context, w childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -454,7 +454,7 @@ func scanWAWorkloadShares(ctx context.Context, client wellArchitectedAPI, worklo
 // scanWALensShares lists the shares of each custom lens this account owns.
 // AWS-official and shared-in lenses are never passed in, so a
 // ValidationException here is unexpected and fails the phase.
-func scanWALensShares(ctx context.Context, client wellArchitectedAPI, lenses []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWALensShares(ctx context.Context, client wellArchitectedAPI, lenses []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "wellarchitected:ListLensShares", lenses, isWAParentGone,
 		func(gctx context.Context, l childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -474,7 +474,7 @@ func scanWALensShares(ctx context.Context, client wellArchitectedAPI, lenses []c
 		})
 }
 
-func scanWAProfileShares(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAProfileShares(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "wellarchitected:ListProfileShares", profiles, isWAParentGone,
 		func(gctx context.Context, pr childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -494,7 +494,7 @@ func scanWAProfileShares(ctx context.Context, client wellArchitectedAPI, profile
 		})
 }
 
-func scanWATemplateShares(ctx context.Context, client wellArchitectedAPI, templates []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWATemplateShares(ctx context.Context, client wellArchitectedAPI, templates []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOut(ctx, st, acct, region, "wellarchitected:ListTemplateShares", templates, isWAParentGone,
 		func(gctx context.Context, tm childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -539,7 +539,7 @@ func isWAAgentChildOpGap(err error) bool {
 // first-page isWAAgentOpGap is a silent gap. Rows read before a later failure
 // are kept. It returns the profiles it stored, the parents of the context and
 // goal phases; none when the store write failed.
-func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	const op = "wellarchitected:ListAgentProfiles"
 	pager := wellarchitected.NewListAgentProfilesPaginator(client, &wellarchitected.ListAgentProfilesInput{},
 		func(o *wellarchitected.ListAgentProfilesPaginatorOptions) {
@@ -555,7 +555,7 @@ func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *a
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if firstPage && isWAAgentOpGap(err) {
-				return 0, 0, nil, nil
+				return 0, nil, nil
 			}
 			listErr = err
 			break
@@ -575,20 +575,20 @@ func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *a
 			profiles = append(profiles, childParent{id: arn, arn: arn})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "wellarchitected agent-profiles")
+	total, err := upsertBatch(st, batch, "wellarchitected agent-profiles")
 	if err != nil {
 		if listErr != nil {
 			err = errors.Join(err, fmt.Errorf("%s: %w", op, listErr))
 		}
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
 	switch {
 	case listErr == nil:
-		return total, inserted, profiles, nil
+		return total, profiles, nil
 	case isAccessDenied(listErr):
-		return total, inserted, profiles, skipIfAccessDenied(st, op, acct.ID, region, listErr)
+		return total, profiles, skipIfAccessDenied(st, op, acct.ID, region, listErr)
 	default:
-		return total, inserted, profiles, fmt.Errorf("%s: %w", op, listErr)
+		return total, profiles, fmt.Errorf("%s: %w", op, listErr)
 	}
 }
 
@@ -604,7 +604,7 @@ func scanWAAgentProfiles(ctx context.Context, client wellArchitectedAPI, acct *a
 // path, do; a profile deleted after its listing is therefore skipped silently
 // on it (isWAParentGone). The live response is unverified. A first-page
 // isWAAgentChildOpGap skips the profile silently; an untyped 404 is returned.
-func scanWAAgentContexts(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAAgentContexts(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, "wellarchitected:ListAgentContexts", profiles, isWAParentGone, byParentARN,
 		func(gctx context.Context, pr childParent) ([]*store.Resource, error) {
 			pager := wellarchitected.NewListAgentContextsPaginator(client, &wellarchitected.ListAgentContextsInput{ProfileArn: &pr.id},
@@ -644,7 +644,7 @@ func scanWAAgentContexts(ctx context.Context, client wellArchitectedAPI, profile
 // no describe call is made. The API gives no ARN and the service reference
 // defines none; NativeID is {profileARN}/goal/{Id}. Errors are handled as in
 // scanWAAgentContexts, ListAgentGoals modelling the same codes.
-func scanWAAgentGoals(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAAgentGoals(ctx context.Context, client wellArchitectedAPI, profiles []childParent, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, "wellarchitected:ListAgentGoals", profiles, isWAParentGone, byParentARN,
 		func(gctx context.Context, pr childParent) ([]*store.Resource, error) {
 			pager := wellarchitected.NewListAgentGoalsPaginator(client, &wellarchitected.ListAgentGoalsInput{ProfileArn: &pr.id},

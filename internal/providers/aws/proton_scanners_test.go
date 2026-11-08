@@ -256,7 +256,7 @@ func protonHandlers(t *testing.T, c *protonCalls) map[string]func(any) (any, err
 
 // protonScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func protonScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func protonScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, protonDenied)
 	return scanProton(ctx, acct, testRegion, st, testScanID)
@@ -311,7 +311,9 @@ func TestScanProton_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newProtonCalls(t)
 
-	total, inserted, err := protonScan(context.Background(), st, protonHandlers(t, calls))
+	counted, upserts := countUpserts(st)
+	total, err := protonScan(context.Background(), counted, protonHandlers(t, calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -405,7 +407,7 @@ func TestScanProton_TagReadFailures(t *testing.T) {
 					calls := newProtonCalls(t)
 					calls.errs[target.arn] = c.err
 
-					total, _, err := protonScan(context.Background(), st, protonHandlers(t, calls))
+					total, err := protonScan(context.Background(), st, protonHandlers(t, calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -469,7 +471,7 @@ func TestScanProton_ForeignConnectionTagRead(t *testing.T) {
 				return &proton.ListEnvironmentAccountConnectionsOutput{EnvironmentAccountConnections: []protontypes.EnvironmentAccountConnectionSummary{protonConn(foreign, "foreign")}}, nil
 			}
 
-			_, _, err := protonScan(context.Background(), st, handlers)
+			_, err := protonScan(context.Background(), st, handlers)
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ValidationException")
@@ -504,7 +506,7 @@ func TestScanProton_EmptyStatusStoresNil(t *testing.T) {
 		return &proton.ListServicesOutput{Services: []protontypes.ServiceSummary{{Arn: &arn, Name: sdkaws.String("svc-tagged")}}}, nil
 	}
 
-	if _, _, err := protonScan(context.Background(), st, handlers); err != nil {
+	if _, err := protonScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := protonRowOf(t, st, TypeProtonService, arn)
@@ -545,7 +547,7 @@ func TestScanProton_TagReadPages(t *testing.T) {
 		st := newTestStore(t)
 		handlers := protonHandlers(t, newProtonCalls(t))
 		handlers["ListTagsForResource"] = pages(nil)
-		if _, _, err := protonScan(context.Background(), st, handlers); err != nil {
+		if _, err := protonScan(context.Background(), st, handlers); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		r, _ := protonRowOf(t, st, TypeProtonComponent, arn)
@@ -555,7 +557,7 @@ func TestScanProton_TagReadPages(t *testing.T) {
 		st := newTestStore(t)
 		handlers := protonHandlers(t, newProtonCalls(t))
 		handlers["ListTagsForResource"] = pages(sdkaws.String("p2"))
-		_, _, err := protonScan(context.Background(), st, handlers)
+		_, err := protonScan(context.Background(), st, handlers)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -576,7 +578,7 @@ func TestScanProton_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[protonARN(protonKindOf(t, "ListRepositories"), "tagged")] = protonThrottle
 	calls.errs[protonARN(protonKindOf(t, "ListServices"), "bare")] = protonValidation
 
-	_, _, err := protonScan(context.Background(), st, protonHandlers(t, calls))
+	_, err := protonScan(context.Background(), st, protonHandlers(t, calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -611,7 +613,7 @@ func TestScanProton_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := protonHandlers(t, newProtonCalls(t))
 			delete(handlers, c.op)
 
-			total, _, err := protonScan(context.Background(), st, handlers)
+			total, err := protonScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -660,7 +662,7 @@ func TestScanProton_VersionListingPerTemplate(t *testing.T) {
 					return next(in)
 				}
 
-				total, _, err := protonScan(context.Background(), st, handlers)
+				total, err := protonScan(context.Background(), st, handlers)
 				if c.wantErr {
 					assertGlueOutcome(t, err, outcomeError)
 					assertAPICode(t, err, "ValidationException")
@@ -692,7 +694,7 @@ func TestScanProton_TemplateGoneHasNoVersions(t *testing.T) {
 	k := protonKindOf(t, "ListEnvironmentTemplates")
 	calls.errs[protonARN(k, "bare")] = protonNotFound
 
-	if _, _, err := protonScan(context.Background(), st, protonHandlers(t, calls)); err != nil {
+	if _, err := protonScan(context.Background(), st, protonHandlers(t, calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := calls.templates[protonEnvVerOp]; slices.Contains(got, protonName(k, "bare")) {
@@ -750,7 +752,7 @@ func TestScanProton_ConnectionSides(t *testing.T) {
 				return calls.connections(in)
 			}
 
-			_, _, err := protonScan(context.Background(), st, handlers)
+			_, err := protonScan(context.Background(), st, handlers)
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ValidationException")
@@ -785,7 +787,7 @@ func TestScanProton_FailedWriteStopsWithoutWarning(t *testing.T) {
 		return conns(in)
 	}
 
-	_, _, err := protonScan(context.Background(), st, handlers)
+	_, err := protonScan(context.Background(), st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -805,7 +807,7 @@ func TestScanProton_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers := protonHandlers(t, newProtonCalls(t))
 	handlers["ListEnvironments"] = failOnCall(2, protonValidation, handlers["ListEnvironments"])
 
-	total, _, err := protonScan(context.Background(), st, handlers)
+	total, err := protonScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != protonTotalCount-1 {
@@ -835,7 +837,7 @@ func TestScanProton_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := protonScan(context.Background(), st, handlers)
+	total, err := protonScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -865,7 +867,7 @@ func TestScanProton_UnstorableItemsWarn(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := protonScan(context.Background(), st, handlers)
+	total, err := protonScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -897,7 +899,7 @@ func TestScanProton_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, protonDenied)
 
-	if _, _, err := scanProton(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanProton(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !slices.Equal(calls.tagARNs, []string{gov}) {
@@ -928,7 +930,7 @@ func TestScanProton_ContextEndStopsOnce(t *testing.T) {
 		return templates(in)
 	}
 
-	_, _, err := protonScan(ctx, st, handlers)
+	_, err := protonScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -957,7 +959,7 @@ func TestScanProton_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := protonHandlers(t, newProtonCalls(t))
 		handlers["ListRepositories"] = func(any) (any, error) { return nil, nx }
-		total, _, err := protonScan(context.Background(), st, handlers)
+		total, err := protonScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != protonTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, protonTotalCount-2)
@@ -967,7 +969,7 @@ func TestScanProton_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newProtonCalls(t)
 		calls.errs[protonConnARN(testAccountID, "bare")] = nx
-		_, _, err := protonScan(context.Background(), st, protonHandlers(t, calls))
+		_, err := protonScan(context.Background(), st, protonHandlers(t, calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -975,7 +977,7 @@ func TestScanProton_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanProton(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanProton(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

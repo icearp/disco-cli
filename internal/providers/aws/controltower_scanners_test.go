@@ -187,7 +187,7 @@ func ctowerHandlers(c *ctowerCalls) map[string]func(in any) (any, error) {
 
 // ctowerScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func ctowerScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func ctowerScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ctowerDenied)
 	return scanControlTower(ctx, acct, testRegion, st, testScanID)
@@ -229,7 +229,9 @@ func TestScanControlTower_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newCtowerCalls()
 
-	total, inserted, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := ctowerScan(context.Background(), counted, ctowerHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -292,16 +294,16 @@ func TestScanControlTower_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanControlTower_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls())); err != nil {
+	if _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls()))
+	total, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -319,7 +321,7 @@ func TestScanControlTower_Empty(t *testing.T) {
 	h := ctowerHandlers(calls)
 	h["ListLandingZones"] = func(any) (any, error) { return &controltower.ListLandingZonesOutput{}, nil }
 	h["ListEnabledBaselines"] = func(any) (any, error) { return &controltower.ListEnabledBaselinesOutput{}, nil }
-	total, _, err := ctowerScan(context.Background(), st, h)
+	total, err := ctowerScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -346,7 +348,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 		calls := newCtowerCalls()
 		h := ctowerHandlers(calls)
 		h["ListLandingZones"] = func(any) (any, error) { return nil, ctowerNotSetUp }
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeDisabled)
 		if total != 0 || calls.ctowerCount("ListEnabledBaselines") != 0 {
 			t.Errorf("total, ListEnabledBaselines calls = %d, %d; want 0, 0", total, calls.ctowerCount("ListEnabledBaselines"))
@@ -361,7 +363,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 			cancel()
 			return nil, ctowerNotSetUp
 		}
-		_, _, err := ctowerScan(ctx, st, h)
+		_, err := ctowerScan(ctx, st, h)
 		if !errors.Is(err, context.Canceled) || errors.Is(err, errServiceDisabled) {
 			t.Errorf("err = %v; want the stop, not the sentinel", err)
 		}
@@ -371,7 +373,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 		h := ctowerHandlers(newCtowerCalls())
 		h["ListLandingZones"] = func(any) (any, error) { return &controltower.ListLandingZonesOutput{}, nil }
 		h["ListEnabledBaselines"] = func(any) (any, error) { return nil, notSetUp }
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeDisabled)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -382,7 +384,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 		h := ctowerHandlers(newCtowerCalls())
 		h["ListLandingZones"] = func(any) (any, error) { return nil, ctowerConflict }
 		h["ListEnabledBaselines"] = func(any) (any, error) { return nil, notSetUp }
-		_, _, err := ctowerScan(context.Background(), st, h)
+		_, err := ctowerScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if errors.Is(err, errServiceDisabled) {
 			t.Errorf("err = %v; want no disabled sentinel", err)
@@ -402,7 +404,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 		st := newTestStore(t)
 		h := ctowerHandlers(newCtowerCalls())
 		h["ListEnabledBaselines"] = func(any) (any, error) { return nil, notSetUp }
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "ValidationException")
 		if total != 1 {
@@ -444,7 +446,7 @@ func TestScanControlTower_TagReadFailures(t *testing.T) {
 				calls := newCtowerCalls()
 				calls.errs[k.arn] = c.err
 
-				total, _, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
+				total, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -491,7 +493,7 @@ func TestScanControlTower_TagDenialsWarnOncePerScan(t *testing.T) {
 	for arn := range denied {
 		calls.errs[arn] = ctowerDenied
 	}
-	total, _, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
+	total, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -518,7 +520,7 @@ func TestScanControlTower_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[ctowerTestLZ] = ctowerThrottle
 	calls.errs[ctowerTestC2] = ctowerBadInput
 
-	_, _, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
+	_, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -556,7 +558,7 @@ func TestScanControlTower_GetLandingZoneFailures(t *testing.T) {
 				}
 				return &controltower.GetLandingZoneOutput{}, nil
 			}
-			total, _, err := ctowerScan(context.Background(), st, h)
+			total, err := ctowerScan(context.Background(), st, h)
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -628,7 +630,7 @@ func TestScanControlTower_ControlListingFailures(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := ctowerScan(context.Background(), st, h)
+			total, err := ctowerScan(context.Background(), st, h)
 			if c.outcome < 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -676,7 +678,7 @@ func TestScanControlTower_ControlListingFailures(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := ctowerScan(context.Background(), st, h)
+			total, err := ctowerScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, c.code)
 			if total != ctowerTestTotal-1 {
@@ -727,7 +729,7 @@ func TestScanControlTower_RefusedTargetsWarnOnce(t *testing.T) {
 			}
 			return nil, ctowerBadInput
 		}
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -759,7 +761,7 @@ func TestScanControlTower_WritesEachControlPageBeforeTheNext(t *testing.T) {
 		}
 		return list(in)
 	}
-	if _, _, err := ctowerScan(context.Background(), st, h); err != nil {
+	if _, err := ctowerScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !asked {
@@ -782,7 +784,7 @@ func TestScanControlTower_BaselineListingKeepsEarlierPages(t *testing.T) {
 			{Arn: sdkaws.String(ctowerTestB1), TargetIdentifier: sdkaws.String(ctowerTestOU)},
 		}}, nil
 	})
-	total, _, err := ctowerScan(context.Background(), st, h)
+	total, err := ctowerScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	// The landing zone, b1 and ou-1's two controls.
@@ -811,7 +813,7 @@ func TestScanControlTower_RepeatedTokenKeepsPages(t *testing.T) {
 			}
 			return &controltower.ListEnabledBaselinesOutput{NextToken: same, EnabledBaselines: []cttypes.EnabledBaselineSummary{{Arn: sdkaws.String(arn), TargetIdentifier: sdkaws.String(ctowerTestOU)}}}, nil
 		}
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -838,7 +840,7 @@ func TestScanControlTower_RepeatedTokenKeepsPages(t *testing.T) {
 			}
 			return &controltower.ListEnabledControlsOutput{NextToken: same, EnabledControls: []cttypes.EnabledControlSummary{ctowerControl(arn, ctowerTestOU)}}, nil
 		}
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -872,7 +874,7 @@ func TestScanControlTower_FailedWriteStopsScan(t *testing.T) {
 			calls.errs[ctowerTestB1] = ctowerDenied
 			calls.errs[ctowerTestC1] = ctowerDenied
 
-			total, _, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
+			total, err := ctowerScan(context.Background(), st, ctowerHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -899,7 +901,7 @@ func TestScanControlTower_BaselinesDenied(t *testing.T) {
 	warns := countOpWarnings(st, ctowerListBaselines)
 	h := ctowerHandlers(newCtowerCalls())
 	delete(h, "ListEnabledBaselines")
-	total, _, err := ctowerScan(context.Background(), st, h)
+	total, err := ctowerScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -940,7 +942,7 @@ func TestScanControlTower_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(h, ctowerDenied)
-			if _, _, err := scanControlTower(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanControlTower(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for arn, typ := range map[string]string{lz: TypeControlTowerLandingZone, control: TypeControlTowerEnabledControl} {
@@ -974,7 +976,7 @@ func TestScanControlTower_ContextEndReportedOnce(t *testing.T) {
 		cancel()
 		return nil, context.Canceled
 	}
-	_, _, err := ctowerScan(ctx, st, h)
+	_, err := ctowerScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1001,7 +1003,7 @@ func TestScanControlTower_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := ctowerHandlers(newCtowerCalls())
 		h["ListEnabledBaselines"] = func(any) (any, error) { return nil, nx }
-		total, _, err := ctowerScan(context.Background(), st, h)
+		total, err := ctowerScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 1 {
 			t.Errorf("total = %d; want 1", total)
@@ -1012,7 +1014,7 @@ func TestScanControlTower_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanControlTower(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanControlTower(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1032,7 +1034,7 @@ func TestScanControlTower_LandingZoneWithoutARN(t *testing.T) {
 	h["ListLandingZones"] = func(any) (any, error) {
 		return &controltower.ListLandingZonesOutput{LandingZones: []cttypes.LandingZoneSummary{{}}}, nil
 	}
-	total, _, err := ctowerScan(context.Background(), st, h)
+	total, err := ctowerScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1088,7 +1090,7 @@ func TestScanControlTower_BaselineTargets(t *testing.T) {
 		}
 		return list(in)
 	}
-	total, _, err := ctowerScan(context.Background(), st, h)
+	total, err := ctowerScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

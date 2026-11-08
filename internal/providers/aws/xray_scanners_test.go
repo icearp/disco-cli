@@ -71,7 +71,7 @@ func scanXRayIndexingRulesWith(t *testing.T, st *store.Store, handlers map[strin
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	client := xray.NewFromConfig(opStubConfig(handlers, xrayTestDenied))
-	total, _, err := scanXRayIndexingRules(context.Background(), client, acct, testRegion, st, testScanID)
+	total, err := scanXRayIndexingRules(context.Background(), client, acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -79,7 +79,7 @@ func scanXRayTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, xrayTestDenied)
-	total, _, err := scanXRay(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanXRay(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

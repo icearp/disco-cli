@@ -27,7 +27,7 @@ func TestScanSavingsPlans_ReadsTags(t *testing.T) {
 	}
 	st := newTestStore(t)
 	client := savingsplans.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
-	total, _, err := scanSavingsPlans(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
+	total, err := scanSavingsPlans(context.Background(), client, newTestAccount(testAccountID), "us-east-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSavingsPlans: %v", err)
 	}

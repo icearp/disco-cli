@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanNotificationHubs discovers notificationhubs resources.
-func scanNotificationHubs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNotificationHubs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armnotificationhubs.NewNamespacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armnotificationhubs:NewNamespacesClient: %w", err)
+		return 0, fmt.Errorf("armnotificationhubs:NewNamespacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armnotificationhubs:Namespaces.ListAll", TypeNotificationHubNamespace, sub, st, scanID,
 		client.NewListAllPager(nil),

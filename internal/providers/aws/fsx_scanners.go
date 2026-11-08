@@ -59,7 +59,7 @@ var fsxMaxResults = sdkaws.Int32(math.MaxInt32)
 // (LimitedMaxResults, 1-25).
 var fsxDRAMaxResults = sdkaws.Int32(25)
 
-func scanFSx(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFSx(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := fsx.NewFromConfig(acct.cfg, func(o *fsx.Options) { o.Region = region })
 	return scanFSxAll(ctx, client, acct, region, st, scanID)
 }
@@ -67,11 +67,11 @@ func scanFSx(ctx context.Context, acct *account, region string, st *store.Store,
 // scanFSxAll runs every FSx listing and joins their errors. The listings are
 // independent, so a failed one does not stop the rest; only a store write
 // failure stops it.
-func scanFSxAll(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxAll(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
 	for _, phase := range []struct {
 		op string
-		fn func(context.Context, fsxAPI, *account, string, *store.Store, string) (int, int, error)
+		fn func(context.Context, fsxAPI, *account, string, *store.Store, string) (int, error)
 	}{
 		{fsxDescribeFileSystemsOp, scanFSxFileSystems},
 		{fsxDescribeDataRepositoryAssociationsOp, scanFSxDataRepositoryAssociations},
@@ -82,8 +82,8 @@ func scanFSxAll(ctx context.Context, client fsxAPI, acct *account, region string
 		{fsxDescribeBackupsOp, scanFSxBackups},
 		{fsxDescribeFileCachesOp, scanFSxFileCaches},
 	} {
-		t, i, err := phase.fn(ctx, client, acct, region, st, scanID)
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -115,7 +115,7 @@ func fsxRow(acct *account, region, scanID, rtype, kind string, e fsxElement, ele
 	}, "", ""
 }
 
-func scanFSxFileSystems(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxFileSystems(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeFileSystemsOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.FileSystem, *string, error) {
 			out, err := client.DescribeFileSystems(ctx, &fsx.DescribeFileSystemsInput{NextToken: token, MaxResults: fsxMaxResults})
@@ -132,7 +132,7 @@ func scanFSxFileSystems(ctx context.Context, client fsxAPI, acct *account, regio
 		})
 }
 
-func scanFSxDataRepositoryAssociations(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxDataRepositoryAssociations(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeDataRepositoryAssociationsOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.DataRepositoryAssociation, *string, error) {
 			out, err := client.DescribeDataRepositoryAssociations(ctx, &fsx.DescribeDataRepositoryAssociationsInput{NextToken: token, MaxResults: fsxDRAMaxResults})
@@ -149,7 +149,7 @@ func scanFSxDataRepositoryAssociations(ctx context.Context, client fsxAPI, acct 
 		})
 }
 
-func scanFSxSnapshots(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxSnapshots(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeSnapshotsOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.Snapshot, *string, error) {
 			out, err := client.DescribeSnapshots(ctx, &fsx.DescribeSnapshotsInput{NextToken: token, MaxResults: fsxMaxResults})
@@ -165,7 +165,7 @@ func scanFSxSnapshots(ctx context.Context, client fsxAPI, acct *account, region 
 		})
 }
 
-func scanFSxStorageVirtualMachines(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxStorageVirtualMachines(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeStorageVirtualMachinesOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.StorageVirtualMachine, *string, error) {
 			out, err := client.DescribeStorageVirtualMachines(ctx, &fsx.DescribeStorageVirtualMachinesInput{NextToken: token, MaxResults: fsxMaxResults})
@@ -181,7 +181,7 @@ func scanFSxStorageVirtualMachines(ctx context.Context, client fsxAPI, acct *acc
 		})
 }
 
-func scanFSxVolumes(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxVolumes(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeVolumesOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.Volume, *string, error) {
 			out, err := client.DescribeVolumes(ctx, &fsx.DescribeVolumesInput{NextToken: token, MaxResults: fsxMaxResults})
@@ -199,7 +199,7 @@ func scanFSxVolumes(ctx context.Context, client fsxAPI, acct *account, region st
 
 // scanFSxS3AccessPointAttachments synthesizes ARNs from Name since the
 // SDK type carries no ResourceARN field.
-func scanFSxS3AccessPointAttachments(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanFSxS3AccessPointAttachments(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, fsxDescribeS3AccessPointAttachmentsOp,
 		func(ctx context.Context, token *string) ([]fsxtypes.S3AccessPointAttachment, *string, error) {
 			out, err := client.DescribeS3AccessPointAttachments(ctx, &fsx.DescribeS3AccessPointAttachmentsInput{NextToken: token, MaxResults: fsxMaxResults})

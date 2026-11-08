@@ -26,23 +26,21 @@ type signerAPI interface {
 // scanSigner discovers Signer signing profiles and per-profile cross-account
 // permissions. ProfilePermission has no native ARN; synth as
 // {profileArn}/permission/{statementId}.
-func scanSigner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSigner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := signer.NewFromConfig(acct.cfg, func(o *signer.Options) { o.Region = region })
 
-	profiles, t, i, ferr := scanSignerSigningProfiles(ctx, client, acct, region, st, scanID)
+	profiles, t, ferr := scanSignerSigningProfiles(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSignerProfilePermissions(ctx, client, profiles, acct, region, st, scanID)
+	t, ferr = scanSignerProfilePermissions(ctx, client, profiles, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 type signerProfileRef struct {
@@ -50,7 +48,7 @@ type signerProfileRef struct {
 	ARN  string
 }
 
-func scanSignerSigningProfiles(ctx context.Context, client signerAPI, acct *account, region string, st *store.Store, scanID string) ([]signerProfileRef, int, int, error) {
+func scanSignerSigningProfiles(ctx context.Context, client signerAPI, acct *account, region string, st *store.Store, scanID string) ([]signerProfileRef, int, error) {
 	var batch []*store.Resource
 	var refs []signerProfileRef
 	var nextToken *string
@@ -58,9 +56,9 @@ func scanSignerSigningProfiles(ctx context.Context, client signerAPI, acct *acco
 		out, err := client.ListSigningProfiles(ctx, &signer.ListSigningProfilesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "signer:ListSigningProfiles", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "signer:ListSigningProfiles", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("signer:ListSigningProfiles: %w", err)
+			return nil, 0, fmt.Errorf("signer:ListSigningProfiles: %w", err)
 		}
 		for _, p := range out.Profiles {
 			arn := sv(p.Arn)
@@ -82,11 +80,11 @@ func scanSignerSigningProfiles(ctx context.Context, client signerAPI, acct *acco
 		}
 		nextToken = out.NextToken
 	}
-	t, i, err := upsertBatch(st, batch, "signer signing-profiles")
-	return refs, t, i, err
+	t, err := upsertBatch(st, batch, "signer signing-profiles")
+	return refs, t, err
 }
 
-func scanSignerProfilePermissions(ctx context.Context, client signerAPI, profiles []signerProfileRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSignerProfilePermissions(ctx context.Context, client signerAPI, profiles []signerProfileRef, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, p := range profiles {
 		profile := p
@@ -104,7 +102,7 @@ func scanSignerProfilePermissions(ctx context.Context, client signerAPI, profile
 				if isAPIErrorCode(err, "ResourceNotFoundException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("signer:ListProfilePermissions p=%s: %w", profile.Name, err)
+				return 0, fmt.Errorf("signer:ListProfilePermissions p=%s: %w", profile.Name, err)
 			}
 			for _, perm := range out.Permissions {
 				stID := sv(perm.StatementId)

@@ -47,7 +47,7 @@ type backupGatewayAPI interface {
 	ListTagsForResource(context.Context, *backupgateway.ListTagsForResourceInput, ...func(*backupgateway.Options)) (*backupgateway.ListTagsForResourceOutput, error)
 }
 
-func scanBackupGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBackupGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := backupgateway.NewFromConfig(acct.cfg, func(o *backupgateway.Options) { o.Region = region })
 	return scanBackupGatewayAll(ctx, client, acct, region, st, scanID)
 }
@@ -60,10 +60,10 @@ func scanBackupGateway(ctx context.Context, acct *account, region string, st *st
 // region does not serve the service) (runHostPhases). Hypervisors, gateways
 // and virtual machines have their tags read per row (backupGatewayTags),
 // whose denials are one warning for the scan.
-func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := backupGatewayTags(client).sharingDenials()
 	var hypervisors, gateways []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "backupgateway", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "backupgateway", 0, []hostPhase{
 		{op: backupGatewayListHypervisorsOp, run: func(p *phaseTotals) (failed bool) {
 			hypervisors, failed = scanBackupGatewayHypervisors(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -75,15 +75,15 @@ func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *ac
 		{op: backupGatewayListVirtualMachinesOp, run: func(p *phaseTotals) bool {
 			return scanBackupGatewayVirtualMachines(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, backupGatewayBandwidthScheduleOp, func() (int, int, error) {
+		countedPhase(0, backupGatewayBandwidthScheduleOp, func() (int, error) {
 			return scanBackupGatewayBandwidthSchedules(ctx, client, acct, region, st, scanID, gateways)
 		}),
-		countedPhase(0, backupGatewayPropertyMappingsOp, func() (int, int, error) {
+		countedPhase(0, backupGatewayPropertyMappingsOp, func() (int, error) {
 			return scanBackupGatewayPropertyMappings(ctx, client, acct, region, st, scanID, hypervisors)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // backupGatewayTags reads a row's tags with ListTagsForResource, sent the
@@ -123,7 +123,7 @@ func isBackupGatewayParentGone(err error) bool {
 func backupGatewayConfigFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op, why string, parents []childParent,
 	get func(context.Context, childParent) (*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	return childFanOutSkipNotReady(ctx, st, acct, region, op, parents, isBackupGatewayParentGone, byParentARN,
 		"parent(s)", why, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			r, err := get(ctx, p)
@@ -139,7 +139,7 @@ func backupGatewayConfigFanOut(
 // {gatewayARN}/bandwidth-rate-limit-schedule. gateways holds only gateways
 // stored this scan. A gateway with no intervals has no schedule and stores
 // nothing.
-func scanBackupGatewayBandwidthSchedules(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
+func scanBackupGatewayBandwidthSchedules(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, error) {
 	return backupGatewayConfigFanOut(ctx, st, acct, region, backupGatewayBandwidthScheduleOp,
 		"Backup Gateway may refuse a gateway that is offline (unverified)", gateways,
 		func(ctx context.Context, p childParent) (*store.Resource, error) {
@@ -160,7 +160,7 @@ func scanBackupGatewayBandwidthSchedules(ctx context.Context, client backupGatew
 // {hypervisorARN}/property-mappings. hypervisors holds only hypervisors stored
 // this scan. A hypervisor with neither an IAM role nor a tag mapping has none
 // and stores nothing.
-func scanBackupGatewayPropertyMappings(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, hypervisors []childParent) (int, int, error) {
+func scanBackupGatewayPropertyMappings(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, hypervisors []childParent) (int, error) {
 	return backupGatewayConfigFanOut(ctx, st, acct, region, backupGatewayPropertyMappingsOp,
 		"Backup Gateway may refuse a hypervisor that is not ONLINE (unverified)", hypervisors,
 		func(ctx context.Context, p childParent) (*store.Resource, error) {

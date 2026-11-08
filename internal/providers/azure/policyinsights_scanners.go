@@ -21,12 +21,12 @@ func init() {
 
 // scanPolicyInsights discovers Azure Policy remediation tasks and attestations
 // across the subscription.
-func scanPolicyInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPolicyInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			remClient, err := armpolicyinsights.NewRemediationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armpolicyinsights:NewRemediationsClient: %w", err)
+				return 0, fmt.Errorf("armpolicyinsights:NewRemediationsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armpolicyinsights:Remediations.ListForSubscription", TypePolicyInsightsRemediation, sub, st, scanID,
 				remClient.NewListForSubscriptionPager(nil),
@@ -37,10 +37,10 @@ func scanPolicyInsights(ctx context.Context, sub *subscription, cred azcore.Toke
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			attClient, err := armpolicyinsights.NewAttestationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armpolicyinsights:NewAttestationsClient: %w", err)
+				return 0, fmt.Errorf("armpolicyinsights:NewAttestationsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armpolicyinsights:Attestations.ListForSubscription", TypePolicyInsightsAttestation, sub, st, scanID,
 				attClient.NewListForSubscriptionPager(nil),

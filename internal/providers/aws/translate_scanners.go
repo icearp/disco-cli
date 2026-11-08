@@ -33,36 +33,35 @@ func translateBlockListed(err error) bool {
 	return isAPIErrorWithMessage(err, "NotAuthorizedException", "block-listed")
 }
 
-func scanTranslate(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTranslate(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := translate.NewFromConfig(acct.cfg, func(o *translate.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanTranslateParallelData(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTranslateTerminologies(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanTranslateParallelData(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanTranslateTerminologies(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanTranslateParallelData(ctx context.Context, client translateAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTranslateParallelData(ctx context.Context, client translateAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := translate.NewListParallelDataPaginator(client, &translate.ListParallelDataInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if translateBlockListed(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "translate:ListParallelData", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "translate:ListParallelData", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("translate:ListParallelData: %w", perr)
+			return 0, fmt.Errorf("translate:ListParallelData: %w", perr)
 		}
 		for _, p := range out.ParallelDataPropertiesList {
 			arn := sv(p.Arn)
@@ -81,19 +80,19 @@ func scanTranslateParallelData(ctx context.Context, client translateAPI, acct *a
 	return upsertBatch(st, batch, "translate parallel-data")
 }
 
-func scanTranslateTerminologies(ctx context.Context, client translateAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTranslateTerminologies(ctx context.Context, client translateAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := translate.NewListTerminologiesPaginator(client, &translate.ListTerminologiesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if translateBlockListed(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "translate:ListTerminologies", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "translate:ListTerminologies", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("translate:ListTerminologies: %w", perr)
+			return 0, fmt.Errorf("translate:ListTerminologies: %w", perr)
 		}
 		for _, term := range out.TerminologyPropertiesList {
 			arn := sv(term.Arn)

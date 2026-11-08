@@ -108,7 +108,7 @@ func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 // scanBACRegistries stores the region's registries and returns the stored
 // ones that carry a RegistryId, the parents of the record phase. A
 // first-page region gap is handled as scanBACConfigurationBundles says.
-func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, "bedrockagentcore:ListRegistries", "registries", "RegistryId",
 		bacPages(isBACRegionGap, func(ctx context.Context, token *string) ([]bactypes.RegistrySummary, *string, error) {
 			out, err := client.ListRegistries(ctx, &bac.ListRegistriesInput{NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
@@ -128,7 +128,7 @@ func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 // scanBACRegistryRecords lists the records of each registry the registry
 // phase stored. A registry ResourceNotFoundException says was deleted since
 // it was listed is skipped (storeTokenEachParent).
-func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, int, error) {
+func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListRegistryRecords", []string{"ResourceNotFoundException"}, childParentIDs(registries),
 		bacParentPages(nil, func(ctx context.Context, registry string, token *string) ([]bactypes.RegistryRecordSummary, *string, error) {
 			out, err := client.ListRegistryRecords(ctx, &bac.ListRegistryRecordsInput{RegistryId: &registry, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
@@ -147,7 +147,7 @@ func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acc
 // scanBACPolicyGenerations lists the policy generations of each engine the
 // policy-engine phase stored. An engine ResourceNotFoundException says was
 // deleted since it was listed is skipped (storeTokenEachParent).
-func scanBACPolicyGenerations(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, int, error) {
+func scanBACPolicyGenerations(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicyGenerations", []string{"ResourceNotFoundException"}, childParentIDs(engines),
 		bacParentPages(nil, func(ctx context.Context, engine string, token *string) ([]bactypes.PolicyGeneration, *string, error) {
 			out, err := client.ListPolicyGenerations(ctx, &bac.ListPolicyGenerationsInput{PolicyEngineId: &engine, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})

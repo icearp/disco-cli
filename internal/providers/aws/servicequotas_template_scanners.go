@@ -39,10 +39,10 @@ type sqTemplateAPI interface {
 // the AWS user guide, not observed live: a
 // TemplatesNotAvailableInRegionException means the home is wrong, so it is
 // returned rather than skipped.
-func scanServiceQuotasTemplate(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanServiceQuotasTemplate(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("servicequotas")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
 	return scanSQTemplateEntries(ctx, client, acct, st, scanID)
@@ -55,7 +55,7 @@ func scanServiceQuotasTemplate(ctx context.Context, acct *account, _ string, st 
 // A row's Region is the "global" sentinel, not the entry's AwsRegion, because
 // the entry lives in the one organization-wide template; AwsRegion stays in
 // the NativeID and the attributes.
-func scanSQTemplateEntries(ctx context.Context, client sqTemplateAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanSQTemplateEntries(ctx context.Context, client sqTemplateAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	const op = "servicequotas:ListServiceQuotaIncreaseRequestsInTemplate"
 	pager := servicequotas.NewListServiceQuotaIncreaseRequestsInTemplatePaginator(client,
 		&servicequotas.ListServiceQuotaIncreaseRequestsInTemplateInput{},
@@ -70,13 +70,13 @@ func scanSQTemplateEntries(ctx context.Context, client sqTemplateAPI, acct *acco
 			// default states of an account or organization that does not use
 			// the template, so there are no entries to list.
 			if isAPIErrorCode(err, "NoAvailableOrganizationException", "AWSServiceAccessNotEnabledException") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			// Scope "" because the template is organization-wide, not regional.
 			if isAccessDenied(err) || isAPIErrorCode(err, "DependencyAccessDeniedException") {
-				return 0, 0, skipIfAccessDenied(st, op, acct.ID, "", err)
+				return 0, skipIfAccessDenied(st, op, acct.ID, "", err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
+			return 0, fmt.Errorf("%s: %w", op, err)
 		}
 		for _, e := range out.ServiceQuotaIncreaseRequestInTemplateList {
 			awsRegion, serviceCode, quotaCode := sv(e.AwsRegion), sv(e.ServiceCode), sv(e.QuotaCode)

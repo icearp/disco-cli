@@ -16,10 +16,10 @@ func init() {
 }
 
 // scanMongoCluster discovers Azure Cosmos DB for MongoDB (vCore) clusters.
-func scanMongoCluster(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMongoCluster(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armmongocluster.NewMongoClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmongocluster:NewMongoClustersClient: %w", err)
+		return 0, fmt.Errorf("armmongocluster:NewMongoClustersClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armmongocluster:MongoClusters.List", TypeMongoCluster, sub, st, scanID,
 		client.NewListPager(nil),

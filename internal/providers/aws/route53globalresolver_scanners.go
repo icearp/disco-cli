@@ -65,10 +65,10 @@ var r53grGone = []string{"ResourceNotFoundException"}
 // (route53globalresolver.us-east-2.api.aws), read through homeRegion. It is
 // registered global=true, so the dispatcher passes region="" — substitute
 // the home to keep Resource.Region and per-op error scopes accurate.
-func scanRoute53GlobalResolver(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanRoute53GlobalResolver(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("route53globalresolver")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := route53globalresolver.NewFromConfig(acct.cfg, func(o *route53globalresolver.Options) { o.Region = region })
 	return scanR53GRWithClient(ctx, client, acct, region, st, scanID)
@@ -83,10 +83,10 @@ func scanRoute53GlobalResolver(ctx context.Context, acct *account, _ string, st 
 // scan, those parents concurrently. The global resolvers, access sources,
 // firewall domain lists, DNS views and access tokens have their tags read
 // per row (r53grTags), whose denials are one warning for the whole scan.
-func scanR53GRWithClient(ctx context.Context, client r53grAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53GRWithClient(ctx context.Context, client r53grAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := r53grTags(client).sharingDenials()
 	var resolvers, views []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "route53globalresolver", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "route53globalresolver", 0, []hostPhase{
 		{op: r53grGlobalResolversOp, run: func(p *phaseTotals) (failed bool) {
 			resolvers, failed = scanR53GRResolvers(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -112,7 +112,7 @@ func scanR53GRWithClient(ctx context.Context, client r53grAPI, acct *account, re
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // r53grTags reads a row's tags with ListTagsForResource, sent the row's

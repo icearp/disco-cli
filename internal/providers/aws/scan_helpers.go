@@ -115,14 +115,14 @@ func pageScan[Page any, Item any](
 	next func(context.Context) (Page, error),
 	items func(Page) []Item,
 	toResource func(Item) *store.Resource,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	for hasMore() {
 		page, err := next(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
+				return total, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
+			return total, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		raw := items(page)
 		if len(raw) == 0 {
@@ -137,14 +137,13 @@ func pageScan[Page any, Item any](
 		if len(batch) == 0 {
 			continue
 		}
-		n, err := st.UpsertResources(batch)
+		_, err = st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert %s: %w", iamAction, err)
+			return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 		}
 		total += len(batch)
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // pageScanConcurrent is pageScan's sibling for the List-then-Describe N+1
@@ -168,14 +167,14 @@ func pageScanConcurrent[Page any, Item any](
 	items func(Page) []Item,
 	enrich func(ctx context.Context, item Item) (*store.Resource, error),
 	concurrency int,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	for hasMore() {
 		page, err := next(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
+				return total, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
+			return total, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		raw := items(page)
 		if len(raw) == 0 {
@@ -205,19 +204,18 @@ func pageScanConcurrent[Page any, Item any](
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		if len(batch) == 0 {
 			continue
 		}
-		n, err := st.UpsertResources(batch)
+		_, err = st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert %s: %w", iamAction, err)
+			return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 		}
 		total += len(batch)
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // nonEmptyPtr returns nil for "", so an absent SDK enum leaves a column unset
@@ -232,12 +230,12 @@ func nonEmptyPtr(s string) *string {
 // upsertListed stores the rows a listing read and returns err, wrapped with
 // op, alongside any write error, so a listing that stopped early keeps what
 // it read and marks the scan partial.
-func upsertListed(st *store.Store, batch []*store.Resource, op string, err error) (int, int, error) {
-	total, inserted, uerr := upsertBatch(st, batch, op)
+func upsertListed(st *store.Store, batch []*store.Resource, op string, err error) (int, error) {
+	total, uerr := upsertBatch(st, batch, op)
 	if err != nil {
 		err = fmt.Errorf("%s: %w", op, err)
 	}
-	return total, inserted, errors.Join(err, uerr)
+	return total, errors.Join(err, uerr)
 }
 
 // childParent is a parent listed earlier in the same scan: id is what the
@@ -280,7 +278,7 @@ func (f *fanOutErrs) keyErr(key string, err error) error {
 func childFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var (
 		mu         sync.Mutex
 		children   []containedChild
@@ -305,10 +303,10 @@ func childFanOut(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, errors.Join(err, incomplete.err())
+		return 0, errors.Join(err, incomplete.err())
 	}
-	total, inserted, uerr := upsertContained(st, op, children)
-	return total, inserted, errors.Join(incomplete.err(), uerr)
+	total, uerr := upsertContained(st, op, children)
+	return total, errors.Join(incomplete.err(), uerr)
 }
 
 // childFanOutStored is childFanOut for parents whose children are too many or
@@ -320,20 +318,19 @@ func childFanOut(
 // not cancel its siblings; its error is returned after they finish.
 func childFanOutStored(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
-	isSkip func(error) bool, storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	isSkip func(error) bool, storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	var (
-		total, inserted atomic.Int64
-		incomplete      incompleteLists
+		total      atomic.Int64
+		incomplete incompleteLists
 	)
 	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
 	for _, p := range parents {
 		g.Go(func() error {
-			t, i, err := storeChildren(gctx, p)
+			t, err := storeChildren(gctx, p)
 			total.Add(int64(t))
-			inserted.Add(int64(i))
 			if err != nil && !incomplete.take(op, p.id, err) {
 				return errs.keyErr(p.id, err)
 			}
@@ -341,7 +338,7 @@ func childFanOutStored(
 		})
 	}
 	err := g.Wait()
-	return int(total.Load()), int(inserted.Load()), errors.Join(err, incomplete.err())
+	return int(total.Load()), errors.Join(err, incomplete.err())
 }
 
 // describeFanOut runs describe for each key concurrently (fanoutMed) and
@@ -553,9 +550,9 @@ func childFanOutSkipTransient(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var transient transientTally
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, parents, isSkip,
+	total, err := childFanOut(ctx, st, acct, region, op, parents, isSkip,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, p)
 			if transient.drop(label(p), err) {
@@ -564,7 +561,7 @@ func childFanOutSkipTransient(
 			return rows, err
 		})
 	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // childFanOutSkipNotReady is childFanOutSkipTransient, except that a parent
@@ -578,9 +575,9 @@ func childFanOutSkipNotReady(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string, what, why string,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var notReady notReadyTally
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := list(ctx, p)
 			if notReady.drop(label(p), err) {
@@ -589,7 +586,7 @@ func childFanOutSkipNotReady(
 			return rows, err
 		})
 	notReady.warnSkipped(st, op, acct, region, what, why)
-	return total, inserted, err
+	return total, err
 }
 
 // childFanOutStoredSkipTransient is childFanOutStored with the transient skip
@@ -598,19 +595,19 @@ func childFanOutSkipNotReady(
 func childFanOutStoredSkipTransient(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string,
-	storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	var transient transientTally
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isSkip,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			t, i, err := storeChildren(ctx, p)
+	total, err := childFanOutStored(ctx, st, acct, region, op, parents, isSkip,
+		func(ctx context.Context, p childParent) (int, error) {
+			t, err := storeChildren(ctx, p)
 			if transient.drop(label(p), err) {
-				return t, i, nil
+				return t, nil
 			}
-			return t, i, err
+			return t, err
 		})
 	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // childFanOutStoredSkipNotReady is childFanOutStoredSkipTransient, except that
@@ -623,8 +620,8 @@ func childFanOutStoredSkipTransient(
 func childFanOutStoredSkipNotReady(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string, what, why string, notReadyCodes []string,
-	storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	codes := make([]skipCode, len(notReadyCodes))
 	for k, code := range notReadyCodes {
 		codes[k] = skipCode{code: code, why: why}
@@ -641,23 +638,23 @@ type skipCode struct{ code, why string }
 func childFanOutStoredSkipCodes(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string, what string, codes []skipCode,
-	storeChildren func(context.Context, childParent) (int, int, error),
-) (int, int, error) {
+	storeChildren func(context.Context, childParent) (int, error),
+) (int, error) {
 	tallies := make([]skipTally, len(codes))
-	total, inserted, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			t, i, err := storeChildren(ctx, p)
+	total, err := childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isSkip, label,
+		func(ctx context.Context, p childParent) (int, error) {
+			t, err := storeChildren(ctx, p)
 			for k, c := range codes {
 				if tallies[k].dropCode(c.code, label(p), err) {
-					return t, i, nil
+					return t, nil
 				}
 			}
-			return t, i, err
+			return t, err
 		})
 	for k, c := range codes {
 		tallies[k].warnCode(st, op, acct, region, c.code, what, c.why)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // childFanOutCollectSkipCodes is childFanOutStoredSkipCodes for parents with
@@ -671,13 +668,13 @@ func childFanOutCollectSkipCodes(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string, what string, codes []skipCode,
 	list func(context.Context, childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var (
 		mu       sync.Mutex
 		children []containedChild
 	)
-	_, _, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isSkip, label, what, codes,
-		func(ctx context.Context, p childParent) (int, int, error) {
+	_, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isSkip, label, what, codes,
+		func(ctx context.Context, p childParent) (int, error) {
 			rows, err := list(ctx, p)
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			mu.Lock()
@@ -685,10 +682,10 @@ func childFanOutCollectSkipCodes(
 			for _, r := range rows {
 				children = append(children, containedChild{row: r, parentID: parentID})
 			}
-			return 0, 0, err
+			return 0, err
 		})
-	total, inserted, uerr := upsertContained(st, op, children)
-	return total, inserted, errors.Join(err, uerr)
+	total, uerr := upsertContained(st, op, children)
+	return total, errors.Join(err, uerr)
 }
 
 // demoteTransient reports a phase's transient error as a warning and drops it,
@@ -756,7 +753,7 @@ func lateNXDOMAIN(op string, err error) error {
 // unavailable and drop their counts. A failed write is left as is, so that
 // the dispatcher still sees it. Every NXDOMAIN in p must be from the host the
 // stored rows came from: a phase on another host must not add its own.
-func (p *phaseTotals) resultLateNXDOMAIN(st *store.Store, acct *account, region string) (int, int, error) {
+func (p *phaseTotals) resultLateNXDOMAIN(st *store.Store, acct *account, region string) (int, error) {
 	if p.total > 0 {
 		for i, f := range p.errs {
 			if !errors.Is(f.err, store.ErrStoreWrite) {
@@ -777,28 +774,28 @@ type containedChild struct {
 // upsertRegionChildren stores the children a region-wide listing collected,
 // including the pages read before err. A denial warns and is dropped; any
 // other err is returned wrapped with op, alongside the stored pages' counts.
-func upsertRegionChildren(st *store.Store, acct *account, region, op string, children []containedChild, err error) (int, int, error) {
+func upsertRegionChildren(st *store.Store, acct *account, region, op string, children []containedChild, err error) (int, error) {
 	if err != nil && isAccessDenied(err) {
 		_ = skipIfAccessDenied(st, op, acct.ID, region, err)
 		err = nil
 	}
-	total, inserted, uerr := upsertContained(st, op, children)
+	total, uerr := upsertContained(st, op, children)
 	if err != nil {
-		return total, inserted, errors.Join(fmt.Errorf("%s: %w", op, err), uerr)
+		return total, errors.Join(fmt.Errorf("%s: %w", op, err), uerr)
 	}
-	return total, inserted, uerr
+	return total, uerr
 }
 
 // upsertContained stores the children, then links each under its parent via
 // the contains closure; the pairs need the row IDs the upsert assigns.
-func upsertContained(st *store.Store, op string, children []containedChild) (int, int, error) {
+func upsertContained(st *store.Store, op string, children []containedChild) (int, error) {
 	batch := make([]*store.Resource, len(children))
 	for i, c := range children {
 		batch[i] = c.row
 	}
-	total, inserted, err := upsertBatch(st, batch, op)
+	total, err := upsertBatch(st, batch, op)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	pairs := make([][2]string, 0, len(children))
 	for _, c := range children {
@@ -811,9 +808,9 @@ func upsertContained(st *store.Store, op string, children []containedChild) (int
 	// The rows are stored even when the closure write fails, so their counts
 	// are reported with its error.
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return total, inserted, fmt.Errorf("closure %s: %w", op, err)
+		return total, fmt.Errorf("closure %s: %w", op, err)
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // warnNotStored warns once for the listed items of a phase that carry no
@@ -983,7 +980,7 @@ func storeTokenList[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string,
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (r *store.Resource, why, key string),
-) (int, int, error) {
+) (int, error) {
 	return storeTokenListWith(ctx, st, acct, region, op, page, row, keepRows)
 }
 
@@ -1003,7 +1000,7 @@ func storeTokenListWith[Item any](
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (r *store.Resource, why, key string),
 	before beforeWrite,
-) (int, int, error) {
+) (int, error) {
 	var skips notStoredSkips
 	items, err := readTokenPages(ctx, page)
 	rows, warn := before(buildListedRows(items, row, nil, &skips))
@@ -1252,13 +1249,13 @@ func (tags rowTagReader) hook(ctx context.Context, st *store.Store, acct *accoun
 // instead: demoted, the transient one would be a warning about rows the write
 // lost. It reports whether the write failed, after which the scanner must
 // stop.
-func (e rowTagErrs) addPhase(p *phaseTotals, tagOp, op string, total, inserted int, err error) (storeWriteFailed bool) {
+func (e rowTagErrs) addPhase(p *phaseTotals, tagOp, op string, total int, err error) (storeWriteFailed bool) {
 	if errors.Is(err, store.ErrStoreWrite) {
-		return p.addPhase(op, total, inserted, errors.Join(err, e.hard, e.transient))
+		return p.addPhase(op, total, errors.Join(err, e.hard, e.transient))
 	}
 	p.errs.add(tagOp, e.hard)
 	p.errs.add(tagOp, e.transient)
-	return p.addPhase(op, total, inserted, err)
+	return p.addPhase(op, total, err)
 }
 
 // storeRowsTags is storeReadRows with each row's tags read through tags
@@ -1269,13 +1266,13 @@ func (e rowTagErrs) addPhase(p *phaseTotals, tagOp, op string, total, inserted i
 func storeRowsTags(ctx context.Context, st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr error, warn func(), tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	var errs rowTagErrs
 	rows, tagWarn := tags.hook(ctx, st, acct, region, &errs)(rows)
-	total, inserted, err := storeReadRows(st, acct, region, op, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, op, rows, listErr, func() {
 		if warn != nil {
 			warn()
 		}
 		tagWarn()
 	})
-	return errs.addPhase(p, tags.op, op, total, inserted, err)
+	return errs.addPhase(p, tags.op, op, total, err)
 }
 
 // errTagsNotDescribed is a bulk tag read's result for a resource its
@@ -1475,8 +1472,8 @@ func storeTokenListTags[Item any](
 	tags rowTagReader, p *phaseTotals,
 ) (storeWriteFailed bool) {
 	var errs rowTagErrs
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, row, tags.hook(ctx, st, acct, region, &errs))
-	return errs.addPhase(p, tags.op, op, total, inserted, err)
+	total, err := storeTokenListWith(ctx, st, acct, region, op, page, row, tags.hook(ctx, st, acct, region, &errs))
+	return errs.addPhase(p, tags.op, op, total, err)
 }
 
 // storeTokenPagesTags is storeTokenListTags for a listing too large to hold:
@@ -1568,7 +1565,7 @@ func storeTokenPagesTagsWith[Item any](
 		tally            rowTagTally
 		detailTally      rowDetailTally
 		hard, detailHard []error
-		total, inserted  int
+		total            int
 		werr             error
 	)
 	details := steps.details
@@ -1593,9 +1590,8 @@ func storeTokenPagesTagsWith[Item any](
 		}
 		rows, h := tally.read(ctx, pageTags, rows)
 		hard = append(hard, h)
-		t, i, err := upsertBatch(st, rows, op)
+		t, err := upsertBatch(st, rows, op)
 		total += t
-		inserted += i
 		werr = err
 		if err == nil && steps.stored != nil {
 			steps.stored(rows)
@@ -1605,16 +1601,16 @@ func storeTokenPagesTagsWith[Item any](
 	detailErrs := rowTagErrs{hard: errors.Join(detailHard...), transient: detailTally.transient(details)}
 	errs := rowTagErrs{hard: errors.Join(hard...), transient: tally.transient(tags.op)}
 	if werr != nil {
-		return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(werr, detailErrs.hard, detailErrs.transient))
+		return errs.addPhase(p, tags.op, op, total, errors.Join(werr, detailErrs.hard, detailErrs.transient))
 	}
 	p.errs.add(details.op, detailErrs.hard)
 	p.errs.add(details.op, detailErrs.transient)
-	_, _, err := storeReadRows(st, acct, region, op, nil, listErr, func() {
+	_, err := storeReadRows(st, acct, region, op, nil, listErr, func() {
 		skips.warn(st, op, acct, region)
 		detailTally.warn(st, details, acct, region)
 		tally.warn(st, tags, acct, region)
 	})
-	return errs.addPhase(p, tags.op, op, total, inserted, err)
+	return errs.addPhase(p, tags.op, op, total, err)
 }
 
 // storeReadRows stores the rows read from op's listing, which ended with
@@ -1622,15 +1618,15 @@ func storeTokenPagesTagsWith[Item any](
 // denied listing is warned about instead of returned. A failed write is
 // returned at once: the denial warning and warn (nil for none) run only after
 // a successful write, so no warning claims rows a failed write lost.
-func storeReadRows(st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr error, warn func(), errs ...error) (int, int, error) {
+func storeReadRows(st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr error, warn func(), errs ...error) (int, error) {
 	var denied error
 	if isAccessDenied(listErr) {
 		denied, listErr = listErr, nil
 	}
-	total, inserted, err := upsertListed(st, rows, op, listErr)
+	total, err := upsertListed(st, rows, op, listErr)
 	err = errors.Join(append([]error{err}, errs...)...)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if denied != nil {
 		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
@@ -1638,7 +1634,7 @@ func storeReadRows(st *store.Store, acct *account, region, op string, rows []*st
 	if warn != nil {
 		warn()
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // storeTokenPerParent lists op's items for each parent in turn and stores the
@@ -1653,7 +1649,7 @@ func storeTokenPerParent[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
-) (int, int, error) {
+) (int, error) {
 	out := parentOutcomes{op: op, notFound: notFound}
 	for _, p := range parents {
 		if err := ctx.Err(); err != nil {
@@ -1677,7 +1673,7 @@ func storeTokenEachParent[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
-) (int, int, error) {
+) (int, error) {
 	return storeTokenEachParentSkip(ctx, st, acct, region, op, notFound, parents, page, row, nil)
 }
 
@@ -1692,7 +1688,7 @@ func storeTokenEachParentSkip[Item any](
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
 	skip func(parent string, err error) bool,
-) (int, int, error) {
+) (int, error) {
 	return storeTokenEachParentWith(ctx, st, acct, region, op, notFound, parents, page, row, skip, isAccessDenied)
 }
 
@@ -1705,7 +1701,7 @@ func storeTokenEachParentDeniedBy[Item any](
 	isDenied func(error) bool,
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
-) (int, int, error) {
+) (int, error) {
 	return storeTokenEachParentWith(ctx, st, acct, region, op, notFound, parents, page, row, nil, isDenied)
 }
 
@@ -1715,7 +1711,7 @@ func storeTokenEachParentWith[Item any](
 	row func(parent string, it Item) (r *store.Resource, why, key string),
 	skip func(parent string, err error) bool,
 	isDenied func(error) bool,
-) (int, int, error) {
+) (int, error) {
 	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p string) parentItems[Item] {
 		return readParentPages(ctx, p, page)
 	})
@@ -1756,7 +1752,7 @@ func storeChildrenEachParent[Item any](
 	skip func(parent string, err error) bool, warn func(),
 	page func(ctx context.Context, p childParent, token *string) ([]Item, *string, error),
 	row func(p childParent, it Item) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p childParent) parentItems[Item] {
 		return readParentPages(ctx, p.arn, func(ctx context.Context, _ string, token *string) ([]Item, *string, error) {
 			return page(ctx, p, token)
@@ -1775,14 +1771,14 @@ func storeChildrenEachParent[Item any](
 		})
 	}
 	out.stopped(stopped)
-	total, inserted, err := out.store(st, acct, region)
+	total, err := out.store(st, acct, region)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if warn != nil {
 		warn()
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // parentOutcomes collects, for storeTokenPerParent and storeTokenEachParent,
@@ -1860,21 +1856,21 @@ func (o *parentOutcomes) stopped(err error) {
 // store writes the rows and, with parentOf set, their closure, then warns
 // about the denied and vanished parents and the items not stored, and
 // returns the collected errors. After a failed write it warns nothing.
-func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (int, int, error) {
-	total, inserted, werr := o.write(st, o.rows)
+func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (int, error) {
+	total, werr := o.write(st, o.rows)
 	if werr != nil {
-		return total, inserted, errors.Join(append(o.errs, werr)...)
+		return total, errors.Join(append(o.errs, werr)...)
 	}
 	o.warn(st, acct, region)
-	return total, inserted, errors.Join(o.errs...)
+	return total, errors.Join(o.errs...)
 }
 
 // write stores rows and, with parentOf set, their closure, and returns the
 // write's error alone. It changes nothing in o, so concurrent calls are safe.
-func (o *parentOutcomes) write(st *store.Store, rows []*store.Resource) (int, int, error) {
-	total, inserted, uerr := upsertBatch(st, rows, o.op)
+func (o *parentOutcomes) write(st *store.Store, rows []*store.Resource) (int, error) {
+	total, uerr := upsertBatch(st, rows, o.op)
 	if uerr != nil {
-		return total, inserted, uerr
+		return total, uerr
 	}
 	if o.parentOf != nil {
 		pairs := make([][2]string, 0, len(rows))
@@ -1882,10 +1878,10 @@ func (o *parentOutcomes) write(st *store.Store, rows []*store.Resource) (int, in
 			pairs = append(pairs, [2]string{r.ID, o.parentOf[r]})
 		}
 		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-			return total, inserted, fmt.Errorf("closure %s: %w", o.op, herr)
+			return total, fmt.Errorf("closure %s: %w", o.op, herr)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // warn warns about the denied and vanished parents and the items not
@@ -1931,7 +1927,7 @@ func recordUnderParents(st *store.Store, acct *account, op string, stored []*sto
 // must stop.
 func recordHierarchyPairs(st *store.Store, op string, pairs [][2]string, p *phaseTotals) bool {
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return p.addPhase(op, 0, 0, fmt.Errorf("closure %s: %w", op, err))
+		return p.addPhase(op, 0, fmt.Errorf("closure %s: %w", op, err))
 	}
 	return false
 }
@@ -2021,24 +2017,23 @@ func storeEachParentTagsUnder[Item any](
 // their errors, so every phase runs and only a store write failure stops the
 // scanner.
 type phaseTotals struct {
-	total, inserted int
-	errs            phaseErrs
+	total int
+	errs  phaseErrs
 }
 
 // addPhase adds one phase's counts and error under op, and reports whether
 // that error is a store write failure, after which the scanner must stop:
 // every later write would fail too.
-func (p *phaseTotals) addPhase(op string, total, inserted int, err error) (storeWriteFailed bool) {
+func (p *phaseTotals) addPhase(op string, total int, err error) (storeWriteFailed bool) {
 	p.total += total
-	p.inserted += inserted
 	p.errs.add(op, err)
 	return errors.Is(err, store.ErrStoreWrite)
 }
 
 // result returns the summed counts and the phases' errors joined by
 // phaseErrs.join.
-func (p *phaseTotals) result(st *store.Store, acct *account, region string) (int, int, error) {
-	return p.total, p.inserted, p.errs.join(st, acct, region)
+func (p *phaseTotals) result(st *store.Store, acct *account, region string) (int, error) {
+	return p.total, p.errs.join(st, acct, region)
 }
 
 // opErrs is the errors of a phase or family, each under the op it failed
@@ -2059,25 +2054,24 @@ func (e opErrs) Error() string { return errors.Join(e.Unwrap()...).Error() }
 
 // opErrsResult returns p's counts and its errors as opErrs, nil when there
 // are none.
-func opErrsResult(p *phaseTotals) (int, int, error) {
+func opErrsResult(p *phaseTotals) (int, error) {
 	if len(p.errs) == 0 {
-		return p.total, p.inserted, nil
+		return p.total, nil
 	}
-	return p.total, p.inserted, opErrs{p.errs}
+	return p.total, opErrs{p.errs}
 }
 
 // addOpErrsPhase adds a phase's counts and error to p: the members of an
 // opErrs under their own ops, any other error under op. It reports whether a
 // write failed, after which the runner must stop.
-func addOpErrsPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+func addOpErrsPhase(p *phaseTotals, op string, total int, err error) (storeWriteFailed bool) {
 	// Only err itself is unpacked: an opErrs wrapped inside another error is
 	// filed whole under op, which keeps every member.
 	labelled, ok := err.(opErrs)
 	if !ok {
-		return p.addPhase(op, total, inserted, err)
+		return p.addPhase(op, total, err)
 	}
 	p.total += total
-	p.inserted += inserted
 	p.errs = append(p.errs, labelled.errs...)
 	return errors.Is(err, store.ErrStoreWrite)
 }
@@ -2087,31 +2081,31 @@ func addOpErrsPhase(p *phaseTotals, op string, total, inserted int, err error) (
 // not stored yet, and returns their summed counts and errors (each family's
 // opErrs members under their own ops, any other error under service). The
 // caller joins the errors once (phaseTotals.result).
-func runFamilies(ctx context.Context, service string, families ...func(context.Context) (int, int, error)) *phaseTotals {
+func runFamilies(ctx context.Context, service string, families ...func(context.Context) (int, error)) *phaseTotals {
 	type result struct {
-		total, inserted int
-		err             error
+		total int
+		err   error
 	}
 	results := make([]result, len(families))
 	var wg sync.WaitGroup
 	for i, family := range families {
 		wg.Go(func() {
 			r := &results[i]
-			r.total, r.inserted, r.err = family(ctx)
+			r.total, r.err = family(ctx)
 		})
 	}
 	wg.Wait()
 	var p phaseTotals
 	for _, r := range results {
-		addOpErrsPhase(&p, service, r.total, r.inserted, r.err)
+		addOpErrsPhase(&p, service, r.total, r.err)
 	}
 	return &p
 }
 
 // phaseFamily is a runFamilies family whose phases add their counts and
 // errors to one phaseTotals, each error under its own op (opErrsResult).
-func phaseFamily(run func(p *phaseTotals)) func(context.Context) (int, int, error) {
-	return func(context.Context) (int, int, error) {
+func phaseFamily(run func(p *phaseTotals)) func(context.Context) (int, error) {
+	return func(context.Context) (int, error) {
 		var p phaseTotals
 		run(&p)
 		return opErrsResult(&p)
@@ -2120,10 +2114,10 @@ func phaseFamily(run func(p *phaseTotals)) func(context.Context) (int, int, erro
 
 // countedFamily is the runFamilies family of one phase that returns its
 // counts and error, the error filed under op rather than the service.
-func countedFamily(op string, run func() (int, int, error)) func(context.Context) (int, int, error) {
+func countedFamily(op string, run func() (int, error)) func(context.Context) (int, error) {
 	return phaseFamily(func(p *phaseTotals) {
-		total, inserted, err := run()
-		p.addPhase(op, total, inserted, err)
+		total, err := run()
+		p.addPhase(op, total, err)
 	})
 }
 
@@ -2136,7 +2130,7 @@ func storeParentList[Item any](
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
-) (int, int, []childParent, error) {
+) (int, []childParent, error) {
 	return storeParentListWith(ctx, st, acct, region, op, what, idField, page, row, key, keepRows)
 }
 
@@ -2148,18 +2142,18 @@ func storeParentListWith[Item any](
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
 	before beforeWrite,
-) (int, int, []childParent, error) {
+) (int, []childParent, error) {
 	keys := parentKeys[Item]{key: key}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, keys.row(row), func(rows []*store.Resource) ([]*store.Resource, func()) {
+	total, err := storeTokenListWith(ctx, st, acct, region, op, page, keys.row(row), func(rows []*store.Resource) ([]*store.Resource, func()) {
 		kept, warn := before(rows)
 		keys.add(kept)
 		return kept, warn
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
+		return total, nil, err
 	}
 	warnNoChildID(st, op, acct, region, &keys.noID, what, idField)
-	return total, inserted, keys.parents, err
+	return total, keys.parents, err
 }
 
 // parentKeys turns the rows a parent listing stores into the parents of a
@@ -2239,8 +2233,8 @@ func storeParentListTags[Item any](
 	tags rowTagReader, p *phaseTotals,
 ) (parents []childParent, storeWriteFailed bool) {
 	var errs rowTagErrs
-	total, inserted, parents, err := storeParentListWith(ctx, st, acct, region, op, what, idField, page, row, key, tags.hook(ctx, st, acct, region, &errs))
-	return parents, errs.addPhase(p, tags.op, op, total, inserted, err)
+	total, parents, err := storeParentListWith(ctx, st, acct, region, op, what, idField, page, row, key, tags.hook(ctx, st, acct, region, &errs))
+	return parents, errs.addPhase(p, tags.op, op, total, err)
 }
 
 // storeParentListDeniedBy is storeParentList for an op whose denial code
@@ -2255,13 +2249,13 @@ func storeParentListDeniedBy[Item any](
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
-) (int, int, []childParent, error) {
+) (int, []childParent, error) {
 	d := listDenial{isDenied: isDenied, unread: what + " on later pages and their children"}
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, op, what, idField, deniedPages(&d, page), row, key)
+	total, parents, err := storeParentList(ctx, st, acct, region, op, what, idField, deniedPages(&d, page), row, key)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		d.warn(st, op, acct, region)
 	}
-	return total, inserted, parents, err
+	return total, parents, err
 }
 
 // listDenial ends a listing on the first error isDenied reports, for an op
@@ -2345,12 +2339,12 @@ func storeEachParentTagsDeniedBy[Item any](
 		warn func()
 	)
 	out.rows, warn, errs.hard, errs.transient = readRowTags(ctx, st, acct, region, tags, out.rows)
-	total, inserted, err := out.store(st, acct, region)
+	total, err := out.store(st, acct, region)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return nil, errs.addPhase(p, tags.op, op, total, inserted, err)
+		return nil, errs.addPhase(p, tags.op, op, total, err)
 	}
 	warn()
-	return out.rows, errs.addPhase(p, tags.op, op, total, inserted, err)
+	return out.rows, errs.addPhase(p, tags.op, op, total, err)
 }
 
 // storeEachParentPagesTags is storeEachParentTags for child listings too
@@ -2414,9 +2408,9 @@ func storeEachParentPagesTagsWith[Item any](
 	tags rowTagReader, p *phaseTotals,
 ) (storeWriteFailed bool) {
 	var (
-		mu              sync.Mutex // guards the counts and werr
-		total, inserted int
-		werr            error
+		mu    sync.Mutex // guards the counts and werr
+		total int
+		werr  error
 	)
 	phaseCtx, stopPhase := context.WithCancel(ctx)
 	defer stopPhase()
@@ -2462,9 +2456,8 @@ func storeEachParentPagesTagsWith[Item any](
 			}
 			r.tally.addAll(&pageTally)
 			r.hard = append(r.hard, h)
-			t, i, err := r.out.write(st, rows)
+			t, err := r.out.write(st, rows)
 			total += t
-			inserted += i
 			if err != nil {
 				werr = err
 				stopPhase()
@@ -2492,12 +2485,12 @@ func storeEachParentPagesTagsWith[Item any](
 	}
 	errs := rowTagErrs{hard: errors.Join(hard...), transient: tally.transient(tags.op)}
 	if werr != nil {
-		return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(append(out.errs, werr)...))
+		return errs.addPhase(p, tags.op, op, total, errors.Join(append(out.errs, werr)...))
 	}
 	out.stopped(stopped)
 	out.warn(st, acct, region)
 	tally.warn(st, tags, acct, region)
-	return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(out.errs...))
+	return errs.addPhase(p, tags.op, op, total, errors.Join(out.errs...))
 }
 
 // storeEachParentPages is storeEachParentPagesTags for rows that have no
@@ -2662,10 +2655,10 @@ type hostPhase struct {
 
 // countedPhase is the hostPhase of a scanner that returns its counts and
 // error rather than adding them to p.
-func countedPhase(host int, op string, run func() (int, int, error)) hostPhase {
+func countedPhase(host int, op string, run func() (int, error)) hostPhase {
 	return hostPhase{op, host, func(p *phaseTotals) bool {
-		t, i, err := run()
-		return p.addPhase(op, t, i, err)
+		t, err := run()
+		return p.addPhase(op, t, err)
 	}}
 }
 
@@ -2682,7 +2675,7 @@ func countedPhase(host int, op string, run func() (int, int, error)) hostPhase {
 // service is reported unavailable; once any host stored rows, every NXDOMAIN
 // left is a failure of this scan instead (resultLateNXDOMAIN), so those rows
 // keep their counts.
-func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, service string, primary int, phases []hostPhase) (int, int, error) {
+func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, service string, primary int, phases []hostPhase) (int, error) {
 	var p phaseTotals
 	ran, gone := map[int]bool{}, map[int]bool{}
 	notRun := 0
@@ -2953,12 +2946,12 @@ func (d *detailedRows) before(ctx context.Context, st *store.Store, acct *accoun
 // addPhase adds the listing's counts and err to p under op, and both reads'
 // errors under their ops, as rowTagErrs.addPhase does. It reports whether
 // the write failed, after which the scanner must stop.
-func (d *detailedRows) addPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+func (d *detailedRows) addPhase(p *phaseTotals, op string, total int, err error) (storeWriteFailed bool) {
 	if errors.Is(err, store.ErrStoreWrite) {
 		err = errors.Join(err, d.getErrs.hard, d.getErrs.transient)
 	} else {
 		p.errs.add(d.getOp, d.getErrs.hard)
 		p.errs.add(d.getOp, d.getErrs.transient)
 	}
-	return d.tagErrs.addPhase(p, d.tags.op, op, total, inserted, err)
+	return d.tagErrs.addPhase(p, d.tags.op, op, total, err)
 }

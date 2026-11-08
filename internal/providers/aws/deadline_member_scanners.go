@@ -62,7 +62,7 @@ func deadlineStoreMembers[M any](
 	skip func(parent string, err error) bool, warnSkipped func(),
 	page func(ctx context.Context, p childParent, token *string) ([]M, *string, error),
 	row func(p childParent, m M) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	var transients transientTally
 	return storeChildrenEachParent(ctx, st, acct, region, op, deadlineNotFound, parents,
 		func(parent string, err error) bool {
@@ -78,7 +78,7 @@ func deadlineStoreMembers[M any](
 
 // scanDeadlineFarmMembers stores the members of each farm, one row per
 // principal (deadlineStoreMembers).
-func scanDeadlineFarmMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineFarmMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	return deadlineStoreMembers(ctx, st, acct, region, deadlineListFarmMembersOp, deadlineFarmParents(farms), nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]dltypes.FarmMember, *string, error) {
 			out, err := client.ListFarmMembers(ctx, &deadline.ListFarmMembersInput{FarmId: &p.id, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
@@ -97,7 +97,7 @@ func scanDeadlineFarmMembers(ctx context.Context, client deadlineAPI, acct *acco
 // with one warning for all such fleets: a fleet can be listed while its
 // creation is in progress or has failed, and how the member listing answers
 // for such a fleet has not been observed.
-func scanDeadlineFleetMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineFleetMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	parents, keys := deadlineFarmChildren(farms, func(f dlFarmRef) []childParent { return f.fleets })
 	var notReady notReadyTally
 	return deadlineStoreMembers(ctx, st, acct, region, deadlineListFleetMembersOp, parents, notReady.drop,
@@ -119,7 +119,7 @@ func scanDeadlineFleetMembers(ctx context.Context, client deadlineAPI, acct *acc
 
 // scanDeadlineQueueMembers stores the members of each queue, one row per
 // principal (deadlineStoreMembers).
-func scanDeadlineQueueMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+func scanDeadlineQueueMembers(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, error) {
 	parents, keys := deadlineFarmChildren(farms, func(f dlFarmRef) []childParent { return f.queues })
 	return deadlineStoreMembers(ctx, st, acct, region, deadlineListQueueMembersOp, parents, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]dltypes.QueueMember, *string, error) {

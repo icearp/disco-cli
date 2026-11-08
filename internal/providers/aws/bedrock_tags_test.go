@@ -286,12 +286,12 @@ func brHandlers(c *bacCalls) map[string]func(any) (any, error) {
 
 // brScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func brScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func brScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	return brScanCtx(context.Background(), t, st, handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op"))
 }
 
-func brScanCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error), unanswered error) (int, int, error) {
+func brScanCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error), unanswered error) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, unanswered)
@@ -344,7 +344,7 @@ func TestScanBedrock_ChildPhasesGetEveryStoredParent(t *testing.T) {
 	}
 	sent := brRecordParents(handlers, fields)
 
-	if _, _, err := brScan(t, st, handlers); err != nil {
+	if _, err := brScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	got := sent()
@@ -381,7 +381,9 @@ func TestScanBedrock_Empty(t *testing.T) {
 		handlers[op] = brEmpty(calls, op, out)
 	}
 
-	total, inserted, err := brScan(t, st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := brScan(t, counted, handlers)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -402,7 +404,9 @@ func TestScanBedrock_StoresTagsOfEveryTaggedType(t *testing.T) {
 	calls := newBACCalls()
 	wantSent := brTagFixtures(calls)
 
-	total, inserted, err := brScan(t, st, brHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := brScan(t, counted, brHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -482,7 +486,7 @@ func TestScanBedrock_KnowledgeBaseRowIsTheGetBody(t *testing.T) {
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
-	if _, _, err := brScan(t, st, brHandlers(calls)); err != nil {
+	if _, err := brScan(t, st, brHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN("aws", testRegion, testAccountID, "tagged")]
@@ -492,18 +496,18 @@ func TestScanBedrock_KnowledgeBaseRowIsTheGetBody(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanBedrock_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
-	if _, _, err := brScan(t, st, brHandlers(calls)); err != nil {
+	if _, err := brScan(t, st, brHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := brScan(t, st, brHandlers(calls))
+	total, err := brScan(t, st, brHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -560,7 +564,7 @@ func TestScanBedrock_TagReadFailures(t *testing.T) {
 						}
 					}
 
-					_, _, err := brScan(t, st, handlers)
+					_, err := brScan(t, st, handlers)
 					if c.outcome == outcomeOK && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -623,7 +627,7 @@ func TestScanBedrock_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[brARN("flow", "tagged")] = apiErr("ThrottlingException", "Rate exceeded")
 	calls.errs[brARN("guardrail", "tagged")] = apiErr("ValidationException", "bad")
 
-	_, _, err := brScan(t, st, brHandlers(calls))
+	_, err := brScan(t, st, brHandlers(calls))
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 	}
@@ -660,7 +664,7 @@ func TestScanBedrock_KnowledgeBaseGetFailures(t *testing.T) {
 			brTagFixtures(calls)
 			calls.errs["get tagged"] = c.err
 
-			_, _, err := brScan(t, st, brHandlers(calls))
+			_, err := brScan(t, st, brHandlers(calls))
 			if c.outcome == outcomeOK && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -704,7 +708,7 @@ func TestScanBedrock_KnowledgeBaseGetThrottleDemotedBesideHardError(t *testing.T
 	calls.errs["get tagged"] = apiErr("ThrottlingException", "Rate exceeded")
 	calls.errs[brARN("guardrail", "tagged")] = apiErr("ValidationException", "bad")
 
-	_, _, err := brScan(t, st, brHandlers(calls))
+	_, err := brScan(t, st, brHandlers(calls))
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 	}
@@ -739,7 +743,7 @@ func TestScanBedrock_FailedWriteStopsWithoutWarning(t *testing.T) {
 				calls.errs["get "+tc.getDenied] = apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:GetKnowledgeBase")
 			}
 
-			_, _, err := brScan(t, st, brHandlers(calls))
+			_, err := brScan(t, st, brHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -768,7 +772,7 @@ func TestScanBedrock_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers["ListBlueprints"] = func(any) (any, error) { return nil, apiErr("ConflictException", "blueprints") }
 	handlers["ListAgentVersions"] = func(any) (any, error) { return nil, apiErr("ConflictException", "versions") }
 
-	_, _, err := brScan(t, st, handlers)
+	_, err := brScan(t, st, handlers)
 	if calls.count("ListAutomatedReasoningPolicyTestCases") == 0 {
 		t.Error("the test-case phase, after the failed agent-version phase, never ran")
 	}
@@ -830,7 +834,7 @@ func TestScanBedrock_RegionGapOnlyOnFirstPage(t *testing.T) {
 				handlers := brHandlers(calls)
 				handlers[tc.op] = failOnCall(call, tc.gap, handlers[tc.op])
 
-				_, _, err := brScan(t, st, handlers)
+				_, err := brScan(t, st, handlers)
 				denial := isAccessDenied(tc.gap)
 				switch {
 				case call == 1 || denial:
@@ -866,7 +870,7 @@ func TestScanBedrock_ListDenialWarns(t *testing.T) {
 	handlers := brHandlers(calls)
 	delete(handlers, "ListAutomatedReasoningPolicies")
 
-	if _, _, err := brScan(t, st, handlers); err != nil {
+	if _, err := brScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -991,7 +995,7 @@ func TestScanBedrock_UnstorableItemsWarn(t *testing.T) {
 			handlers := brHandlers(calls)
 			handlers[tc.op] = tc.answer
 
-			if _, _, err := brScan(t, st, handlers); err != nil {
+			if _, err := brScan(t, st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := len(rowsByNativeID(t, st, tc.typ)); got != tc.stored {
@@ -1020,7 +1024,7 @@ func TestScanBedrock_RepeatedTokenKeepsPages(t *testing.T) {
 		}}, nil
 	}
 
-	_, _, err := brScan(t, st, handlers)
+	_, err := brScan(t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1052,7 +1056,7 @@ func TestScanBedrock_ContextEndStopsOnce(t *testing.T) {
 		return agents(in)
 	}
 
-	_, _, err := brScanCtx(ctx, t, st, handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op"))
+	_, err := brScanCtx(ctx, t, st, handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op"))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1106,7 +1110,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 		without(handlers, agentOps, nx("bedrock-agent"))
 		without(handlers, daOps, nx("bedrock-data-automation"))
 
-		total, _, err := brScan(t, st, handlers)
+		total, err := brScan(t, st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -1127,7 +1131,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 		handlers := brHandlers(calls)
 		handlers["ListFlows"] = func(any) (any, error) { return nil, nx("bedrock-agent") }
 
-		total, _, err := brScan(t, st, handlers)
+		total, err := brScan(t, st, handlers)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 		}
@@ -1142,7 +1146,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 		handlers := brHandlers(calls)
 		handlers["ListAgents"] = failOnCall(2, nx("bedrock-agent"), handlers["ListAgents"])
 
-		_, _, err := brScan(t, st, handlers)
+		_, err := brScan(t, st, handlers)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
 		}
@@ -1159,7 +1163,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 		handlers["ListAgents"] = brEmpty(calls, "ListAgents", &bedrockagent.ListAgentsOutput{})
 		handlers["ListBlueprints"] = brEmpty(calls, "ListBlueprints", &bda.ListBlueprintsOutput{})
 
-		if _, _, err := brScan(t, st, handlers); err != nil {
+		if _, err := brScan(t, st, handlers); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		for _, c := range []struct{ typ, arn string }{
@@ -1175,7 +1179,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
-		_, _, err := brScanCtx(context.Background(), t, st, nil, nx("bedrock"))
+		_, err := brScanCtx(context.Background(), t, st, nil, nx("bedrock"))
 		if got := classifyServiceError(err); got != outcomeUnavailable {
 			t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
 		}
@@ -1193,7 +1197,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 			handlers[op] = all[op]
 		}
 
-		total, _, err := brScanCtx(context.Background(), t, st, handlers, nx("bedrock"))
+		total, err := brScanCtx(context.Background(), t, st, handlers, nx("bedrock"))
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError = %v; want outcomeError, so the agent rows keep their counts (err %v)", got, err)
 		}
@@ -1342,7 +1346,9 @@ func TestScanBedrock_ChildRowsCountInScanTotals(t *testing.T) {
 	handlers := brHandlers(calls)
 	brChildHandlers(calls, handlers)
 
-	total, inserted, err := brScan(t, st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := brScan(t, counted, handlers)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1429,7 +1435,9 @@ func TestScanBedrock_ChildFailureKeepsTheOtherRows(t *testing.T) {
 			brChildHandlers(calls, handlers)
 			tc.fail(calls, handlers)
 
-			total, inserted, err := brScan(t, st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := brScan(t, counted, handlers)
+			inserted := upserts()
 			if tc.code == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1492,7 +1500,7 @@ func TestScanBedrock_PromptVersionAttachesToItsPrompt(t *testing.T) {
 					{Arn: sdkaws.String(tc.elementARN), Id: sdkaws.String("tagged"), Version: sdkaws.String("1")},
 				}}, nil
 			}
-			if _, _, err := brScan(t, st, handlers); err != nil {
+			if _, err := brScan(t, st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var ofTagged []string
@@ -1541,7 +1549,7 @@ func TestScanBedrock_KnowledgeBaseTagReadUsesTheBodyARN(t *testing.T) {
 		return out, err
 	}
 
-	if _, _, err := brScan(t, st, handlers); err != nil {
+	if _, err := brScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, c := range []struct {
@@ -1575,7 +1583,7 @@ func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := brScanCtx(ctx, t, st, handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op"))
+	_, err := brScanCtx(ctx, t, st, handlers, apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op"))
 	stops := 0
 	for _, m := range bacTopMembers(err) {
 		if errors.Is(m, context.Canceled) {
@@ -1666,7 +1674,7 @@ func TestScanBedrock_EnforcedGuardrailsKeepEarlierPages(t *testing.T) {
 		return &bedrock.ListEnforcedGuardrailsConfigurationOutput{NextToken: sdkaws.String("p2"), GuardrailsConfig: []bedrocktypes.AccountEnforcedGuardrailOutputConfiguration{{ConfigId: sdkaws.String("c1")}}}, nil
 	}
 
-	_, _, err := brScan(t, st, handlers)
+	_, err := brScan(t, st, handlers)
 	if !joinCarriesAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v; want the ValidationException", err)
 	}

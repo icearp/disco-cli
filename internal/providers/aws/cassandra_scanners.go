@@ -73,7 +73,7 @@ type cassandraTableKey struct {
 // scanCassandra discovers Amazon Keyspaces (Apache Cassandra-compatible)
 // keyspaces, tables (per keyspace), user-defined types (per keyspace) and CDC
 // streams.
-func scanCassandra(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCassandra(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := keyspaces.NewFromConfig(acct.cfg, func(o *keyspaces.Options) { o.Region = region })
 	streamsClient := keyspacesstreams.NewFromConfig(acct.cfg, func(o *keyspacesstreams.Options) { o.Region = region })
 	return scanCassandraAll(ctx, client, streamsClient, acct, region, st, scanID)
@@ -85,7 +85,7 @@ func scanCassandra(ctx context.Context, acct *account, region string, st *store.
 // region and use the stored tables only for their contains pairs. Keyspaces,
 // tables and streams have their tags read per row (cassandraTags), whose
 // denials are one warning for the whole scan.
-func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient cassandraStreamsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient cassandraStreamsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const keyspacesHost, streamsHost = 0, 1
 	tags := cassandraTags(client).sharingDenials()
 	var (
@@ -93,7 +93,7 @@ func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient ca
 		tableARNs       map[cassandraTableKey]string
 		noKeyspaces     bool
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "cassandra", keyspacesHost, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "cassandra", keyspacesHost, []hostPhase{
 		{op: "cassandra:ListKeyspaces", host: keyspacesHost, run: func(p *phaseTotals) (failed bool) {
 			total, errs := p.total, len(p.errs)
 			keyspaceParents, failed = scanCassandraKeyspaces(ctx, client, acct, region, st, scanID, tags, p)
@@ -104,7 +104,7 @@ func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient ca
 			tableARNs, failed = scanCassandraTables(ctx, client, keyspaceParents, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(keyspacesHost, "cassandra:ListTypes", func() (int, int, error) {
+		countedPhase(keyspacesHost, "cassandra:ListTypes", func() (int, error) {
 			return scanCassandraTypes(ctx, client, childParentIDs(keyspaceParents), acct, region, st, scanID)
 		}),
 		{op: "cassandra:ListStreams", host: streamsHost, run: func(p *phaseTotals) bool {
@@ -118,7 +118,7 @@ func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient ca
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // cassandraTags reads a row's tags with keyspaces ListTagsForResource, sent
@@ -236,8 +236,8 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, keyspaceParen
 		}
 		return got, nil
 	})(out.rows)
-	total, inserted, err := out.store(st, acct, region)
-	if d.addPhase(p, op, total, inserted, err) {
+	total, err := out.store(st, acct, region)
+	if d.addPhase(p, op, total, err) {
 		return nil, true
 	}
 	warn()
@@ -248,7 +248,7 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, keyspaceParen
 	return arns, false
 }
 
-func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, ks := range ksNames {
 		ksName := ks
@@ -263,7 +263,7 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 					_ = skipIfAccessDenied(st, "cassandra:ListTypes", acct.ID, region, err)
 					break
 				}
-				return 0, 0, fmt.Errorf("cassandra:ListTypes ks=%s: %w", ksName, err)
+				return 0, fmt.Errorf("cassandra:ListTypes ks=%s: %w", ksName, err)
 			}
 			for _, name := range out.Types {
 				if name == "" {

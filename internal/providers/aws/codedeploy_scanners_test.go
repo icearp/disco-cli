@@ -225,7 +225,7 @@ func (f *cdFake) handlers() map[string]func(in any) (any, error) {
 
 // cdScan runs the service scan entry point against f; an op without a
 // handler is denied.
-func cdScan(ctx context.Context, st *store.Store, f *cdFake) (int, int, error) {
+func cdScan(ctx context.Context, st *store.Store, f *cdFake) (int, error) {
 	acct := partitionAccount(f.partition)
 	if f.partition == "aws" {
 		acct = newTestAccount(testAccountID)
@@ -296,7 +296,9 @@ func TestScanCodeDeploy_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := cdFixture()
-	total, inserted, err := cdScan(context.Background(), st, f)
+	counted, upserts := countUpserts(st)
+	total, err := cdScan(context.Background(), counted, f)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -388,16 +390,16 @@ func TestScanCodeDeploy_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCodeDeploy_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := cdScan(context.Background(), st, cdFixture()); err != nil {
+	if _, err := cdScan(context.Background(), st, cdFixture()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := cdScan(context.Background(), st, cdFixture())
+	total, err := cdScan(context.Background(), st, cdFixture())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -414,7 +416,9 @@ func TestScanCodeDeploy_Empty(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := cdFixture()
 	f.appPages, f.configs = nil, nil
-	total, inserted, err := cdScan(context.Background(), st, f)
+	counted, upserts := countUpserts(st)
+	total, err := cdScan(context.Background(), counted, f)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -442,7 +446,7 @@ func TestScanCodeDeploy_PartitionARNs(t *testing.T) {
 			f.partition, f.region = pf.partition, pf.region
 			f.tags = map[string][]map[string]string{f.appARN("app-tagged"): {{"env": pf.partition}}}
 			st := newTestStore(t)
-			if _, _, err := cdScan(context.Background(), st, f); err != nil {
+			if _, err := cdScan(context.Background(), st, f); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := cdSorted(f.appARN("app-tagged"), f.appARN("app-bare"),
@@ -490,7 +494,7 @@ func TestScanCodeDeploy_TagReadFailures(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := cdFixture()
 			f.errs["ListTagsForResource "+c.arn] = c.err
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -534,7 +538,7 @@ func TestScanCodeDeploy_TagDenialsWarnOncePerScan(t *testing.T) {
 	f := cdFixture()
 	f.errs["ListTagsForResource "+f.appARN("app-bare")] = cdTestDenied
 	f.errs["ListTagsForResource "+f.groupARN("app-tagged", "dg-bare")] = cdTestDenied
-	if _, _, err := cdScan(context.Background(), st, f); err != nil {
+	if _, err := cdScan(context.Background(), st, f); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := amWarnings(warns()); !slices.Equal(got, []string{cdTagsOp}) {
@@ -580,7 +584,7 @@ func TestScanCodeDeploy_ThrottleDemotedBesideHardError(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := cdFixture()
 			f.errs = c.errs
-			_, _, err := cdScan(context.Background(), st, f)
+			_, err := cdScan(context.Background(), st, f)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, c.code)
 			if got := amWarnings(warns()); !slices.Equal(got, []string{c.warn}) {
@@ -616,7 +620,7 @@ func TestScanCodeDeploy_BatchGetApplicationsFailures(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := cdFixture()
 			f.errs["BatchGetApplications app-tagged"] = c.err
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -668,7 +672,7 @@ func TestScanCodeDeploy_BatchGetDeploymentGroupsFailures(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := cdFixture()
 			f.errs["BatchGetDeploymentGroups app-bare/dg-tagged"] = c.err
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -716,7 +720,7 @@ func TestScanCodeDeploy_BatchLeavesNamesOut(t *testing.T) {
 			for _, k := range []string{"app-bare", "app-tagged/dg-bare", "app-bare/dg-bare"} {
 				c.set(f)[k] = true
 			}
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -749,7 +753,7 @@ func TestScanCodeDeploy_BatchCap(t *testing.T) {
 		f.appPages = [][]string{names}
 		f.groupPages, f.configs = nil, nil
 		f.errs["BatchGetApplications n100"] = cdTestBadName
-		total, _, err := cdScan(context.Background(), st, f)
+		total, err := cdScan(context.Background(), st, f)
 		assertAPICode(t, err, "InvalidApplicationNameException")
 		if want := []string{"BatchGetApplications " + strings.Join(names[:100], ","), "BatchGetApplications n100"}; !slices.Equal(cdBatchCalls(f, "BatchGetApplications"), want) {
 			t.Errorf("BatchGetApplications calls = %v; want %v", cdBatchCalls(f, "BatchGetApplications"), want)
@@ -766,7 +770,7 @@ func TestScanCodeDeploy_BatchCap(t *testing.T) {
 		f.groupPages = map[string][][]string{"app": {names}}
 		f.configs = nil
 		f.errs["BatchGetDeploymentGroups app/n000"] = cdTestBadName
-		total, _, err := cdScan(context.Background(), st, f)
+		total, err := cdScan(context.Background(), st, f)
 		assertAPICode(t, err, "InvalidApplicationNameException")
 		if want := []string{"BatchGetDeploymentGroups app/" + strings.Join(names[:100], ","), "BatchGetDeploymentGroups app/n100"}; !slices.Equal(cdBatchCalls(f, "BatchGetDeploymentGroups"), want) {
 			t.Errorf("BatchGetDeploymentGroups calls = %v; want %v", cdBatchCalls(f, "BatchGetDeploymentGroups"), want)
@@ -833,7 +837,7 @@ func TestScanCodeDeploy_ListDeploymentGroupsFailures(t *testing.T) {
 				f.errs["BatchGetDeploymentGroups app-bare/dg-tagged"] = c.batchErr
 			}
 			f.unnamed["app-bare/dg-tagged"] = c.unnamed
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -885,7 +889,7 @@ func TestScanCodeDeploy_ListApplicationsFailures(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := cdFixture()
 			f.errs, f.repeatToken = c.errs, c.repeat
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			switch {
 			case c.is != nil:
 				if !errors.Is(err, c.is) {
@@ -946,7 +950,7 @@ func TestScanCodeDeploy_FailedWriteStopsScan(t *testing.T) {
 			refuseStoreWrites(t, st, c.typ)
 			f := cdFixture()
 			f.errs = c.errs
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -989,7 +993,7 @@ func TestScanCodeDeploy_NXDOMAIN(t *testing.T) {
 			st := newTestStore(t)
 			f := cdFixture()
 			f.errs[c.key] = cdTestNX
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			assertGlueOutcome(t, err, outcomeError)
 			want := f.without(c.lost...)
 			if got := cdStored(t, st); !slices.Equal(got, want) {
@@ -1022,7 +1026,7 @@ func TestScanCodeDeploy_NXDOMAIN(t *testing.T) {
 				f.groupPages = nil
 			}
 			f.errs = c.errs
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			assertGlueOutcome(t, err, outcomeError)
 			if total != 0 {
 				t.Errorf("total = %d; want 0", total)
@@ -1041,7 +1045,7 @@ func TestScanCodeDeploy_NXDOMAIN(t *testing.T) {
 		f := cdFixture()
 		f.configs = nil
 		f.errs = map[string]error{"ListApplications 2": cdTestNX, "BatchGetApplications app-tagged": cdTestDenied}
-		total, _, err := cdScan(context.Background(), st, f)
+		total, err := cdScan(context.Background(), st, f)
 		assertGlueOutcome(t, err, outcomeError)
 		want := cdSorted(f.groupARN("app-tagged", "dg-tagged"), f.groupARN("app-tagged", "dg-bare"))
 		if got := cdStored(t, st); !slices.Equal(got, want) {
@@ -1060,7 +1064,7 @@ func TestScanCodeDeploy_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		f := cdFixture()
 		f.errs["ListApplications 1"] = cdTestNX
-		_, _, err := cdScan(context.Background(), st, f)
+		_, err := cdScan(context.Background(), st, f)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if got := f.calls.distinct(); !slices.Equal(got, []string{"ListApplications 1"}) {
 			t.Errorf("calls = %v; want only the first listing", got)
@@ -1091,7 +1095,7 @@ func TestScanCodeDeploy_ContextEndReportedOnce(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, cdTestDenied)
-	_, _, err := scanCodeDeploy(ctx, acct, testRegion, st, testScanID)
+	_, err := scanCodeDeploy(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1137,7 +1141,7 @@ func TestScanCodeDeploy_GroupBatchAppGoneAfterPartStored(t *testing.T) {
 			f.groupPages = map[string][][]string{"app": {names}}
 			f.configs = nil
 			f.errs["BatchGetDeploymentGroups app/"+c.failed] = cdTestAppGone
-			total, _, err := cdScan(context.Background(), st, f)
+			total, err := cdScan(context.Background(), st, f)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}

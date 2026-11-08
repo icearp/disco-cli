@@ -21,17 +21,17 @@ func init() {
 
 // scanDataProtection discovers Azure Backup (Data Protection) backup vaults and
 // resource guards.
-func scanDataProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	vaults, err := armdataprotection.NewBackupVaultsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdataprotection:NewBackupVaultsClient: %w", err)
+		return 0, fmt.Errorf("armdataprotection:NewBackupVaultsClient: %w", err)
 	}
 	guards, err := armdataprotection.NewResourceGuardsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdataprotection:NewResourceGuardsClient: %w", err)
+		return 0, fmt.Errorf("armdataprotection:NewResourceGuardsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdataprotection:BackupVaults.GetInSubscription", TypeDataProtectionBackupVault, sub, st, scanID,
 				vaults.NewGetInSubscriptionPager(nil),
 				func(p armdataprotection.BackupVaultsClientGetInSubscriptionResponse) []*armdataprotection.BackupVaultResource {
@@ -41,7 +41,7 @@ func scanDataProtection(ctx context.Context, sub *subscription, cred azcore.Toke
 					return azTrackedBase{id: sv(v.ID), name: sv(v.Name), location: sv(v.Location), tags: v.Tags, full: v}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdataprotection:ResourceGuards.GetResourcesInSubscription", TypeDataProtectionResourceGuard, sub, st, scanID,
 				guards.NewGetResourcesInSubscriptionPager(nil),
 				func(p armdataprotection.ResourceGuardsClientGetResourcesInSubscriptionResponse) []*armdataprotection.ResourceGuardResource {

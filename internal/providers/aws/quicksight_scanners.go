@@ -189,7 +189,7 @@ func qsSubscriptionGate(ctx context.Context, client quickSightAPI, acct *account
 		_ = skipIfAccessDenied(st, qsDescribeSubscription, acct.ID, region, err)
 		return qsUnsubscribedProbe(ctx, client, acct, fmt.Errorf("%s: %w", qsDescribeSubscription, err))
 	}
-	p.addPhase(qsDescribeSubscription, 0, 0, fmt.Errorf("%s: %w", qsDescribeSubscription, err))
+	p.addPhase(qsDescribeSubscription, 0, fmt.Errorf("%s: %w", qsDescribeSubscription, err))
 	return true, nil
 }
 
@@ -226,7 +226,7 @@ func qsUnsubscribedProbe(ctx context.Context, client quickSightAPI, acct *accoun
 // under quicksight:ListTagsForResource, so phaseErrs.join demotes a
 // transient one beside a hard one under its own op. Once rows were stored an
 // NXDOMAIN is a failure of this scan, not a region gap (resultLateNXDOMAIN).
-func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := quicksight.NewFromConfig(acct.cfg, func(o *quicksight.Options) { o.Region = region })
 	var (
 		p                                                        phaseTotals
@@ -234,12 +234,12 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		groups                                                   []qsGroupRef
 	)
 	if scan, err := qsSubscriptionGate(ctx, client, acct, region, st, &p); !scan {
-		return 0, 0, err
+		return 0, err
 	}
-	counted := func(op string, run func() (int, int, error)) func() bool {
+	counted := func(op string, run func() (int, error)) func() bool {
 		return func() bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
+			t, err := run()
+			return p.addPhase(op, t, err)
 		}
 	}
 	phases := []func() bool{
@@ -273,55 +273,55 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		func() bool { return scanQSVPCConnections(ctx, client, acct, region, st, scanID, &p) },
 		func() bool { return scanQSCustomPermissions(ctx, client, acct, region, st, scanID, &p) },
 		func() bool { return scanQSActionConnectors(ctx, client, acct, region, st, scanID, &p) },
-		counted("quicksight:ListRefreshSchedules", func() (int, int, error) {
+		counted("quicksight:ListRefreshSchedules", func() (int, error) {
 			return scanQSRefreshSchedules(ctx, client, acct, region, st, scanID, dataSets)
 		}),
-		counted("quicksight:ListAgents", func() (int, int, error) { return scanQSAgents(ctx, client, acct, region, st, scanID) }),
+		counted("quicksight:ListAgents", func() (int, error) { return scanQSAgents(ctx, client, acct, region, st, scanID) }),
 		func() bool { return scanQSBrands(ctx, client, acct, region, st, scanID, &p) },
 		func() bool { return scanQSFlows(ctx, client, acct, region, st, scanID, &p) },
-		counted("quicksight:ListKnowledgeBases", func() (int, int, error) {
+		counted("quicksight:ListKnowledgeBases", func() (int, error) {
 			return scanQSKnowledgeBases(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanQSOAuthClientApplications(ctx, client, acct, region, st, scanID, &p) },
-		counted("quicksight:ListSpaces", func() (int, int, error) { return scanQSSpaces(ctx, client, acct, region, st, scanID) }),
-		counted("quicksight:DescribeAccountSettings", func() (int, int, error) {
+		counted("quicksight:ListSpaces", func() (int, error) { return scanQSSpaces(ctx, client, acct, region, st, scanID) }),
+		counted("quicksight:DescribeAccountSettings", func() (int, error) {
 			return scanQSAccountSettings(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanQSAccountCustomization(ctx, client, acct, region, st, scanID, &p) },
-		counted("quicksight:ListGroups", func() (t, i int, err error) {
-			groups, t, i, err = scanQSGroups(ctx, client, acct, region, st, scanID, namespaces)
-			return t, i, err
+		counted("quicksight:ListGroups", func() (t int, err error) {
+			groups, t, err = scanQSGroups(ctx, client, acct, region, st, scanID, namespaces)
+			return t, err
 		}),
 		func() bool { return scanQSUsers(ctx, client, acct, region, st, scanID, namespaces, &p) },
-		counted("quicksight:ListIAMPolicyAssignments", func() (int, int, error) {
+		counted("quicksight:ListIAMPolicyAssignments", func() (int, error) {
 			return scanQSAssignments(ctx, client, acct, region, st, scanID, namespaces)
 		}),
-		counted("quicksight:ListTemplateAliases", func() (int, int, error) {
+		counted("quicksight:ListTemplateAliases", func() (int, error) {
 			return scanQSTemplateAliases(ctx, client, acct, region, st, scanID, templates)
 		}),
-		counted("quicksight:ListThemeAliases", func() (int, int, error) {
+		counted("quicksight:ListThemeAliases", func() (int, error) {
 			return scanQSThemeAliases(ctx, client, acct, region, st, scanID, themes)
 		}),
-		counted("quicksight:ListTopicRefreshSchedules", func() (int, int, error) {
+		counted("quicksight:ListTopicRefreshSchedules", func() (int, error) {
 			return scanQSTopicRefreshSchedules(ctx, client, acct, region, st, scanID, topics)
 		}),
-		counted("quicksight:DescribeKeyRegistration", func() (int, int, error) {
+		counted("quicksight:DescribeKeyRegistration", func() (int, error) {
 			return scanQSKeyRegistration(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanQSApps(ctx, client, acct, region, st, scanID, &p) },
-		counted(qsListApprovalPoliciesOp, func() (int, int, error) {
+		counted(qsListApprovalPoliciesOp, func() (int, error) {
 			return scanQSApprovalPolicies(ctx, client, acct, region, st, scanID)
 		}),
 		func() bool { return scanQSDLPSettings(ctx, client, acct, region, st, scanID, &p) },
-		counted(qsListLimitsProfilesOp, func() (int, int, error) {
+		counted(qsListLimitsProfilesOp, func() (int, error) {
 			return scanQSLimitsProfiles(ctx, client, acct, region, st, scanID)
 		}),
 		// The member phases skip a parent whose call is still transient after
 		// the SDK's retries, so no transient error leaves them.
-		counted(qsListFolderMembersOp, func() (int, int, error) {
+		counted(qsListFolderMembersOp, func() (int, error) {
 			return scanQSFolderMembers(ctx, client, acct, region, st, scanID, folders)
 		}),
-		counted(qsListGroupMembershipsOp, func() (int, int, error) {
+		counted(qsListGroupMembershipsOp, func() (int, error) {
 			return scanQSGroupMemberships(ctx, client, acct, region, st, scanID, groups)
 		}),
 	}
@@ -637,7 +637,7 @@ func scanQSActionConnectors(ctx context.Context, client quickSightAPI, acct *acc
 // takes no page token. A data set it no longer finds (ResourceNotFoundException,
 // modeled) was deleted since it was listed and is skipped; a denial warns once;
 // any other error is returned after the schedules read are stored.
-func scanQSRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, dataSets []childParent) (int, int, error) {
+func scanQSRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, dataSets []childParent) (int, error) {
 	id := acct.ID
 	ids := make([]string, len(dataSets))
 	for i, ds := range dataSets {
@@ -678,7 +678,7 @@ func scanQSNamespaces(ctx context.Context, client quickSightAPI, acct *account, 
 		qsTagReader(client), p)
 }
 
-func scanQSAgents(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSAgents(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	return storeTokenList(ctx, st, acct, region, "quicksight:ListAgents",
 		qsPages([]string{qsEditionGap, qsPrecondition}, func(ctx context.Context, token *string) ([]qstypes.AgentSummary, *string, error) {
@@ -731,7 +731,7 @@ func scanQSFlows(ctx context.Context, client quickSightAPI, acct *account, regio
 // a knowledge-base ARN is unverified. ListKnowledgeBases models
 // InvalidRequestException, whose shape doc says the feature is not activated
 // for the account, so it skips the phase on the first page (qsFeatureOff).
-func scanQSKnowledgeBases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSKnowledgeBases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	return storeTokenList(ctx, st, acct, region, "quicksight:ListKnowledgeBases",
 		qsPages([]string{qsFeatureOff, qsPrecondition}, func(ctx context.Context, token *string) ([]qstypes.KnowledgeBaseSummary, *string, error) {
@@ -765,7 +765,7 @@ func scanQSOAuthClientApplications(ctx context.Context, client quickSightAPI, ac
 // qsSpacesPageLimit is ListSpaces' MaxResults cap (1-500).
 const qsSpacesPageLimit = 500
 
-func scanQSSpaces(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSSpaces(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	return storeTokenList(ctx, st, acct, region, "quicksight:ListSpaces",
 		qsPages([]string{qsNoSubscription}, func(ctx context.Context, token *string) ([]qstypes.SpaceSummary, *string, error) {
@@ -782,21 +782,21 @@ func scanQSSpaces(ctx context.Context, client quickSightAPI, acct *account, regi
 
 // scanQSAccountSettings upserts the per-(account, region) settings singleton.
 // ResourceNotFoundException (modeled; the default unsubscribed state) and an
-// op the region does not serve (qsNotDeployed) return (0,0,nil) with no
+// op the region does not serve (qsNotDeployed) return (0, nil) with no
 // warning; a denial warns.
-func scanQSAccountSettings(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSAccountSettings(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	out, err := client.DescribeAccountSettings(ctx, &quicksight.DescribeAccountSettingsInput{AwsAccountId: &id})
 	switch {
 	case qsNotDeployed(err) || isAPIErrorCode(err, qsNoSubscription):
-		return 0, 0, nil
+		return 0, nil
 	case isAccessDenied(err):
-		return 0, 0, skipIfAccessDenied(st, "quicksight:DescribeAccountSettings", acct.ID, region, err)
+		return 0, skipIfAccessDenied(st, "quicksight:DescribeAccountSettings", acct.ID, region, err)
 	case err != nil:
-		return 0, 0, fmt.Errorf("quicksight:DescribeAccountSettings: %w", err)
+		return 0, fmt.Errorf("quicksight:DescribeAccountSettings: %w", err)
 	}
 	if out.AccountSettings == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "quicksight", region, acct.ID, "account-settings")
 	label := sv(out.AccountSettings.AccountName)
@@ -826,9 +826,9 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 	case qsNotDeployed(err) || isAPIErrorCode(err, qsNoSubscription):
 		return false
 	case isAccessDenied(err):
-		return p.addPhase(qsDescribeCustomization, 0, 0, skipIfAccessDenied(st, qsDescribeCustomization, acct.ID, region, err))
+		return p.addPhase(qsDescribeCustomization, 0, skipIfAccessDenied(st, qsDescribeCustomization, acct.ID, region, err))
 	case err != nil:
-		return p.addPhase(qsDescribeCustomization, 0, 0, fmt.Errorf("%s: %w", qsDescribeCustomization, err))
+		return p.addPhase(qsDescribeCustomization, 0, fmt.Errorf("%s: %w", qsDescribeCustomization, err))
 	}
 	if out.AccountCustomization == nil {
 		return false
@@ -841,8 +841,8 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 		DiscoveredBy: scanID,
 	}}
 	if sv(out.Arn) == "" {
-		t, i, err := upsertBatch(st, rows, qsDescribeCustomization)
-		return p.addPhase(qsDescribeCustomization, t, i, err)
+		t, err := upsertBatch(st, rows, qsDescribeCustomization)
+		return p.addPhase(qsDescribeCustomization, t, err)
 	}
 	return storeRowsTags(ctx, st, acct, region, qsDescribeCustomization, rows, nil, nil, qsTagReader(client), p)
 }
@@ -851,7 +851,7 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 // element names no namespace, and ListGroupMemberships needs it.
 type qsGroupRef struct{ namespace, name, arn string }
 
-func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) ([]qsGroupRef, int, int, error) {
+func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) ([]qsGroupRef, int, error) {
 	id := acct.ID
 	var (
 		groups   []qsGroupRef
@@ -877,13 +877,13 @@ func scanQSGroups(ctx context.Context, client quickSightAPI, acct *account, regi
 			}
 			return row, why, key
 		})
-	t, i, err := r.store(st, acct, region, func() {
+	t, err := r.store(st, acct, region, func() {
 		warnQSParentsUnlisted(st, acct, region, qsListGroupMembershipsOp, unlisted.count, "group(s)", "GroupName", unlisted.first)
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return nil, t, i, err
+		return nil, t, err
 	}
-	return groups, t, i, err
+	return groups, t, err
 }
 
 // scanQSUsers stores each namespace's users with their tags, one
@@ -913,15 +913,15 @@ func scanQSUsers(ctx context.Context, client quickSightAPI, acct *account, regio
 	} else {
 		r.out.rows, tagWarn, errs.hard, errs.transient = readRowTags(ctx, st, acct, region, qsTagReader(client), r.out.rows)
 	}
-	total, inserted, err := r.store(st, acct, region, tagWarn)
-	return errs.addPhase(p, qsListTagsOp, qsListUsersOp, total, inserted, err)
+	total, err := r.store(st, acct, region, tagWarn)
+	return errs.addPhase(p, qsListTagsOp, qsListUsersOp, total, err)
 }
 
 // scanQSAssignments stores each namespace's IAM policy assignments, read as
 // qsReadNamespaces says. Assignments carry no AWS-issued ARN, so each is
 // keyed {namespaceARN}/assignment/{name}, which the resolver strips back to
 // the namespace.
-func scanQSAssignments(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) (int, int, error) {
+func scanQSAssignments(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, namespaces []childParent) (int, error) {
 	id := acct.ID
 	nsARN := make(map[string]string, len(namespaces))
 	for _, ns := range namespaces {
@@ -1014,10 +1014,10 @@ func qsReadNamespaces[Item any](
 
 // store writes r's rows, then sends its warnings and warn (nil for none),
 // and returns the counts and errors; after a failed write it warns nothing.
-func (r *qsNamespaceRead) store(st *store.Store, acct *account, region string, warn func()) (int, int, error) {
-	total, inserted, err := r.out.store(st, acct, region)
+func (r *qsNamespaceRead) store(st *store.Store, acct *account, region string, warn func()) (int, error) {
+	total, err := r.out.store(st, acct, region)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	for _, code := range r.codes {
 		r.skipped[code].warnCode(st, r.out.op, acct, region, code, "namespace(s)", "what QuickSight means by it on this call is unverified")
@@ -1025,7 +1025,7 @@ func (r *qsNamespaceRead) store(st *store.Store, acct *account, region string, w
 	if warn != nil {
 		warn()
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // qsKeyRegistrationAttrs is DescribeKeyRegistrationOutput minus its response
@@ -1043,20 +1043,20 @@ type qsKeyRegistrationAttrs struct {
 // is skipped silently and a denial with a warning. A row is stored only for
 // a customer registration: a registered key, or a CMK as the Q data key (the
 // AWS_OWNED default is QuickSight's, not the customer's).
-func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	out, err := client.DescribeKeyRegistration(ctx, &quicksight.DescribeKeyRegistrationInput{AwsAccountId: &id})
 	switch {
 	case qsNotDeployed(err):
-		return 0, 0, nil
+		return 0, nil
 	case isAccessDenied(err):
-		return 0, 0, skipIfAccessDenied(st, "quicksight:DescribeKeyRegistration", acct.ID, region, err)
+		return 0, skipIfAccessDenied(st, "quicksight:DescribeKeyRegistration", acct.ID, region, err)
 	case err != nil:
-		return 0, 0, fmt.Errorf("quicksight:DescribeKeyRegistration: %w", err)
+		return 0, fmt.Errorf("quicksight:DescribeKeyRegistration: %w", err)
 	}
 	cmkDataKey := out.QDataKey != nil && out.QDataKey.QDataKeyType == qstypes.QDataKeyTypeCmk
 	if len(out.KeyRegistration) == 0 && !cmkDataKey {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "quicksight", region, acct.ID, "key-registration")
 	label := arn
@@ -1076,7 +1076,7 @@ func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *acco
 var qsChildNotFound = []string{"ResourceNotFoundException"}
 
 // scanQSTemplateAliases lists each template's aliases (storeChildrenEachParent).
-func scanQSTemplateAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent) (int, int, error) {
+func scanQSTemplateAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent) (int, error) {
 	id := acct.ID
 	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListTemplateAliases", qsChildNotFound, templates, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.TemplateAlias, *string, error) {
@@ -1105,7 +1105,7 @@ func qsChildRow(acct *account, region, scanID, typ, what string, arn, name *stri
 }
 
 // scanQSThemeAliases lists each theme's aliases (storeChildrenEachParent).
-func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, themes []childParent) (int, int, error) {
+func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, themes []childParent) (int, error) {
 	id := acct.ID
 	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListThemeAliases", qsChildNotFound, themes, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.ThemeAlias, *string, error) {
@@ -1126,7 +1126,7 @@ func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account
 // TopicId + DatasetId — so its NativeID is {topicARN}/refresh-schedule/{datasetId}.
 // ListTopicRefreshSchedules has no resource in the service reference, so a
 // deny there is account-wide and every topic is skipped under one warning.
-func scanQSTopicRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, topics []childParent) (int, int, error) {
+func scanQSTopicRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, topics []childParent) (int, error) {
 	id := acct.ID
 	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListTopicRefreshSchedules", qsChildNotFound, topics, nil, nil,
 		func(ctx context.Context, p childParent, _ *string) ([]qstypes.TopicRefreshScheduleSummary, *string, error) {
@@ -1197,7 +1197,7 @@ func scanQSApps(ctx context.Context, client quickSightAPI, acct *account, region
 
 // scanQSApprovalPolicies lists the calling account's approval policies;
 // ListApprovalPolicies, unlike the other account-level lists, takes no account id.
-func scanQSApprovalPolicies(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSApprovalPolicies(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, qsListApprovalPoliciesOp,
 		qsPages([]string{qsNoSubscription}, func(ctx context.Context, token *string) ([]qstypes.ApprovalPolicy, *string, error) {
 			out, err := client.ListApprovalPolicies(ctx, &quicksight.ListApprovalPoliciesInput{MaxResults: sdkaws.Int32(qsPageLimit), NextToken: token})
@@ -1237,7 +1237,7 @@ func scanQSDLPSettings(ctx context.Context, client quickSightAPI, acct *account,
 		qsTagReader(client), p)
 }
 
-func scanQSLimitsProfiles(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQSLimitsProfiles(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	id := acct.ID
 	return storeTokenList(ctx, st, acct, region, qsListLimitsProfilesOp,
 		qsPages(nil, func(ctx context.Context, token *string) ([]qstypes.LimitsProfile, *string, error) {
@@ -1283,7 +1283,7 @@ func warnQSParentsUnlisted(st *store.Store, acct *account, region, op string, co
 // op's edition and parameter codes and an NXDOMAIN (dropUnlessNXDOMAIN)
 // included, is returned: the folder phase
 // already succeeded, so the account has folders.
-func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, folders []childParent) (int, int, error) {
+func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, folders []childParent) (int, error) {
 	id := acct.ID
 	var transient transientTally
 	return storeChildrenEachParent(ctx, st, acct, region, qsListFolderMembersOp, qsChildNotFound, folders, transient.dropUnlessNXDOMAIN,
@@ -1317,7 +1317,7 @@ func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *accoun
 // skips that group with one warning per code, so that one group QuickSight
 // will not list cannot fail every scan. Any other error, an NXDOMAIN
 // included (dropUnlessNXDOMAIN), is returned.
-func scanQSGroupMemberships(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, groups []qsGroupRef) (int, int, error) {
+func scanQSGroupMemberships(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, groups []qsGroupRef) (int, error) {
 	const why = "QuickSight may refuse the members of a group it cannot list yet or does not manage (unverified)"
 	id := acct.ID
 	// Keyed by ARN: errors and warnings then name the namespace, which tells

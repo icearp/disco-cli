@@ -40,29 +40,29 @@ const (
 // the others returned, and their counts are summed; only a store write failure
 // stops the scan. A failed pipeline phase costs the connection phase only the
 // links to the pipelines it did not store.
-func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := osis.NewFromConfig(acct.cfg, func(o *osis.Options) { o.Region = region })
 	var phases phaseTotals
-	t, i, pipelines, err := scanOSISPipelines(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(osisListPipelinesOp, t, i, err) {
+	t, pipelines, err := scanOSISPipelines(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(osisListPipelinesOp, t, err) {
 		return phases.result(st, acct, region)
 	}
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{osisListPipelineBlueprintsOp, func() (int, int, error) {
+		{osisListPipelineBlueprintsOp, func() (int, error) {
 			return scanOSISPipelineBlueprints(ctx, client, acct, region, st, scanID)
 		}},
-		{osisListPipelineEndpointsOp, func() (int, int, error) {
+		{osisListPipelineEndpointsOp, func() (int, error) {
 			return scanOSISPipelineEndpoints(ctx, client, acct, region, st, scanID)
 		}},
-		{osisEndpointConnectionsOp, func() (int, int, error) {
+		{osisEndpointConnectionsOp, func() (int, error) {
 			return scanOSISPipelineEndpointConnections(ctx, client, acct, region, st, scanID, pipelines)
 		}},
 	} {
-		t, i, err := phase.run()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.run()
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -75,8 +75,8 @@ func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store
 // without an ARN is not stored and is warned about under its name. A denial is
 // warned about once; any other error is returned after the rows are stored. A
 // failed write returns no ARNs.
-func scanOSISPipelines(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
-	total, inserted, stored, err := storeParentList(ctx, st, acct, region, osisListPipelinesOp, "pipelines", "PipelineArn",
+func scanOSISPipelines(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, map[string]bool, error) {
+	total, stored, err := storeParentList(ctx, st, acct, region, osisListPipelinesOp, "pipelines", "PipelineArn",
 		func(ctx context.Context, token *string) ([]osistypes.PipelineSummary, *string, error) {
 			out, err := client.ListPipelines(ctx, &osis.ListPipelinesInput{NextToken: token, MaxResults: sdkaws.Int32(osisPipelinePageLimit)})
 			if err != nil {
@@ -102,19 +102,19 @@ func scanOSISPipelines(ctx context.Context, client *osis.Client, acct *account, 
 	for _, p := range stored {
 		pipelines[p.arn] = true
 	}
-	return total, inserted, pipelines, err
+	return total, pipelines, err
 }
 
 // scanOSISPipelineBlueprints lists the AWS-managed pipeline configuration
 // blueprints. They have a BlueprintName but no ARN, so the NativeID is
 // synthesised. Provider-managed — these are AWS-owned catalogue items.
-func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.ListPipelineBlueprints(ctx, &osis.ListPipelineBlueprintsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, osisListPipelineBlueprintsOp, acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, osisListPipelineBlueprintsOp, acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("%s: %w", osisListPipelineBlueprintsOp, err)
+		return 0, fmt.Errorf("%s: %w", osisListPipelineBlueprintsOp, err)
 	}
 	var batch []*store.Resource
 	for _, b := range out.Blueprints {
@@ -136,16 +136,16 @@ func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *
 // scanOSISPipelineEndpoints lists VPC pipeline endpoints. They have no ARN, so
 // the NativeID is synthesised from EndpointId; the resolver wires the endpoint
 // to its pipeline via the PipelineArn attribute.
-func scanOSISPipelineEndpoints(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOSISPipelineEndpoints(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := osis.NewListPipelineEndpointsPaginator(client, &osis.ListPipelineEndpointsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, osisListPipelineEndpointsOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, osisListPipelineEndpointsOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", osisListPipelineEndpointsOp, err)
+			return 0, fmt.Errorf("%s: %w", osisListPipelineEndpointsOp, err)
 		}
 		for _, e := range out.PipelineEndpoints {
 			id := sv(e.EndpointId)
@@ -176,7 +176,7 @@ func osisEndpointConnectionNativeID(pipelineARN, endpointID string) string {
 // pipelines, and links each under its pipeline when pipelines holds it.
 // pipelines holds only pipelines stored this scan. Rows read before an error
 // are stored.
-func scanOSISPipelineEndpointConnections(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string, pipelines map[string]bool) (int, int, error) {
+func scanOSISPipelineEndpointConnections(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string, pipelines map[string]bool) (int, error) {
 	pager := osis.NewListPipelineEndpointConnectionsPaginator(client, &osis.ListPipelineEndpointConnectionsInput{},
 		func(o *osis.ListPipelineEndpointConnectionsPaginatorOptions) {
 			o.Limit = osisEndpointConnectionPageLimit

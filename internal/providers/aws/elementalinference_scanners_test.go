@@ -185,12 +185,12 @@ func eiTestHandlers(c *eiTestCalls) map[string]func(in any) (any, error) {
 
 // eiTestScanAs runs the scan for acct in region against handlers through
 // the real client; every op they do not answer is denied.
-func eiTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func eiTestScanAs(ctx context.Context, acct *account, region string, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, eiTestDenied)
 	return scanElementalInference(ctx, acct, region, st, testScanID)
 }
 
-func eiTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func eiTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return eiTestScanAs(ctx, newTestAccount(testAccountID), testRegion, st, handlers)
 }
 
@@ -224,7 +224,9 @@ func TestScanElementalInference_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newEITestCalls()
 
-	total, inserted, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := eiTestScan(context.Background(), counted, eiTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -300,7 +302,7 @@ func TestScanElementalInference_StoresDeletingAndArchived(t *testing.T) {
 		}
 	}
 
-	total, _, err := eiTestScan(context.Background(), st, handlers)
+	total, err := eiTestScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -332,7 +334,7 @@ func TestScanElementalInference_CallsTheScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanElementalInference(context.Background(), acct, "eu-west-1", st, testScanID)
+	total, err := scanElementalInference(context.Background(), acct, "eu-west-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -414,7 +416,7 @@ func TestScanElementalInference_ThrottleRetriedByScanClient(t *testing.T) {
 		},
 	})
 
-	total, _, err := scanElementalInference(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanElementalInference(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -459,7 +461,7 @@ func TestScanElementalInference_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := eiTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := eiTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range eiTestKinds() {
@@ -469,16 +471,16 @@ func TestScanElementalInference_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanElementalInference_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := eiTestScan(context.Background(), st, eiTestHandlers(newEITestCalls())); err != nil {
+	if _, err := eiTestScan(context.Background(), st, eiTestHandlers(newEITestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := eiTestScan(context.Background(), st, eiTestHandlers(newEITestCalls()))
+	total, err := eiTestScan(context.Background(), st, eiTestHandlers(newEITestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -502,7 +504,9 @@ func TestScanElementalInference_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := eiTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := eiTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -553,7 +557,7 @@ func TestScanElementalInference_TagReadFailures(t *testing.T) {
 			arn := k.eiTestARN("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+			total, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -603,7 +607,7 @@ func TestScanElementalInference_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[eiTestKindOf(t, "ListFeeds").eiTestARN("bare")] = eiTestDenied
 	calls.tagErrs[eiTestKindOf(t, "ListDictionaries").eiTestARN("tagged")] = eiTestDenied
 
-	total, _, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+	total, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -625,7 +629,7 @@ func TestScanElementalInference_TagThrottleDemotedBesideHardError(t *testing.T) 
 	calls.tagErrs[eiTestKindOf(t, "ListFeeds").eiTestARN("bare")] = eiTestThrottle
 	calls.tagErrs[eiTestKindOf(t, "ListDictionaries").eiTestARN("tagged")] = eiTestBad
 
-	_, _, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+	_, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -643,7 +647,7 @@ func TestScanElementalInference_FailedWriteStopsScan(t *testing.T) {
 	calls := newEITestCalls()
 	calls.tagErrs[eiTestKindOf(t, "ListFeeds").eiTestARN("tagged")] = eiTestDenied
 
-	total, _, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+	total, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -703,7 +707,7 @@ func TestScanElementalInference_TagDenialWarnedBesideLaterFailure(t *testing.T) 
 			handlers := eiTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := eiTestScan(context.Background(), st, handlers)
+			_, err := eiTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := afWarnOps(w); !slices.Equal(got, []string{eiTagsOp}) {
@@ -759,7 +763,7 @@ func TestScanElementalInference_ListFailureKeepsPagesAndOtherPhase(t *testing.T)
 				return list(in)
 			}
 
-			total, _, err := eiTestScan(context.Background(), st, handlers)
+			total, err := eiTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -831,7 +835,7 @@ func TestScanElementalInference_DictionariesNotDeployed(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := eiTestScan(context.Background(), st, handlers)
+				total, err := eiTestScan(context.Background(), st, handlers)
 				wantDicts := 0
 				if laterPage {
 					wantDicts = 1
@@ -883,7 +887,7 @@ func TestScanElementalInference_FeedsNotDeployedReturned(t *testing.T) {
 				return nil, c.err
 			}
 
-			total, _, err := eiTestScan(context.Background(), st, handlers)
+			total, err := eiTestScan(context.Background(), st, handlers)
 			if !errors.Is(err, c.err) {
 				t.Fatalf("err = %v; want %v returned", err, c.err)
 			}
@@ -920,7 +924,7 @@ func TestScanElementalInference_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := eiTestScan(context.Background(), st, handlers)
+	total, err := eiTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -955,7 +959,7 @@ func TestScanElementalInference_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := eiTestScan(context.Background(), st, handlers)
+			total, err := eiTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -988,7 +992,7 @@ func TestScanElementalInference_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			calls := newEITestCallsIn(pf.partition, pf.region)
-			if _, _, err := eiTestScanAs(context.Background(), partitionAccount(pf.partition), pf.region, st, eiTestHandlers(calls)); err != nil {
+			if _, err := eiTestScanAs(context.Background(), partitionAccount(pf.partition), pf.region, st, eiTestHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -1026,7 +1030,7 @@ func TestScanElementalInference_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := eiTestScan(ctx, st, handlers)
+	_, err := eiTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1058,7 +1062,7 @@ func TestScanElementalInference_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := eiTestHandlers(newEITestCalls())
 		handlers["ListDictionaries"] = func(any) (any, error) { return nil, nx }
-		total, _, err := eiTestScan(context.Background(), st, handlers)
+		total, err := eiTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := eiTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d feeds counted", total, want)
@@ -1068,7 +1072,7 @@ func TestScanElementalInference_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newEITestCalls()
 		calls.tagErrs[eiTestKindOf(t, "ListFeeds").eiTestARN("tagged")] = nx
-		_, _, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
+		_, err := eiTestScan(context.Background(), st, eiTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1082,7 +1086,7 @@ func TestScanElementalInference_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := eiTestScan(context.Background(), st, handlers)
+		_, err := eiTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

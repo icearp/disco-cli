@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanSignalR discovers Azure SignalR Service resources.
-func scanSignalR(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSignalR(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armsignalr.NewClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsignalr:NewClient: %w", err)
+		return 0, fmt.Errorf("armsignalr:NewClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armsignalr:Client.ListBySubscription", TypeSignalR, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -35,9 +35,9 @@ func scanSignalR(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 // scanSignalRServiceNamespace runs every Microsoft.signalrservice scanner phase concurrently. The
 // signalrservice ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name matches it.
-func scanSignalRServiceNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSignalRServiceNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanSignalR(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanWebPubSub(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanSignalR(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanWebPubSub(ctx, sub, cred, st, scanID) },
 	)
 }

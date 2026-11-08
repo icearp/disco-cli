@@ -162,14 +162,14 @@ func budgetsHandlers(c *budgetsCalls) map[string]func(in any) (any, error) {
 
 // budgetsScanIn runs the registered scanner for acct against handlers; every
 // op they do not answer fails with deny.
-func budgetsScanIn(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error), deny error) (int, int, error) {
+func budgetsScanIn(ctx context.Context, st *store.Store, acct *account, handlers map[string]func(in any) (any, error), deny error) (int, error) {
 	acct.cfg = opStubConfig(handlers, deny)
 	return scanBudgets(ctx, acct, "", st, testScanID)
 }
 
 // budgetsScan runs the scan for a commercial account against handlers;
 // every op they do not answer is denied.
-func budgetsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func budgetsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return budgetsScanIn(ctx, st, newTestAccount(testAccountID), handlers, budgetsTestDenied)
 }
 
@@ -204,7 +204,9 @@ func TestScanBudgets_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newBudgetsCalls("aws")
 
-	total, inserted, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := budgetsScan(context.Background(), counted, budgetsHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -292,7 +294,7 @@ func TestScanBudgets_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := budgetsScan(context.Background(), st, handlers); err != nil {
+	if _, err := budgetsScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range budgetsKinds() {
@@ -315,7 +317,9 @@ func TestScanBudgets_LinkedAccountNotEntitled(t *testing.T) {
 		return nil, budgetsTestLinked
 	}
 
-	total, inserted, err := budgetsScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := budgetsScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	assertGlueOutcome(t, err, outcomeNotEntitled)
 	if total != 0 || inserted != 0 {
 		t.Errorf("total, inserted = %d, %d; want 0, 0", total, inserted)
@@ -361,7 +365,9 @@ func TestScanBudgets_LinkedAccountBeforeAnyRow(t *testing.T) {
 				return nil, budgetsTestLinked
 			}
 
-			total, inserted, err := budgetsScan(context.Background(), st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := budgetsScan(context.Background(), counted, handlers)
+			inserted := upserts()
 			assertGlueOutcome(t, err, c.want)
 			if got, want := errors.Is(err, errServiceNotEntitled), c.want == outcomeNotEntitled; got != want {
 				t.Errorf("err = %v carries errServiceNotEntitled: %v; want %v", err, got, want)
@@ -399,7 +405,7 @@ func TestScanBudgets_LinkedAccountAfterRowsIsDenial(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			if c.rescan {
-				if _, _, err := budgetsScan(context.Background(), st, budgetsHandlers(newBudgetsCalls("aws"))); err != nil {
+				if _, err := budgetsScan(context.Background(), st, budgetsHandlers(newBudgetsCalls("aws"))); err != nil {
 					t.Fatalf("first scan: %v", err)
 				}
 			}
@@ -415,7 +421,7 @@ func TestScanBudgets_LinkedAccountAfterRowsIsDenial(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := budgetsScan(context.Background(), st, handlers)
+			total, err := budgetsScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -450,7 +456,9 @@ func TestScanBudgets_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := budgetsScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := budgetsScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -493,7 +501,7 @@ func TestScanBudgets_TagReadFailures(t *testing.T) {
 			arn := c.k.arn("aws", "tagged")
 			calls.errs[arn] = c.err
 
-			total, _, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+			total, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -543,7 +551,7 @@ func TestScanBudgets_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[budgetsKindBudgets.arn("aws", "bare")] = budgetsTestDenied
 	calls.errs[budgetsKindActions.arn("aws", "tagged")] = budgetsTestDenied
 
-	total, _, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+	total, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -565,7 +573,7 @@ func TestScanBudgets_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[budgetsKindBudgets.arn("aws", "bare")] = budgetsTestThrottle
 	calls.errs[budgetsKindActions.arn("aws", "tagged")] = budgetsTestBad
 
-	_, _, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+	_, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -583,7 +591,7 @@ func TestScanBudgets_FailedWriteStopsScan(t *testing.T) {
 	calls := newBudgetsCalls("aws")
 	calls.errs[budgetsKindBudgets.arn("aws", "tagged")] = budgetsTestDenied
 
-	total, _, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+	total, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -630,7 +638,7 @@ func TestScanBudgets_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := budgetsScan(context.Background(), st, handlers)
+			total, err := budgetsScan(context.Background(), st, handlers)
 			var wantWarn []string
 			if isAccessDenied(c.err) {
 				if err != nil {
@@ -684,7 +692,7 @@ func TestScanBudgets_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := budgetsScan(context.Background(), st, handlers)
+			total, err := budgetsScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -731,7 +739,7 @@ func TestScanBudgets_ElementWithoutIdentifier(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := budgetsScan(context.Background(), st, handlers)
+			total, err := budgetsScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -765,7 +773,7 @@ func TestScanBudgets_TagReadsKeepPartitionARNs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = "aws-cn"
 
-	if _, _, err := budgetsScanIn(context.Background(), st, acct, budgetsHandlers(calls), budgetsTestDenied); err != nil {
+	if _, err := budgetsScanIn(context.Background(), st, acct, budgetsHandlers(calls), budgetsTestDenied); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := []string{
@@ -800,7 +808,7 @@ func TestScanBudgets_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := budgetsScan(ctx, st, handlers)
+	_, err := budgetsScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -828,7 +836,7 @@ func TestScanBudgets_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := budgetsHandlers(newBudgetsCalls("aws"))
 		handlers["DescribeBudgetActionsForAccount"] = func(any) (any, error) { return nil, nx }
-		total, _, err := budgetsScan(context.Background(), st, handlers)
+		total, err := budgetsScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 2 {
 			t.Errorf("total = %d; want the 2 budgets counted", total)
@@ -838,7 +846,7 @@ func TestScanBudgets_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newBudgetsCalls("aws")
 		calls.errs[budgetsKindBudgets.arn("aws", "tagged")] = nx
-		_, _, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
+		_, err := budgetsScan(context.Background(), st, budgetsHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -852,7 +860,7 @@ func TestScanBudgets_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := budgetsScanIn(context.Background(), st, newTestAccount(testAccountID), handlers, nx)
+		_, err := budgetsScanIn(context.Background(), st, newTestAccount(testAccountID), handlers, nx)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

@@ -45,61 +45,60 @@ type mgnAPI interface {
 	ListTemplateActions(context.Context, *mgn.ListTemplateActionsInput, ...func(*mgn.Options)) (*mgn.ListTemplateActionsOutput, error)
 }
 
-func scanMGN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMGN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return scanMGNWithClient(ctx, mgn.NewFromConfig(acct.cfg, func(o *mgn.Options) { o.Region = region }), acct, region, st, scanID)
 }
 
 // scanMGNWithClient runs the action phases last, so a failing action list
 // cannot keep any pre-existing phase from running.
-func scanMGNWithClient(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMGNWithClient(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var servers, templates []childParent
-	type phase func(context.Context, mgnAPI, *account, string, *store.Store, string) (int, int, error)
-	bind := func(p phase) func() (int, int, error) {
-		return func() (int, int, error) { return p(ctx, client, acct, region, st, scanID) }
+	type phase func(context.Context, mgnAPI, *account, string, *store.Store, string) (int, error)
+	bind := func(p phase) func() (int, error) {
+		return func() (int, error) { return p(ctx, client, acct, region, st, scanID) }
 	}
-	for _, p := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			t, i, servers, err = scanMGNSourceServers(ctx, client, acct, region, st, scanID)
-			return t, i, err
+	for _, p := range []func() (int, error){
+		func() (t int, err error) {
+			t, servers, err = scanMGNSourceServers(ctx, client, acct, region, st, scanID)
+			return t, err
 		},
 		bind(scanMGNApplications),
 		bind(scanMGNWaves),
 		bind(scanMGNConnectors),
-		func() (t, i int, err error) {
-			t, i, templates, err = scanMGNLaunchConfigurationTemplates(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		func() (t int, err error) {
+			t, templates, err = scanMGNLaunchConfigurationTemplates(ctx, client, acct, region, st, scanID)
+			return t, err
 		},
 		bind(scanMGNReplicationConfigurationTemplates),
 		bind(scanMGNVcenterClients),
 		bind(scanMGNNetworkMigrationDefinitions),
-		func() (int, int, error) {
+		func() (int, error) {
 			return childFanOut(ctx, st, acct, region, "mgn:ListSourceServerActions", servers, isMGNNotFound,
 				func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 					return listMGNSourceServerActions(ctx, client, acct, region, scanID, p)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return childFanOut(ctx, st, acct, region, "mgn:ListTemplateActions", templates, isMGNNotFound,
 				func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 					return listMGNTemplateActions(ctx, client, acct, region, scanID, p)
 				})
 		},
 	} {
-		t, i, ferr := p()
+		t, ferr := p()
 		total += t
-		inserted += i
 		if ferr != nil {
 			if isAccountNotInitialized(ferr) {
-				return 0, 0, markServiceDisabled(ferr)
+				return 0, markServiceDisabled(ferr)
 			}
-			return total, inserted, ferr
+			return total, ferr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanMGNSourceServers also returns the stored servers for the action phase.
-func scanMGNSourceServers(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanMGNSourceServers(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var batch []*store.Resource
 	var parents []childParent
 	p := mgn.NewDescribeSourceServersPaginator(client, &mgn.DescribeSourceServersInput{})
@@ -110,7 +109,7 @@ func scanMGNSourceServers(ctx context.Context, client mgnAPI, acct *account, reg
 				_ = skipIfAccessDenied(st, "mgn:DescribeSourceServers", acct.ID, region, err)
 				break
 			}
-			return 0, 0, nil, fmt.Errorf("mgn:DescribeSourceServers: %w", err)
+			return 0, nil, fmt.Errorf("mgn:DescribeSourceServers: %w", err)
 		}
 		for _, s := range page.Items {
 			arn := sv(s.Arn)
@@ -127,14 +126,14 @@ func scanMGNSourceServers(ctx context.Context, client mgnAPI, acct *account, reg
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "mgn source-servers")
+	total, err := upsertBatch(st, batch, "mgn source-servers")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, parents, nil
+	return total, parents, nil
 }
 
-func scanMGNApplications(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNApplications(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewListApplicationsPaginator(client, &mgn.ListApplicationsInput{})
 	for p.HasMorePages() {
@@ -144,7 +143,7 @@ func scanMGNApplications(ctx context.Context, client mgnAPI, acct *account, regi
 				_ = skipIfAccessDenied(st, "mgn:ListApplications", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:ListApplications: %w", err)
+			return 0, fmt.Errorf("mgn:ListApplications: %w", err)
 		}
 		for _, a := range page.Items {
 			arn := sv(a.Arn)
@@ -161,7 +160,7 @@ func scanMGNApplications(ctx context.Context, client mgnAPI, acct *account, regi
 	return upsertBatch(st, batch, "mgn applications")
 }
 
-func scanMGNWaves(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNWaves(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewListWavesPaginator(client, &mgn.ListWavesInput{})
 	for p.HasMorePages() {
@@ -171,7 +170,7 @@ func scanMGNWaves(ctx context.Context, client mgnAPI, acct *account, region stri
 				_ = skipIfAccessDenied(st, "mgn:ListWaves", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:ListWaves: %w", err)
+			return 0, fmt.Errorf("mgn:ListWaves: %w", err)
 		}
 		for _, w := range page.Items {
 			arn := sv(w.Arn)
@@ -188,7 +187,7 @@ func scanMGNWaves(ctx context.Context, client mgnAPI, acct *account, region stri
 	return upsertBatch(st, batch, "mgn waves")
 }
 
-func scanMGNConnectors(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNConnectors(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewListConnectorsPaginator(client, &mgn.ListConnectorsInput{})
 	for p.HasMorePages() {
@@ -198,7 +197,7 @@ func scanMGNConnectors(ctx context.Context, client mgnAPI, acct *account, region
 				_ = skipIfAccessDenied(st, "mgn:ListConnectors", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:ListConnectors: %w", err)
+			return 0, fmt.Errorf("mgn:ListConnectors: %w", err)
 		}
 		for _, c := range page.Items {
 			arn := sv(c.Arn)
@@ -217,7 +216,7 @@ func scanMGNConnectors(ctx context.Context, client mgnAPI, acct *account, region
 
 // scanMGNLaunchConfigurationTemplates also returns the stored templates for the
 // action phase.
-func scanMGNLaunchConfigurationTemplates(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanMGNLaunchConfigurationTemplates(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var batch []*store.Resource
 	var parents []childParent
 	p := mgn.NewDescribeLaunchConfigurationTemplatesPaginator(client, &mgn.DescribeLaunchConfigurationTemplatesInput{})
@@ -228,7 +227,7 @@ func scanMGNLaunchConfigurationTemplates(ctx context.Context, client mgnAPI, acc
 				_ = skipIfAccessDenied(st, "mgn:DescribeLaunchConfigurationTemplates", acct.ID, region, err)
 				break
 			}
-			return 0, 0, nil, fmt.Errorf("mgn:DescribeLaunchConfigurationTemplates: %w", err)
+			return 0, nil, fmt.Errorf("mgn:DescribeLaunchConfigurationTemplates: %w", err)
 		}
 		for _, t := range page.Items {
 			arn := sv(t.Arn)
@@ -245,14 +244,14 @@ func scanMGNLaunchConfigurationTemplates(ctx context.Context, client mgnAPI, acc
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "mgn launch-configuration-templates")
+	total, err := upsertBatch(st, batch, "mgn launch-configuration-templates")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, parents, nil
+	return total, parents, nil
 }
 
-func scanMGNReplicationConfigurationTemplates(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNReplicationConfigurationTemplates(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewDescribeReplicationConfigurationTemplatesPaginator(client, &mgn.DescribeReplicationConfigurationTemplatesInput{})
 	for p.HasMorePages() {
@@ -262,7 +261,7 @@ func scanMGNReplicationConfigurationTemplates(ctx context.Context, client mgnAPI
 				_ = skipIfAccessDenied(st, "mgn:DescribeReplicationConfigurationTemplates", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:DescribeReplicationConfigurationTemplates: %w", err)
+			return 0, fmt.Errorf("mgn:DescribeReplicationConfigurationTemplates: %w", err)
 		}
 		for _, t := range page.Items {
 			arn := sv(t.Arn)
@@ -279,7 +278,7 @@ func scanMGNReplicationConfigurationTemplates(ctx context.Context, client mgnAPI
 	return upsertBatch(st, batch, "mgn replication-configuration-templates")
 }
 
-func scanMGNVcenterClients(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNVcenterClients(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewDescribeVcenterClientsPaginator(client, &mgn.DescribeVcenterClientsInput{})
 	for p.HasMorePages() {
@@ -289,7 +288,7 @@ func scanMGNVcenterClients(ctx context.Context, client mgnAPI, acct *account, re
 				_ = skipIfAccessDenied(st, "mgn:DescribeVcenterClients", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:DescribeVcenterClients: %w", err)
+			return 0, fmt.Errorf("mgn:DescribeVcenterClients: %w", err)
 		}
 		for _, v := range page.Items {
 			arn := sv(v.Arn)
@@ -306,7 +305,7 @@ func scanMGNVcenterClients(ctx context.Context, client mgnAPI, acct *account, re
 	return upsertBatch(st, batch, "mgn vcenter-clients")
 }
 
-func scanMGNNetworkMigrationDefinitions(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMGNNetworkMigrationDefinitions(ctx context.Context, client mgnAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := mgn.NewListNetworkMigrationDefinitionsPaginator(client, &mgn.ListNetworkMigrationDefinitionsInput{})
 	for p.HasMorePages() {
@@ -316,7 +315,7 @@ func scanMGNNetworkMigrationDefinitions(ctx context.Context, client mgnAPI, acct
 				_ = skipIfAccessDenied(st, "mgn:ListNetworkMigrationDefinitions", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("mgn:ListNetworkMigrationDefinitions: %w", err)
+			return 0, fmt.Errorf("mgn:ListNetworkMigrationDefinitions: %w", err)
 		}
 		for _, d := range page.Items {
 			arn := sv(d.Arn)

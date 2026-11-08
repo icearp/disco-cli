@@ -202,7 +202,7 @@ func rhWarnRecorder(st *store.Store) func() []store.ScanWarning {
 type rhParentCase struct {
 	name, op, typ, kind, idKey, status string
 	page                               func(arns []string, next *string) any
-	scan                               func(context.Context, resilienceHubV2API, *account, string, *store.Store, string) ([]string, int, int, error)
+	scan                               func(context.Context, resilienceHubV2API, *account, string, *store.Store, string) ([]string, int, error)
 }
 
 func rhParentCases() []rhParentCase {
@@ -254,12 +254,12 @@ func rhParentCases() []rhParentCase {
 // rhParentRun runs one v2 parent phase alone, its tags read through the
 // client, and returns the ARNs of the parents it stored, its counts and its
 // errors joined as the scan joins them.
-func rhParentRun(run func(context.Context, resilienceHubV2API, *account, string, *store.Store, string, rowTagReader, *phaseTotals) ([]childParent, bool)) func(context.Context, resilienceHubV2API, *account, string, *store.Store, string) ([]string, int, int, error) {
-	return func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func rhParentRun(run func(context.Context, resilienceHubV2API, *account, string, *store.Store, string, rowTagReader, *phaseTotals) ([]childParent, bool)) func(context.Context, resilienceHubV2API, *account, string, *store.Store, string) ([]string, int, error) {
+	return func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 		var p phaseTotals
 		parents, _ := run(ctx, c, acct, region, st, scanID, rhTagsV2(c), &p)
-		total, inserted, err := p.result(st, acct, region)
-		return childParentIDs(parents), total, inserted, err
+		total, err := p.result(st, acct, region)
+		return childParentIDs(parents), total, err
 	}
 }
 
@@ -282,7 +282,7 @@ func TestRHV2ParentScanners_PaginatesHomedRowsOnly(t *testing.T) {
 			}}}
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
-			parents, total, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			parents, total, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if w := warns(); len(w) != 1 || w[0].Service != "resiliencehub:"+c.op {
 				t.Errorf("warnings = %+v; want exactly one for resiliencehub:%s (the element with no ARN)", w, c.op)
 			}
@@ -326,7 +326,7 @@ func TestRHV2ParentScanners_Empty(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
-			parents, total, _, err := c.scan(context.Background(), &rhV2Stub{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+			parents, total, err := c.scan(context.Background(), &rhV2Stub{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != 0 || len(parents) != 0 || len(warns()) != 0 {
 				t.Errorf("got (parents=%v, total=%d, err=%v, warns=%d); want none, 0, nil, 0", parents, total, err, len(warns()))
 			}
@@ -341,7 +341,7 @@ func TestRHV2ParentScanners_AccessDeniedWarns(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			stub := &rhV2Stub{errs: map[string]error{c.op: apiErr("AccessDeniedException", "User: arn:aws:iam::1:user/u is not authorized to perform: x")}}
-			parents, total, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			parents, total, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != 0 || len(parents) != 0 {
 				t.Fatalf("got (parents=%v, total=%d, err=%v); want none, 0, nil", parents, total, err)
 			}
@@ -357,7 +357,7 @@ func TestRHV2ParentScanners_OtherErrorPropagates(t *testing.T) {
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &rhV2Stub{errs: map[string]error{c.op: apiErr("ValidationException", "bad")}}
-			_, _, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID)
+			_, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID)
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("err = %v; want the ValidationException propagated", err)
 			}
@@ -380,7 +380,7 @@ func TestRHV2Policies_NotDeployedReportsAbsent(t *testing.T) {
 			stub := &rhV2Stub{errs: map[string]error{"ListPolicies": gap}}
 			var p phaseTotals
 			absent, failed := scanRHPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rhTagsV2(stub), &p)
-			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 			if !absent || failed || err != nil || p.total != 0 || len(warns()) != 0 {
 				t.Fatalf("got (absent=%v, failed=%v, total=%d, err=%v, warns=%d); want true, false, 0, nil, 0", absent, failed, p.total, err, len(warns()))
 			}
@@ -402,7 +402,7 @@ func TestRHV2Policies_NotDeployedShapeAfterFirstPageErrors(t *testing.T) {
 	st := newTestStore(t)
 	var p phaseTotals
 	absent, _ := scanRHPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rhTagsV2(stub), &p)
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if !isAPIErrorCode(err, "UnknownOperationException") {
 		t.Errorf("err = %v; want the page-2 UnknownOperationException returned", err)
 	}
@@ -418,7 +418,7 @@ type rhChildCase struct {
 	name, op, typ, parentType, parentKind, kind, idKey, childName string
 	undated                                                       bool
 	page                                                          func(parentARN string, ids []string, next *string) any
-	scan                                                          func(context.Context, resilienceHubV2API, *account, string, *store.Store, string, []string) (int, int, error)
+	scan                                                          func(context.Context, resilienceHubV2API, *account, string, *store.Store, string, []string) (int, error)
 }
 
 func rhChildCases() []rhChildCase {
@@ -492,7 +492,7 @@ func rhChildCases() []rhChildCase {
 				}
 				return out
 			},
-			scan: func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, apps []string) (int, int, error) {
+			scan: func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, apps []string) (int, error) {
 				return scanRHAppInputSources(ctx, rhV1Stub{rhV2Stub: c.(*rhV2Stub)}, acct, region, st, scanID, apps)
 			},
 		},
@@ -510,7 +510,7 @@ func runRHChild(t *testing.T, c rhChildCase, stub *rhV2Stub, parents []string) (
 		upsertTestResource(t, st, "aws", testAccountID, c.parentType, p, testRegion, "{}")
 	}
 	warns := rhWarnRecorder(st)
-	total, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -628,7 +628,7 @@ func TestRHV2ChildScanners_OtherErrorPropagates(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			p1 := c.parent("p1")
 			stub := &rhV2Stub{errs: map[string]error{c.op + "/" + p1: apiErr("ValidationException", "bad")}}
-			_, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, []string{p1})
+			_, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, []string{p1})
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("err = %v; want the ValidationException propagated", err)
 			}

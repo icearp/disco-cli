@@ -57,14 +57,14 @@ var ggv2NotFound = []string{"ResourceNotFoundException"}
 // for the others; AWS rejects with TooManyRequestsException 429 → SDK retries
 // 10x → ~2m wall time before surfacing. Checking the table first
 // short-circuits the cost on call #1.
-func scanGreengrassV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGreengrassV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if !sdkTableAllows("aws:greengrass-v2", region) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	client := greengrassv2.NewFromConfig(acct.cfg, func(o *greengrassv2.Options) { o.Region = region })
 	tags := ggv2Tags(client).sharingDenials()
 	var components []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "greengrass-v2", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "greengrass-v2", 0, []hostPhase{
 		{op: "greengrass-v2:ListComponents", run: func(p *phaseTotals) (failed bool) {
 			components, failed = scanGGV2Components(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -80,7 +80,7 @@ func scanGreengrassV2(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // ggv2Tags reads a row's tags with ListTagsForResource, sent the row's

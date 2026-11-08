@@ -19,15 +19,15 @@ func init() {
 
 // scanDLM discovers Data Lifecycle Manager lifecycle policies. Synth ARN:
 // arn:{p}:dlm:{r}:{a}:policy/{policyId}.
-func scanDLM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDLM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := dlm.NewFromConfig(acct.cfg, func(o *dlm.Options) { o.Region = region })
 
 	out, err := client.GetLifecyclePolicies(ctx, &dlm.GetLifecyclePoliciesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "dlm:GetLifecyclePolicies", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "dlm:GetLifecyclePolicies", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("dlm:GetLifecyclePolicies: %w", err)
+		return 0, fmt.Errorf("dlm:GetLifecyclePolicies: %w", err)
 	}
 	var batch []*store.Resource
 	for _, p := range out.Policies {

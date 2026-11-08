@@ -44,8 +44,8 @@ func redshiftPageErr(st *store.Store, acct *account, region, op string, err erro
 }
 
 // scanRedshiftAuthenticationProfiles reads the op's single, unpaginated page.
-func scanRedshiftAuthenticationProfiles(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeAuthenticationProfiles",
+func scanRedshiftAuthenticationProfiles(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeAuthenticationProfiles",
 		redshiftListCodes{skip: []string{"AuthenticationProfileNotFoundFault"}},
 		func(ctx context.Context, _ *string) (*redshift.DescribeAuthenticationProfilesOutput, error) {
 			return client.DescribeAuthenticationProfiles(ctx, &redshift.DescribeAuthenticationProfilesInput{})
@@ -61,12 +61,12 @@ func scanRedshiftAuthenticationProfiles(ctx context.Context, client redshiftSate
 				Name: &name, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			}
 		}, "authentication profiles", "AuthenticationProfileName")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftReservedNodes(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRedshiftReservedNodes(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	codes := redshiftListCodes{skip: []string{"ReservedNodeNotFound"}, warn: []string{"DependentServiceUnavailableFault"}}
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeReservedNodes", codes,
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeReservedNodes", codes,
 		func(ctx context.Context, marker *string) (*redshift.DescribeReservedNodesOutput, error) {
 			return client.DescribeReservedNodes(ctx, &redshift.DescribeReservedNodesInput{Marker: marker})
 		},
@@ -82,15 +82,15 @@ func scanRedshiftReservedNodes(ctx context.Context, client redshiftSatelliteAPI,
 				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
 			}
 		}, "reserved nodes", "ReservedNodeId")
-	return total, inserted, err
+	return total, err
 }
 
-func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	codes := redshiftListCodes{
 		skip: []string{"Qev2IdcApplicationNotExists", "UnsupportedOperation"},
 		warn: []string{"DependentServiceAccessDenied", "DependentServiceUnavailableFault"},
 	}
-	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeQev2IdcApplications", codes,
+	_, total, err := redshiftList(ctx, st, acct, region, "redshift:DescribeQev2IdcApplications", codes,
 		func(ctx context.Context, marker *string) (*redshift.DescribeQev2IdcApplicationsOutput, error) {
 			return client.DescribeQev2IdcApplications(ctx, &redshift.DescribeQev2IdcApplicationsInput{Marker: marker})
 		},
@@ -105,7 +105,7 @@ func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelli
 				AttributesJSON: mustJSON(a), TagsJSON: kvTagsJSON(a.Tags, redshiftTagKV), DiscoveredBy: scanID,
 			}
 		}, "Query Editor v2 IdC applications", "Qev2IdcApplicationArn")
-	return total, inserted, err
+	return total, err
 }
 
 // scanRedshiftCustomDomainAssociations lists the region's custom domain
@@ -117,10 +117,10 @@ func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelli
 // not stored cannot be keyed and is skipped; a pair with no domain is warned
 // about. With no stored clusters the call is not made. Pages fail as in
 // redshiftList, keeping the pairs already read.
-func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
+func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, error) {
 	const op = "redshift:DescribeCustomDomainAssociations"
 	if len(clusters) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	clusterARN := parentARNByName(clusters)
 	codes := redshiftListCodes{skip: []string{"CustomDomainAssociationNotFoundFault", "UnsupportedOperation"}}
@@ -167,8 +167,8 @@ func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSa
 		marker = out.Marker
 	}
 	warnNotStored(st, op, acct, region, &noDomain, "custom domain associations have no CustomDomainName")
-	total, inserted, uerr := upsertContained(st, op, children)
-	return total, inserted, errors.Join(listErr, uerr)
+	total, uerr := upsertContained(st, op, children)
+	return total, errors.Join(listErr, uerr)
 }
 
 // scanRedshiftPartners lists each stored cluster's partner integrations, keyed
@@ -177,7 +177,7 @@ func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSa
 // skipped, and so is UnsupportedOperation (a sub-feature gap inside a present
 // service). UnauthorizedPartnerIntegration warns once and drops that cluster:
 // modeled codes warn until confirmed benign.
-func scanRedshiftPartners(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
+func scanRedshiftPartners(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, error) {
 	const op = "redshift:DescribePartners"
 	var gapOnce sync.Once
 	isSkip := func(err error) bool {

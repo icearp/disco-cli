@@ -86,7 +86,7 @@ func scanLocGeofences(t *testing.T, st *store.Store, handler func(in any) (any, 
 		t.Fatalf("seed collections: %v", err)
 	}
 	client := locClient(map[string]func(any) (any, error){"ListGeofences": handler})
-	total, _, err := scanLocationGeofences(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	total, err := scanLocationGeofences(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return total, err
 }
 
@@ -245,7 +245,7 @@ func TestScanLocation_StoresGeofencesOfListedCollections(t *testing.T) {
 	var calls parentCalls
 	acct.cfg = opStubConfig(locTopLevelHandlers(&calls), locDenied)
 
-	total, _, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanLocation: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestScanLocation_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanLocation(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanLocation(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanLocation: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -294,7 +294,7 @@ func TestScanLocation_GeofenceErrorAfterExistingPhases(t *testing.T) {
 	}
 	acct.cfg = opStubConfig(handlers, locDenied)
 
-	total, _, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
 	if !failed.Load() {
 		t.Fatal("ListGeofences never called")
 	}

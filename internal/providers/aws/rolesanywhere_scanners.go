@@ -46,11 +46,11 @@ const (
 // a page at a time, and the tag reads' denials are one warning for the whole
 // scan. No listing is sent a PageSize: the model gives it no range and
 // documents no cap.
-func scanRolesAnywhere(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRolesAnywhere(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := rolesanywhere.NewFromConfig(acct.cfg, func(o *rolesanywhere.Options) { o.Region = region })
 
 	tags := rolesAnywhereTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "rolesanywhere", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "rolesanywhere", 0, []hostPhase{
 		{op: raListCrlsOp, run: func(p *phaseTotals) bool {
 			return scanRACRLs(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -65,7 +65,7 @@ func scanRolesAnywhere(ctx context.Context, acct *account, region string, st *st
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // rolesAnywhereTags reads a row's tags with ListTagsForResource, sent the

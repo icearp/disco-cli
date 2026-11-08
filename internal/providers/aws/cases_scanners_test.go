@@ -236,7 +236,7 @@ func casesHandlers(c *casesCalls) map[string]func(in any) (any, error) {
 
 // casesScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func casesScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func casesScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, casesTestDenied)
 	return scanCases(ctx, acct, testRegion, st, testScanID)
@@ -264,7 +264,9 @@ func TestScanCases_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
 
-	total, inserted, err := casesScan(context.Background(), st, casesHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := casesScan(context.Background(), counted, casesHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -348,16 +350,16 @@ func TestScanCases_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCases_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls())); err != nil {
+	if _, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls()))
+	total, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -379,7 +381,9 @@ func TestScanCases_NoDomains(t *testing.T) {
 		return &connectcases.ListDomainsOutput{}, nil
 	}
 
-	total, inserted, err := casesScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := casesScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -431,7 +435,7 @@ func TestScanCases_TagReadFailures(t *testing.T) {
 			calls := newCasesCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+			total, err := casesScan(context.Background(), st, casesHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -480,7 +484,7 @@ func TestScanCases_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+	total, err := casesScan(context.Background(), st, casesHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -502,7 +506,7 @@ func TestScanCases_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[casesKindOf("ListCaseRules").arns()[0]] = casesTestThrottle
 	calls.errs[casesKindOf("ListTemplates").arns()[3]] = casesTestBad
 
-	_, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+	_, err := casesScan(context.Background(), st, casesHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -522,7 +526,7 @@ func TestScanCases_FailedWriteStopsScan(t *testing.T) {
 		calls := newCasesCalls()
 		calls.errs[casesKindOf("ListFields").arns()[0]] = casesTestDenied
 
-		total, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+		total, err := casesScan(context.Background(), st, casesHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -544,7 +548,7 @@ func TestScanCases_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeCasesDomain)
 		calls := newCasesCalls()
 
-		_, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+		_, err := casesScan(context.Background(), st, casesHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -593,7 +597,7 @@ func TestScanCases_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := casesScan(context.Background(), st, handlers)
+			total, err := casesScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -635,7 +639,7 @@ func TestScanCases_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := casesScan(context.Background(), st, handlers)
+			total, err := casesScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -706,7 +710,7 @@ func TestScanCases_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := casesScan(context.Background(), st, handlers)
+				total, err := casesScan(context.Background(), st, handlers)
 				if e.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -816,7 +820,7 @@ func TestScanCases_ElementsWithoutIdentifiers(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := casesScan(context.Background(), st, handlers)
+			total, err := casesScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -869,7 +873,7 @@ func TestScanCases_OnlyCustomSingleSelectFieldsListOptions(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := casesScan(context.Background(), st, handlers); err != nil {
+	if _, err := casesScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := calls.listedParents("ListFieldOptions"), []string{"domain-bare/field-bare", "domain-bare/field-tagged"}; !slices.Equal(got, want) {
@@ -912,7 +916,7 @@ func TestScanCases_FieldOptionWarningNamesLeastField(t *testing.T) {
 		return nil, casesTestDenied
 	}
 
-	if _, _, err := casesScan(context.Background(), st, handlers); err != nil {
+	if _, err := casesScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	w := warns()
@@ -954,7 +958,7 @@ func TestScanCases_NoFieldIDWarningNamesLeastField(t *testing.T) {
 		}}}, nil
 	}
 
-	if _, _, err := casesScan(context.Background(), st, handlers); err != nil {
+	if _, err := casesScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	w := warns()
@@ -991,7 +995,7 @@ func TestScanCases_ListThrottleDemotedBesideHardError(t *testing.T) {
 		return nil, casesTestBad
 	}
 
-	total, _, err := casesScan(context.Background(), st, handlers)
+	total, err := casesScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1021,7 +1025,7 @@ func TestScanCases_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, casesTestDenied)
 
-			if _, _, err := scanCases(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCases(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.sortedTagARNs(), arn) {
@@ -1055,7 +1059,7 @@ func TestScanCases_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := casesScan(ctx, st, handlers)
+	_, err := casesScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1082,7 +1086,7 @@ func TestScanCases_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := casesHandlers(newCasesCalls())
 		handlers["ListTemplates"] = func(any) (any, error) { return nil, nx }
-		total, _, err := casesScan(context.Background(), st, handlers)
+		total, err := casesScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := casesTestTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1092,7 +1096,7 @@ func TestScanCases_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCasesCalls()
 		calls.errs[casesKindOf("ListLayouts").arns()[2]] = nx
-		_, _, err := casesScan(context.Background(), st, casesHandlers(calls))
+		_, err := casesScan(context.Background(), st, casesHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1100,7 +1104,7 @@ func TestScanCases_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanCases(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanCases(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

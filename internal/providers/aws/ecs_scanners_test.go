@@ -95,7 +95,7 @@ func TestScanECS_ListServicesDenied(t *testing.T) {
 			// The deadline turns a retry loop into a failure instead of a hang.
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_, _, err := scanECS(ctx, acct, testRegion, st, testScanID)
+			_, err := scanECS(ctx, acct, testRegion, st, testScanID)
 			if err != nil {
 				t.Fatalf("scan: %v; want nil (the denial is a warning)", err)
 			}

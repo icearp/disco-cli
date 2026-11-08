@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanExtendedLocation discovers Azure Arc custom locations.
-func scanExtendedLocation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanExtendedLocation(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armextendedlocation.NewCustomLocationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armextendedlocation:NewCustomLocationsClient: %w", err)
+		return 0, fmt.Errorf("armextendedlocation:NewCustomLocationsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armextendedlocation:CustomLocations.ListBySubscription", TypeCustomLocation, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

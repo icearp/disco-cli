@@ -26,7 +26,9 @@ func TestScanFISExperimentTemplates_ReadsListedTags(t *testing.T) {
 		},
 	}, &smithy.GenericAPIError{Code: "AccessDeniedException"}))
 
-	_, total, inserted, err := scanFISExperimentTemplates(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanFISExperimentTemplates(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

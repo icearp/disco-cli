@@ -157,7 +157,7 @@ func vlHandlers(calls *vlChildCalls) map[string]func(in any) (any, error) {
 	}
 }
 
-func scanVpcLatticeTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func scanVpcLatticeTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, vlDenied)
@@ -168,7 +168,9 @@ func TestScanVpcLattice_StoresChildren(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls vlChildCalls
-	total, inserted, err := scanVpcLatticeTopLevel(t, st, vlHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := scanVpcLatticeTopLevel(t, counted, vlHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanVpcLattice: %v", err)
 	}
@@ -233,7 +235,7 @@ func TestScanVpcLattice_NoChildren(t *testing.T) {
 		return &vpclattice.ListServiceNetworkVpcEndpointAssociationsOutput{}, nil
 	}
 	h["ListTargets"] = func(any) (any, error) { return &vpclattice.ListTargetsOutput{}, nil }
-	total, _, err := scanVpcLatticeTopLevel(t, st, h)
+	total, err := scanVpcLatticeTopLevel(t, st, h)
 	if err != nil {
 		t.Fatalf("scanVpcLattice: %v", err)
 	}
@@ -306,7 +308,7 @@ func TestScanVpcLattice_FailedChildParent(t *testing.T) {
 					}
 					return next(in)
 				}
-				_, _, err := scanVpcLatticeTopLevel(t, st, h)
+				_, err := scanVpcLatticeTopLevel(t, st, h)
 				if tc.wantCode == "" {
 					if err != nil {
 						t.Fatalf("err = %v, want nil", err)
@@ -345,7 +347,7 @@ func TestScanVpcLattice_ChildPhaseErrorStillRunsOtherChildPhase(t *testing.T) {
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
 	h["ListServiceNetworkVpcEndpointAssociations"] = func(any) (any, error) { return nil, apiErr("ConflictException", "x") }
-	total, _, err := scanVpcLatticeTopLevel(t, st, h)
+	total, err := scanVpcLatticeTopLevel(t, st, h)
 	assertAPICode(t, err, "ConflictException")
 	if got := nativeIDs(rowsByNativeID(t, st, TypeVpcLatticeTarget)); !slices.Equal(got, vlTestTargets) {
 		t.Errorf("target rows = %v, want %v", got, vlTestTargets)
@@ -364,7 +366,7 @@ func TestScanVpcLattice_OlderPhaseErrorStillRunsChildren(t *testing.T) {
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
 	h["ListServiceNetworkVpcAssociations"] = func(any) (any, error) { return nil, vlBadInput }
-	total, _, err := scanVpcLatticeTopLevel(t, st, h)
+	total, err := scanVpcLatticeTopLevel(t, st, h)
 	assertAPICode(t, err, "ValidationException")
 	for typ, want := range map[string][]string{
 		TypeVpcLatticeServiceNetworkVpcEndpointAssociation: vlTestAssocs,
@@ -390,7 +392,7 @@ func TestScanVpcLattice_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	h := vlHandlers(&calls)
 	h["ListServiceNetworkVpcAssociations"] = func(any) (any, error) { return nil, vlThrottle }
 	h["ListTargets"] = func(any) (any, error) { return nil, apiErr("ConflictException", "x") }
-	_, _, err := scanVpcLatticeTopLevel(t, st, h)
+	_, err := scanVpcLatticeTopLevel(t, st, h)
 	assertAPICode(t, err, "ConflictException")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError; the hard child error must not be masked", err, got)
@@ -448,7 +450,7 @@ func TestScanVpcLattice_ChildrenOfFirstPageParents(t *testing.T) {
 			var calls vlChildCalls
 			h := vlHandlers(&calls)
 			h[tc.listOp] = tc.page2(vlHandlers(&vlChildCalls{}))
-			_, _, err := scanVpcLatticeTopLevel(t, st, h)
+			_, err := scanVpcLatticeTopLevel(t, st, h)
 			assertAPICode(t, err, "ValidationException")
 			if got := tc.calls(&calls).distinct(); !slices.Equal(got, tc.want) {
 				t.Errorf("children listed for parents %v; want the first page's %v", got, tc.want)
@@ -480,7 +482,7 @@ func TestScanVpcLattice_NoTargetsWhenTargetGroupUpsertFails(t *testing.T) {
 		}
 		return listTGs(in)
 	}
-	_, _, err = scanVpcLatticeTopLevel(t, st, h)
+	_, err = scanVpcLatticeTopLevel(t, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want store.ErrStoreWrite", err)
 	}

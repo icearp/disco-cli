@@ -63,12 +63,12 @@ const (
 // generator templates, resource scans and private registry types. Each phase
 // runs whatever another returns, except after a store write failure; their
 // errors are joined by phaseErrs.
-func scanCloudFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := cloudformation.NewFromConfig(acct.cfg, func(o *cloudformation.Options) { o.Region = region })
 	var phases phaseTotals
 	for _, phase := range []struct {
 		op string
-		fn func(context.Context, cloudformationAPI, *account, string, *store.Store, string) (int, int, error)
+		fn func(context.Context, cloudformationAPI, *account, string, *store.Store, string) (int, error)
 	}{
 		{cfnListStacksOp, scanCloudFormationStacks},
 		{cfnListStackSetsOp, scanCloudFormationStackSets},
@@ -76,8 +76,8 @@ func scanCloudFormation(ctx context.Context, acct *account, region string, st *s
 		{cfnListResourceScansOp, scanCloudFormationResourceScans},
 		{cfnListTypesOp, scanCloudFormationRegistryTypes},
 	} {
-		t, i, err := phase.fn(ctx, client, acct, region, st, scanID)
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -136,7 +136,7 @@ type stackSetWithInstances struct {
 // models an error code, so a stack deleted since it was listed is an error.
 // A stack left unread because ctx ended is stored from its summary alone, and
 // the phase returns ctx's error.
-func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	summaries, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]cfntypes.StackSummary, *string, error) {
 		out, err := client.ListStacks(ctx, &cloudformation.ListStacksInput{StackStatusFilter: activeStackStatuses, NextToken: token})
 		if err != nil {
@@ -266,7 +266,7 @@ var errCFNStackNotDescribed = errors.New("the answer held no stack, so the stack
 // DescribeStackSet error drops the set, and any other ListStackInstances
 // error keeps it with the instances read, both returned after the other sets
 // are stored.
-func scanCloudFormationStackSets(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormationStackSets(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	summaries, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]cfntypes.StackSetSummary, *string, error) {
 		out, err := client.ListStackSets(ctx, &cloudformation.ListStackSetsInput{
 			Status:     cfntypes.StackSetStatusActive,
@@ -396,7 +396,7 @@ func readCloudFormationStackSet(ctx context.Context, client cloudformationAPI, a
 // scanCloudFormationGeneratedTemplates stores the IaC generator templates
 // (ListGeneratedTemplates): persistent templates produced from a resource
 // scan.
-func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, cfnListGeneratedTemplatesOp,
 		func(ctx context.Context, token *string) ([]cfntypes.TemplateSummary, *string, error) {
 			out, err := client.ListGeneratedTemplates(ctx, &cloudformation.ListGeneratedTemplatesInput{MaxResults: sdkaws.Int32(cfnPageCap), NextToken: token})
@@ -422,7 +422,7 @@ func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudforma
 // scanCloudFormationResourceScans stores the account's resource scans
 // (ListResourceScans, ScanTypeFilter unset so every scan type is listed):
 // inventory scans the IaC generator runs over existing resources.
-func scanCloudFormationResourceScans(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormationResourceScans(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, cfnListResourceScansOp,
 		func(ctx context.Context, token *string) ([]cfntypes.ResourceScanSummary, *string, error) {
 			out, err := client.ListResourceScans(ctx, &cloudformation.ListResourceScansInput{MaxResults: sdkaws.Int32(cfnPageCap), NextToken: token})
@@ -450,7 +450,7 @@ func scanCloudFormationResourceScans(ctx context.Context, client cloudformationA
 // types plus activated public ones; PUBLIC would pull the entire global
 // catalogue). RESOURCE/MODULE types emit as aws:cloudformation:type, HOOK types
 // as aws:cloudformation:type-hook.
-func scanCloudFormationRegistryTypes(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudFormationRegistryTypes(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, cfnListTypesOp,
 		func(ctx context.Context, token *string) ([]cfntypes.TypeSummary, *string, error) {
 			out, err := client.ListTypes(ctx, &cloudformation.ListTypesInput{

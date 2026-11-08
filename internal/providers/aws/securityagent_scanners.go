@@ -80,7 +80,7 @@ const (
 // pentests, code reviews, threat models, memberships and integrated resources.
 // The APIs return no ARNs; each NativeID is synthesized per (account, region,
 // kind, id).
-func scanSecurityAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return scanSecurityAgentAll(ctx, securityagent.NewFromConfig(acct.cfg, func(o *securityagent.Options) { o.Region = region }), acct, region, st, scanID)
 }
 
@@ -91,10 +91,10 @@ func scanSecurityAgent(ctx context.Context, acct *account, region string, st *st
 // The agent space, application, target domain, integration and pack rows have
 // their tags read per row (saTags), whose denials are one warning for the
 // scan; private connections are listed with theirs.
-func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := saTags(client).sharingDenials()
 	var spaces, apps, packs []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "securityagent", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "securityagent", 0, []hostPhase{
 		{op: saListAgentSpacesOp, run: func(p *phaseTotals) (failed bool) {
 			spaces, failed = scanSAAgentSpaces(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -103,7 +103,7 @@ func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *ac
 			apps, failed = scanSAApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "securityagent:ListPentests", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListPentests", func() (int, error) {
 			return scanSAPentests(ctx, client, acct, region, st, scanID, spaces)
 		}),
 		{op: saListTargetDomainsOp, run: func(p *phaseTotals) bool {
@@ -112,31 +112,31 @@ func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *ac
 		{op: saListIntegrationsOp, run: func(p *phaseTotals) bool {
 			return scanSAIntegrations(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, saListPrivateConnectionsOp, func() (int, int, error) {
+		countedPhase(0, saListPrivateConnectionsOp, func() (int, error) {
 			return scanSAPrivateConnections(ctx, client, acct, region, st, scanID)
 		}),
 		{op: saListPacksOp, run: func(p *phaseTotals) (failed bool) {
 			packs, failed = scanSASecurityRequirementPacks(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, "securityagent:ListCodeReviews", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListCodeReviews", func() (int, error) {
 			return scanSACodeReviews(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "securityagent:ListThreatModels", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListThreatModels", func() (int, error) {
 			return scanSAThreatModels(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "securityagent:ListMemberships", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListMemberships", func() (int, error) {
 			return scanSAMemberships(ctx, client, acct, region, st, scanID, spaces, childParentIDs(apps))
 		}),
-		countedPhase(0, "securityagent:ListIntegratedResources", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListIntegratedResources", func() (int, error) {
 			return scanSAIntegratedResources(ctx, client, acct, region, st, scanID, spaces)
 		}),
-		countedPhase(0, "securityagent:ListSecurityRequirements", func() (int, int, error) {
+		countedPhase(0, "securityagent:ListSecurityRequirements", func() (int, error) {
 			return scanSASecurityRequirements(ctx, client, acct, region, st, scanID, packs)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // saTags reads a row's tags with ListTagsForResource, sent the row's NativeID:
@@ -284,7 +284,7 @@ func scanSAIntegrations(ctx context.Context, client securityAgentAPI, acct *acco
 
 // scanSAPrivateConnections stores the private connections with the tags their
 // listed element carries, so no tag read is made.
-func scanSAPrivateConnections(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSAPrivateConnections(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, saListPrivateConnectionsOp,
 		func(ctx context.Context, token *string) ([]satypes.PrivateConnectionSummary, *string, error) {
 			out, err := client.ListPrivateConnections(ctx, &securityagent.ListPrivateConnectionsInput{NextToken: token})
@@ -404,7 +404,7 @@ type saDefinition[S, F any] struct {
 // ValidationException then warns once and keeps that page's summaries, as an
 // AccessDenied does. An id BatchGet reports not found was deleted after
 // listing and is dropped; an id it returns that was not listed is ignored.
-func scanSADefinitions[S, F any](ctx context.Context, st *store.Store, acct *account, region, scanID string, parents []childParent, d saDefinition[S, F]) (int, int, error) {
+func scanSADefinitions[S, F any](ctx context.Context, st *store.Store, acct *account, region, scanID string, parents []childParent, d saDefinition[S, F]) (int, error) {
 	var denyGet sync.Once
 	var failedGet, partialGet, goneList, goneGet saWarnOnce
 	isSkip := neverSkipSA
@@ -476,7 +476,7 @@ func scanSADefinitions[S, F any](ctx context.Context, st *store.Store, acct *acc
 	})
 }
 
-func scanSAPentests(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanSAPentests(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return scanSADefinitions(ctx, st, acct, region, scanID, spaces, saDefinition[satypes.PentestSummary, satypes.Pentest]{
 		typ: TypeSecurityAgentPentest, arnKind: "pentest",
 		listOp: "securityagent:ListPentests", getOp: "securityagent:BatchGetPentests",
@@ -507,7 +507,7 @@ func scanSAPentests(ctx context.Context, client securityAgentAPI, acct *account,
 	})
 }
 
-func scanSACodeReviews(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanSACodeReviews(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return scanSADefinitions(ctx, st, acct, region, scanID, spaces, saDefinition[satypes.CodeReviewSummary, satypes.CodeReview]{
 		typ: TypeSecurityAgentCodeReview, arnKind: "code-review",
 		listOp: "securityagent:ListCodeReviews", getOp: "securityagent:BatchGetCodeReviews",
@@ -538,7 +538,7 @@ func scanSACodeReviews(ctx context.Context, client securityAgentAPI, acct *accou
 	})
 }
 
-func scanSAThreatModels(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanSAThreatModels(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return scanSADefinitions(ctx, st, acct, region, scanID, spaces, saDefinition[satypes.ThreatModelSummary, satypes.ThreatModel]{
 		typ: TypeSecurityAgentThreatModel, arnKind: "threat-model",
 		listOp: "securityagent:ListThreatModels", getOp: "securityagent:BatchGetThreatModels",
@@ -575,7 +575,7 @@ func scanSAThreatModels(ctx context.Context, client securityAgentAPI, acct *acco
 // pack the pack phase listed. Requirements are keyed by name within a pack,
 // and BatchGetSecurityRequirements reports a name it cannot return as a
 // per-item error rather than a not-found list.
-func scanSASecurityRequirements(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, packs []childParent) (int, int, error) {
+func scanSASecurityRequirements(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, packs []childParent) (int, error) {
 	type full = satypes.BatchGetSecurityRequirementResult
 	return scanSADefinitions(ctx, st, acct, region, scanID, packs, saDefinition[satypes.SecurityRequirementSummary, full]{
 		typ: TypeSecurityAgentSecurityRequirement, arnKind: "security-requirement",
@@ -657,7 +657,7 @@ func flattenSAMembership(m satypes.MembershipSummary) saMembershipAttrs {
 // neither summary names the other side. Each pair is its own fan-out key, so a
 // failed pair drops only itself. The op models no errors: a not-found pair
 // warns once and the others continue.
-func scanSAMemberships(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent, appIDs []string) (int, int, error) {
+func scanSAMemberships(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent, appIDs []string) (int, error) {
 	const op = "securityagent:ListMemberships"
 	type pair struct{ spaceID, appID string }
 	var keys []childParent
@@ -770,7 +770,7 @@ func flattenSAIntegratedResource(r satypes.IntegratedResourceSummary) (attrs saI
 // space was given access to through an integration. ListIntegratedResources
 // models ResourceNotFoundException: an agent space deleted after listing is
 // skipped.
-func scanSAIntegratedResources(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanSAIntegratedResources(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, "securityagent:ListIntegratedResources", spaces, isSAParentGone, func(ctx context.Context, space childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
 		pager := securityagent.NewListIntegratedResourcesPaginator(client, &securityagent.ListIntegratedResourcesInput{AgentSpaceId: &space.id})

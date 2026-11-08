@@ -88,14 +88,14 @@ type dxRevision struct {
 // stored, and the asset phase the revisions the revision phase stored. Every
 // type has its tags read per row (adxTags), and the tag denials of the whole
 // scan are one warning.
-func scanDataExchange(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDataExchange(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := dataexchange.NewFromConfig(acct.cfg, func(o *dataexchange.Options) { o.Region = region })
 	tags := adxTags(client).sharingDenials()
 	var (
 		dataSets  []dxDataSet
 		revisions []dxRevision
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "dataexchange", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "dataexchange", 0, []hostPhase{
 		{op: "dataexchange:ListDataSets", run: func(p *phaseTotals) (failed bool) {
 			dataSets, failed = scanDataExchangeDataSets(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -118,7 +118,7 @@ func scanDataExchange(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // adxTags reads a row's tags with ListTagsForResource, one call per row,

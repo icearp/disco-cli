@@ -74,7 +74,7 @@ func TestScanSnowballAddresses_StoresEveryPage(t *testing.T) {
 			return &snowball.DescribeAddressesOutput{Addresses: []sbtypes.Address{sbAddress("2")}}, nil
 		},
 	}
-	complete, total, _, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
+	complete, total, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestScanSnowballAddresses_Errors(t *testing.T) {
 					return &snowball.DescribeAddressesOutput{}, nil
 				},
 			}
-			complete, total, _, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
+			complete, total, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
 			if tc.wantErr != (err != nil) || (tc.wantErr && !errors.Is(err, tc.err)) {
 				t.Errorf("err = %v, want error %v", err, tc.wantErr)
 			}
@@ -156,7 +156,7 @@ func TestScanSnowballAddresses_LaterPageErrorKeepsStoredPages(t *testing.T) {
 			return nil, sbHardErr
 		},
 	}
-	complete, total, _, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
+	complete, total, err := scanSnowballAddresses(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
 	if !errors.Is(err, sbHardErr) {
 		t.Errorf("err = %v, want the page-2 error", err)
 	}
@@ -205,7 +205,7 @@ func TestScanSnowballClusters_DescribesEveryListedCluster(t *testing.T) {
 		mu.Unlock()
 		return list(in)
 	}
-	total, _, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -253,7 +253,7 @@ func TestScanSnowballClusters_NoMetadataDropped(t *testing.T) {
 		}
 		return &snowball.DescribeClusterOutput{ClusterMetadata: sbCluster("2")}, nil
 	})
-	total, _, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -286,7 +286,7 @@ func TestScanSnowballClusters_ListErrors(t *testing.T) {
 					return &snowball.ListClustersOutput{}, nil
 				},
 			}
-			total, _, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr != (err != nil) || (tc.wantErr && !errors.Is(err, tc.err)) {
 				t.Errorf("err = %v, want error %v", err, tc.wantErr)
 			}
@@ -313,7 +313,7 @@ func TestScanSnowballClusters_LaterListPageErrorStoresListedClusters(t *testing.
 		}
 		return list(in)
 	}
-	total, _, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, sbHardErr) {
 		t.Errorf("err = %v, want the page-2 error", err)
 	}
@@ -345,7 +345,7 @@ func TestScanSnowballClusters_PerClusterErrors(t *testing.T) {
 				}
 				return &snowball.DescribeClusterOutput{ClusterMetadata: sbCluster("2")}, nil
 			})
-			total, _, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanSnowballClusters(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr {
 				if !errors.Is(err, tc.err) {
 					t.Errorf("err = %v, want %v", err, tc.err)
@@ -380,7 +380,7 @@ func sbTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 func TestScanSnowballAll_StoresAddressesAndClusters(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanSnowballAll(context.Background(), sbClient(sbTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSnowballAll(context.Background(), sbClient(sbTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -416,11 +416,11 @@ func TestScanSnowballAddressesOnce_DeniedRegionLeavesTurnToNext(t *testing.T) {
 	acct.Regions = []string{"us-west-2", "eu-west-1", "us-east-1"}
 	acct.scanRegions = acct.Regions
 	denied := sbClient(map[string]func(any) (any, error){})
-	if total, _, err := scanSnowballAddressesOnce(context.Background(), denied, acct, "us-east-1", st, testScanID); err != nil || total != 0 {
+	if total, err := scanSnowballAddressesOnce(context.Background(), denied, acct, "us-east-1", st, testScanID); err != nil || total != 0 {
 		t.Fatalf("us-east-1: total, err = %d, %v; want 0, nil", total, err)
 	}
 	var calls atomic.Int32
-	total, _, err := scanSnowballAddressesOnce(context.Background(), sbClient(sbCountingAddresses(&calls)), acct, "us-west-2", st, testScanID)
+	total, err := scanSnowballAddressesOnce(context.Background(), sbClient(sbCountingAddresses(&calls)), acct, "us-west-2", st, testScanID)
 	if err != nil || total != 1 || calls.Load() != 1 {
 		t.Errorf("us-west-2: total, calls, err = %d, %d, %v; want 1, 1, nil", total, calls.Load(), err)
 	}
@@ -441,7 +441,7 @@ func TestScanSnowballAddressesOnce_RegionLabelIsADispatchedRegion(t *testing.T) 
 	acct.Regions = []string{"us-east-1", "us-west-2"}
 	acct.scanRegions = []string{"us-west-2"}
 	var calls atomic.Int32
-	if _, _, err := scanSnowballAddressesOnce(context.Background(), sbClient(sbCountingAddresses(&calls)), acct, "us-west-2", st, testScanID); err != nil {
+	if _, err := scanSnowballAddressesOnce(context.Background(), sbClient(sbCountingAddresses(&calls)), acct, "us-west-2", st, testScanID); err != nil {
 		t.Fatalf("us-west-2: %v", err)
 	}
 	if got := rowsByNativeID(t, st, TypeSnowballAddress)[sbAddressNative("1")]; sv(got.Region) != "us-west-2" {
@@ -481,7 +481,7 @@ func TestScanSnowballAddresses_StoreWriteFailureIsIncomplete(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 	var calls atomic.Int32
-	complete, _, _, err := scanSnowballAddresses(context.Background(), sbClient(sbCountingAddresses(&calls)), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
+	complete, _, err := scanSnowballAddresses(context.Background(), sbClient(sbCountingAddresses(&calls)), newTestAccount(testAccountID), testRegion, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || complete {
 		t.Errorf("complete, err = %v, %v; want false, store.ErrStoreWrite", complete, err)
 	}
@@ -531,13 +531,13 @@ func TestScanSnowballAll_WaitingUSRegionKeepsClustersWithoutDeadline(t *testing.
 	client := sbClientCtx(handlers)
 	holderDone := make(chan error, 1)
 	go func() {
-		_, _, err := scanSnowballAddressesOnce(context.Background(), client, acct, "us-east-1", st, testScanID)
+		_, err := scanSnowballAddressesOnce(context.Background(), client, acct, "us-east-1", st, testScanID)
 		holderDone <- err
 	}()
 	<-entered
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	total, _, err := scanSnowballAll(ctx, client, acct, "us-west-2", st, testScanID)
+	total, err := scanSnowballAll(ctx, client, acct, "us-west-2", st, testScanID)
 	if err != nil {
 		t.Errorf("waiter err = %v, want nil", err)
 	}
@@ -561,7 +561,7 @@ func TestScanSnowballAddressesOnce_StoredOnceAcrossUSRegions(t *testing.T) {
 	var calls atomic.Int32
 	client := sbClient(sbCountingAddresses(&calls))
 	for _, region := range []string{"us-east-1", "us-west-2", "us-east-2"} {
-		if _, _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
+		if _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
 			t.Fatalf("%s: err = %v", region, err)
 		}
 	}
@@ -582,7 +582,7 @@ func TestScanSnowballAddressesOnce_NonUSRegionAlwaysLists(t *testing.T) {
 	var calls atomic.Int32
 	client := sbClient(sbCountingAddresses(&calls))
 	for _, region := range []string{"us-east-1", "eu-west-1", "us-gov-west-1"} {
-		if _, _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
+		if _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
 			t.Fatalf("%s: err = %v", region, err)
 		}
 	}
@@ -615,7 +615,7 @@ func TestScanSnowballAddressesOnce_ConcurrentUSRegionsCallOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, region := range []string{"us-east-1", "us-east-2", "us-west-1", "us-west-2"} {
 		wg.Go(func() {
-			if _, _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
+			if _, err := scanSnowballAddressesOnce(context.Background(), client, acct, region, st, testScanID); err != nil {
 				t.Errorf("%s: err = %v", region, err)
 			}
 		})
@@ -644,7 +644,7 @@ func TestScanSnowballAll_PhaseErrorKeepsOtherPhase(t *testing.T) {
 			handlers := sbTopLevelHandlers(map[string]func(any) (any, error){
 				tc.failOp: func(any) (any, error) { return nil, sbHardErr },
 			})
-			_, _, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, sbHardErr) {
 				t.Errorf("err = %v, want the %s error", err, tc.failOp)
 			}
@@ -664,7 +664,7 @@ func TestScanSnowballAll_LoneTransientIsReturned(t *testing.T) {
 	handlers := sbTopLevelHandlers(map[string]func(any) (any, error){
 		"ListClusters": func(any) (any, error) { return nil, sbThrottled },
 	})
-	_, _, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
@@ -693,7 +693,7 @@ func TestScanSnowballAll_TransientDoesNotMaskHardError(t *testing.T) {
 				tc.throttledOp: func(any) (any, error) { return nil, sbThrottled },
 				tc.hardOp:      func(any) (any, error) { return nil, sbHardErr },
 			})
-			_, _, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 			}

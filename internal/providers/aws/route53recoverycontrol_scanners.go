@@ -53,15 +53,15 @@ var r53rcGone = []string{"ResourceNotFoundException"}
 // those panels concurrently. Clusters, control panels and safety rules have
 // their tags read per row (r53rcTags), whose denials are one warning for the
 // whole scan.
-func scanR53RecoveryControl(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RecoveryControl(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("route53recoverycontrolconfig")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := route53recoverycontrolconfig.NewFromConfig(acct.cfg, func(o *route53recoverycontrolconfig.Options) { o.Region = region })
 	tags := r53rcTags(client, acct.ID).sharingDenials()
 	var panels []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "route53recoverycontrolconfig", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "route53recoverycontrolconfig", 0, []hostPhase{
 		{op: "route53recoverycontrolconfig:ListClusters", run: func(p *phaseTotals) bool {
 			return scanR53RCClusters(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -77,7 +77,7 @@ func scanR53RecoveryControl(ctx context.Context, acct *account, _ string, st *st
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // r53rcTags reads a row's tags with ListTagsForResource, sent the row's

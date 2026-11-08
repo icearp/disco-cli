@@ -275,7 +275,7 @@ func apintHandlers(c *apintCalls) map[string]func(in any) (any, error) {
 
 // apintScan scans the test account's region with handlers; an op without a
 // handler is denied.
-func apintScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func apintScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, apintDenied)
 	return scanAppIntegrations(ctx, acct, testRegion, st, testScanID)
@@ -323,7 +323,9 @@ func TestScanAppIntegrations_StoresEveryTypeWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newApintCalls()
 
-	total, inserted, err := apintScan(context.Background(), st, apintHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := apintScan(context.Background(), counted, apintHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -444,16 +446,16 @@ func TestScanAppIntegrations_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAppIntegrations_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := apintScan(context.Background(), st, apintHandlers(newApintCalls())); err != nil {
+	if _, err := apintScan(context.Background(), st, apintHandlers(newApintCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := apintScan(context.Background(), st, apintHandlers(newApintCalls()))
+	total, err := apintScan(context.Background(), st, apintHandlers(newApintCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -473,7 +475,7 @@ func TestScanAppIntegrations_EmptyListings(t *testing.T) {
 	handlers["ListDataIntegrations"] = func(any) (any, error) { return &appintegrations.ListDataIntegrationsOutput{}, nil }
 	handlers["ListEventIntegrations"] = func(any) (any, error) { return &appintegrations.ListEventIntegrationsOutput{}, nil }
 
-	total, _, err := apintScan(context.Background(), st, handlers)
+	total, err := apintScan(context.Background(), st, handlers)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -520,7 +522,7 @@ func TestScanAppIntegrations_TagReadFailures(t *testing.T) {
 			calls := newApintCalls()
 			calls.tagErrs[c.arn] = c.err
 
-			total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+			total, err := apintScan(context.Background(), st, apintHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -567,7 +569,7 @@ func TestScanAppIntegrations_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.tagErrs[arn] = apintDenied
 	}
 
-	total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+	total, err := apintScan(context.Background(), st, apintHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -589,7 +591,7 @@ func TestScanAppIntegrations_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[apintDI2] = apintThrottle
 	calls.tagErrs[apintEIAssoc2] = apintBadInput
 
-	_, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+	_, err := apintScan(context.Background(), st, apintHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -608,7 +610,7 @@ func TestScanAppIntegrations_ParentTransientDemotedBesideHardError(t *testing.T)
 	handlers["ListEventIntegrations"] = func(any) (any, error) { return nil, apintThrottle }
 	calls.parentErrs[apintAppB] = apintBadInput
 
-	_, _, err := apintScan(context.Background(), st, handlers)
+	_, err := apintScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -664,7 +666,7 @@ func TestScanAppIntegrations_FailedWriteStopsScan(t *testing.T) {
 			calls := newApintCalls()
 			calls.tagErrs[c.denied] = apintDenied
 
-			total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+			total, err := apintScan(context.Background(), st, apintHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -720,7 +722,7 @@ func TestScanAppIntegrations_AssociationParentFailures(t *testing.T) {
 				calls.parentErrs[p] = c.err
 			}
 
-			total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+			total, err := apintScan(context.Background(), st, apintHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -777,7 +779,7 @@ func TestScanAppIntegrations_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			_, _, err := apintScan(context.Background(), st, handlers)
+			_, err := apintScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequestException")
 			rows := rowsByNativeID(t, st, c.typ)
@@ -839,7 +841,7 @@ func TestScanAppIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			_, _, err := apintScan(context.Background(), st, handlers)
+			_, err := apintScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -895,7 +897,7 @@ func TestScanAppIntegrations_ElementsWithoutIdentifier(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := apintScan(context.Background(), st, handlers)
+	total, err := apintScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -949,7 +951,7 @@ func TestScanAppIntegrations_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, apintDenied)
 
-			if _, _, err := scanAppIntegrations(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanAppIntegrations(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.sortedTagARNs(), arn) {
@@ -979,7 +981,7 @@ func TestScanAppIntegrations_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := apintScan(ctx, st, handlers)
+	_, err := apintScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1008,7 +1010,7 @@ func TestScanAppIntegrations_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newApintCalls()
 		calls.parentErrs["orders"] = nx
-		total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+		total, err := apintScan(context.Background(), st, apintHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if want := apintTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1018,7 +1020,7 @@ func TestScanAppIntegrations_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newApintCalls()
 		calls.tagErrs[apintAppA] = nx
-		total, _, err := apintScan(context.Background(), st, apintHandlers(calls))
+		total, err := apintScan(context.Background(), st, apintHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != apintTestTotal {
 			t.Errorf("total = %d; want %d", total, apintTestTotal)
@@ -1029,7 +1031,7 @@ func TestScanAppIntegrations_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanAppIntegrations(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanAppIntegrations(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

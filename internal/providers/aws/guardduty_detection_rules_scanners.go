@@ -93,7 +93,7 @@ func gdRuleOrgConfigNativeID(partition, region, accountID, ruleID string, mode g
 // (CreateCustomDetectionRuleOrgConfiguration "is available only to the
 // delegated administrator account"). They have no tags to read: the Service
 // Reference names no resource for them.
-func scanGDCustomRuleOrgConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGDCustomRuleOrgConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, gdListCustomRuleOrgOp,
 		firstPageGapPages(isOpNotDeployed, func(ctx context.Context, token *string) ([]gdtypes.DetectionRuleOrgConfigurationSummary, *string, error) {
 			out, err := client.ListCustomDetectionRuleOrgConfigurations(ctx, &guardduty.ListCustomDetectionRuleOrgConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(gdDetectionRulePageLimit)})

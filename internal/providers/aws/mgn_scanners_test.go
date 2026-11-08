@@ -143,7 +143,7 @@ func mgnTemplate(id string) mgntypes.LaunchConfigurationTemplate {
 
 func runMGN(t *testing.T, st *store.Store, stub *stubMGN) (int, error) {
 	t.Helper()
-	total, _, err := scanMGNWithClient(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanMGNWithClient(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 

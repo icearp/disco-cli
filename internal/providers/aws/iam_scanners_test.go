@@ -41,7 +41,7 @@ type iamCredCase struct {
 	// page builds one output page; an "" id is an element with no id, and an
 	// id ending in "-1" carries Status Active and a create date.
 	page func(user string, next *string, ids ...string) any
-	run  func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, int, error)
+	run  func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, error)
 }
 
 func iamElemStatus(id string) (iamtypes.StatusType, *time.Time) {
@@ -71,7 +71,7 @@ var iamCredCases = []iamCredCase{
 			}
 			return out
 		},
-		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, error) {
 			return scanIAMServiceSpecificCredentials(ctx, client, users, newTestAccount(testAccountID), st, testScanID)
 		},
 	},
@@ -92,7 +92,7 @@ var iamCredCases = []iamCredCase{
 			}
 			return out
 		},
-		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, error) {
 			return scanIAMSigningCertificates(ctx, client, users, newTestAccount(testAccountID), st, testScanID)
 		},
 	},
@@ -112,7 +112,7 @@ var iamCredCases = []iamCredCase{
 			}
 			return out
 		},
-		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client iamAPI, users []childParent, st *store.Store) (int, error) {
 			return scanIAMSSHPublicKeys(ctx, client, users, newTestAccount(testAccountID), st, testScanID)
 		},
 	},
@@ -145,7 +145,7 @@ func (c iamCredCase) scan(t *testing.T, st *store.Store, users []childParent, h 
 		upsertTestResource(t, st, "aws", testAccountID, TypeIAMUser, u.arn, "global", "{}")
 	}
 	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){c.op: h}, iamDenied))
-	total, _, err := c.run(context.Background(), client, users, st)
+	total, err := c.run(context.Background(), client, users, st)
 	return total, err
 }
 
@@ -322,7 +322,7 @@ func scanIAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iamDenied)
-	_, _, err := scanIAM(context.Background(), acct, st, testScanID)
+	_, err := scanIAM(context.Background(), acct, st, testScanID)
 	return err
 }
 
@@ -413,7 +413,7 @@ func iamDelegationHandler(inputs *[]iam.ListDelegationRequestsInput) func(in any
 	}
 }
 
-func scanIAMDelegationWith(t *testing.T, st *store.Store, h func(in any) (any, error)) (int, int, error) {
+func scanIAMDelegationWith(t *testing.T, st *store.Store, h func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){"ListDelegationRequests": h}, iamDenied))
 	return scanIAMDelegationRequests(context.Background(), client, newTestAccount(testAccountID), st, testScanID)
@@ -424,7 +424,9 @@ func TestScanIAMDelegationRequests_StoresEveryPage(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:ListDelegationRequests")
 	var inputs []iam.ListDelegationRequestsInput
-	total, inserted, err := scanIAMDelegationWith(t, st, iamDelegationHandler(&inputs))
+	counted, upserts := countUpserts(st)
+	total, err := scanIAMDelegationWith(t, counted, iamDelegationHandler(&inputs))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -457,7 +459,7 @@ func TestScanIAMDelegationRequests_StoresEveryPage(t *testing.T) {
 func TestScanIAMDelegationRequests_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return iamTestDelegationPage(nil), nil })
+	total, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return iamTestDelegationPage(nil), nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeIAMDelegationRequest)) != 0 {
 		t.Errorf("total = %d, err = %v; want 0 rows, nil", total, err)
 	}
@@ -467,7 +469,7 @@ func TestScanIAMDelegationRequests_AccessDeniedWarns(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:ListDelegationRequests")
-	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, iamDenied })
+	total, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, iamDenied })
 	if err != nil || total != 0 || *warns != 1 {
 		t.Errorf("total = %d, warnings = %d, err = %v; want 0, 1, nil", total, *warns, err)
 	}
@@ -481,12 +483,12 @@ func TestScanIAMDelegationRequests_OtherErrorsFail(t *testing.T) {
 	for _, failure := range []*smithy.GenericAPIError{iamFailure, iamGone} {
 		t.Run(failure.Code+"/first-page", func(t *testing.T) {
 			st := newTestStore(t)
-			_, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, failure })
+			_, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, failure })
 			assertAPICode(t, err, failure.Code)
 		})
 		t.Run(failure.Code+"/second-page", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := scanIAMDelegationWith(t, st, func(in any) (any, error) {
+			total, err := scanIAMDelegationWith(t, st, func(in any) (any, error) {
 				if in.(*iam.ListDelegationRequestsInput).Marker == nil {
 					return iamTestDelegationPage(ptrStr("m2"), "dr-1"), nil
 				}
@@ -506,7 +508,7 @@ func TestScanIAMDelegationRequests_RepeatedMarkerFails(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls atomic.Int32
-	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) {
+	total, err := scanIAMDelegationWith(t, st, func(any) (any, error) {
 		n := calls.Add(1)
 		if n > 3 {
 			return nil, iamFailure
@@ -645,7 +647,7 @@ func TestScanIAM_PhaseOneFailureDoesNotCancelSiblings(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(withCtx, iamDenied)
-	_, _, err := scanIAM(context.Background(), acct, st, testScanID)
+	_, err := scanIAM(context.Background(), acct, st, testScanID)
 	assertAPICode(t, err, "ServiceFailure")
 	if n := len(rowsByNativeID(t, st, TypeIAMUser)); n != 2 {
 		t.Errorf("user rows = %d; want 2: GAAD must not be cancelled by its sibling's failure", n)
@@ -679,7 +681,7 @@ func TestScanIAMAccessKeys_PerUserOutcomes(t *testing.T) {
 			return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{AccessKeyId: ptrStr("AKIA2")}}}, nil
 		},
 	}, iamDenied))
-	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "bob", "carol", "dave", "erin"), newTestAccount(testAccountID), st, testScanID)
+	total, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "bob", "carol", "dave", "erin"), newTestAccount(testAccountID), st, testScanID)
 	assertAPICode(t, err, "ServiceFailure")
 	if total != 2 {
 		t.Errorf("total = %d; want alice's 2 keys", total)
@@ -694,7 +696,7 @@ func TestScanIAMAccessKeys_PerUserOutcomes(t *testing.T) {
 		t.Errorf("iam:ListAccessKeys warnings = %d; want 2 (throttled, denied)", *warns)
 	}
 	// A user deleted since GAAD is no error.
-	if _, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "carol"), newTestAccount(testAccountID), st, testScanID); err != nil {
+	if _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "carol"), newTestAccount(testAccountID), st, testScanID); err != nil {
 		t.Errorf("err = %v; want nil when the only failure is a deleted user", err)
 	}
 }
@@ -712,7 +714,7 @@ func TestScanIAMAccessKeys_KeepsKeysReadBeforeFailedPage(t *testing.T) {
 			return nil, iamFailure
 		},
 	}, iamDenied))
-	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
+	total, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
 	assertAPICode(t, err, "ServiceFailure")
 	if total != 1 {
 		t.Errorf("total = %d; want the first page's key", total)
@@ -734,7 +736,7 @@ func TestScanIAMAccessKeys_KeyWithoutIDNotStored(t *testing.T) {
 			return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{UserName: ptrStr("alice")}, {AccessKeyId: ptrStr("AKIA1")}}}, nil
 		},
 	}, iamDenied))
-	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
+	total, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -759,7 +761,7 @@ type iamProviderCase struct {
 	// detail is the Get body for name: "tagged" carries tags and a create
 	// date, any other name neither.
 	detail func(name string) any
-	run    func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error)
+	run    func(ctx context.Context, client iamAPI, st *store.Store) (int, error)
 }
 
 var iamProviderCases = []iamProviderCase{
@@ -782,7 +784,7 @@ var iamProviderCases = []iamProviderCase{
 			}
 			return out
 		},
-		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, error) {
 			return scanIAMOIDCProviders(ctx, client, newTestAccount(testAccountID), st, testScanID)
 		},
 	},
@@ -808,7 +810,7 @@ var iamProviderCases = []iamProviderCase{
 			}
 			return out
 		},
-		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error) {
+		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, error) {
 			return scanIAMSAMLProviders(ctx, client, newTestAccount(testAccountID), st, testScanID)
 		},
 	},
@@ -842,7 +844,7 @@ func (c iamProviderCase) client(names []string, fail map[string]error) *iam.Clie
 	}, iamDenied))
 }
 
-func (c iamProviderCase) scan(st *store.Store, names []string, fail map[string]error) (int, int, error) {
+func (c iamProviderCase) scan(st *store.Store, names []string, fail map[string]error) (int, error) {
 	return c.run(context.Background(), c.client(names, fail), st)
 }
 
@@ -855,7 +857,9 @@ func TestScanIAMProviders_StoresGetBody(t *testing.T) {
 			st := newTestStore(t)
 			listWarns := countOpWarnings(st, "iam:"+c.listOp)
 			getWarns := countOpWarnings(st, "iam:"+c.getOp)
-			total, inserted, err := c.scan(st, []string{"tagged", "", "plain"}, nil)
+			counted, upserts := countUpserts(st)
+			total, err := c.scan(counted, []string{"tagged", "", "plain"}, nil)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -897,7 +901,7 @@ func TestScanIAMProviders_PerProviderOutcomes(t *testing.T) {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
 			warned := recordWarnings(st)
-			total, _, err := c.scan(st, []string{"ok", "gone", "denied-1", "denied-2", "failed"}, map[string]error{
+			total, err := c.scan(st, []string{"ok", "gone", "denied-1", "denied-2", "failed"}, map[string]error{
 				"gone": iamGone, "denied-1": iamDenied, "denied-2": iamDenied, "failed": iamFailure,
 			})
 			assertAPICode(t, err, "ServiceFailure")
@@ -936,7 +940,7 @@ func TestScanIAMProviders_TransientReadReturned(t *testing.T) {
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.scan(st, []string{"ok", "slow"}, map[string]error{"slow": throttled})
+			total, err := c.scan(st, []string{"ok", "slow"}, map[string]error{"slow": throttled})
 			if got := classifyServiceError(err); got != outcomeTransient {
 				t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
 			}
@@ -963,7 +967,7 @@ func TestScanIAMProviders_CancelledAfterListFails(t *testing.T) {
 				},
 				c.getOp: func(context.Context, any) (any, error) { return c.detail("a"), nil },
 			}, iamDenied))
-			total, _, err := c.run(ctx, client, st)
+			total, err := c.run(ctx, client, st)
 			if !errors.Is(err, context.Canceled) || total != 0 {
 				t.Errorf("total = %d, err = %v; want 0, context.Canceled", total, err)
 			}
@@ -979,7 +983,7 @@ func TestScanIAMProviders_ListErrors(t *testing.T) {
 			client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 				c.listOp: func(any) (any, error) { return nil, listErr },
 			}, iamDenied))
-			total, _, err := c.run(context.Background(), client, st)
+			total, err := c.run(context.Background(), client, st)
 			return total, err
 		}
 		t.Run(c.typ+"/denied warns", func(t *testing.T) {
@@ -1002,7 +1006,7 @@ func TestScanIAMProviders_Empty(t *testing.T) {
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.scan(st, nil, nil)
+			total, err := c.scan(st, nil, nil)
 			if err != nil || total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
 				t.Errorf("total = %d, err = %v; want 0 rows, nil", total, err)
 			}

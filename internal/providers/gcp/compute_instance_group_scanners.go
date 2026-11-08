@@ -24,10 +24,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeRegionInstanceTemplate, Service: "compute"})
 }
 
-func scanComputeInstanceGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInstanceGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:instanceGroups.aggregatedList",
 		svc.InstanceGroups.AggregatedList(p.ID),
-		func(page *compute.InstanceGroupAggregatedList) (int, int, error) {
+		func(page *compute.InstanceGroupAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, ig := range items.InstanceGroups {
@@ -38,7 +38,7 @@ func scanComputeInstanceGroups(ctx context.Context, svc *compute.Service, p *pro
 		})
 }
 
-func scanComputeRegionInstanceGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionInstanceGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionInstanceGroups.list",
 		func(region string) pager[compute.RegionInstanceGroupList] {
 			return svc.RegionInstanceGroups.List(p.ID, region)
@@ -81,11 +81,11 @@ type igmRef struct {
 	name  string
 }
 
-func scanComputeInstanceGroupManagers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeInstanceGroupManagers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	var refs []igmRef
-	t, n, err := runPaginated(ctx, st, p, "compute:instanceGroupManagers.aggregatedList",
+	t, err := runPaginated(ctx, st, p, "compute:instanceGroupManagers.aggregatedList",
 		svc.InstanceGroupManagers.AggregatedList(p.ID),
-		func(page *compute.InstanceGroupManagerAggregatedList) (int, int, error) {
+		func(page *compute.InstanceGroupManagerAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, igm := range items.InstanceGroupManagers {
@@ -98,15 +98,15 @@ func scanComputeInstanceGroupManagers(ctx context.Context, svc *compute.Service,
 			return upsertWithProjClosure(p, st, batch)
 		})
 	if err != nil {
-		return t, n, err
+		return t, err
 	}
-	t2, n2, err := scanComputeInstanceGroupManagerResizeRequests(ctx, svc, p, st, scanID, refs)
-	return t + t2, n + n2, err
+	t2, err := scanComputeInstanceGroupManagerResizeRequests(ctx, svc, p, st, scanID, refs)
+	return t + t2, err
 }
 
-func scanComputeInstanceGroupManagerResizeRequests(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []igmRef) (total, inserted int, err error) {
+func scanComputeInstanceGroupManagerResizeRequests(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []igmRef) (total int, err error) {
 	if len(refs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -135,24 +135,24 @@ func scanComputeInstanceGroupManagerResizeRequests(ctx context.Context, svc *com
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertWithProjClosure(p, st, batch)
 }
 
-func scanComputeRegionInstanceGroupManagers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeRegionInstanceGroupManagers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	regions, err := gcpRegions(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(regions) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu   sync.Mutex
 		refs []igmRef
 	)
-	t, n, err := gcpRegionFanoutScanIn(ctx, p, st, fanoutMed, regions, "compute:regionInstanceGroupManagers.list",
+	t, err := gcpRegionFanoutScanIn(ctx, p, st, fanoutMed, regions, "compute:regionInstanceGroupManagers.list",
 		func(region string) pager[compute.RegionInstanceGroupManagerList] {
 			return svc.RegionInstanceGroupManagers.List(p.ID, region)
 		},
@@ -167,15 +167,15 @@ func scanComputeRegionInstanceGroupManagers(ctx context.Context, svc *compute.Se
 			return r
 		})
 	if err != nil {
-		return t, n, err
+		return t, err
 	}
-	t2, n2, err := scanComputeRegionInstanceGroupManagerResizeRequests(ctx, svc, p, st, scanID, refs)
-	return t + t2, n + n2, err
+	t2, err := scanComputeRegionInstanceGroupManagerResizeRequests(ctx, svc, p, st, scanID, refs)
+	return t + t2, err
 }
 
-func scanComputeRegionInstanceGroupManagerResizeRequests(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []igmRef) (total, inserted int, err error) {
+func scanComputeRegionInstanceGroupManagerResizeRequests(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []igmRef) (total int, err error) {
 	if len(refs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -204,7 +204,7 @@ func scanComputeRegionInstanceGroupManagerResizeRequests(ctx context.Context, sv
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertWithProjClosure(p, st, batch)
 }
@@ -249,10 +249,10 @@ func resizeRequestToResource(p *project, scanID, discoType string, rr *compute.I
 // documents itself as returning "regional and global" resources under
 // "global" / "regions/{region}" scope keys, so no second per-region List
 // call is needed.
-func scanComputeInstanceTemplates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInstanceTemplates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:instanceTemplates.aggregatedList",
 		svc.InstanceTemplates.AggregatedList(p.ID),
-		func(page *compute.InstanceTemplateAggregatedList) (int, int, error) {
+		func(page *compute.InstanceTemplateAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				for _, it := range items.InstanceTemplates {

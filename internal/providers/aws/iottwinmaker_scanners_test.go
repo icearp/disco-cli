@@ -177,7 +177,7 @@ func itmHandlers(c *itmCalls) map[string]func(any) (any, error) {
 
 // itmScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func itmScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func itmScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -213,7 +213,9 @@ func TestScanIoTTwinMaker_StoresTagsOfEveryType(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := itmScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := itmScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -292,7 +294,7 @@ func TestScanIoTTwinMaker_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, crDenied)
 
-	total, _, err := scanIoTTwinMaker(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanIoTTwinMaker(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -326,7 +328,9 @@ func TestScanIoTTwinMaker_NoWorkspaces(t *testing.T) {
 	h := itmHandlers(calls)
 	h["ListWorkspaces"] = calls.answer("ListWorkspaces", func(any) any { return &iottwinmaker.ListWorkspacesOutput{} })
 
-	total, inserted, err := itmScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := itmScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -355,7 +359,7 @@ func TestScanIoTTwinMaker_EmptyWorkspace(t *testing.T) {
 		h[op] = calls.answer(op, func(any) any { return itmEmptyOut(op) })
 	}
 
-	total, _, err := itmScan(context.Background(), t, st, h)
+	total, err := itmScan(context.Background(), t, st, h)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d, %v; want 1, nil", total, err)
 	}
@@ -369,17 +373,17 @@ func TestScanIoTTwinMaker_EmptyWorkspace(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanIoTTwinMaker_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
-	if _, _, err := itmScan(context.Background(), t, st, itmHandlers(calls)); err != nil {
+	if _, err := itmScan(context.Background(), t, st, itmHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+	total, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -421,7 +425,7 @@ func TestScanIoTTwinMaker_TagReadFailures(t *testing.T) {
 					calls := newITMCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+					total, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -487,7 +491,7 @@ func TestScanIoTTwinMaker_TagPages(t *testing.T) {
 		st := newTestStore(t)
 		h := itmHandlers(newITMCalls())
 		h["ListTagsForResource"] = pages(false)
-		if _, _, err := itmScan(context.Background(), t, st, h); err != nil {
+		if _, err := itmScan(context.Background(), t, st, h); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 		r, _ := itmRowOf(t, st, TypeIoTTwinMakerScene, scene)
@@ -497,7 +501,7 @@ func TestScanIoTTwinMaker_TagPages(t *testing.T) {
 		st := newTestStore(t)
 		h := itmHandlers(newITMCalls())
 		h["ListTagsForResource"] = pages(true)
-		_, _, err := itmScan(context.Background(), t, st, h)
+		_, err := itmScan(context.Background(), t, st, h)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -522,7 +526,7 @@ func TestScanIoTTwinMaker_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[d.arn] = crDenied
 	}
 
-	total, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+	total, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 	if err != nil || total != 10 {
 		t.Fatalf("scan = %d, %v; want 10, nil", total, err)
 	}
@@ -546,7 +550,7 @@ func TestScanIoTTwinMaker_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[itmTestARN("workspace/ws-t")] = crThrottled
 	calls.errs[itmTestARN("workspace/ws-b/component-type/ct-b")] = crtBadInput
 
-	_, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+	_, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -568,7 +572,7 @@ func TestScanIoTTwinMaker_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := itmHandlers(calls)
 			h[op] = func(any) (any, error) { return nil, crDenied }
 
-			total, _, err := itmScan(context.Background(), t, st, h)
+			total, err := itmScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -610,7 +614,7 @@ func TestScanIoTTwinMaker_FailedWriteStopsWithoutWarning(t *testing.T) {
 			calls := newITMCalls()
 			calls.errs[c.deniedARN] = crDenied
 
-			_, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+			_, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -653,7 +657,7 @@ func TestScanIoTTwinMaker_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	}
 	h["ListScenes"] = func(any) (any, error) { return nil, crtBadInput }
 
-	total, _, err := itmScan(context.Background(), t, st, h)
+	total, err := itmScan(context.Background(), t, st, h)
 	for _, code := range []string{"ResourceNotFoundException", "ConflictException", "ValidationException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -684,7 +688,7 @@ func TestScanIoTTwinMaker_WorkspacePageFailureKeepsPage(t *testing.T) {
 	h := itmHandlers(calls)
 	h["ListWorkspaces"] = failOnCall(2, apiErr("ConflictException", "page 2"), h["ListWorkspaces"])
 
-	total, _, err := itmScan(context.Background(), t, st, h)
+	total, err := itmScan(context.Background(), t, st, h)
 	assertAPICode(t, err, "ConflictException")
 	if total != 5 {
 		t.Errorf("total = %d; want 5, ws-t and its children", total)
@@ -722,7 +726,7 @@ func TestScanIoTTwinMaker_UnstorableItemsWarn(t *testing.T) {
 			h := itmHandlers(calls)
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			total, _, err := itmScan(context.Background(), t, st, h)
+			total, err := itmScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -757,7 +761,7 @@ func TestScanIoTTwinMaker_RepeatedTokenKeepsPages(t *testing.T) {
 				h[c.op] = func(in any) (any, error) { return itmChildOut(c.op, itmWorkspaceOf(in), sdkaws.String("same")), nil }
 			}
 
-			_, _, err := itmScan(context.Background(), t, st, h)
+			_, err := itmScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -781,7 +785,7 @@ func TestScanIoTTwinMaker_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := itmScan(ctx, t, st, h)
+	_, err := itmScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -810,7 +814,7 @@ func TestScanIoTTwinMaker_Unreachable(t *testing.T) {
 		calls := newITMCalls()
 		h := itmHandlers(calls)
 		h["ListWorkspaces"] = func(any) (any, error) { return nil, nx }
-		total, _, err := itmScan(context.Background(), t, st, h)
+		total, err := itmScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListComponentTypes") != 0 {
 			t.Errorf("total, ListComponentTypes calls = %d, %d; want 0, 0", total, calls.count("ListComponentTypes"))
@@ -820,7 +824,7 @@ func TestScanIoTTwinMaker_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newITMCalls()
 		calls.errs[itmTestARN("workspace/ws-t/scene/sc-t")] = nx
-		total, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+		total, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 10 {
 			t.Errorf("total = %d; want 10", total)

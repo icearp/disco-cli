@@ -75,49 +75,48 @@ func applicationAutoScalingScalableTargetNativeID(partition, region, acct, names
 // transient error is demoted to a warning only beside a hard error: joined, it
 // would be buried in the hard error instead of reported under its op; the
 // counts are summed.
-func scanApplicationAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanApplicationAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := applicationautoscaling.NewFromConfig(acct.cfg, func(o *applicationautoscaling.Options) { o.Region = region })
-	total, inserted, noTargets, err := scanApplicationAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, serr := scanApplicationAutoScalingScheduledActions(ctx, client, acct, region, st, scanID, noTargets)
+	total, noTargets, err := scanApplicationAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
+	t, serr := scanApplicationAutoScalingScheduledActions(ctx, client, acct, region, st, scanID, noTargets)
 	var errs phaseErrs
 	errs.add("application-autoscaling", err)
 	errs.add(applicationAutoScalingScheduledActionsOp, serr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
-func scanApplicationAutoScalingOlderPhases(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, noTargets map[aastypes.ServiceNamespace]bool, err error) {
-	tTotal, tInserted, noTargets, err := scanApplicationAutoScalingScalableTargets(ctx, client, acct, region, st, scanID)
+func scanApplicationAutoScalingOlderPhases(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total int, noTargets map[aastypes.ServiceNamespace]bool, err error) {
+	tTotal, noTargets, err := scanApplicationAutoScalingScalableTargets(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return tTotal, tInserted, noTargets, err
+		return tTotal, noTargets, err
 	}
-	pTotal, pInserted, err := scanApplicationAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID, noTargets)
-	return tTotal + pTotal, tInserted + pInserted, noTargets, err
+	pTotal, err := scanApplicationAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID, noTargets)
+	return tTotal + pTotal, noTargets, err
 }
 
 // scanApplicationAutoScalingScalableTargets lists every namespace's scalable
 // targets. noTargets holds only the namespaces the listing proved empty; one
 // that was denied, outside the region's enum set, or not reached before a
 // hard error is absent.
-func scanApplicationAutoScalingScalableTargets(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, noTargets map[aastypes.ServiceNamespace]bool, err error) {
+func scanApplicationAutoScalingScalableTargets(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total int, noTargets map[aastypes.ServiceNamespace]bool, err error) {
 	noTargets = map[aastypes.ServiceNamespace]bool{}
 	for _, ns := range applicationAutoScalingNamespaces {
-		empty, lTotal, lInserted, lerr := listApplicationAutoScalingScalableTargets(ctx, client, acct, region, st, scanID, ns)
+		empty, lTotal, lerr := listApplicationAutoScalingScalableTargets(ctx, client, acct, region, st, scanID, ns)
 		total += lTotal
-		inserted += lInserted
 		if lerr != nil {
-			return total, inserted, noTargets, lerr
+			return total, noTargets, lerr
 		}
 		if empty {
 			noTargets[ns] = true
 		}
 	}
-	return total, inserted, noTargets, nil
+	return total, noTargets, nil
 }
 
 // listApplicationAutoScalingScalableTargets stores one namespace's scalable
 // targets. empty is true only when the listing completed and returned no
 // target, counting targets skipped for a missing id.
-func listApplicationAutoScalingScalableTargets(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, ns aastypes.ServiceNamespace) (empty bool, total, inserted int, err error) {
+func listApplicationAutoScalingScalableTargets(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, ns aastypes.ServiceNamespace) (empty bool, total int, err error) {
 	var found int
 	var nextToken *string
 	for {
@@ -127,12 +126,12 @@ func listApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 			// enumerated in this region's set with a ValidationException
 			// listing the allowed members. Silent-skip the namespace.
 			if isAPIErrorWithMessage(derr, "ValidationException", "Member must satisfy enum value set") {
-				return false, total, inserted, nil
+				return false, total, nil
 			}
 			if isAccessDenied(derr) {
-				return false, total, inserted, skipIfAccessDenied(st, "application-autoscaling:DescribeScalableTargets", acct.ID, region, derr)
+				return false, total, skipIfAccessDenied(st, "application-autoscaling:DescribeScalableTargets", acct.ID, region, derr)
 			}
-			return false, total, inserted, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: %w", ns, derr)
+			return false, total, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: %w", ns, derr)
 		}
 		found += len(out.ScalableTargets)
 		batch := make([]*store.Resource, 0, len(out.ScalableTargets))
@@ -158,27 +157,26 @@ func listApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 			})
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return false, total, inserted, fmt.Errorf("upsert application-autoscaling targets: %w", uerr)
+				return false, total, fmt.Errorf("upsert application-autoscaling targets: %w", uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		next := sv(out.NextToken)
 		if next == "" {
-			return found == 0, total, inserted, nil
+			return found == 0, total, nil
 		}
 		// A repeated token would loop forever; the listing is then incomplete,
 		// so it fails instead of reporting the namespace as listed.
 		if next == sv(nextToken) {
-			return false, total, inserted, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: NextToken %q: %w", ns, next, errRepeatedNextToken)
+			return false, total, fmt.Errorf("application-autoscaling:DescribeScalableTargets %s: NextToken %q: %w", ns, next, errRepeatedNextToken)
 		}
 		nextToken = out.NextToken
 	}
 }
 
-func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, noTargets map[aastypes.ServiceNamespace]bool) (total, inserted int, err error) {
+func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, noTargets map[aastypes.ServiceNamespace]bool) (total int, err error) {
 	for _, ns := range applicationAutoScalingNamespaces {
 		if noTargets[ns] {
 			continue
@@ -194,7 +192,7 @@ func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client appli
 					_ = skipIfAccessDenied(st, "application-autoscaling:DescribeScalingPolicies", acct.ID, region, perr)
 					break
 				}
-				return total, inserted, fmt.Errorf("application-autoscaling:DescribeScalingPolicies %s: %w", ns, perr)
+				return total, fmt.Errorf("application-autoscaling:DescribeScalingPolicies %s: %w", ns, perr)
 			}
 			batch := make([]*store.Resource, 0, len(page.ScalingPolicies))
 			for _, sp := range page.ScalingPolicies {
@@ -217,16 +215,15 @@ func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client appli
 				})
 			}
 			if len(batch) > 0 {
-				n, uerr := st.UpsertResources(batch)
+				_, uerr := st.UpsertResources(batch)
 				if uerr != nil {
-					return total, inserted, fmt.Errorf("upsert application-autoscaling policies: %w", uerr)
+					return total, fmt.Errorf("upsert application-autoscaling policies: %w", uerr)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 const applicationAutoScalingScheduledActionsOp = "application-autoscaling:DescribeScheduledActions"
@@ -236,7 +233,7 @@ const applicationAutoScalingScheduledActionsOp = "application-autoscaling:Descri
 // arrives. A denial ends the phase with one warning: the Describe actions
 // take no resource-level scoping, so a denial in one namespace is a denial in
 // all of them.
-func scanApplicationAutoScalingScheduledActions(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, noTargets map[aastypes.ServiceNamespace]bool) (total, inserted int, err error) {
+func scanApplicationAutoScalingScheduledActions(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string, noTargets map[aastypes.ServiceNamespace]bool) (total int, err error) {
 	const op = applicationAutoScalingScheduledActionsOp
 	for _, ns := range applicationAutoScalingNamespaces {
 		if noTargets[ns] {
@@ -253,9 +250,9 @@ func scanApplicationAutoScalingScheduledActions(ctx context.Context, client appl
 					break
 				}
 				if isAccessDenied(perr) {
-					return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, perr)
+					return total, skipIfAccessDenied(st, op, acct.ID, region, perr)
 				}
-				return total, inserted, fmt.Errorf("%s %s: %w", op, ns, perr)
+				return total, fmt.Errorf("%s %s: %w", op, ns, perr)
 			}
 			batch := make([]*store.Resource, 0, len(page.ScheduledActions))
 			for _, sa := range page.ScheduledActions {
@@ -276,13 +273,12 @@ func scanApplicationAutoScalingScheduledActions(ctx context.Context, client appl
 					DiscoveredBy:   scanID,
 				})
 			}
-			t, i, uerr := upsertBatch(st, batch, op)
+			t, uerr := upsertBatch(st, batch, op)
 			total += t
-			inserted += i
 			if uerr != nil {
-				return total, inserted, uerr
+				return total, uerr
 			}
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

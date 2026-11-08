@@ -121,7 +121,7 @@ type bedrockChildCase struct {
 	name       string
 	op         string
 	typ        string
-	scan       func(context.Context, *bedrockChildStub, *account, string, *store.Store, string, []string) (int, int, error)
+	scan       func(context.Context, *bedrockChildStub, *account, string, *store.Store, string, []string) (int, error)
 	parents    []string // ids passed to scan
 	parentType string
 	// parentARN maps a parent id to the NativeID of the parent row.
@@ -138,8 +138,8 @@ func bedrockAgentTestARN(id string) string {
 }
 
 func bedrockChildCases() []bedrockChildCase {
-	agentScan := func(fn func(context.Context, bedrockAgentAPI, *account, string, *store.Store, string, []string) (int, int, error)) func(context.Context, *bedrockChildStub, *account, string, *store.Store, string, []string) (int, int, error) {
-		return func(ctx context.Context, s *bedrockChildStub, a *account, r string, st *store.Store, id string, p []string) (int, int, error) {
+	agentScan := func(fn func(context.Context, bedrockAgentAPI, *account, string, *store.Store, string, []string) (int, error)) func(context.Context, *bedrockChildStub, *account, string, *store.Store, string, []string) (int, error) {
+		return func(ctx context.Context, s *bedrockChildStub, a *account, r string, st *store.Store, id string, p []string) (int, error) {
 			return fn(ctx, s, a, r, st, id, p)
 		}
 	}
@@ -214,7 +214,7 @@ func bedrockChildCases() []bedrockChildCase {
 		},
 		{
 			name: "ARPolicyTestCases", op: "ListAutomatedReasoningPolicyTestCases", typ: TypeBedrockAutomatedReasoningPolicyTestCase,
-			scan: func(ctx context.Context, s *bedrockChildStub, a *account, r string, st *store.Store, id string, p []string) (int, int, error) {
+			scan: func(ctx context.Context, s *bedrockChildStub, a *account, r string, st *store.Store, id string, p []string) (int, error) {
 				return scanBedrockARPolicyTestCases(ctx, bedrockTestCaseStub{s: s}, a, r, st, id, p)
 			},
 			parents:    []string{bedrockTestPolicyARN, bedrockTestPolicyARN + "2"},
@@ -258,7 +258,7 @@ func runBedrockChild(t *testing.T, c bedrockChildCase, stub *bedrockChildStub) (
 		warns = append(warns, w)
 		mu.Unlock()
 	}
-	total, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, c.parents)
+	total, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, c.parents)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestBedrockChildScanners_ContextEndIsReturned(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			_, _, err := c.scan(ctx, &bedrockChildStub{}, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, c.parents)
+			_, err := c.scan(ctx, &bedrockChildStub{}, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, c.parents)
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("err = %v; want context.Canceled", err)
 			}
@@ -454,7 +454,7 @@ func TestBedrockChildScanners_OtherErrorPropagates(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &bedrockChildStub{errs: map[string]error{c.op + "/" + c.parents[0]: apiErr("ValidationException", "bad")}}
 			st := newTestStore(t)
-			_, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, c.parents)
+			_, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, c.parents)
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Errorf("err = %v; want the ValidationException propagated", err)
 			}

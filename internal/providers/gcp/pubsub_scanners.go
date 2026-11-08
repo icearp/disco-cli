@@ -24,24 +24,24 @@ func init() {
 // snapshots. All four list APIs are project-scoped (no per-location fan-out
 // — Pub/Sub's API surface is global even though message storage is
 // regional).
-func scanPubSub(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPubSub(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := pubsub.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("pubsub client: %w", err)
+		return 0, fmt.Errorf("pubsub client: %w", err)
 	}
 	return scanPubSubWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanPubSubWithClient is the test seam for scanPubSub — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 
 	// Topics.
-	t, n, err := runPaginated(ctx, st, p, "pubsub:topics.list",
+	t, err := runPaginated(ctx, st, p, "pubsub:topics.list",
 		svc.Projects.Topics.List(parent),
-		func(page *pubsub.ListTopicsResponse) (int, int, error) {
+		func(page *pubsub.ListTopicsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Topics))
 			for _, t := range page.Topics {
 				name := lastSegment(t.Name)
@@ -60,9 +60,8 @@ func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, 
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Subscriptions, Schemas, and Snapshots are all nested after Topics
@@ -89,16 +88,15 @@ func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, 
 				DiscoveredBy:   scanID,
 			})
 		}
-		st2, sn2, uerr := upsertWithProjClosure(p, st, batch)
+		st2, uerr := upsertWithProjClosure(p, st, batch)
 		total += st2
-		inserted += sn2
 		return uerr
 	})
 	if suberr != nil {
 		if isPermissionDenied(suberr) {
 			_ = skipIfDenied(st, "pubsub:subscriptions.list", p.ID, suberr)
 		} else {
-			return total, inserted, suberr
+			return total, suberr
 		}
 	}
 
@@ -120,16 +118,15 @@ func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, 
 				DiscoveredBy:   scanID,
 			})
 		}
-		scht, schn, uerr := upsertWithProjClosure(p, st, batch)
+		scht, uerr := upsertWithProjClosure(p, st, batch)
 		total += scht
-		inserted += schn
 		return uerr
 	})
 	if scherr != nil {
 		if isPermissionDenied(scherr) {
 			_ = skipIfDenied(st, "pubsub:schemas.list", p.ID, scherr)
 		} else {
-			return total, inserted, scherr
+			return total, scherr
 		}
 	}
 
@@ -151,17 +148,16 @@ func scanPubSubWithClient(ctx context.Context, svc *pubsub.Service, p *project, 
 				DiscoveredBy:   scanID,
 			})
 		}
-		snapt, snapn, uerr := upsertWithProjClosure(p, st, batch)
+		snapt, uerr := upsertWithProjClosure(p, st, batch)
 		total += snapt
-		inserted += snapn
 		return uerr
 	})
 	if snaperr != nil {
 		if isPermissionDenied(snaperr) {
 			_ = skipIfDenied(st, "pubsub:snapshots.list", p.ID, snaperr)
 		} else {
-			return total, inserted, snaperr
+			return total, snaperr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

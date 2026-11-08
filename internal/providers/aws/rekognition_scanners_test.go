@@ -209,7 +209,7 @@ func rekHandlers(c *rekCalls) map[string]func(in any) (any, error) {
 
 // rekScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func rekScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rekScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, rekDenied)
@@ -243,7 +243,9 @@ func TestScanRekognition_StoresTagsOfEveryType(t *testing.T) {
 		return versions(in)
 	}
 
-	total, inserted, err := rekScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := rekScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -339,7 +341,7 @@ func TestScanRekognition_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, rekDenied)
 
-	total, _, err := scanRekognition(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanRekognition(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 3 {
 		t.Fatalf("scan = %d, %v; want 3, nil", total, err)
 	}
@@ -376,7 +378,9 @@ func TestScanRekognition_EmptyListings(t *testing.T) {
 	h["DescribeProjects"] = calls.answer("DescribeProjects", func(any) any { return &rekognition.DescribeProjectsOutput{} })
 	h["ListStreamProcessors"] = calls.answer("ListStreamProcessors", func(any) any { return &rekognition.ListStreamProcessorsOutput{} })
 
-	total, inserted, err := rekScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := rekScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -388,17 +392,17 @@ func TestScanRekognition_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRekognition_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
-	if _, _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
+	if _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+	total, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -443,7 +447,7 @@ func TestScanRekognition_TagReadFailures(t *testing.T) {
 					calls := newRekCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+					total, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -496,7 +500,7 @@ func TestScanRekognition_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[d.arn] = rekDenied
 	}
 
-	total, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+	total, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 	if err != nil || total != rekFixtureRows {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, rekFixtureRows)
 	}
@@ -520,7 +524,7 @@ func TestScanRekognition_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[rekTestCollection] = rekThrottled
 	calls.errs[rekTestVersionB] = rekBadInput
 
-	_, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+	_, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -550,7 +554,7 @@ func TestScanRekognition_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := rekHandlers(calls)
 			h[c.op] = func(any) (any, error) { return nil, rekDenied }
 
-			total, _, err := rekScan(context.Background(), t, st, h)
+			total, err := rekScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -591,7 +595,7 @@ func TestScanRekognition_FailedWriteStopsWithoutWarning(t *testing.T) {
 			calls := newRekCalls()
 			calls.errs[c.deniedARN] = rekDenied
 
-			_, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+			_, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -628,7 +632,7 @@ func TestScanRekognition_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	}
 	h["ListStreamProcessors"] = func(any) (any, error) { return nil, apiErr("ValidationException", "boom") }
 
-	total, _, err := rekScan(context.Background(), t, st, h)
+	total, err := rekScan(context.Background(), t, st, h)
 	for _, code := range []string{"InvalidPaginationTokenException", "InvalidParameterException", "ValidationException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -687,7 +691,7 @@ func TestScanRekognition_ProjectGoneBeforeVersions(t *testing.T) {
 				return calls.rekVersions(in)
 			}
 
-			_, _, err := rekScan(context.Background(), t, st, h)
+			_, err := rekScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -732,7 +736,7 @@ func TestScanRekognition_UnstorableItemsWarn(t *testing.T) {
 				return c.out, nil
 			}
 
-			total, _, err := rekScan(context.Background(), t, st, h)
+			total, err := rekScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -756,7 +760,7 @@ func TestScanRekognition_CollectionFaceModelVersions(t *testing.T) {
 		return &rekognition.ListCollectionsOutput{CollectionIds: []string{"a", "b", "c"}, FaceModelVersions: []string{"5.0", "6.0"}}, nil
 	}
 
-	if _, _, err := rekScan(context.Background(), t, st, h); err != nil {
+	if _, err := rekScan(context.Background(), t, st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeRekognitionCollection)
@@ -797,7 +801,7 @@ func TestScanRekognition_RepeatedTokenKeepsPages(t *testing.T) {
 			h := rekHandlers(newRekCalls())
 			h[c.op] = func(any) (any, error) { return c.out(), nil }
 
-			_, _, err := rekScan(context.Background(), t, st, h)
+			_, err := rekScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -821,7 +825,7 @@ func TestScanRekognition_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := rekScan(ctx, t, st, h)
+	_, err := rekScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -850,7 +854,7 @@ func TestScanRekognition_Unreachable(t *testing.T) {
 		calls := newRekCalls()
 		h := rekHandlers(calls)
 		h["ListCollections"] = func(any) (any, error) { return nil, nx }
-		total, _, err := rekScan(context.Background(), t, st, h)
+		total, err := rekScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("DescribeProjects") != 0 {
 			t.Errorf("total, DescribeProjects calls = %d, %d; want 0, 0", total, calls.count("DescribeProjects"))
@@ -860,7 +864,7 @@ func TestScanRekognition_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newRekCalls()
 		calls.errs[rekTestSPB] = nx
-		total, _, err := rekScan(context.Background(), t, st, rekHandlers(calls))
+		total, err := rekScan(context.Background(), t, st, rekHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != rekFixtureRows {
 			t.Errorf("total = %d; want %d", total, rekFixtureRows)
@@ -892,7 +896,7 @@ func TestScanRekognition_ClosedToNewCustomers(t *testing.T) {
 			h := rekHandlers(newRekCalls())
 			h[c.op] = failOnCall(c.page, rekClosed, h[c.op])
 
-			total, _, err := rekScan(context.Background(), t, st, h)
+			total, err := rekScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -910,7 +914,7 @@ func TestScanRekognition_StoresProjectPolicies(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
-	if _, _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
+	if _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
 		t.Fatalf("scanRekognition: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeRekognitionProjectPolicy)
@@ -951,7 +955,7 @@ func TestScanRekognition_ProjectsWithoutPolicies(t *testing.T) {
 		calls.policies.add(sdkaws.ToString(in.(*rekognition.ListProjectPoliciesInput).ProjectArn))
 		return &rekognition.ListProjectPoliciesOutput{}, nil
 	}
-	if _, _, err := rekScan(context.Background(), t, st, h); err != nil {
+	if _, err := rekScan(context.Background(), t, st, h); err != nil {
 		t.Fatalf("scanRekognition: %v", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeRekognitionProjectPolicy)); n != 0 {
@@ -993,7 +997,7 @@ func TestScanRekognition_FailedPolicyParent(t *testing.T) {
 				}
 				return calls.rekPolicies(in)
 			}
-			_, _, err := rekScan(context.Background(), t, st, h)
+			_, err := rekScan(context.Background(), t, st, h)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
@@ -1024,7 +1028,7 @@ func TestScanRekognition_EarlierPhaseErrorStillRunsPolicies(t *testing.T) {
 	st := newTestStore(t)
 	h := rekHandlers(newRekCalls())
 	h["ListStreamProcessors"] = func(any) (any, error) { return nil, rekBadInput }
-	total, _, err := rekScan(context.Background(), t, st, h)
+	total, err := rekScan(context.Background(), t, st, h)
 	assertAPICode(t, err, "InvalidParameterException")
 	if got := nativeIDs(rowsByNativeID(t, st, TypeRekognitionProjectPolicy)); !slices.Equal(got, []string{rekTestPolA1, rekTestPolA2, rekTestPolB1}) {
 		t.Errorf("policy rows = %v, want all three", got)
@@ -1044,7 +1048,7 @@ func TestScanRekognition_EarlierPhaseTransientDoesNotMaskHardError(t *testing.T)
 	h := rekHandlers(newRekCalls())
 	h["ListStreamProcessors"] = func(any) (any, error) { return nil, rekThrottled }
 	h["ListProjectPolicies"] = func(any) (any, error) { return nil, rekBadInput }
-	_, _, err := rekScan(context.Background(), t, st, h)
+	_, err := rekScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {

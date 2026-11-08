@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanQuantum discovers Azure Quantum workspaces.
-func scanQuantum(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanQuantum(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armquantum.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armquantum:NewWorkspacesClient: %w", err)
+		return 0, fmt.Errorf("armquantum:NewWorkspacesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armquantum:Workspaces.ListBySubscription", TypeQuantumWorkspace, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

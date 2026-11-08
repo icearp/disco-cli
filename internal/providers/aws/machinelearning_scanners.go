@@ -49,7 +49,7 @@ type machineLearningAPI interface {
 // and no shutdown date was found as of 2026-10-20, so the service is scanned. The SDK endpoint table lists
 // us-east-1 and eu-west-1 only, which scopes every other region out before
 // dispatch.
-func scanMachineLearning(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMachineLearning(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := machinelearning.NewFromConfig(acct.cfg, func(o *machinelearning.Options) { o.Region = region })
 	return scanMachineLearningAll(ctx, client, acct, region, st, scanID)
 }
@@ -58,13 +58,13 @@ func scanMachineLearning(ctx context.Context, acct *account, region string, st *
 // phases' errors by phaseErrs, which demotes a transient one to a warning only
 // beside a hard one, so a throttle on one phase is reported under its op
 // instead of buried in the other's hard error.
-func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if err := gateMachineLearning(ctx, client); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	phases := []struct {
 		op string
-		fn func(context.Context, machineLearningAPI, *account, string, *store.Store, string) (int, int, error)
+		fn func(context.Context, machineLearningAPI, *account, string, *store.Store, string) (int, error)
 	}{
 		{mlDescribeDataSourcesOp, scanMLDataSources},
 		{mlDescribeMLModelsOp, scanMLModels},
@@ -72,16 +72,15 @@ func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct
 		{mlDescribeBatchPredictionsOp, scanMLBatchPredictions},
 	}
 	var (
-		total, inserted int
-		errs            phaseErrs
+		total int
+		errs  phaseErrs
 	)
 	for _, p := range phases {
-		t, i, err := p.fn(ctx, client, acct, region, st, scanID)
+		t, err := p.fn(ctx, client, acct, region, st, scanID)
 		total += t
-		inserted += i
 		errs.add(p.op, err)
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, errs.join(st, acct, region)
 }
 
 // isMachineLearningClosed matches the two answers taken to mean the account
@@ -137,7 +136,7 @@ func scanMLObjects[T any](
 	op, typ, kind string,
 	list func(ctx context.Context, next *string) ([]T, *string, error),
 	fields func(T) mlFields,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	noID := 0
 	defer func() {
 		if noID > 0 {
@@ -152,12 +151,12 @@ func scanMLObjects[T any](
 		items, token, lerr := list(ctx, next)
 		if lerr != nil {
 			if isMachineLearningClosed(lerr) {
-				return total, inserted, nil
+				return total, nil
 			}
 			if isAccessDenied(lerr) {
-				return total, inserted, skipIfAccessDenied(st, op, acct.ID, region, lerr)
+				return total, skipIfAccessDenied(st, op, acct.ID, region, lerr)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", op, lerr)
+			return total, fmt.Errorf("%s: %w", op, lerr)
 		}
 		batch := make([]*store.Resource, 0, len(items))
 		for _, it := range items {
@@ -182,24 +181,23 @@ func scanMLObjects[T any](
 			})
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert %s: %w", op, uerr)
+				return total, fmt.Errorf("upsert %s: %w", op, uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if sv(token) == "" {
-			return total, inserted, nil
+			return total, nil
 		}
 		if sv(token) == sv(next) {
-			return total, inserted, fmt.Errorf("%s: NextToken %q: %w", op, sv(token), errRepeatedNextToken)
+			return total, fmt.Errorf("%s: NextToken %q: %w", op, sv(token), errRepeatedNextToken)
 		}
 		next = token
 	}
 }
 
-func scanMLDataSources(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLDataSources(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanMLObjects(ctx, st, acct, region, scanID, mlDescribeDataSourcesOp, TypeMachineLearningDataSource, "datasource",
 		func(ctx context.Context, next *string) ([]mltypes.DataSource, *string, error) {
 			out, err := client.DescribeDataSources(ctx, &machinelearning.DescribeDataSourcesInput{Limit: sdkaws.Int32(mlPageLimit), NextToken: next})
@@ -213,7 +211,7 @@ func scanMLDataSources(ctx context.Context, client machineLearningAPI, acct *acc
 		})
 }
 
-func scanMLModels(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLModels(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanMLObjects(ctx, st, acct, region, scanID, mlDescribeMLModelsOp, TypeMachineLearningMLModel, "mlmodel",
 		func(ctx context.Context, next *string) ([]mltypes.MLModel, *string, error) {
 			out, err := client.DescribeMLModels(ctx, &machinelearning.DescribeMLModelsInput{Limit: sdkaws.Int32(mlPageLimit), NextToken: next})
@@ -231,7 +229,7 @@ func scanMLModels(ctx context.Context, client machineLearningAPI, acct *account,
 // run: an evaluation is a named object with its own ARN, kept until
 // DeleteEvaluation (AWS may remove objects unused for over two years), and
 // renamed with UpdateEvaluation and tagged with AddTags like the other kinds.
-func scanMLEvaluations(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLEvaluations(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanMLObjects(ctx, st, acct, region, scanID, mlDescribeEvaluationsOp, TypeMachineLearningEvaluation, "evaluation",
 		func(ctx context.Context, next *string) ([]mltypes.Evaluation, *string, error) {
 			out, err := client.DescribeEvaluations(ctx, &machinelearning.DescribeEvaluationsInput{Limit: sdkaws.Int32(mlPageLimit), NextToken: next})
@@ -248,7 +246,7 @@ func scanMLEvaluations(ctx context.Context, client machineLearningAPI, acct *acc
 // scanMLBatchPredictions stores batch predictions as resources for the same
 // reason as evaluations: named, ARN-bearing, kept until
 // DeleteBatchPrediction, renamable and taggable.
-func scanMLBatchPredictions(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMLBatchPredictions(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanMLObjects(ctx, st, acct, region, scanID, mlDescribeBatchPredictionsOp, TypeMachineLearningBatchPrediction, "batchprediction",
 		func(ctx context.Context, next *string) ([]mltypes.BatchPrediction, *string, error) {
 			out, err := client.DescribeBatchPredictions(ctx, &machinelearning.DescribeBatchPredictionsInput{Limit: sdkaws.Int32(mlPageLimit), NextToken: next})

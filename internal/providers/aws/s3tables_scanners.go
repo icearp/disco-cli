@@ -32,58 +32,53 @@ type s3tablesAPI interface {
 
 // scanS3Tables discovers S3 Tables resources: table-bucket, namespace, table,
 // and per-bucket / per-table policies.
-func scanS3Tables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3Tables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := s3tables.NewFromConfig(acct.cfg, func(o *s3tables.Options) { o.Region = region })
 
-	bucketARNs, t, i, ferr := scanS3TBuckets(ctx, client, acct, region, st, scanID)
+	bucketARNs, t, ferr := scanS3TBuckets(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	type tableRef struct {
 		bucketARN, namespace, name string
 	}
 	var tables []tableRef
 	for _, ba := range bucketARNs {
-		t, i, ferr = scanS3TNamespaces(ctx, client, acct, region, st, scanID, ba)
+		t, ferr = scanS3TNamespaces(ctx, client, acct, region, st, scanID, ba)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 
-		refs, tt, ii, terr := scanS3TTables(ctx, client, acct, region, st, scanID, ba)
+		refs, tt, terr := scanS3TTables(ctx, client, acct, region, st, scanID, ba)
 		if terr != nil {
-			return total, inserted, terr
+			return total, terr
 		}
 		total += tt
-		inserted += ii
 		for _, r := range refs {
 			tables = append(tables, tableRef{ba, r.namespace, r.name})
 		}
 
-		t, i, ferr = scanS3TBucketPolicy(ctx, client, acct, region, st, scanID, ba)
+		t, ferr = scanS3TBucketPolicy(ctx, client, acct, region, st, scanID, ba)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	for _, tr := range tables {
-		t, i, ferr = scanS3TTablePolicy(ctx, client, acct, region, st, scanID, tr.bucketARN, tr.namespace, tr.name)
+		t, ferr = scanS3TTablePolicy(ctx, client, acct, region, st, scanID, tr.bucketARN, tr.namespace, tr.name)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanS3TBuckets(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanS3TBuckets(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := s3tables.NewListTableBucketsPaginator(client, &s3tables.ListTableBucketsInput{})
 	var batch []*store.Resource
 	var arns []string
@@ -91,9 +86,9 @@ func scanS3TBuckets(ctx context.Context, client s3tablesAPI, acct *account, regi
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3tables:ListTableBuckets", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "s3tables:ListTableBuckets", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("s3tables:ListTableBuckets: %w", err)
+			return nil, 0, fmt.Errorf("s3tables:ListTableBuckets: %w", err)
 		}
 		for _, b := range out.TableBuckets {
 			arn := sv(b.Arn)
@@ -109,11 +104,11 @@ func scanS3TBuckets(ctx context.Context, client s3tablesAPI, acct *account, regi
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "s3tables table-buckets")
-	return arns, t, i, err
+	t, err := upsertBatch(st, batch, "s3tables table-buckets")
+	return arns, t, err
 }
 
-func scanS3TNamespaces(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, int, error) {
+func scanS3TNamespaces(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, error) {
 	ba := bucketARN
 	pager := s3tables.NewListNamespacesPaginator(client, &s3tables.ListNamespacesInput{TableBucketARN: &ba})
 	var batch []*store.Resource
@@ -121,9 +116,9 @@ func scanS3TNamespaces(ctx context.Context, client s3tablesAPI, acct *account, r
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3tables:ListNamespaces", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "s3tables:ListNamespaces", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("s3tables:ListNamespaces: %w", err)
+			return 0, fmt.Errorf("s3tables:ListNamespaces: %w", err)
 		}
 		for _, n := range out.Namespaces {
 			ns := strings.Join(n.Namespace, ".")
@@ -147,7 +142,7 @@ type s3tTableID struct {
 	namespace, name string
 }
 
-func scanS3TTables(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) ([]s3tTableID, int, int, error) {
+func scanS3TTables(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) ([]s3tTableID, int, error) {
 	ba := bucketARN
 	pager := s3tables.NewListTablesPaginator(client, &s3tables.ListTablesInput{TableBucketARN: &ba})
 	var batch []*store.Resource
@@ -156,9 +151,9 @@ func scanS3TTables(ctx context.Context, client s3tablesAPI, acct *account, regio
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "s3tables:ListTables", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "s3tables:ListTables", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("s3tables:ListTables: %w", err)
+			return nil, 0, fmt.Errorf("s3tables:ListTables: %w", err)
 		}
 		for _, tt := range out.Tables {
 			arn := sv(tt.TableARN)
@@ -178,20 +173,20 @@ func scanS3TTables(ctx context.Context, client s3tablesAPI, acct *account, regio
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "s3tables tables")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "s3tables tables")
+	return ids, t, err
 }
 
-func scanS3TBucketPolicy(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, int, error) {
+func scanS3TBucketPolicy(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN string) (int, error) {
 	out, err := client.GetTableBucketPolicy(ctx, &s3tables.GetTableBucketPolicyInput{TableBucketARN: &bucketARN})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "NotFoundException", "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("s3tables:GetTableBucketPolicy: %w", err)
+		return 0, fmt.Errorf("s3tables:GetTableBucketPolicy: %w", err)
 	}
 	if sv(out.ResourcePolicy) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := bucketARN + "/policy"
 	label := "policy"
@@ -204,7 +199,7 @@ func scanS3TBucketPolicy(ctx context.Context, client s3tablesAPI, acct *account,
 	return upsertBatch(st, []*store.Resource{r}, "s3tables table-bucket-policies")
 }
 
-func scanS3TTablePolicy(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN, namespace, name string) (int, int, error) {
+func scanS3TTablePolicy(ctx context.Context, client s3tablesAPI, acct *account, region string, st *store.Store, scanID string, bucketARN, namespace, name string) (int, error) {
 	ns, nm := namespace, name
 	out, err := client.GetTablePolicy(ctx, &s3tables.GetTablePolicyInput{
 		TableBucketARN: &bucketARN,
@@ -213,12 +208,12 @@ func scanS3TTablePolicy(ctx context.Context, client s3tablesAPI, acct *account, 
 	})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "NotFoundException", "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("s3tables:GetTablePolicy: %w", err)
+		return 0, fmt.Errorf("s3tables:GetTablePolicy: %w", err)
 	}
 	if sv(out.ResourcePolicy) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := fmt.Sprintf("%s/namespace/%s/table/%s/policy", bucketARN, namespace, name)
 	label := name

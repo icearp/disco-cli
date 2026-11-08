@@ -201,7 +201,7 @@ func (f *osTagFixture) osfAllTagARNs() []string {
 
 // osTagScan runs the real entry point against handlers in f's partition and
 // region; every op they do not answer is denied.
-func osTagScan(ctx context.Context, st *store.Store, f *osTagFixture, handlers map[string]func(any) (any, error)) (int, int, error) {
+func osTagScan(ctx context.Context, st *store.Store, f *osTagFixture, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(handlers, osDenied)
@@ -252,7 +252,9 @@ func TestScanOpenSearch_StoresDomainAndApplicationTags(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newOSTagFixture()
-	total, inserted, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	counted, upserts := countUpserts(st)
+	total, err := osTagScan(context.Background(), counted, f, f.osfHandlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -300,7 +302,7 @@ func TestScanOpenSearch_EmptyListingsReadNoTags(t *testing.T) {
 	handlers := f.osfHandlers()
 	handlers["ListDomainNames"] = func(any) (any, error) { return &opensearch.ListDomainNamesOutput{}, nil }
 	handlers["ListApplications"] = func(any) (any, error) { return &opensearch.ListApplicationsOutput{}, nil }
-	total, _, err := osTagScan(context.Background(), st, f, handlers)
+	total, err := osTagScan(context.Background(), st, f, handlers)
 	if err != nil || total != 1 {
 		t.Errorf("total, err = %d, %v; want 1 (the direct-query data source), nil", total, err)
 	}
@@ -341,7 +343,7 @@ func TestScanOpenSearch_TagReadFailures(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			f := newOSTagFixture()
 			f.tagErrs[c.arn] = c.err
-			total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+			total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 			if c.outcome == 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -389,7 +391,7 @@ func TestScanOpenSearch_TagDenialsWarnOncePerScan(t *testing.T) {
 	f := newOSTagFixture()
 	f.tagErrs[f.domainARN("metrics")] = osDenied
 	f.tagErrs[f.appARN("a2")] = osDenied
-	total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 	if err != nil || total != osTestTotal {
 		t.Fatalf("total, err = %d, %v; want %d, nil", total, err, osTestTotal)
 	}
@@ -407,7 +409,7 @@ func TestScanOpenSearch_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f := newOSTagFixture()
 	f.tagErrs[f.domainARN("metrics")] = osTestThrottle
 	f.tagErrs[f.appARN("a2")] = osBadInput
-	_, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	_, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -449,7 +451,7 @@ func TestScanOpenSearch_DomainDescribeFailures(t *testing.T) {
 			if c.out != nil {
 				f.describeOut["metrics"] = c.out
 			}
-			total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+			total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 			if c.outcome == 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -486,7 +488,7 @@ func TestScanOpenSearch_DomainDescribeFailures(t *testing.T) {
 		handlers["ListDomainNames"] = func(any) (any, error) {
 			return &opensearch.ListDomainNamesOutput{DomainNames: []opensearchtypes.DomainInfo{{DomainName: ptrStr("logs")}, {}}}, nil
 		}
-		total, _, err := osTagScan(context.Background(), st, f, handlers)
+		total, err := osTagScan(context.Background(), st, f, handlers)
 		if err != nil || total != osTestTotal-1 {
 			t.Errorf("total, err = %d, %v; want %d, nil", total, err, osTestTotal-1)
 		}
@@ -507,7 +509,7 @@ func TestScanOpenSearch_DescribeThrottleDemotedBesideHardError(t *testing.T) {
 	warns := countOpWarnings(st, osDescribeDomainOp)
 	f := newOSTagFixture()
 	f.describeErrs["logs"], f.describeErrs["metrics"] = osTestThrottle, osBadInput
-	total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if isTransientNetworkError(err) {
@@ -525,7 +527,7 @@ func TestScanOpenSearch_UnreachableDescribeDoesNotStopLaterPhases(t *testing.T) 
 	st := newTestStore(t)
 	f := newOSTagFixture()
 	f.describeErrs["metrics"] = &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
-	total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 	assertGlueOutcome(t, err, outcomeTransient)
 	if total != osTestTotal-1 || f.osfCount("DescribeInboundConnections") != 1 {
 		t.Errorf("total = %d, last phase calls = %d; want %d, 1", total, f.osfCount("DescribeInboundConnections"), osTestTotal-1)
@@ -543,7 +545,7 @@ func TestScanOpenSearch_FailedDomainWriteStopsScan(t *testing.T) {
 	f := newOSTagFixture()
 	f.describeErrs["metrics"] = osDenied
 	f.tagErrs[f.domainARN("logs")] = osDenied
-	total, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+	total, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -569,7 +571,7 @@ func TestScanOpenSearch_ApplicationsLaterPageFailureKeepsFirstPage(t *testing.T)
 		}
 		return list(in)
 	}
-	_, _, err := osTagScan(context.Background(), st, f, handlers)
+	_, err := osTagScan(context.Background(), st, f, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	apps := rowsByNativeID(t, st, TypeOpenSearchApplication)
@@ -593,7 +595,7 @@ func TestScanOpenSearch_ApplicationsRepeatedTokenKeepsPage(t *testing.T) {
 		f.osfRecord("ListApplications")
 		return &opensearch.ListApplicationsOutput{NextToken: ptrStr("same"), ApplicationSummaries: []opensearchtypes.ApplicationSummary{f.app("a1")}}, nil
 	}
-	_, _, err := osTagScan(context.Background(), st, f, handlers)
+	_, err := osTagScan(context.Background(), st, f, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -616,7 +618,7 @@ func TestScanOpenSearch_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newOSTagFixtureIn(c.partition, c.region)
-			if _, _, err := osTagScan(context.Background(), st, f, f.osfHandlers()); err != nil {
+			if _, err := osTagScan(context.Background(), st, f, f.osfHandlers()); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := f.osfSortedTagARNs(); !slices.Equal(got, f.osfAllTagARNs()) {
@@ -658,7 +660,7 @@ func TestScanOpenSearch_ContextEndReportedOnce(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(handlers, osDenied)
-	_, _, err := scanOpenSearch(ctx, acct, testRegion, st, testScanID)
+	_, err := scanOpenSearch(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -719,21 +721,21 @@ func TestScanOpenSearch_LateNXDOMAINIsAnError(t *testing.T) {
 		st := newTestStore(t)
 		f := newOSTagFixture()
 		f.describeErrs["metrics"] = nx
-		_, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+		_, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("tag read", func(t *testing.T) {
 		st := newTestStore(t)
 		f := newOSTagFixture()
 		f.tagErrs[f.appARN("a1")] = nx
-		_, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+		_, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("describe after a throttled describe", func(t *testing.T) {
 		st := newTestStore(t)
 		f := newOSTagFixture()
 		f.describeErrs["logs"], f.describeErrs["metrics"] = osTestThrottle, nx
-		_, _, err := osTagScan(context.Background(), st, f, f.osfHandlers())
+		_, err := osTagScan(context.Background(), st, f, f.osfHandlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("every describe, nothing else listed", func(t *testing.T) {
@@ -743,7 +745,7 @@ func TestScanOpenSearch_LateNXDOMAINIsAnError(t *testing.T) {
 		handlers := f.osfHandlers()
 		handlers["ListApplications"] = func(any) (any, error) { return &opensearch.ListApplicationsOutput{}, nil }
 		handlers["ListDirectQueryDataSources"] = func(any) (any, error) { return &opensearch.ListDirectQueryDataSourcesOutput{}, nil }
-		total, _, err := osTagScan(context.Background(), st, f, handlers)
+		total, err := osTagScan(context.Background(), st, f, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)

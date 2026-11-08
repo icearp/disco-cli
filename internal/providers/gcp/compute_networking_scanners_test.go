@@ -25,7 +25,9 @@ func TestScanComputeRoutes_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRoutes(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRoutes(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRoutes: %v", err)
 	}
@@ -45,7 +47,9 @@ func TestScanComputeRoutes_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRoutes(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRoutes(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRoutes (denied): expected nil error, got %v", err)
 	}
@@ -62,7 +66,7 @@ func TestScanComputeRoutes_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeRoutes(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeRoutes(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeRoutes: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -83,7 +87,9 @@ func TestScanComputeRouters_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRouters(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRouters(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRouters: %v", err)
 	}
@@ -114,7 +120,9 @@ func TestScanComputeVpnGateways_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeVpnGateways(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeVpnGateways(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeVpnGateways: %v", err)
 	}
@@ -134,7 +142,9 @@ func TestScanComputeExternalVpnGateways_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeExternalVpnGateways(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeExternalVpnGateways(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeExternalVpnGateways: %v", err)
 	}
@@ -158,7 +168,9 @@ func TestScanComputeTargetVpnGateways_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetVpnGateways(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetVpnGateways(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetVpnGateways: %v", err)
 	}
@@ -182,7 +194,9 @@ func TestScanComputeVpnTunnels_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeVpnTunnels(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeVpnTunnels(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeVpnTunnels: %v", err)
 	}
@@ -208,7 +222,9 @@ func TestScanComputeNetworkAttachments_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNetworkAttachments(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNetworkAttachments(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNetworkAttachments: %v", err)
 	}
@@ -247,7 +263,9 @@ func TestScanComputeNetworkEndpointGroups_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNetworkEndpointGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNetworkEndpointGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNetworkEndpointGroups: %v", err)
 	}
@@ -274,7 +292,9 @@ func TestScanComputeGlobalNetworkEndpointGroups_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeGlobalNetworkEndpointGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeGlobalNetworkEndpointGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeGlobalNetworkEndpointGroups: %v", err)
 	}
@@ -300,7 +320,9 @@ func TestScanComputeNetworkFirewallPolicies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNetworkFirewallPolicies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNetworkFirewallPolicies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNetworkFirewallPolicies: %v", err)
 	}
@@ -335,7 +357,9 @@ func TestScanComputeNetworkProfiles_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNetworkProfiles(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNetworkProfiles(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNetworkProfiles: %v", err)
 	}
@@ -359,7 +383,9 @@ func TestScanComputeNodeGroups_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNodeGroups(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNodeGroups(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNodeGroups: %v", err)
 	}
@@ -390,7 +416,9 @@ func TestScanComputeNodeTemplates_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNodeTemplates(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNodeTemplates(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNodeTemplates: %v", err)
 	}
@@ -414,7 +442,9 @@ func TestScanComputePacketMirrorings_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputePacketMirrorings(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputePacketMirrorings(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputePacketMirrorings: %v", err)
 	}
@@ -438,7 +468,9 @@ func TestScanComputeServiceAttachments_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeServiceAttachments(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeServiceAttachments(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeServiceAttachments: %v", err)
 	}
@@ -462,7 +494,9 @@ func TestScanComputeNetworkEdgeSecurityServices_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeNetworkEdgeSecurityServices(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeNetworkEdgeSecurityServices(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeNetworkEdgeSecurityServices: %v", err)
 	}
@@ -485,7 +519,9 @@ func TestScanComputeCrossSiteNetworks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeCrossSiteNetworks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeCrossSiteNetworks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeCrossSiteNetworks: %v", err)
 	}
@@ -506,7 +542,9 @@ func TestScanComputeWireGroups_NoNetworks(t *testing.T) {
 	p := newTestProject("my-project")
 	svc := fakeComputeService(t, fakeGCPServer(t, map[string]string{}))
 
-	total, inserted, err := scanComputeWireGroups(t.Context(), svc, p, st, testScanID, nil)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeWireGroups(t.Context(), svc, p, counted, testScanID, nil)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeWireGroups (no networks): %v", err)
 	}

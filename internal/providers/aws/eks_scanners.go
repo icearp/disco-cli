@@ -48,7 +48,7 @@ const eksPageCap = 100
 // entries stored this scan and the certificate authorities the clusters
 // stored, since each of their rows is recorded under that parent. The
 // certificate-authority API is the newest, so it runs last.
-func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
 	var (
 		listed, stored []childParent
@@ -81,13 +81,13 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 		{op: "eks:ListPodIdentityAssociations", run: func(p *phaseTotals) bool {
 			return scanEKSPodIdentityAssociations(ctx, client, acct, region, st, scanID, listed, p)
 		}},
-		countedPhase(0, "eks:ListEksAnywhereSubscriptions", func() (int, int, error) {
+		countedPhase(0, "eks:ListEksAnywhereSubscriptions", func() (int, error) {
 			return scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "eks:ListAssociatedAccessPolicies", func() (int, int, error) {
+		countedPhase(0, "eks:ListAssociatedAccessPolicies", func() (int, error) {
 			return scanEKSAssociatedAccessPolicies(ctx, client, acct, region, st, scanID, entries)
 		}),
-		countedPhase(0, "eks:ListCertificateAuthorities", func() (int, int, error) {
+		countedPhase(0, "eks:ListCertificateAuthorities", func() (int, error) {
 			return scanEKSCertificateAuthorities(ctx, client, acct, region, st, scanID, stored)
 		}),
 	})
@@ -173,18 +173,18 @@ func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region s
 		transient = fmt.Errorf("%s: %d cluster(s) not described, so not stored, first %s: %w", describeOp, t.count, t.first, t.err)
 	}
 	hard := errors.Join(errs...)
-	total, inserted, err := storeReadRows(st, acct, region, listOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, listOp, rows, listErr, func() {
 		skips.warn(st, describeOp, acct, region)
 		if denied.count > 0 {
 			_ = skipIfAccessDenied(st, describeOp, acct.ID, region, fmt.Errorf("%d cluster(s) not stored, first %s: %w", denied.count, denied.first, denied.err))
 		}
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
-		p.addPhase(listOp, total, inserted, errors.Join(err, hard, transient))
+		p.addPhase(listOp, total, errors.Join(err, hard, transient))
 		return nil, nil, true
 	}
 	p.errs.add(describeOp, hard)
 	p.errs.add(describeOp, transient)
-	p.addPhase(listOp, total, inserted, err)
+	p.addPhase(listOp, total, err)
 	return listed, stored, false
 }

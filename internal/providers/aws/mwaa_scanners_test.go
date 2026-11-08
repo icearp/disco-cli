@@ -37,7 +37,7 @@ func mwaaHandlers(getErr error) map[string]func(any) (any, error) {
 	}
 }
 
-func runScanMWAA(st *store.Store, h map[string]func(any) (any, error)) (int, int, error) {
+func runScanMWAA(st *store.Store, h map[string]func(any) (any, error)) (int, error) {
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, mwaaDenied)}
 	return scanMWAA(context.Background(), acct, testRegion, st, testScanID)
 }
@@ -45,7 +45,9 @@ func runScanMWAA(st *store.Store, h map[string]func(any) (any, error)) (int, int
 func TestScanMWAA_ReadsTagsFromGetEnvironment(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := runScanMWAA(st, mwaaHandlers(nil))
+	counted, upserts := countUpserts(st)
+	total, err := runScanMWAA(counted, mwaaHandlers(nil))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -79,7 +81,7 @@ func TestScanMWAA_GetEnvironmentFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, mwaaGetEnvironmentOp)
-			total, _, err := runScanMWAA(st, mwaaHandlers(tc.err))
+			total, err := runScanMWAA(st, mwaaHandlers(tc.err))
 			if tc.wantCode != "" {
 				assertAPICode(t, err, tc.wantCode)
 			} else if err != nil {
@@ -114,7 +116,7 @@ func TestScanMWAA_NoARNWarns(t *testing.T) {
 		}
 		return out, nil
 	}
-	total, _, err := runScanMWAA(st, h)
+	total, err := runScanMWAA(st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

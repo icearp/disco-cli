@@ -36,10 +36,10 @@ func init() {
 // (regional) via one combined-scope AggregatedList call — same dual-type
 // split as scanComputeHealthChecks, but split on zonal vs regional scope
 // keys instead of global vs regional.
-func scanComputeAutoscalers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeAutoscalers(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:autoscalers.aggregatedList",
 		svc.Autoscalers.AggregatedList(p.ID),
-		func(page *compute.AutoscalerAggregatedList) (int, int, error) {
+		func(page *compute.AutoscalerAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, as := range items.Autoscalers {
@@ -81,11 +81,11 @@ type reservationBlockRef struct {
 	parentName string // "reservations/{reservation}/reservationBlocks/{block}"
 }
 
-func scanComputeReservations(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeReservations(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	var refs []reservationRef
-	t, n, err := runPaginated(ctx, st, p, "compute:reservations.aggregatedList",
+	t, err := runPaginated(ctx, st, p, "compute:reservations.aggregatedList",
 		svc.Reservations.AggregatedList(p.ID),
-		func(page *compute.ReservationAggregatedList) (int, int, error) {
+		func(page *compute.ReservationAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, res := range items.Reservations {
@@ -108,15 +108,15 @@ func scanComputeReservations(ctx context.Context, svc *compute.Service, p *proje
 			return upsertWithProjClosure(p, st, batch)
 		})
 	if err != nil {
-		return t, n, err
+		return t, err
 	}
-	t2, n2, err := scanComputeReservationBlocks(ctx, svc, p, st, scanID, refs)
-	return t + t2, n + n2, err
+	t2, err := scanComputeReservationBlocks(ctx, svc, p, st, scanID, refs)
+	return t + t2, err
 }
 
-func scanComputeReservationBlocks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []reservationRef) (total, inserted int, err error) {
+func scanComputeReservationBlocks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []reservationRef) (total int, err error) {
 	if len(refs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu        sync.Mutex
@@ -157,23 +157,23 @@ func scanComputeReservationBlocks(ctx context.Context, svc *compute.Service, p *
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	// Parent is the reservation, not the project — derive its NativeID by
 	// stripping the "/reservationBlocks/{block}" suffix off each block's own
 	// SelfLink (same suffix-strip technique as kms_scanners.go's
 	// cryptoKey → keyRing closure).
-	t, n, err := upsertWithSuffixParent(st, batch, TypeComputeReservation, "/reservationBlocks/")
+	t, err := upsertWithSuffixParent(st, batch, TypeComputeReservation, "/reservationBlocks/")
 	if err != nil {
-		return t, n, err
+		return t, err
 	}
-	t2, n2, err := scanComputeReservationSubBlocks(ctx, svc, p, st, scanID, blockRefs)
-	return t + t2, n + n2, err
+	t2, err := scanComputeReservationSubBlocks(ctx, svc, p, st, scanID, blockRefs)
+	return t + t2, err
 }
 
-func scanComputeReservationSubBlocks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []reservationBlockRef) (total, inserted int, err error) {
+func scanComputeReservationSubBlocks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, refs []reservationBlockRef) (total int, err error) {
 	if len(refs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -207,7 +207,7 @@ func scanComputeReservationSubBlocks(ctx context.Context, svc *compute.Service, 
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	// Parent is the reservation block, not the project — strip the
 	// "/reservationSubBlocks/{sub}" suffix off each sub-block's own SelfLink.
@@ -221,13 +221,13 @@ func scanComputeReservationSubBlocks(ctx context.Context, svc *compute.Service, 
 // Use when a single upsertWithParent call can't apply — each row in the
 // batch has a different immediate parent, unlike upsertWithProjClosure /
 // upsertWithParent's single shared parent.
-func upsertWithSuffixParent(st *store.Store, batch []*store.Resource, parentType, suffixMarker string) (int, int, error) {
+func upsertWithSuffixParent(st *store.Store, batch []*store.Resource, parentType, suffixMarker string) (int, error) {
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, err := st.UpsertResources(batch)
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	pairs := make([][2]string, 0, len(batch))
 	for _, r := range batch {
@@ -241,15 +241,15 @@ func upsertWithSuffixParent(st *store.Store, batch []*store.Resource, parentType
 		})
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return len(batch), n, err
+		return len(batch), err
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanComputeFutureReservations(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeFutureReservations(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:futureReservations.aggregatedList",
 		svc.FutureReservations.AggregatedList(p.ID),
-		func(page *compute.FutureReservationsAggregatedListResponse) (int, int, error) {
+		func(page *compute.FutureReservationsAggregatedListResponse) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, fr := range items.FutureReservations {
@@ -272,10 +272,10 @@ func scanComputeFutureReservations(ctx context.Context, svc *compute.Service, p 
 		})
 }
 
-func scanComputeRegionCommitments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionCommitments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:regionCommitments.aggregatedList",
 		svc.RegionCommitments.AggregatedList(p.ID),
-		func(page *compute.CommitmentAggregatedList) (int, int, error) {
+		func(page *compute.CommitmentAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -297,10 +297,10 @@ func scanComputeRegionCommitments(ctx context.Context, svc *compute.Service, p *
 		})
 }
 
-func scanComputeResourcePolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeResourcePolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:resourcePolicies.aggregatedList",
 		svc.ResourcePolicies.AggregatedList(p.ID),
-		func(page *compute.ResourcePolicyAggregatedList) (int, int, error) {
+		func(page *compute.ResourcePolicyAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -327,7 +327,7 @@ func scanComputeResourcePolicies(ctx context.Context, svc *compute.Service, p *p
 // endpoint reusing the same SecurityPolicyList/SecurityPolicy SDK types as
 // the pre-existing global scanner (cloudarmor_scanners.go), so it needs its
 // own gcpRegionFanoutScan-based scanner with the Region-prefixed disco type.
-func scanComputeRegionSecurityPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionSecurityPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionSecurityPolicies.list",
 		func(region string) pager[compute.SecurityPolicyList] {
 			return svc.RegionSecurityPolicies.List(p.ID, region)

@@ -129,7 +129,7 @@ func TestResolveKMSCustomKeyStoreBackends_TargetsScannedCluster(t *testing.T) {
 			return &cloudhsmv2.DescribeClustersOutput{Clusters: []cloudhsmv2types.Cluster{{ClusterId: hsm.CloudHsmClusterId}}}, nil
 		},
 	}, kmsDenied))
-	if _, _, err := scanCloudHSMClusters(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanCloudHSMClusters(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanCloudHSMClusters: %v", err)
 	}
 	clusters := rowsByNativeID(t, st, TypeCloudHSMCluster)

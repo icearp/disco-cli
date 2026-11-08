@@ -239,12 +239,12 @@ func elbHandlers(c *elbCalls) map[string]func(in any) (any, error) {
 
 // elbScan runs the scan's real entry point in acct's partition and the
 // fixture's region against handlers; every op they do not answer is denied.
-func elbScan(ctx context.Context, st *store.Store, acct *account, f elbFix, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func elbScan(ctx context.Context, st *store.Store, acct *account, f elbFix, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct.cfg = opStubConfig(handlers, elbTestDenied)
 	return scanELBv2(ctx, acct, f.region, st, testScanID)
 }
 
-func elbScanCommercial(st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func elbScanCommercial(st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return elbScan(context.Background(), st, newTestAccount(testAccountID), elbCommercial, handlers)
 }
 
@@ -305,7 +305,9 @@ func TestScanELBv2_StoresEveryTypeWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newELBCalls(elbCommercial)
 
-	total, inserted, err := elbScanCommercial(st, elbHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := elbScanCommercial(counted, elbHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -405,7 +407,7 @@ func TestScanELBv2_RowFields(t *testing.T) {
 		}
 		return out, err
 	}
-	if _, _, err := elbScanCommercial(st, handlers); err != nil {
+	if _, err := elbScanCommercial(st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	lbs := rowsByNativeID(t, st, TypeELBv2LoadBalancer)
@@ -478,16 +480,16 @@ func TestScanELBv2_RowFields(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanELBv2_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial))); err != nil {
+	if _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial)))
+	total, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -516,7 +518,9 @@ func TestScanELBv2_EmptyListings(t *testing.T) {
 		return &elasticloadbalancingv2.DescribeTrustStoresOutput{}, nil
 	}
 
-	total, inserted, err := elbScanCommercial(st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := elbScanCommercial(counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -553,7 +557,7 @@ func TestScanELBv2_TagReadsBatchTwentyARNs(t *testing.T) {
 	}
 	handlers["DescribeListeners"] = func(any) (any, error) { return &elasticloadbalancingv2.DescribeListenersOutput{}, nil }
 
-	if _, _, err := elbScanCommercial(st, handlers); err != nil {
+	if _, err := elbScanCommercial(st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeELBv2LoadBalancer)); n != 45 {
@@ -623,7 +627,7 @@ func TestScanELBv2_TagReadsShareOneBound(t *testing.T) {
 		return calls.describeTags(in)
 	}
 
-	total, _, err := elbScanCommercial(st, handlers)
+	total, err := elbScanCommercial(st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -727,7 +731,7 @@ func TestScanELBv2_NotFoundInBatchReadsEachARN(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := elbScanCommercial(st, handlers)
+			total, err := elbScanCommercial(st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -788,7 +792,7 @@ func TestScanELBv2_TagReadFailures(t *testing.T) {
 			}
 			calls.missing[rule] = c.missing
 
-			total, _, err := elbScanCommercial(st, elbHandlers(calls))
+			total, err := elbScanCommercial(st, elbHandlers(calls))
 			switch {
 			case c.outcome < 0:
 				if err != nil {
@@ -841,7 +845,7 @@ func TestScanELBv2_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[rows[TypeELBv2TargetGroup][0]] = elbTestDenied
 	calls.errs[rows[TypeELBv2ListenerRule][3]] = elbTestDenied
 
-	total, _, err := elbScanCommercial(st, elbHandlers(calls))
+	total, err := elbScanCommercial(st, elbHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -864,7 +868,7 @@ func TestScanELBv2_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[rows[TypeELBv2LoadBalancer][0]] = elbTestThrottle
 	calls.errs[rows[TypeELBv2ListenerRule][5]] = elbTestBad
 
-	_, _, err := elbScanCommercial(st, elbHandlers(calls))
+	_, err := elbScanCommercial(st, elbHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationError")
 	if *warns != 1 {
@@ -883,7 +887,7 @@ func TestScanELBv2_FailedWriteStopsScan(t *testing.T) {
 	calls := newELBCalls(elbCommercial)
 	calls.errs[elbCommercial.ts("ts-tagged")] = elbTestDenied
 
-	total, _, err := elbScanCommercial(st, elbHandlers(calls))
+	total, err := elbScanCommercial(st, elbHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -926,7 +930,7 @@ func TestScanELBv2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := elbScanCommercial(st, handlers)
+			total, err := elbScanCommercial(st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationError")
 			if total != c.wantTotal {
@@ -959,7 +963,7 @@ func TestScanELBv2_RepeatedMarkerKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := elbScanCommercial(st, handlers)
+	total, err := elbScanCommercial(st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1008,7 +1012,7 @@ func TestScanELBv2_PerParentListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := elbScanCommercial(st, handlers)
+				total, err := elbScanCommercial(st, handlers)
 				if e.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1065,7 +1069,7 @@ func TestScanELBv2_TargetHealthFailures(t *testing.T) {
 				return health(in)
 			}
 
-			total, _, err := elbScanCommercial(st, handlers)
+			total, err := elbScanCommercial(st, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1152,7 +1156,7 @@ func TestScanELBv2_ElementWithoutIDWarns(t *testing.T) {
 				return out, err
 			}
 
-			if _, _, err := elbScanCommercial(st, handlers); err != nil {
+			if _, err := elbScanCommercial(st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := elbWarnOps(warns()); !slices.Equal(got, []string{"elasticloadbalancing:" + c.op}) {
@@ -1182,7 +1186,7 @@ func TestScanELBv2_TagReadsKeepPartitionARNs(t *testing.T) {
 	st := newTestStore(t)
 	calls := newELBCalls(f)
 
-	total, _, err := elbScan(context.Background(), st, partitionAccount(f.part), f, elbHandlers(calls))
+	total, err := elbScan(context.Background(), st, partitionAccount(f.part), f, elbHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1217,7 +1221,7 @@ func TestScanELBv2_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := elbScan(ctx, st, newTestAccount(testAccountID), elbCommercial, handlers)
+	_, err := elbScan(ctx, st, newTestAccount(testAccountID), elbCommercial, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1246,7 +1250,7 @@ func TestScanELBv2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := elbHandlers(newELBCalls(elbCommercial))
 		handlers["DescribeListenerCertificates"] = func(any) (any, error) { return nil, nx }
-		total, _, err := elbScanCommercial(st, handlers)
+		total, err := elbScanCommercial(st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := elbTestTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1256,7 +1260,7 @@ func TestScanELBv2_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newELBCalls(elbCommercial)
 		calls.errs[elbCommercial.lb("lb-tagged")] = nx
-		_, _, err := elbScanCommercial(st, elbHandlers(calls))
+		_, err := elbScanCommercial(st, elbHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1264,7 +1268,7 @@ func TestScanELBv2_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanELBv2(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanELBv2(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

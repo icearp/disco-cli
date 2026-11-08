@@ -31,36 +31,34 @@ func init() {
 // Phase 1 of the once-per-scan org-service lane (see services.go). Sibling to
 // scanIAMPoliciesOrg. Permission denial / API-not-enabled propagates via
 // skipIfDenied.
-func scanVPCSC(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCSC(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := accesscontextmanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("accesscontextmanager client: %w", err)
+		return 0, fmt.Errorf("accesscontextmanager client: %w", err)
 	}
 
 	for _, sc := range scopes {
 		if sc.Kind != "organization" {
 			continue
 		}
-		t, n, perr := scanVPCSCForOrg(ctx, svc, sc, st, scanID)
+		t, perr := scanVPCSCForOrg(ctx, svc, sc, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
-		t, n, perr = scanGcpUserAccessBindingsForOrg(ctx, svc, sc, st, scanID)
+		t, perr = scanGcpUserAccessBindingsForOrg(ctx, svc, sc, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanVPCSCForOrg lists every access policy under the org and, for each, every
 // service perimeter. Policies parent perimeters in the closure table.
-func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, st *store.Store, scanID string) (total int, err error) {
 	listCall := svc.AccessPolicies.List().Parent(sc.Name).Context(ctx)
 	err = listCall.Pages(ctx, func(page *accesscontextmanager.ListAccessPoliciesResponse) error {
 		var batch []*store.Resource
@@ -87,12 +85,11 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert access policies: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure access policies: %w", cErr)
 		}
@@ -102,21 +99,18 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 			if ap == nil || ap.Name == "" {
 				continue
 			}
-			t, n, pErr := scanServicePerimetersForPolicy(ctx, svc, sc, ap.Name, st, scanID)
+			t, pErr := scanServicePerimetersForPolicy(ctx, svc, sc, ap.Name, st, scanID)
 			total += t
-			inserted += n
 			if pErr != nil {
 				return pErr
 			}
-			t, n, pErr = scanAccessLevelsForPolicy(ctx, svc, sc, ap.Name, st, scanID)
+			t, pErr = scanAccessLevelsForPolicy(ctx, svc, sc, ap.Name, st, scanID)
 			total += t
-			inserted += n
 			if pErr != nil {
 				return pErr
 			}
-			t, n, pErr = scanAuthorizedOrgsDescsForPolicy(ctx, svc, sc, ap.Name, st, scanID)
+			t, pErr = scanAuthorizedOrgsDescsForPolicy(ctx, svc, sc, ap.Name, st, scanID)
 			total += t
-			inserted += n
 			if pErr != nil {
 				return pErr
 			}
@@ -125,17 +119,17 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "accesscontextmanager:accessPolicies.list", sc.Name, err)
+			return total, skipIfDenied(st, "accesscontextmanager:accessPolicies.list", sc.Name, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanServicePerimetersForPolicy lists every service perimeter under the
 // access policy and persists each as its child in the closure table.
 // Permission errors per policy degrade to a warning.
-func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total int, err error) {
 	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.ServicePerimeters.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListServicePerimetersResponse) error {
@@ -163,12 +157,11 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 			if len(batch) == 0 {
 				return nil
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert perimeters: %w", upErr)
 			}
 			total += len(batch)
-			inserted += n
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 				return fmt.Errorf("closure perimeters: %w", cErr)
 			}
@@ -176,17 +169,17 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 		})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "accesscontextmanager:servicePerimeters.list", policyName, err)
+			return total, skipIfDenied(st, "accesscontextmanager:servicePerimeters.list", policyName, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanAccessLevelsForPolicy lists every access level under the access policy
 // and persists each as its child in the closure table. Permission errors per
 // policy degrade to a warning.
-func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total int, err error) {
 	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.AccessLevels.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListAccessLevelsResponse) error {
@@ -214,12 +207,11 @@ func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Se
 			if len(batch) == 0 {
 				return nil
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert access levels: %w", upErr)
 			}
 			total += len(batch)
-			inserted += n
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 				return fmt.Errorf("closure access levels: %w", cErr)
 			}
@@ -227,17 +219,17 @@ func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Se
 		})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "accesscontextmanager:accessLevels.list", policyName, err)
+			return total, skipIfDenied(st, "accesscontextmanager:accessLevels.list", policyName, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanAuthorizedOrgsDescsForPolicy lists every authorized-orgs-desc under the
 // access policy and persists each as its child in the closure table.
 // Permission errors per policy degrade to a warning.
-func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, policyName string, st *store.Store, scanID string) (total int, err error) {
 	policyID := store.ResourceID("gcp", sc.Name, policyName)
 	err = svc.AccessPolicies.AuthorizedOrgsDescs.List(policyName).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListAuthorizedOrgsDescsResponse) error {
@@ -263,12 +255,11 @@ func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextman
 			if len(batch) == 0 {
 				return nil
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert authorized orgs descs: %w", upErr)
 			}
 			total += len(batch)
-			inserted += n
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 				return fmt.Errorf("closure authorized orgs descs: %w", cErr)
 			}
@@ -276,18 +267,18 @@ func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextman
 		})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "accesscontextmanager:authorizedOrgsDescs.list", policyName, err)
+			return total, skipIfDenied(st, "accesscontextmanager:authorizedOrgsDescs.list", policyName, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanGcpUserAccessBindingsForOrg lists every GcpUserAccessBinding parented
 // directly by the org — a Context-Aware Access control that restricts
 // Workspace users/groups to specific access levels, independent of any
 // AccessPolicy.
-func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc orgScope, st *store.Store, scanID string) (total int, err error) {
 	err = svc.Organizations.GcpUserAccessBindings.List(sc.Name).Context(ctx).Pages(ctx,
 		func(page *accesscontextmanager.ListGcpUserAccessBindingsResponse) error {
 			var batch []*store.Resource
@@ -312,12 +303,11 @@ func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmana
 			if len(batch) == 0 {
 				return nil
 			}
-			n, upErr := st.UpsertResources(batch)
+			_, upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert gcp user access bindings: %w", upErr)
 			}
 			total += len(batch)
-			inserted += n
 			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 				return fmt.Errorf("closure gcp user access bindings: %w", cErr)
 			}
@@ -325,9 +315,9 @@ func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmana
 		})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "accesscontextmanager:gcpUserAccessBindings.list", sc.Name, err)
+			return total, skipIfDenied(st, "accesscontextmanager:gcpUserAccessBindings.list", sc.Name, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

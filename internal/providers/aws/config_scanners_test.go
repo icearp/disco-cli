@@ -250,7 +250,7 @@ func cfgHandlers(c *cfgCalls) map[string]func(any) (any, error) {
 
 // cfgScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func cfgScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func cfgScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, configDenied)
 	return scanConfig(ctx, acct, testRegion, st, testScanID)
@@ -299,7 +299,9 @@ func TestScanConfig_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCfgCalls()
 
-	total, inserted, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := cfgScan(context.Background(), counted, cfgHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -380,7 +382,7 @@ func TestScanConfig_RemediationPhasesUseStoredRules(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
-	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
+	if _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if n := calls.count("DescribeConfigRules"); n != 2 {
@@ -400,10 +402,12 @@ func TestScanConfig_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
-	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
+	if _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := cfgScan(context.Background(), counted, cfgHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -445,7 +449,7 @@ func TestScanConfig_TagReadFailures(t *testing.T) {
 					calls := newCfgCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+					total, err := cfgScan(context.Background(), st, cfgHandlers(calls))
 					if c.outcome < 0 {
 						if err != nil {
 							t.Fatalf("err = %v; want nil", err)
@@ -485,7 +489,7 @@ func TestScanConfig_RuleGoneIsNoRemediationParent(t *testing.T) {
 	st := newTestStore(t)
 	calls := newCfgCalls()
 	calls.errs[cfgKindARN(cfgKindOf(t, "DescribeConfigRules"), "bare")] = configNotFound
-	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
+	if _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if want := []string{"rule-tagged"}; !slices.Equal(calls.ruleNames, want) {
@@ -507,7 +511,7 @@ func TestScanConfig_TagDenialsWarnOncePerPhase(t *testing.T) {
 	calls.errs[cfgKindARN(k, "tagged")] = configDenied
 	calls.errs[cfgKindARN(k, "bare")] = configDenied
 
-	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
+	if _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 {
@@ -539,7 +543,7 @@ func TestScanConfig_TagPages(t *testing.T) {
 		st := newTestStore(t)
 		h := cfgHandlers(newCfgCalls())
 		h["ListTagsForResource"] = pages(nil)
-		if _, _, err := cfgScan(context.Background(), st, h); err != nil {
+		if _, err := cfgScan(context.Background(), st, h); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		r, _ := cfgRowOf(t, st, TypeConfigStoredQuery, arn)
@@ -549,7 +553,7 @@ func TestScanConfig_TagPages(t *testing.T) {
 		st := newTestStore(t)
 		h := cfgHandlers(newCfgCalls())
 		h["ListTagsForResource"] = pages(sdkaws.String("p2"))
-		_, _, err := cfgScan(context.Background(), st, h)
+		_, err := cfgScan(context.Background(), st, h)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -578,7 +582,7 @@ func TestScanConfig_RecorderWithoutARN(t *testing.T) {
 		}}, nil
 	}
 
-	total, _, err := cfgScan(context.Background(), st, h)
+	total, err := cfgScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -615,7 +619,7 @@ func TestScanConfig_DeliveryChannelWithoutNameWarns(t *testing.T) {
 		return &configservice.DescribeDeliveryChannelsOutput{DeliveryChannels: []cfgtypes.DeliveryChannel{{S3BucketName: sdkaws.String("nameless-bucket")}}}, nil
 	}
 
-	if _, _, err := cfgScan(context.Background(), st, handlers); err != nil {
+	if _, err := cfgScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := len(rowsByNativeID(t, st, TypeConfigDeliveryChannel)); got != 0 {
@@ -655,7 +659,7 @@ func TestScanConfig_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := cfgHandlers(newCfgCalls())
 			handlers[c.op] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := cfgScan(context.Background(), st, handlers)
+			total, err := cfgScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -703,7 +707,7 @@ func TestScanConfig_OrgAccessDeniedFirstPageIsSilent(t *testing.T) {
 			k := cfgKindOf(t, op)
 			handlers[op] = func(any) (any, error) { return nil, cfgOrgDenied }
 
-			total, _, err := cfgScan(context.Background(), st, handlers)
+			total, err := cfgScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -733,7 +737,7 @@ func TestScanConfig_OrgDenialAfterFirstPageKeepsIt(t *testing.T) {
 		handlers := cfgHandlers(newCfgCalls())
 		handlers[k.op] = failOnCall(2, configDenied, handlers[k.op])
 
-		if _, _, err := cfgScan(context.Background(), st, handlers); err != nil {
+		if _, err := cfgScan(context.Background(), st, handlers); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 		if _, ok := cfgRowOf(t, st, k.typ, first); !ok {
@@ -747,7 +751,7 @@ func TestScanConfig_OrgDenialAfterFirstPageKeepsIt(t *testing.T) {
 		handlers := cfgHandlers(newCfgCalls())
 		handlers[k.op] = failOnCall(2, cfgOrgDenied, handlers[k.op])
 
-		_, _, err := cfgScan(context.Background(), st, handlers)
+		_, err := cfgScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "OrganizationAccessDeniedException")
 		if _, ok := cfgRowOf(t, st, k.typ, first); !ok {
@@ -771,7 +775,7 @@ func TestScanConfig_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 			k := cfgKindOf(t, op)
 			handlers[k.op] = failOnCall(2, cfgValidation, handlers[k.op])
 
-			_, _, err := cfgScan(context.Background(), st, handlers)
+			_, err := cfgScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if _, ok := cfgRowOf(t, st, k.typ, cfgKindARN(k, "tagged")); !ok {
@@ -804,7 +808,7 @@ func TestScanConfig_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(cfgKindARN(k, suffix), suffix, sdkaws.String("same")), nil
 	}
 
-	total, _, err := cfgScan(context.Background(), st, handlers)
+	total, err := cfgScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -831,7 +835,7 @@ func TestScanConfig_ElementWithoutARNWarns(t *testing.T) {
 			handlers := cfgHandlers(newCfgCalls())
 			handlers["ListStoredQueries"] = func(any) (any, error) { return c.page, nil }
 
-			total, _, err := cfgScan(context.Background(), st, handlers)
+			total, err := cfgScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -875,7 +879,7 @@ func TestScanConfig_GetConnectorFailures(t *testing.T) {
 			calls := newCfgCalls()
 			calls.getErrs[arn] = c.err
 
-			_, _, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+			_, err := cfgScan(context.Background(), st, cfgHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -914,7 +918,7 @@ func TestScanConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[cfgKindARN(cfgKindOf(t, "DescribeConfigRules"), "tagged")] = cfgThrottle
 	calls.errs[cfgKindARN(cfgKindOf(t, "ListStoredQueries"), "bare")] = cfgValidation
 
-	_, _, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+	_, err := cfgScan(context.Background(), st, cfgHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -932,7 +936,7 @@ func TestScanConfig_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newCfgCalls()
 	calls.errs[cfgRecorderARN("tagged")] = configDenied
 
-	_, _, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+	_, err := cfgScan(context.Background(), st, cfgHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -963,7 +967,7 @@ func TestScanConfig_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := cfgScan(ctx, st, handlers)
+	_, err := cfgScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -992,7 +996,7 @@ func TestScanConfig_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := cfgHandlers(newCfgCalls())
 		handlers["ListStoredQueries"] = func(any) (any, error) { return nil, nx }
-		total, _, err := cfgScan(context.Background(), st, handlers)
+		total, err := cfgScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != cfgTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, cfgTotalCount-2)
@@ -1002,7 +1006,7 @@ func TestScanConfig_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCfgCalls()
 		calls.errs[cfgRecorderARN("bare")] = nx
-		_, _, err := cfgScan(context.Background(), st, cfgHandlers(calls))
+		_, err := cfgScan(context.Background(), st, cfgHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1010,7 +1014,7 @@ func TestScanConfig_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanConfig(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -1056,7 +1060,7 @@ func TestScanConfig_ServiceLinkedTagRefusal(t *testing.T) {
 			linked := cfgKindARN(k, "tagged")
 			calls.errs[linked] = cfgValidation
 
-			total, _, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
+			total, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1079,7 +1083,7 @@ func TestScanConfig_ServiceLinkedTagRefusal(t *testing.T) {
 			own := cfgKindARN(k, "bare")
 			calls.errs[own] = cfgValidation
 
-			_, _, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
+			_, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if _, ok := cfgRowOf(t, st, k.typ, own); !ok {
@@ -1105,7 +1109,7 @@ func TestScanConfig_ServiceLinkedRefusalNoWarningAfterFailedWrite(t *testing.T) 
 			calls := newCfgCalls()
 			calls.errs[cfgKindARN(k, "tagged")] = cfgValidation
 
-			_, _, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
+			_, err := cfgScan(context.Background(), st, cfgServiceLinked(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1141,7 +1145,7 @@ func TestScanConfig_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, configDenied)
 
-	if _, _, err := scanConfig(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanConfig(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(calls.tagARNs)

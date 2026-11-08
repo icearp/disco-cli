@@ -26,10 +26,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:aco-automation",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			region, err := acct.homeRegion("computeoptimizerautomation")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := computeoptimizerautomation.NewFromConfig(acct.cfg, func(o *computeoptimizerautomation.Options) { o.Region = region })
 			return scanACOAutomationRules(ctx, client, acct, st, scanID)
@@ -49,7 +49,7 @@ type acoAutomationAPI interface {
 // opted in to Compute Optimizer Automation is reported as disabled; the rules
 // are not stored until every listed rule is read, so that sentinel never
 // discards stored rows.
-func scanACOAutomationRules(ctx context.Context, client acoAutomationAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanACOAutomationRules(ctx context.Context, client acoAutomationAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	region := acoAutomationRegion
 	var arns []string
 	pager := computeoptimizerautomation.NewListAutomationRulesPaginator(client, &computeoptimizerautomation.ListAutomationRulesInput{},
@@ -61,13 +61,13 @@ func scanACOAutomationRules(ctx context.Context, client acoAutomationAPI, acct *
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAPIErrorCode(err, "OptInRequiredException") {
-				return 0, 0, markServiceDisabled(err)
+				return 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "aco-automation:ListAutomationRules", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("aco-automation:ListAutomationRules: %w", err)
+			return 0, fmt.Errorf("aco-automation:ListAutomationRules: %w", err)
 		}
 		for _, r := range out.AutomationRules {
 			if arn := sv(r.RuleArn); arn != "" {
@@ -90,7 +90,7 @@ func scanACOAutomationRules(ctx context.Context, client acoAutomationAPI, acct *
 			}, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, rows, "aco-automation automation-rules")
 }

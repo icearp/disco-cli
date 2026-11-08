@@ -19,22 +19,22 @@ func init() {
 // (subnet-bound BGP listeners), and per-endpoint peers (BGP-speaking
 // neighbours). Route server associations and propagations are listed per
 // route server, so scanEC2Late lists them once these rows are stored.
-func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanRouteServers(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanRouteServerEndpoints(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanRouteServerPeers(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanRouteServers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRouteServers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeRouteServers", acct, region, st,
 		ec2.NewDescribeRouteServersPaginator(client, &ec2.DescribeRouteServersInput{}),
@@ -64,7 +64,7 @@ func scanRouteServers(ctx context.Context, client ec2API, acct *account, region 
 	)
 }
 
-func scanRouteServerEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRouteServerEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeRouteServerEndpoints", acct, region, st,
 		ec2.NewDescribeRouteServerEndpointsPaginator(client, &ec2.DescribeRouteServerEndpointsInput{}),
@@ -94,7 +94,7 @@ func scanRouteServerEndpoints(ctx context.Context, client ec2API, acct *account,
 	)
 }
 
-func scanRouteServerPeers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRouteServerPeers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeRouteServerPeers", acct, region, st,
 		ec2.NewDescribeRouteServerPeersPaginator(client, &ec2.DescribeRouteServerPeersInput{}),

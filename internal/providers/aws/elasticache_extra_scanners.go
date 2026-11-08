@@ -18,16 +18,16 @@ func ecTags(ctx context.Context, client elasticacheAPI, arn string) *string {
 
 // scanElastiCacheReservedNodes discovers purchased reserved cache nodes (a
 // billing reservation, edge-less).
-func scanElastiCacheReservedNodes(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheReservedNodes(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeReservedCacheNodesPaginator(client, &elasticache.DescribeReservedCacheNodesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "elasticache:DescribeReservedCacheNodes", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "elasticache:DescribeReservedCacheNodes", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("elasticache:DescribeReservedCacheNodes: %w", perr)
+			return 0, fmt.Errorf("elasticache:DescribeReservedCacheNodes: %w", perr)
 		}
 		for _, rn := range page.ReservedCacheNodes {
 			arn := sv(rn.ReservationARN)
@@ -45,16 +45,16 @@ func scanElastiCacheReservedNodes(ctx context.Context, client elasticacheAPI, ac
 	return upsertBatch(st, batch, "elasticache reserved-cache-nodes")
 }
 
-func scanElastiCacheServerlessSnapshots(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheServerlessSnapshots(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeServerlessCacheSnapshotsPaginator(client, &elasticache.DescribeServerlessCacheSnapshotsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "elasticache:DescribeServerlessCacheSnapshots", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "elasticache:DescribeServerlessCacheSnapshots", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("elasticache:DescribeServerlessCacheSnapshots: %w", perr)
+			return 0, fmt.Errorf("elasticache:DescribeServerlessCacheSnapshots: %w", perr)
 		}
 		for _, s := range page.ServerlessCacheSnapshots {
 			arn := sv(s.ARN)
@@ -72,16 +72,16 @@ func scanElastiCacheServerlessSnapshots(ctx context.Context, client elasticacheA
 	return upsertBatch(st, batch, "elasticache serverless-cache-snapshots")
 }
 
-func scanElastiCacheSnapshots(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheSnapshots(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := elasticache.NewDescribeSnapshotsPaginator(client, &elasticache.DescribeSnapshotsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "elasticache:DescribeSnapshots", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "elasticache:DescribeSnapshots", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("elasticache:DescribeSnapshots: %w", perr)
+			return 0, fmt.Errorf("elasticache:DescribeSnapshots: %w", perr)
 		}
 		for _, s := range page.Snapshots {
 			arn := sv(s.ARN)

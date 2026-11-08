@@ -24,26 +24,26 @@ const maxConcurrentGKENodePoolFanout = 10
 
 // scanGKE discovers GKE clusters for a project across all locations, then
 // fans out per cluster for NodePools.
-func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := container.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("container client: %w", err)
+		return 0, fmt.Errorf("container client: %w", err)
 	}
 	return scanGKEWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanGKEWithClient is the test seam for scanGKE — takes the pre-built
 // client directly so tests can point it at a fake server.
-func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// "-" as location returns clusters across all locations.
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
 	out, err := svc.Projects.Locations.Clusters.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "container:clusters.list", p.ID, err)
+			return 0, skipIfDenied(st, "container:clusters.list", p.ID, err)
 		}
-		return 0, 0, fmt.Errorf("container:clusters.list %s: %w", p.ID, err)
+		return 0, fmt.Errorf("container:clusters.list %s: %w", p.ID, err)
 	}
 	type clusterRef struct {
 		location string
@@ -84,12 +84,11 @@ func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, 
 		batch = append(batch, r)
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert GKE clusters: %w", err)
+			return 0, fmt.Errorf("upsert GKE clusters: %w", err)
 		}
 		total += len(batch)
-		inserted += n
 	}
 
 	// Per-Cluster fan-out — NodePools. Nested under a fan-out that only runs
@@ -129,16 +128,15 @@ func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, 
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		nt, nn, uerr := upsertWithParent(st, npbatch, c.id)
+		nt, uerr := upsertWithParent(st, npbatch, c.id)
 		if uerr != nil {
 			return uerr
 		}
 		total += nt
-		inserted += nn
 		return nil
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

@@ -227,7 +227,7 @@ func dsWantTotal(want map[string][]string, except ...string) int {
 
 func runDSScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := scanDirectoryServiceIn(context.Background(), dsClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanDirectoryServiceIn(context.Background(), dsClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -320,7 +320,7 @@ func TestScanDSRegions_OnlyFromPrimaryRegion(t *testing.T) {
 			d := ms
 			d.RegionsInfo = regions
 			dirs := []dsDirectory{{arn: dsDirARN("d-ms"), desc: d}, {arn: dsDirARN("d-one"), desc: unreplicated}, {arn: dsDirARN("d-consumer"), desc: consumer}}
-			total, _, err := scanDSRegions(context.Background(), dsClient(dsHandlers(calls, nil)), newTestAccount(testAccountID), testRegion, st, testScanID, dirs)
+			total, err := scanDSRegions(context.Background(), dsClient(dsHandlers(calls, nil)), newTestAccount(testAccountID), testRegion, st, testScanID, dirs)
 			if err != nil || total != 0 || len(calls["DescribeRegions"].distinct()) != 0 {
 				t.Errorf("total, err = %d, %v, asked %v; want 0, nil, none", total, err, calls["DescribeRegions"].distinct())
 			}

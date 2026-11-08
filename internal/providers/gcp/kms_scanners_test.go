@@ -78,7 +78,9 @@ func TestScanCloudKMS_FullNestedFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeKMSService(t, srv)
 
-	total, inserted, err := scanCloudKMSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudKMSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudKMSWithClient: %v", err)
 	}
@@ -138,7 +140,9 @@ func TestScanCloudKMS_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeKMSService(t, srv)
 
-	total, inserted, err := scanCloudKMSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudKMSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudKMSWithClient (denied): expected nil error, got %v", err)
 	}
@@ -193,7 +197,9 @@ func TestScanCloudKMS_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeKMSService(t, srv)
 
-	total, inserted, err := scanCloudKMSWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudKMSWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudKMSWithClient: %v", err)
 	}

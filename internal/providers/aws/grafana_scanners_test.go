@@ -92,7 +92,7 @@ func TestScanGrafanaWorkspaces_ParentsSkipPreServiceAccountVersions(t *testing.T
 	t.Parallel()
 	st := newTestStore(t)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": gfWorkspacesHandler})
-	parents, total, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	parents, total, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestScanGrafanaWorkspaces_PermissionParentsSkipSAMLOnly(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": gfWorkspacesHandler})
-	parents, _, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	parents, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestScanGrafanaWorkspaces_ParentsSkipInstancelessStates(t *testing.T) {
 			ws("g-creating", "CREATING"), ws("g-deleting", "DELETING"), ws("g-updating", "UPDATING"),
 		}}, nil
 	}})
-	parents, total, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	parents, total, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -238,7 +238,7 @@ func scanGFServiceAccounts(t *testing.T, st *store.Store, handler func(in any) (
 	}
 	seedParentRows(t, st, TypeGrafanaWorkspace, arns...)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaceServiceAccounts": handler})
-	accounts, total, _, err := scanGrafanaServiceAccounts(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+	accounts, total, err := scanGrafanaServiceAccounts(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 	return accounts, total, err
 }
 
@@ -383,7 +383,7 @@ func scanGFTokens(t *testing.T, st *store.Store, handler func(in any) (any, erro
 	}
 	seedParentRows(t, st, TypeGrafanaWorkspaceServiceAccount, ids...)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaceServiceAccountTokens": handler})
-	total, _, err := scanGrafanaServiceAccountTokens(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, accounts)
+	total, err := scanGrafanaServiceAccountTokens(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, accounts)
 	return total, err
 }
 
@@ -517,7 +517,9 @@ func TestScanGrafana_StoresServiceAccountsTokensAndPermissions(t *testing.T) {
 	var saCalls, tokenCalls, permCalls parentCalls
 	acct.cfg = opStubConfig(gfTopLevelHandlers(&saCalls, &tokenCalls, &permCalls), gfDenied)
 
-	total, inserted, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanGrafana(context.Background(), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanGrafana: %v", err)
 	}
@@ -553,7 +555,7 @@ func TestScanGrafana_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanGrafana(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanGrafana(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanGrafana: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -593,7 +595,7 @@ func TestScanGrafana_PhaseErrorKeepsOtherPhases(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, gfDenied)
 
-			total, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
 			if !failed.Load() {
 				t.Fatalf("%s never called", tc.op)
 			}
@@ -625,7 +627,7 @@ func TestScanGrafana_WorkspaceFailureListsNoPermissions(t *testing.T) {
 	handlers["ListWorkspaces"] = func(any) (any, error) { return nil, gfBadInput }
 	acct.cfg = opStubConfig(handlers, gfDenied)
 
-	_, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if got := permCalls.distinct(); len(got) != 0 {
 		t.Errorf("permissions listed for %v, want none", got)
@@ -645,7 +647,7 @@ func TestScanGrafana_OlderPhaseTransientDoesNotMaskPermissionError(t *testing.T)
 	handlers["ListPermissions"] = func(any) (any, error) { return nil, gfConflict }
 	acct.cfg = opStubConfig(handlers, gfDenied)
 
-	_, _, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanGrafana(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ConflictException")
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
@@ -697,7 +699,7 @@ func gfPermissionHandler(calls *parentCalls, fail map[string]error) func(in any)
 }
 
 // scanGFPermissions seeds the workspace rows and fans out over them.
-func scanGFPermissions(t *testing.T, st *store.Store, handler func(in any) (any, error), ids ...string) (int, int, error) {
+func scanGFPermissions(t *testing.T, st *store.Store, handler func(in any) (any, error), ids ...string) (int, error) {
 	t.Helper()
 	parents := make([]childParent, 0, len(ids))
 	arns := make([]string, 0, len(ids))
@@ -718,12 +720,12 @@ func TestScanGrafanaPermissions_StoresEveryPageOfEveryWorkspace(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
-	total, inserted, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, nil), "g-a", "g-b")
+	total, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, nil), "g-a", "g-b")
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if total != 3 || inserted != 3 {
-		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
+	if total != 3 {
+		t.Errorf("total = %d; want 3", total)
 	}
 	if got := calls.distinct(); !slices.Equal(got, []string{"g-a", "g-b"}) {
 		t.Errorf("listed for %v, want [g-a g-b]", got)
@@ -751,7 +753,7 @@ func TestScanGrafanaPermissions_StoresEveryPageOfEveryWorkspace(t *testing.T) {
 func TestScanGrafanaPermissions_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanGFPermissions(t, st, func(any) (any, error) { return &grafana.ListPermissionsOutput{}, nil }, "g-a")
+	total, err := scanGFPermissions(t, st, func(any) (any, error) { return &grafana.ListPermissionsOutput{}, nil }, "g-a")
 	if err != nil || total != 0 {
 		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
 	}
@@ -781,7 +783,7 @@ func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
 			warns := countOpWarnings(st, grafanaListPermissionsOp)
 			var calls parentCalls
 			fail := map[string]error{"g-a": tc.err, "g-c": tc.err}
-			total, _, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, fail), "g-a", "g-b", "g-c")
+			total, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, fail), "g-a", "g-b", "g-c")
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -797,7 +799,7 @@ func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
 	t.Run("other", func(t *testing.T) {
 		st := newTestStore(t)
 		var calls parentCalls
-		_, _, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, map[string]error{"g-b": gfConflict}), "g-a", "g-b")
+		_, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, map[string]error{"g-b": gfConflict}), "g-a", "g-b")
 		assertAPICode(t, err, "ConflictException")
 	})
 }
@@ -811,7 +813,9 @@ func TestScanGrafanaWorkspaces_ReadsListedTags(t *testing.T) {
 			{Id: ptrStr("g-b"), Status: grafanatypes.WorkspaceStatusActive},
 		}}, nil
 	}})
-	_, total, inserted, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	_, total, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

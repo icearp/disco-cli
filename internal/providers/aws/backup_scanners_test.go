@@ -308,7 +308,7 @@ func bkHandlers(c *bkCalls) map[string]func(any) (any, error) {
 
 // bkScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func bkScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func bkScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, bkDenied)
 	return scanBackup(ctx, acct, testRegion, st, testScanID)
@@ -374,7 +374,9 @@ func TestScanBackup_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newBKCalls()
 
-	total, inserted, err := bkScan(context.Background(), st, bkHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := bkScan(context.Background(), counted, bkHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -445,7 +447,7 @@ func TestScanBackup_ChildListingsGetTheParentsStored(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
-	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
+	if _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, c := range []struct {
@@ -472,17 +474,17 @@ func TestScanBackup_ChildListingsGetTheParentsStored(t *testing.T) {
 	assertContainsEdgesDeclared(t, st)
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanBackup_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
-	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
+	if _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+	total, err := bkScan(context.Background(), st, bkHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -529,7 +531,7 @@ func TestScanBackup_TagReadFailures(t *testing.T) {
 					calls := newBKCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+					total, err := bkScan(context.Background(), st, bkHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -580,7 +582,7 @@ func TestScanBackup_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[bkKindARN(k, "tagged")] = bkDenied
 	calls.errs[bkKindARN(k, "bare")] = bkDenied
 
-	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
+	if _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(*warnings) != 1 {
@@ -631,7 +633,7 @@ func TestScanBackup_OtherAccountRowKeptOnTagGap(t *testing.T) {
 					}}, nil
 				}
 
-				if _, _, err := bkScan(context.Background(), st, h); err != nil {
+				if _, err := bkScan(context.Background(), st, h); err != nil {
 					t.Fatalf("scan: %v", err)
 				}
 				r, ok := bkRowOf(t, st, target.typ, target.arn)
@@ -664,7 +666,7 @@ func TestScanBackup_TagReadRepeatedToken(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	total, _, err := bkScan(context.Background(), st, h)
+	total, err := bkScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -686,7 +688,7 @@ func TestScanBackup_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[bkKindARN(bkKindOf(t, "ListFrameworks"), "tagged")] = bkThrottle
 	calls.errs[bkKindARN(bkKindOf(t, "ListTieringConfigurations"), "bare")] = bkBadInput
 
-	_, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+	_, err := bkScan(context.Background(), st, bkHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterValueException")
 	if *warns != 1 {
@@ -704,7 +706,7 @@ func TestScanBackup_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newBKCalls()
 	calls.errs[bkVaultARN("vault-tagged")] = bkDenied
 
-	_, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+	_, err := bkScan(context.Background(), st, bkHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -729,7 +731,7 @@ func TestScanBackup_KeptPlanWarnsOnlyOnceStored(t *testing.T) {
 		closeStore()
 		return nil, bkDenied
 	}
-	_, _, err := bkScan(context.Background(), st, h)
+	_, err := bkScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want the store write failure", err)
 	}
@@ -748,7 +750,7 @@ func TestScanBackup_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 			handlers := bkHandlers(newBKCalls())
 			handlers[op] = failOnCall(2, bkBadInput, handlers[op])
 
-			_, _, err := bkScan(context.Background(), st, handlers)
+			_, err := bkScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterValueException")
 			k := bkKindOf(t, op)
@@ -780,7 +782,7 @@ func TestScanBackup_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := bkScan(context.Background(), st, handlers)
+	total, err := bkScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -825,7 +827,7 @@ func TestScanBackup_ElementWithoutARNWarns(t *testing.T) {
 			handlers := bkHandlers(newBKCalls())
 			handlers[c.op] = func(any) (any, error) { return c.out, nil }
 
-			total, _, err := bkScan(context.Background(), st, handlers)
+			total, err := bkScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -866,7 +868,7 @@ func TestScanBackup_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := bkHandlers(newBKCalls())
 			delete(handlers, op)
 
-			total, _, err := bkScan(context.Background(), st, handlers)
+			total, err := bkScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -932,7 +934,7 @@ func TestScanBackup_PlanReadFailures(t *testing.T) {
 				return get(in)
 			}
 
-			total, _, err := bkScan(context.Background(), st, h)
+			total, err := bkScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -996,7 +998,7 @@ func TestScanBackup_SelectionsPerPlan(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := bkScan(context.Background(), st, h)
+			total, err := bkScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1027,7 +1029,7 @@ func TestScanBackup_ClosureFailureKeepsCounts(t *testing.T) {
 	st := newTestStore(t)
 	refuseClosureWrites(t, st)
 	calls := newBKCalls()
-	total, _, err := bkScan(context.Background(), st, bkHandlers(calls))
+	total, err := bkScan(context.Background(), st, bkHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want the closure's store write failure", err)
 	}
@@ -1053,13 +1055,13 @@ func TestScanBackup_PhaseErrorJoin(t *testing.T) {
 		return h
 	}
 	t.Run("lone transient", func(t *testing.T) {
-		_, _, err := bkScan(context.Background(), newTestStore(t), throttledVaults())
+		_, err := bkScan(context.Background(), newTestStore(t), throttledVaults())
 		assertGlueOutcome(t, err, outcomeTransient)
 	})
 	t.Run("two transients", func(t *testing.T) {
 		h := throttledVaults()
 		h["ListBackupAccessPoints"] = func(any) (any, error) { return nil, bkThrottle }
-		_, _, err := bkScan(context.Background(), newTestStore(t), h)
+		_, err := bkScan(context.Background(), newTestStore(t), h)
 		assertGlueOutcome(t, err, outcomeTransient)
 	})
 	t.Run("beside a hard error", func(t *testing.T) {
@@ -1067,7 +1069,7 @@ func TestScanBackup_PhaseErrorJoin(t *testing.T) {
 		warns := countOpWarnings(st, "backup:ListBackupVaults")
 		h := throttledVaults()
 		h["ListBackupAccessPoints"] = func(any) (any, error) { return nil, bkBadInput }
-		_, _, err := bkScan(context.Background(), st, h)
+		_, err := bkScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		assertAPICode(t, err, "InvalidParameterValueException")
 		if *warns != 1 {
@@ -1094,7 +1096,7 @@ func TestScanBackup_ContextEndStopsOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := bkScan(ctx, st, handlers)
+	_, err := bkScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1122,7 +1124,7 @@ func TestScanBackup_NXDOMAIN(t *testing.T) {
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		handlers := bkHandlers(newBKCalls())
 		handlers["ListTieringConfigurations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := bkScan(context.Background(), newTestStore(t), handlers)
+		total, err := bkScan(context.Background(), newTestStore(t), handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != bkTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, bkTotal-2)
@@ -1131,7 +1133,7 @@ func TestScanBackup_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		calls := newBKCalls()
 		calls.errs[bkVaultARN("vault-bare")] = nx
-		_, _, err := bkScan(context.Background(), newTestStore(t), bkHandlers(calls))
+		_, err := bkScan(context.Background(), newTestStore(t), bkHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1139,7 +1141,7 @@ func TestScanBackup_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanBackup(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanBackup(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -1157,7 +1159,7 @@ func TestScanBackup_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanBackup(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanBackup(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanBackup: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {

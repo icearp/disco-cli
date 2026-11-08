@@ -100,7 +100,7 @@ func TestScanAppRunnerCustomDomains_PagesAndFields(t *testing.T) {
 		}, nil),
 	})
 
-	total, _, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1", "svc2", "svc3"))
+	total, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1", "svc2", "svc3"))
 	if err != nil {
 		t.Fatalf("scanAppRunnerCustomDomains: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestScanAppRunnerCustomDomains_Empty(t *testing.T) {
 	client := newAppRunnerTestClient(map[string]func(any) (any, error){
 		"DescribeCustomDomains": appRunnerDomainsHandler(&calls, nil, nil),
 	})
-	total, _, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
+	total, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -186,7 +186,7 @@ func TestScanAppRunnerCustomDomains_PerServiceErrors(t *testing.T) {
 					svc3: {{appRunnerDomain("example.com")}},
 				}, map[string]error{svc1: tc.err, svc2: tc.err}),
 			})
-			total, _, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1", "svc2", "svc3"))
+			total, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1", "svc2", "svc3"))
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) || classifyServiceError(err) != outcomeError {
 					t.Errorf("err = %v; want a hard %s", err, tc.wantErr)
@@ -217,7 +217,7 @@ func TestScanAppRunnerCustomDomains_SkipKeepsEarlierPages(t *testing.T) {
 			svc1: {{appRunnerDomain("a.example.com")}, {appRunnerDomain("b.example.com")}},
 		}, map[string]error{svc1 + "/p2": apiErr("InvalidRequestException", "x")}),
 	})
-	total, _, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
+	total, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
 	if err != nil || total != 1 {
 		t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -240,7 +240,7 @@ func TestScanAppRunnerCustomDomains_RepeatedTokenStops(t *testing.T) {
 			return &apprunner.DescribeCustomDomainsOutput{NextToken: sdkaws.String("same")}, nil
 		},
 	})
-	_, _, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
+	_, err := scanAppRunnerCustomDomains(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, appRunnerServices(t, st, "svc1"))
 	if err != nil || n.Load() != 2 {
 		t.Errorf("err, calls = %v, %d; want nil, 2", err, n.Load())
 	}
@@ -469,7 +469,7 @@ func appRunnerHandlers(c *appRunnerCalls) map[string]func(in any) (any, error) {
 
 // appRunnerScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func appRunnerScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func appRunnerScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, appRunnerDenied)
 	return scanAppRunner(ctx, acct, testRegion, st, testScanID)
@@ -498,7 +498,9 @@ func TestScanAppRunner_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newAppRunnerCalls()
 
-	total, inserted, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := appRunnerScan(context.Background(), counted, appRunnerHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -574,7 +576,9 @@ func TestScanAppRunner_EmptyListings(t *testing.T) {
 	handlers["ListObservabilityConfigurations"] = func(any) (any, error) { return &apprunner.ListObservabilityConfigurationsOutput{}, nil }
 	handlers["ListVpcIngressConnections"] = func(any) (any, error) { return &apprunner.ListVpcIngressConnectionsOutput{}, nil }
 	handlers["ListConnections"] = func(any) (any, error) { return &apprunner.ListConnectionsOutput{}, nil }
-	total, inserted, err := appRunnerScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := appRunnerScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -586,16 +590,16 @@ func TestScanAppRunner_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAppRunner_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(newAppRunnerCalls())); err != nil {
+	if _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(newAppRunnerCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(newAppRunnerCalls()))
+	total, err := appRunnerScan(context.Background(), st, appRunnerHandlers(newAppRunnerCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -636,7 +640,7 @@ func TestScanAppRunner_TagReadFailures(t *testing.T) {
 			calls := newAppRunnerCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
+			total, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -677,7 +681,7 @@ func TestScanAppRunner_ServiceGoneAtTagReadHasNoDomainCall(t *testing.T) {
 	gone := appRunnerKindOf(t, "ListServices").arn("tagged")
 	calls.errs[gone] = apiErr("ResourceNotFoundException", "gone")
 
-	if _, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls)); err != nil {
+	if _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, in := range calls.inputs["DescribeCustomDomains"] {
@@ -704,7 +708,7 @@ func TestScanAppRunner_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = appRunnerDenied
 	}
 
-	total, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
+	total, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -735,7 +739,7 @@ func TestScanAppRunner_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[appRunnerKindOf(t, "ListServices").arn("tagged")] = appRunnerThrottle
 	calls.errs[appRunnerKindOf(t, "ListConnections").arn("bare")] = appRunnerInvalidState
 
-	_, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
+	_, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidStateException")
 	if *warns != 1 {
@@ -754,7 +758,7 @@ func TestScanAppRunner_FailedWriteStopsScan(t *testing.T) {
 	k := appRunnerKindOf(t, "ListAutoScalingConfigurations")
 	calls.errs[k.arn("tagged")] = appRunnerDenied
 
-	total, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
+	total, err := appRunnerScan(context.Background(), st, appRunnerHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -787,7 +791,7 @@ func TestScanAppRunner_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := appRunnerKindOf(t, op)
 			handlers[k.op] = failOnCall(2, appRunnerInvalidState, handlers[k.op])
 
-			total, _, err := appRunnerScan(context.Background(), st, handlers)
+			total, err := appRunnerScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidStateException")
 			if total != appRunnerTestTotal-1 {
@@ -820,7 +824,7 @@ func TestScanAppRunner_RepeatedTokenKeepsPages(t *testing.T) {
 		arn, name := k.arn(suffix), k.name(suffix)
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
-	total, _, err := appRunnerScan(context.Background(), st, handlers)
+	total, err := appRunnerScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -850,7 +854,7 @@ func TestScanAppRunner_ElementWithoutARNWarns(t *testing.T) {
 			k := appRunnerKindOf(t, c.op)
 			handlers[c.op] = func(any) (any, error) { return k.page(nil, sdkaws.String("nameless-arn"), nil), nil }
 
-			total, _, err := appRunnerScan(context.Background(), st, handlers)
+			total, err := appRunnerScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -891,7 +895,7 @@ func TestScanAppRunner_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, appRunnerDenied)
-			if _, _, err := scanAppRunner(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanAppRunner(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.tagARNs, arn) {
@@ -924,7 +928,7 @@ func TestScanAppRunner_DefaultConfigurations(t *testing.T) {
 	}
 	calls.tags[asc] = map[string]string{"owner": "ops"}
 
-	if _, _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
+	if _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	o, ok := rowsByNativeID(t, st, TypeAppRunnerObservabilityConfiguration)[obs]
@@ -972,7 +976,7 @@ func TestScanAppRunner_InactiveRevisionNotRead(t *testing.T) {
 			calls.errs[inactive] = apiErr("ResourceNotFoundException", "gone")
 			handlers[k.op] = func(any) (any, error) { return c.page(inactive, active), nil }
 
-			if _, _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
+			if _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			rows := rowsByNativeID(t, st, k.typ)
@@ -1027,7 +1031,7 @@ func TestScanAppRunner_ServiceSecretsRedacted(t *testing.T) {
 		return &apprunner.DescribeServiceOutput{Service: body}, nil
 	}
 
-	if _, _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
+	if _, err := appRunnerScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeAppRunnerService)
@@ -1070,7 +1074,7 @@ func TestScanAppRunner_NXDOMAIN(t *testing.T) {
 		calls := newAppRunnerCalls()
 		handlers := appRunnerHandlers(calls)
 		handlers["ListServices"] = func(any) (any, error) { return nil, nx }
-		total, _, err := appRunnerScan(context.Background(), st, handlers)
+		total, err := appRunnerScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -1086,7 +1090,7 @@ func TestScanAppRunner_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := appRunnerHandlers(newAppRunnerCalls())
 		handlers["ListConnections"] = func(any) (any, error) { return nil, nx }
-		total, _, err := appRunnerScan(context.Background(), st, handlers)
+		total, err := appRunnerScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != appRunnerTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, appRunnerTestTotal-2)
@@ -1129,7 +1133,7 @@ func TestScanAppRunner_DescribeServiceFailures(t *testing.T) {
 				return calls.describeService(in)
 			}
 
-			total, _, err := appRunnerScan(context.Background(), st, handlers)
+			total, err := appRunnerScan(context.Background(), st, handlers)
 			switch {
 			case c.outcome < 0:
 				if err != nil {
@@ -1206,7 +1210,7 @@ func TestScanAppRunner_OneDescribeFailureCancelsNoSibling(t *testing.T) {
 		return calls.describeService(in)
 	}
 
-	_, _, err := appRunnerScan(context.Background(), st, handlers)
+	_, err := appRunnerScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if errors.Is(err, context.Canceled) {
@@ -1234,7 +1238,7 @@ func TestScanAppRunner_TransientDoesNotMaskCustomDomainError(t *testing.T) {
 	handlers["ListVpcConnectors"] = func(any) (any, error) { return nil, appRunnerThrottle }
 	handlers["DescribeCustomDomains"] = func(any) (any, error) { return nil, apiErr("ConflictException", "bad") }
 
-	_, _, err := appRunnerScan(context.Background(), st, handlers)
+	_, err := appRunnerScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if *warns != 1 {
@@ -1261,7 +1265,7 @@ func TestScanAppRunner_CustomDomainsAfterEveryPhase(t *testing.T) {
 		return &apprunner.DescribeCustomDomainsOutput{CustomDomains: []apprunnertypes.CustomDomain{appRunnerDomain("example.com")}}, nil
 	}
 
-	total, _, err := appRunnerScan(context.Background(), st, handlers)
+	total, err := appRunnerScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

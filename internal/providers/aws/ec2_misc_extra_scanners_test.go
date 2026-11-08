@@ -31,7 +31,7 @@ type mexPhase struct {
 	page1, page2, empty  any
 	// request is the MaxResults and NextToken a call sent.
 	request func(in any) (int32, *string)
-	run     func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run     func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	rows    map[string]mexRow
 	// noKey is the key the warning about the element without its key names.
 	noKey string
@@ -138,7 +138,9 @@ func TestScanEC2RegionListings_StoresTaggedRows(t *testing.T) {
 			st := newTestStore(t)
 			warns := recordWarnings(st)
 			calls := 0
-			total, inserted, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: mexHandler(ph, &calls, nil)})
+			counted, upserts := countUpserts(st)
+			total, err := elxRun(ph.run, counted, map[string]func(any) (any, error){ph.sdkOp: mexHandler(ph, &calls, nil)})
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
@@ -231,7 +233,7 @@ func TestScanEC2RegionListings_Errors(t *testing.T) {
 				warnings := countOpWarnings(st, ph.op)
 				calls := 0
 				inner := mexHandler(ph, &calls, c.second)
-				_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(in any) (any, error) {
+				_, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(in any) (any, error) {
 					if c.first != nil {
 						return nil, c.first
 					}
@@ -265,7 +267,7 @@ func TestScanEC2RegionListings_EmptyAndRepeatedToken(t *testing.T) {
 	for _, ph := range mexPhases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }})
+			total, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }})
 			if err != nil || total != 0 {
 				t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -273,7 +275,7 @@ func TestScanEC2RegionListings_EmptyAndRepeatedToken(t *testing.T) {
 		t.Run(ph.name+"/repeated token", func(t *testing.T) {
 			st := newTestStore(t)
 			calls := 0
-			_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
+			_, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
 				calls++
 				if calls > 3 {
 					return nil, errElxTest

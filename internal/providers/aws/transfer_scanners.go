@@ -53,11 +53,11 @@ type transferAPI interface {
 // but access has its tags read per row: web apps with DescribeWebApp
 // (transferWebAppTags), the others with ListTagsForResource (transferTags),
 // whose denials are one warning for the whole scan.
-func scanTransfer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTransfer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := transfer.NewFromConfig(acct.cfg, func(o *transfer.Options) { o.Region = region })
 	tags := transferTags(client).sharingDenials()
 	var servers []transferServer
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "transfer", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "transfer", 0, []hostPhase{
 		{op: "transfer:ListServers", run: func(p *phaseTotals) (failed bool) {
 			servers, failed = scanTransferServers(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -86,12 +86,12 @@ func scanTransfer(ctx context.Context, acct *account, region string, st *store.S
 		{op: "transfer:ListWorkflows", run: func(p *phaseTotals) bool {
 			return scanTransferWorkflows(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, transferListAccessesOp, func() (int, int, error) {
+		countedPhase(0, transferListAccessesOp, func() (int, error) {
 			return scanTransferAccesses(ctx, client, acct, region, st, scanID, transferDirectoryServers(servers))
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 const (
@@ -428,11 +428,11 @@ func isTransferGone(err error) bool {
 // transferAccessSkipCodes code skips the server with one warning, and anything
 // else fails the phase. Rows a server stored before its error stay and are
 // counted.
-func scanTransferAccesses(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, int, error) {
+func scanTransferAccesses(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent) (int, error) {
 	describeErrs := &fanOutErrs{st: st, acct: acct, region: region, op: transferDescribeAccessOp, isSkip: isTransferGone}
 	return childFanOutStoredSkipCodes(ctx, st, acct, region, transferListAccessesOp, servers, isTransferGone, byParentID,
 		"Transfer Family server(s)", transferAccessSkipCodes,
-		func(ctx context.Context, srv childParent) (int, int, error) {
+		func(ctx context.Context, srv childParent) (int, error) {
 			return storeTransferAccesses(ctx, client, acct, region, st, scanID, srv, describeErrs)
 		})
 }
@@ -450,7 +450,7 @@ func scanTransferAccesses(ctx context.Context, client transferAPI, acct *account
 // transfer:DescribeAccess and the access key.
 func storeTransferAccesses(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string,
 	srv childParent, describeErrs *fanOutErrs,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	pager := transfer.NewListAccessesPaginator(client, &transfer.ListAccessesInput{ServerId: &srv.id},
 		func(o *transfer.ListAccessesPaginatorOptions) {
 			o.Limit = transferPageCap
@@ -459,22 +459,21 @@ func storeTransferAccesses(ctx context.Context, client transferAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		children, derr := describeTransferAccesses(ctx, client, acct, region, scanID, srv, out.Accesses, describeErrs)
-		t, i, uerr := upsertContained(st, transferListAccessesOp, children)
+		t, uerr := upsertContained(st, transferListAccessesOp, children)
 		total += t
-		inserted += i
 		// A failed write is returned alone: joined with a transient describe
 		// error, the fan-out would skip it as transient.
 		if uerr != nil {
-			return total, inserted, uerr
+			return total, uerr
 		}
 		if derr != nil {
-			return total, inserted, derr
+			return total, derr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // describeTransferAccesses describes the listed accesses of one server and

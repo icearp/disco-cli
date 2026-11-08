@@ -21,25 +21,25 @@ func init() {
 // tokens. Neither op has an SDK paginator — manual NextToken loops. It also
 // returns the stored policies whose allocation rules can still be read, for
 // the allocation-rule phase.
-func scanEC2IPAMExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, policies []childParent, err error) {
-	total, inserted, err = runScanners(
+func scanEC2IPAMExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, policies []childParent, err error) {
+	total, err = runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
-			t, n, p, err := scanIpamPolicies(ctx, client, acct, region, st, scanID)
+		func(ctx context.Context) (int, error) {
+			t, p, err := scanIpamPolicies(ctx, client, acct, region, st, scanID)
 			policies = p
-			return t, n, err
+			return t, err
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanIpamExternalResourceVerificationTokens(ctx, client, acct, region, st, scanID)
 		},
 	)
-	return total, inserted, policies, err
+	return total, policies, err
 }
 
 // scanIpamPolicies stores the IPAM policies and returns the stored policies
 // whose allocation rules can still be read. It drops delete-complete ones,
 // inferring (not observed) that a deleted policy has none.
-func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, policies []childParent, err error) {
+func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, policies []childParent, err error) {
 	var (
 		batch   []*store.Resource
 		token   *string
@@ -49,9 +49,9 @@ func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region 
 		out, perr := client.DescribeIpamPolicies(ctx, &ec2.DescribeIpamPoliciesInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, nil, skipIfAccessDenied(st, "ec2:DescribeIpamPolicies", acct.ID, region, perr)
+				return 0, nil, skipIfAccessDenied(st, "ec2:DescribeIpamPolicies", acct.ID, region, perr)
 			}
-			return 0, 0, nil, fmt.Errorf("ec2:DescribeIpamPolicies: %w", perr)
+			return 0, nil, fmt.Errorf("ec2:DescribeIpamPolicies: %w", perr)
 		}
 		for _, p := range out.IpamPolicies {
 			arn := sv(p.IpamPolicyArn)
@@ -81,14 +81,14 @@ func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region 
 		}
 		token = out.NextToken
 	}
-	total, inserted, err = upsertListed(st, batch, "ec2:DescribeIpamPolicies", pageErr)
+	total, err = upsertListed(st, batch, "ec2:DescribeIpamPolicies", pageErr)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, policies, err
+	return total, policies, err
 }
 
-func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var (
 		batch   []*store.Resource
 		token   *string
@@ -98,9 +98,9 @@ func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2A
 		out, perr := client.DescribeIpamExternalResourceVerificationTokens(ctx, &ec2.DescribeIpamExternalResourceVerificationTokensInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeIpamExternalResourceVerificationTokens", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "ec2:DescribeIpamExternalResourceVerificationTokens", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeIpamExternalResourceVerificationTokens: %w", perr)
+			return 0, fmt.Errorf("ec2:DescribeIpamExternalResourceVerificationTokens: %w", perr)
 		}
 		for _, vt := range out.IpamExternalResourceVerificationTokens {
 			arn := sv(vt.IpamExternalResourceVerificationTokenArn)

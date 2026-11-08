@@ -34,7 +34,9 @@ func TestScanComputeDisks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeDisks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeDisks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeDisks: %v", err)
 	}
@@ -63,7 +65,9 @@ func TestScanComputeDisks_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeDisks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeDisks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeDisks (denied): expected nil error, got %v", err)
 	}
@@ -80,7 +84,7 @@ func TestScanComputeDisks_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeDisks(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeDisks(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeDisks: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -97,7 +101,9 @@ func TestScanComputeImages_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeImages(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeImages(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeImages: %v", err)
 	}
@@ -126,7 +132,9 @@ func TestScanComputeMachineImages_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeMachineImages(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeMachineImages(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeMachineImages: %v", err)
 	}
@@ -146,7 +154,9 @@ func TestScanComputeSnapshots_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeSnapshots(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeSnapshots(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeSnapshots: %v", err)
 	}
@@ -172,7 +182,9 @@ func TestScanComputeInstantSnapshots_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeInstantSnapshots(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeInstantSnapshots(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeInstantSnapshots: %v", err)
 	}
@@ -207,7 +219,9 @@ func TestScanComputeStoragePools_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeStoragePools(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeStoragePools(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeStoragePools: %v", err)
 	}

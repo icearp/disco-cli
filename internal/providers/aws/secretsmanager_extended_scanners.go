@@ -15,16 +15,16 @@ import (
 // AWS::SecretsManager::SecretTargetAttachment is skip-logged — a
 // CloudFormation-only abstraction for linking secrets to RDS/etc, with no
 // distinct AWS API surface.
-func scanSecretsManagerExtended(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecretsManagerExtended(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := secretsmanager.NewListSecretsPaginator(client, &secretsmanager.ListSecretsInput{})
 	var policyBatch, rotBatch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "secretsmanager:ListSecrets(extended)", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "secretsmanager:ListSecrets(extended)", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("secretsmanager:ListSecrets(extended): %w", perr)
+			return 0, fmt.Errorf("secretsmanager:ListSecrets(extended): %w", perr)
 		}
 		for _, s := range out.SecretList {
 			arn := sv(s.ARN)
@@ -59,17 +59,15 @@ func scanSecretsManagerExtended(ctx context.Context, client secretsManagerAPI, a
 			}
 		}
 	}
-	t, i, err := upsertBatch(st, policyBatch, "secretsmanager resource-policies")
+	t, err := upsertBatch(st, policyBatch, "secretsmanager resource-policies")
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += t
-	inserted += i
-	t, i, err = upsertBatch(st, rotBatch, "secretsmanager rotation-schedules")
+	t, err = upsertBatch(st, rotBatch, "secretsmanager rotation-schedules")
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }

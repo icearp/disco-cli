@@ -174,7 +174,9 @@ func sapScan(ctx context.Context, st *store.Store, fail map[string]map[string]er
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, sapDenied)
-	run.total, run.inserted, run.err = scanSSMSAP(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	run.total, run.err = scanSSMSAP(ctx, acct, testRegion, counted, testScanID)
+	run.inserted = upserts()
 	return run
 }
 

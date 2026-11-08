@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanEMRServerless discovers EMR Serverless applications.
-func scanEMRServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEMRServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := emrserverless.NewFromConfig(acct.cfg, func(o *emrserverless.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanEMRServerless(ctx context.Context, acct *account, region string, st *st
 		out, err := client.ListApplications(ctx, &emrserverless.ListApplicationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "emr-serverless:ListApplications", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "emr-serverless:ListApplications", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("emr-serverless:ListApplications: %w", err)
+			return 0, fmt.Errorf("emr-serverless:ListApplications: %w", err)
 		}
 		for _, a := range out.Applications {
 			arn := sv(a.Arn)

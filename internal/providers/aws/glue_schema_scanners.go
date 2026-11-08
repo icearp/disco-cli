@@ -79,9 +79,9 @@ func scanGlueSchemas(ctx context.Context, client glueAPI, registries []childPare
 
 // scanGlueSchemaVersions enumerates versions per schema. Returns version
 // IDs for downstream metadata enumeration.
-func scanGlueSchemaVersions(ctx context.Context, client glueAPI, schemaArns []string, acct *account, region string, st *store.Store, scanID string) (versionIDs []string, total, inserted int, err error) {
+func scanGlueSchemaVersions(ctx context.Context, client glueAPI, schemaArns []string, acct *account, region string, st *store.Store, scanID string) (versionIDs []string, total int, err error) {
 	if len(schemaArns) == 0 {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
 	var batch []*store.Resource
 	for _, schARN := range schemaArns {
@@ -93,7 +93,7 @@ func scanGlueSchemaVersions(ctx context.Context, client glueAPI, schemaArns []st
 				if isAccessDenied(perr) {
 					break
 				}
-				return nil, 0, 0, fmt.Errorf("glue:ListSchemaVersions %s: %w", schARN, perr)
+				return nil, 0, fmt.Errorf("glue:ListSchemaVersions %s: %w", schARN, perr)
 			}
 			for _, v := range out.Schemas {
 				vid := sv(v.SchemaVersionId)
@@ -121,20 +121,20 @@ func scanGlueSchemaVersions(ctx context.Context, client glueAPI, schemaArns []st
 		}
 	}
 	if len(batch) == 0 {
-		return nil, 0, 0, nil
+		return nil, 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert glue schema versions: %w", uerr)
+		return nil, 0, fmt.Errorf("upsert glue schema versions: %w", uerr)
 	}
-	return versionIDs, len(batch), n, nil
+	return versionIDs, len(batch), nil
 }
 
 // scanGlueSchemaVersionMetadata queries metadata key-value pairs per
 // schema version. Each returned entry becomes a separate row.
-func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionIDs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionIDs []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	if len(versionIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var batch []*store.Resource
 	for _, vid := range versionIDs {
@@ -145,7 +145,7 @@ func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionI
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("glue:QuerySchemaVersionMetadata %s: %w", vid, perr)
+				return 0, fmt.Errorf("glue:QuerySchemaVersionMetadata %s: %w", vid, perr)
 			}
 			for key, info := range out.MetadataInfoMap {
 				k := key
@@ -169,11 +169,11 @@ func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionI
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue schema-version-metadata: %w", uerr)
+		return 0, fmt.Errorf("upsert glue schema-version-metadata: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

@@ -242,7 +242,7 @@ func gltHandlers(c *gltCalls) map[string]func(any) (any, error) {
 
 // gltScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func gltScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func gltScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, glDenied)
 	return scanGameLift(ctx, acct, testRegion, st, testScanID)
@@ -265,7 +265,9 @@ func TestScanGameLift_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newGLTCalls()
 
-	total, inserted, err := gltScan(context.Background(), st, gltHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := gltScan(context.Background(), counted, gltHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -386,7 +388,7 @@ func TestScanGameLift_TagReadFailures(t *testing.T) {
 					calls := newGLTCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := gltScan(context.Background(), st, gltHandlers(calls))
+					_, err := gltScan(context.Background(), st, gltHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -436,7 +438,7 @@ func TestScanGameLift_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[gltARN("alias", "t")] = glThrottled
 	calls.errs[gltARN("script", "b")] = gltBadInput
 
-	_, _, err := gltScan(context.Background(), st, gltHandlers(calls))
+	_, err := gltScan(context.Background(), st, gltHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -472,7 +474,7 @@ func gltDeniedListing(t *testing.T, op string, denial error) {
 	h := gltHandlers(newGLTCalls())
 	h[op] = func(any) (any, error) { return nil, denial }
 
-	total, _, err := gltScan(context.Background(), st, h)
+	total, err := gltScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -494,7 +496,7 @@ func TestScanGameLift_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newGLTCalls()
 	calls.errs[gltARN("fleet", "t")] = glDenied
 
-	_, _, err := gltScan(context.Background(), st, gltHandlers(calls))
+	_, err := gltScan(context.Background(), st, gltHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -522,7 +524,7 @@ func TestScanGameLift_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	h["ListScripts"] = func(any) (any, error) { return nil, gltBadInput }
 	h["ListFleets"] = failOnCall(2, apiErr("LimitExceededException", "page 2"), h["ListFleets"])
 
-	_, _, err := gltScan(context.Background(), st, h)
+	_, err := gltScan(context.Background(), st, h)
 	for _, code := range []string{"ConflictException", "InvalidRequestException", "LimitExceededException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -579,7 +581,7 @@ func TestScanGameLift_DescribesFleetsInBatches(t *testing.T) {
 				h["ListScripts"] = func(any) (any, error) { return nil, gltBadInput }
 			}
 
-			_, _, err := gltScan(context.Background(), st, h)
+			_, err := gltScan(context.Background(), st, h)
 			if c.failCall2 {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "InvalidRequestException")
@@ -616,7 +618,7 @@ func TestScanGameLift_RegionGap(t *testing.T) {
 			warns := countWarnings(st)
 			h := gltHandlers(newGLTCalls())
 			h[op] = func(any) (any, error) { return nil, unsupported }
-			total, _, err := gltScan(context.Background(), st, h)
+			total, err := gltScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -629,7 +631,7 @@ func TestScanGameLift_RegionGap(t *testing.T) {
 		st := newTestStore(t)
 		h := gltHandlers(newGLTCalls())
 		h["DescribeMatchmakingRuleSets"] = failOnCall(2, unsupported, h["DescribeMatchmakingRuleSets"])
-		_, _, err := gltScan(context.Background(), st, h)
+		_, err := gltScan(context.Background(), st, h)
 		assertAPICode(t, err, "UnsupportedRegionException")
 		if _, ok := gltRowOf(t, st, TypeGameLiftMatchmakingRuleSet, gltARN("matchmakingruleset", "t")); !ok {
 			t.Error("rule set from page 1 missing")
@@ -639,7 +641,7 @@ func TestScanGameLift_RegionGap(t *testing.T) {
 		st := newTestStore(t)
 		h := gltHandlers(newGLTCalls())
 		h["ListBuilds"] = func(any) (any, error) { return nil, unsupported }
-		_, _, err := gltScan(context.Background(), st, h)
+		_, err := gltScan(context.Background(), st, h)
 		assertAPICode(t, err, "UnsupportedRegionException")
 	})
 }
@@ -668,7 +670,7 @@ func TestScanGameLift_UnstorableItemsWarn(t *testing.T) {
 				}
 			}
 
-			if _, _, err := gltScan(context.Background(), st, h); err != nil {
+			if _, err := gltScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -687,7 +689,7 @@ func TestScanGameLift_RepeatedTokenKeepsPages(t *testing.T) {
 		return &gamelift.ListScriptsOutput{Scripts: []gltypes.Script{{ScriptArn: sdkaws.String(gltARN("script", "t"))}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := gltScan(context.Background(), st, h)
+	_, err := gltScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -715,7 +717,7 @@ func TestScanGameLift_ContextEndStopsOnce(t *testing.T) {
 		return builds(in)
 	}
 
-	_, _, err := gltScan(ctx, st, h)
+	_, err := gltScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -748,7 +750,7 @@ func TestScanGameLift_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newGLTCalls()
 		calls.errs[gltARN("alias", "t")] = refused
-		total, _, err := gltScan(context.Background(), st, gltHandlers(calls))
+		total, err := gltScan(context.Background(), st, gltHandlers(calls))
 		if err == nil {
 			t.Fatal("err = nil; want the refused tag read")
 		}
@@ -761,7 +763,7 @@ func TestScanGameLift_Unreachable(t *testing.T) {
 		calls := newGLTCalls()
 		h := gltHandlers(calls)
 		h["ListAliases"] = failOnCall(2, refused, h["ListAliases"])
-		total, _, err := gltScan(context.Background(), st, h)
+		total, err := gltScan(context.Background(), st, h)
 		if !errors.Is(err, refused) {
 			t.Errorf("err = %v; want the refused dial", err)
 		}
@@ -774,7 +776,7 @@ func TestScanGameLift_Unreachable(t *testing.T) {
 		calls := newGLTCalls()
 		h := gltHandlers(calls)
 		h["ListAliases"] = func(any) (any, error) { return nil, refused }
-		total, _, err := gltScan(context.Background(), st, h)
+		total, err := gltScan(context.Background(), st, h)
 		if !errors.Is(err, refused) {
 			t.Errorf("err = %v; want the refused dial", err)
 		}
@@ -788,7 +790,7 @@ func TestScanGameLift_Unreachable(t *testing.T) {
 			"ListAliases": func(any) (any, error) { return &gamelift.ListAliasesOutput{}, nil },
 			"ListBuilds":  func(any) (any, error) { return nil, nx },
 		}
-		total, _, err := gltScan(context.Background(), st, h)
+		total, err := gltScan(context.Background(), st, h)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
 		}

@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanFabric discovers fabric resources.
-func scanFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armfabric.NewCapacitiesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armfabric:NewCapacitiesClient: %w", err)
+		return 0, fmt.Errorf("armfabric:NewCapacitiesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armfabric:Capacities.ListBySubscription", TypeFabricCapacity, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

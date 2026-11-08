@@ -41,8 +41,8 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 	if len(instances) == 0 {
 		return false
 	}
-	t, i, err := scanSSOApplicationProviders(ctx, client, acct, region, st, scanID)
-	if p.addPhase(ssoListApplicationProvidersOp, t, i, err) {
+	t, err := scanSSOApplicationProviders(ctx, client, acct, region, st, scanID)
+	if p.addPhase(ssoListApplicationProvidersOp, t, err) {
 		return true
 	}
 
@@ -57,13 +57,13 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 		}
 		appParents = append(appParents, apps...)
 		for _, app := range apps {
-			t, i, err := scanSSOApplicationAssignments(ctx, client, acct, region, st, scanID, app.arn)
-			if p.addPhase(ssoListApplicationAssignmentsOp, t, i, err) {
+			t, err := scanSSOApplicationAssignments(ctx, client, acct, region, st, scanID, app.arn)
+			if p.addPhase(ssoListApplicationAssignmentsOp, t, err) {
 				return true
 			}
 		}
-		t, i, err := scanSSOInstanceAccessControlAttributeConfig(ctx, client, acct, region, st, scanID, instArn)
-		if p.addPhase(ssoDescribeAccessControlOp, t, i, err) {
+		t, err := scanSSOInstanceAccessControlAttributeConfig(ctx, client, acct, region, st, scanID, instArn)
+		if p.addPhase(ssoDescribeAccessControlOp, t, err) {
 			return true
 		}
 		if scanSSOTrustedTokenIssuers(ctx, client, acct, region, st, scanID, instArn, tags, p) {
@@ -73,21 +73,21 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 
 	for _, phase := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{ssoListRegionsOp, func() (int, int, error) { return scanSSORegions(ctx, client, acct, region, st, scanID, instParents) }},
-		{ssoListAccessScopesOp, func() (int, int, error) {
+		{ssoListRegionsOp, func() (int, error) { return scanSSORegions(ctx, client, acct, region, st, scanID, instParents) }},
+		{ssoListAccessScopesOp, func() (int, error) {
 			return scanSSOApplicationAccessScopes(ctx, client, acct, region, st, scanID, appParents)
 		}},
-		{ssoListAuthenticationMethodsOp, func() (int, int, error) {
+		{ssoListAuthenticationMethodsOp, func() (int, error) {
 			return scanSSOApplicationAuthenticationMethods(ctx, client, acct, region, st, scanID, appParents)
 		}},
-		{ssoListGrantsOp, func() (int, int, error) {
+		{ssoListGrantsOp, func() (int, error) {
 			return scanSSOApplicationGrants(ctx, client, acct, region, st, scanID, appParents)
 		}},
 	} {
-		t, i, err := phase.run()
-		if p.addPhase(phase.op, t, i, err) {
+		t, err := phase.run()
+		if p.addPhase(phase.op, t, err) {
 			return true
 		}
 	}
@@ -110,19 +110,19 @@ const (
 // one row instead of version-splitting the permission set. Both lists run; a
 // transient failure in one is demoted to a warning only beside a hard error in
 // the other, so it cannot hide that error.
-func scanSSOPermissionSetPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (int, int, error) {
+func scanSSOPermissionSetPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (int, error) {
 	parents := make([]childParent, 0, len(sets))
 	instanceOf := make(map[string]string, len(sets))
 	for _, ps := range sets {
 		parents = append(parents, childParent{id: ps.arn, arn: ps.arn})
 		instanceOf[ps.arn] = ps.instanceARN
 	}
-	mt, mi, merr := scanSSOManagedPolicies(ctx, client, acct, region, st, scanID, parents, instanceOf)
-	ct, ci, cerr := scanSSOCustomerManagedPolicyReferences(ctx, client, acct, region, st, scanID, parents, instanceOf)
+	mt, merr := scanSSOManagedPolicies(ctx, client, acct, region, st, scanID, parents, instanceOf)
+	ct, cerr := scanSSOCustomerManagedPolicyReferences(ctx, client, acct, region, st, scanID, parents, instanceOf)
 	var errs phaseErrs
 	errs.add(ssoListManagedPoliciesOp, merr)
 	errs.add(ssoListCustomerManagedPolicyRefOp, cerr)
-	return mt + ct, mi + ci, errs.join(st, acct, region)
+	return mt + ct, errs.join(st, acct, region)
 }
 
 // ssoPolicyPageSize is the documented MaxResults cap of both policy list ops.
@@ -131,7 +131,7 @@ const ssoPolicyPageSize = 100
 // scanSSOManagedPolicies lists each permission set's AWS managed policies. An
 // attachment has no ARN of its own; it is keyed
 // {permissionSetArn}/managed-policy/{policyArn}.
-func scanSSOManagedPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, int, error) {
+func scanSSOManagedPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, error) {
 	return childFanOut(ctx, st, acct, region, ssoListManagedPoliciesOp, sets, isSSOParentGone,
 		func(ctx context.Context, ps childParent) ([]*store.Resource, error) {
 			instanceARN := instanceOf[ps.id]
@@ -165,7 +165,7 @@ func scanSSOManagedPolicies(ctx context.Context, client ssoadminAPI, acct *accou
 // (the policy itself lives in each account the permission set is provisioned
 // to), so it is keyed {permissionSetArn}/customer-managed-policy{path}{name},
 // the path and name the policy's IAM ARN is built from.
-func scanSSOCustomerManagedPolicyReferences(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, int, error) {
+func scanSSOCustomerManagedPolicyReferences(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, sets []childParent, instanceOf map[string]string) (int, error) {
 	return childFanOut(ctx, st, acct, region, ssoListCustomerManagedPolicyRefOp, sets, isSSOParentGone,
 		func(ctx context.Context, ps childParent) ([]*store.Resource, error) {
 			instanceARN := instanceOf[ps.id]
@@ -208,7 +208,7 @@ func ssoPolicyPath(path *string) string {
 
 // scanSSOApplicationAccessScopes lists each application's access scopes. A
 // scope has no ARN; it is keyed {applicationArn}/access-scope/{scope}.
-func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, ssoListAccessScopesOp, apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -237,7 +237,7 @@ func scanSSOApplicationAccessScopes(ctx context.Context, client ssoadminAPI, acc
 // scanSSOApplicationAuthenticationMethods lists each application's
 // authentication methods, at most one per method type, so a method is keyed
 // {applicationArn}/authentication-method/{type}.
-func scanSSOApplicationAuthenticationMethods(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanSSOApplicationAuthenticationMethods(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, ssoListAuthenticationMethodsOp, apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -296,7 +296,7 @@ func ssoAuthenticationMethodAttrsJSON(m ssotypes.AuthenticationMethodItem) (stri
 // grant type, so a grant is keyed {applicationArn}/grant/{type}. No grant type
 // carries a credential: JWT bearer grants name trusted token issuer ARNs and
 // audiences, authorization-code grants redirect URIs.
-func scanSSOApplicationGrants(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanSSOApplicationGrants(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return childFanOut(ctx, st, acct, region, ssoListGrantsOp, apps, isSSOParentGone,
 		func(ctx context.Context, app childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
@@ -329,7 +329,7 @@ func scanSSOApplicationGrants(ctx context.Context, client ssoadminAPI, acct *acc
 // (modeled for ListRegions) skips that instance, as the org-only ABAC config
 // does in scanSSOInstanceAccessControlAttributeConfig. The live error shape
 // for an account instance is unverified.
-func scanSSORegions(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, int, error) {
+func scanSSORegions(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instances []childParent) (int, error) {
 	isNotOrgInstance := func(err error) bool { return isAPIErrorCode(err, "ValidationException") }
 	return childFanOut(ctx, st, acct, region, ssoListRegionsOp, instances, isNotOrgInstance,
 		func(ctx context.Context, inst childParent) ([]*store.Resource, error) {
@@ -365,16 +365,16 @@ func scanSSORegions(ctx context.Context, client ssoadminAPI, acct *account, regi
 // scanSSOApplicationProviders captures the AWS-managed catalog of application
 // (federation) providers. Flagged ManagedByProvider: AWS-owned catalog
 // entries, not user-created resources.
-func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := ssoadmin.NewListApplicationProvidersPaginator(client, &ssoadmin.ListApplicationProvidersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, ssoListApplicationProvidersOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, ssoListApplicationProvidersOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", ssoListApplicationProvidersOp, err)
+			return 0, fmt.Errorf("%s: %w", ssoListApplicationProvidersOp, err)
 		}
 		for _, p := range out.ApplicationProviders {
 			arn := sv(p.ApplicationProviderArn)
@@ -458,7 +458,7 @@ func scanSSOApplications(ctx context.Context, client ssoadminAPI, acct *account,
 }
 
 // scanSSOApplicationAssignments synthesizes ARN: {appArn}/assignment/{principalType}/{principalId}.
-func scanSSOApplicationAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, applicationARN string) (int, int, error) {
+func scanSSOApplicationAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, applicationARN string) (int, error) {
 	aa := applicationARN
 	var batch []*store.Resource
 	var nextToken *string
@@ -466,9 +466,9 @@ func scanSSOApplicationAssignments(ctx context.Context, client ssoadminAPI, acct
 		out, err := client.ListApplicationAssignments(ctx, &ssoadmin.ListApplicationAssignmentsInput{ApplicationArn: &aa, NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, ssoListApplicationAssignmentsOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, ssoListApplicationAssignmentsOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", ssoListApplicationAssignmentsOp, err)
+			return 0, fmt.Errorf("%s: %w", ssoListApplicationAssignmentsOp, err)
 		}
 		for _, a := range out.ApplicationAssignments {
 			pid := sv(a.PrincipalId)
@@ -495,17 +495,17 @@ func scanSSOApplicationAssignments(ctx context.Context, client ssoadminAPI, acct
 
 // scanSSOInstanceAccessControlAttributeConfig captures the per-instance
 // singleton attribute config. Synth ARN: {instanceArn}/access-control-attribute-configuration.
-func scanSSOInstanceAccessControlAttributeConfig(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instanceARN string) (int, int, error) {
+func scanSSOInstanceAccessControlAttributeConfig(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instanceARN string) (int, error) {
 	ia := instanceARN
 	out, err := client.DescribeInstanceAccessControlAttributeConfiguration(ctx, &ssoadmin.DescribeInstanceAccessControlAttributeConfigurationInput{InstanceArn: &ia})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("%s: %w", ssoDescribeAccessControlOp, err)
+		return 0, fmt.Errorf("%s: %w", ssoDescribeAccessControlOp, err)
 	}
 	if out.InstanceAccessControlAttributeConfiguration == nil && string(out.Status) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := ia + "/access-control-attribute-configuration"
 	label := "access-control-attributes"

@@ -53,7 +53,7 @@ func flattenOpenSearchDirectQueryDataSource(d opensearchtypes.DirectQueryDataSou
 // GetDirectQueryDataSource returns, so no per-item Get is made. A region whose
 // endpoint does not serve the op is skipped silently; rows listed before a
 // later failure are stored and counted.
-func scanOpenSearchDirectQueryDataSources(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchDirectQueryDataSources(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "opensearch:ListDirectQueryDataSources"
 	var batch []*store.Resource
 	in := &opensearch.ListDirectQueryDataSourcesInput{}
@@ -68,8 +68,8 @@ func scanOpenSearchDirectQueryDataSources(ctx context.Context, client opensearch
 			default:
 				err = fmt.Errorf("%s: %w", op, err)
 			}
-			total, inserted, uerr := upsertBatch(st, batch, op)
-			return total, inserted, errors.Join(err, uerr)
+			total, uerr := upsertBatch(st, batch, op)
+			return total, errors.Join(err, uerr)
 		}
 		for _, d := range out.DirectQueryDataSources {
 			arn := sv(d.DataSourceArn)
@@ -109,7 +109,7 @@ func openSearchTagsJSON(tags []opensearchtypes.Tag) *string {
 // list's page size because the model sets no limit on VpcEndpointIdList. An
 // endpoint has no ARN, so its NativeID is the synthetic
 // arn:{p}:es:{region}:{account}:vpc-endpoint/{VpcEndpointId}.
-func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const listOp = "opensearch:ListVpcEndpoints"
 	var (
 		pages   [][]string
@@ -120,9 +120,9 @@ func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct 
 		out, err := client.ListVpcEndpoints(ctx, in)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, listOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, listOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("%s: %w", listOp, err)
+			return 0, fmt.Errorf("%s: %w", listOp, err)
 		}
 		var ids []string
 		for _, e := range out.VpcEndpointSummaryList {
@@ -149,8 +149,8 @@ func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct 
 	if pageErr != nil {
 		pageErr = fmt.Errorf("%s: %w", listOp, pageErr)
 	}
-	total, inserted, uerr := upsertBatch(st, batch, "opensearch vpc-endpoints")
-	return total, inserted, errors.Join(pageErr, err, uerr)
+	total, uerr := upsertBatch(st, batch, "opensearch vpc-endpoints")
+	return total, errors.Join(pageErr, err, uerr)
 }
 
 const openSearchDescribeVpcEndpointsOp = "opensearch:DescribeVpcEndpoints"
@@ -202,7 +202,7 @@ const openSearchAWSPackageOwner = "AWS"
 // arn:{p}:es:{region}:{account}:package/{PackageID}. DELETED packages are
 // skipped. Domain associations are not fetched: ListDomainsForPackage is one
 // call per package.
-func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := opensearch.NewDescribePackagesPaginator(client, &opensearch.DescribePackagesInput{},
 		func(o *opensearch.DescribePackagesPaginatorOptions) { o.Limit = openSearchPageLimit })
 	return pageScan(ctx, "opensearch:DescribePackages", acct, region, st,
@@ -229,7 +229,7 @@ func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *acc
 // reservations, in every state, as the EC2/RDS/ElastiCache reservation
 // scanners do. A reservation has no ARN, so its NativeID is the synthetic
 // arn:{p}:es:{region}:{account}:reserved-instance/{ReservedInstanceId}.
-func scanOpenSearchReservedInstances(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchReservedInstances(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := opensearch.NewDescribeReservedInstancesPaginator(client, &opensearch.DescribeReservedInstancesInput{},
 		func(o *opensearch.DescribeReservedInstancesPaginatorOptions) { o.Limit = openSearchPageLimit })
 	return pageScan(ctx, "opensearch:DescribeReservedInstances", acct, region, st,
@@ -277,7 +277,7 @@ func openSearchConnectionDomainARN(partition string, c *opensearchtypes.DomainIn
 
 // scanOpenSearchOutboundConnections discovers this region's outbound
 // cross-cluster connections.
-func scanOpenSearchOutboundConnections(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchOutboundConnections(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := opensearch.NewDescribeOutboundConnectionsPaginator(client, &opensearch.DescribeOutboundConnectionsInput{},
 		func(o *opensearch.DescribeOutboundConnectionsPaginatorOptions) { o.Limit = openSearchPageLimit })
 	return pageScan(ctx, "opensearch:DescribeOutboundConnections", acct, region, st,
@@ -308,7 +308,7 @@ func scanOpenSearchOutboundConnections(ctx context.Context, client opensearchAPI
 
 // scanOpenSearchInboundConnections discovers the cross-cluster connections
 // other domains opened to this region's domains.
-func scanOpenSearchInboundConnections(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOpenSearchInboundConnections(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := opensearch.NewDescribeInboundConnectionsPaginator(client, &opensearch.DescribeInboundConnectionsInput{},
 		func(o *opensearch.DescribeInboundConnectionsPaginatorOptions) { o.Limit = openSearchPageLimit })
 	return pageScan(ctx, "opensearch:DescribeInboundConnections", acct, region, st,

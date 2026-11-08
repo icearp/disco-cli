@@ -30,25 +30,25 @@ func init() {
 // scanEC2NetworkExtra discovers VPC-networking children that the core
 // networking scanner does not list: security group rules, subnet CIDR
 // reservations, and VPC endpoint connections and associations.
-func scanEC2NetworkExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2NetworkExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSecurityGroupRules(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSubnetCidrReservations(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEndpointConnections(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanVPCEndpointAssociations(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanSecurityGroupRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityGroupRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeSecurityGroupRules", acct, region, st,
 		ec2.NewDescribeSecurityGroupRulesPaginator(client, &ec2.DescribeSecurityGroupRulesInput{}),
@@ -88,10 +88,10 @@ func scanSecurityGroupRules(ctx context.Context, client ec2API, acct *account, r
 // or, when it fails after its first page, kept partially read with one
 // warning for all such subnets. Any other error, and a repeated token, stops
 // the fan-out; the rows read before it are still stored.
-func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	subnetIDs, err := listSubnetIDs(ctx, client, acct)
 	if err != nil || len(subnetIDs) == 0 {
-		return 0, 0, err
+		return 0, err
 	}
 	var (
 		mu        sync.Mutex
@@ -160,8 +160,8 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 	case isEC2RegionFeatureGap(err):
 		err = nil
 	}
-	total, inserted, uerr := upsertBatch(st, batch, "ec2 subnet-cidr-reservations")
-	return total, inserted, errors.Join(err, uerr)
+	total, uerr := upsertBatch(st, batch, "ec2 subnet-cidr-reservations")
+	return total, errors.Join(err, uerr)
 }
 
 // getSubnetCidrReservations returns the IPv4 and IPv6 reservations of one
@@ -222,7 +222,7 @@ func listSubnetIDs(ctx context.Context, client ec2API, acct *account) ([]string,
 // another account; the connection itself is a resource of the service owner
 // (AWS documents its ARN as vpc-endpoint-connection/<VpcEndpointConnectionId>
 // under the owner's account).
-func scanVPCEndpointConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCEndpointConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVpcEndpointConnections", acct, region, st,
 		ec2.NewDescribeVpcEndpointConnectionsPaginator(client, &ec2.DescribeVpcEndpointConnectionsInput{}),
@@ -256,19 +256,19 @@ func scanVPCEndpointConnections(ctx context.Context, client ec2API, acct *accoun
 // scanVPCEndpointAssociations — DescribeVpcEndpointAssociations has no SDK
 // paginator. AWS documents no ARN for an association, so the NativeID is
 // synthesized in ec2ARNIn shape from its Id.
-func scanVPCEndpointAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPCEndpointAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		page, err := client.DescribeVpcEndpointAssociations(ctx, &ec2.DescribeVpcEndpointAssociationsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcEndpointAssociations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "ec2:DescribeVpcEndpointAssociations", acct.ID, region, err)
 			}
 			if isEC2RegionFeatureGap(err) {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeVpcEndpointAssociations: %w", err)
+			return 0, fmt.Errorf("ec2:DescribeVpcEndpointAssociations: %w", err)
 		}
 		for _, a := range page.VpcEndpointAssociations {
 			id := sv(a.Id)

@@ -57,7 +57,7 @@ type auditmanagerAPI interface {
 	ListTagsForResource(context.Context, *auditmanager.ListTagsForResourceInput, ...func(*auditmanager.Options)) (*auditmanager.ListTagsForResourceOutput, error)
 }
 
-func scanAuditManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAuditManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := auditmanager.NewFromConfig(acct.cfg, func(o *auditmanager.Options) { o.Region = region })
 	return scanAuditManagerEntities(ctx, client, acct, region, st, scanID)
 }
@@ -77,10 +77,10 @@ func scanAuditManager(ctx context.Context, acct *account, region string, st *sto
 // before any row was stored, no later listing runs and the scan is reported
 // disabled. Refused so after rows were stored, it is the denial it then
 // reads as.
-func scanAuditManagerEntities(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAuditManagerEntities(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := audmTags(client).sharingDenials()
 	var notEnabled error
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "auditmanager", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "auditmanager", 0, []hostPhase{
 		{op: audmListAssessmentsOp, run: func(p *phaseTotals) bool {
 			return scanAuditManagerAssessments(ctx, client, acct, region, st, scanID, &notEnabled, p)
 		}},
@@ -96,9 +96,9 @@ func scanAuditManagerEntities(ctx context.Context, client auditmanagerAPI, acct 
 	// after it; err is then an earlier listing's error or ctx's end, if
 	// anything, which is reported instead.
 	if notEnabled != nil && err == nil {
-		return 0, 0, markServiceDisabled(notEnabled)
+		return 0, markServiceDisabled(notEnabled)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // audmNotEnabledGap reports whether err, a listing's first-page error, says
@@ -222,7 +222,7 @@ func scanAuditManagerAssessments(ctx context.Context, client auditmanagerAPI, ac
 		transient = fmt.Errorf("%s: %d assessment(s) not read, so not stored, first %s: %w", audmGetAssessmentOp, t.count, t.first, t.err)
 	}
 	hard := errors.Join(errs...)
-	total, inserted, err := storeReadRows(st, acct, region, audmListAssessmentsOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, audmListAssessmentsOp, rows, listErr, func() {
 		listSkips.warn(st, audmListAssessmentsOp, acct, region)
 		getSkips.warn(st, audmGetAssessmentOp, acct, region)
 		if denied.count > 0 {
@@ -230,11 +230,11 @@ func scanAuditManagerAssessments(ctx context.Context, client auditmanagerAPI, ac
 		}
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return p.addPhase(audmListAssessmentsOp, total, inserted, errors.Join(err, hard, transient))
+		return p.addPhase(audmListAssessmentsOp, total, errors.Join(err, hard, transient))
 	}
 	p.errs.add(audmGetAssessmentOp, hard)
 	p.errs.add(audmGetAssessmentOp, transient)
-	return p.addPhase(audmListAssessmentsOp, total, inserted, err)
+	return p.addPhase(audmListAssessmentsOp, total, err)
 }
 
 // audmAssessmentRow is the row of assessment a GetAssessment returned; nil

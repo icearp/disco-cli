@@ -159,7 +159,7 @@ func sdkInt32(v int32) *int32 { return &v }
 func TestScanEC2FastSnapshotRestores_StoresEnabledPairsAcrossPages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2FastSnapshotRestores(context.Background(), lateClient(map[string]func(any) (any, error){
+	total, err := scanEC2FastSnapshotRestores(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeFastSnapshotRestores": lateFSRHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -187,7 +187,7 @@ func TestScanEC2FastSnapshotRestores_StoresEnabledPairsAcrossPages(t *testing.T)
 func TestScanEC2FastLaunchImages_StoresConfigsAcrossPages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2FastLaunchImages(context.Background(), lateClient(map[string]func(any) (any, error){
+	total, err := scanEC2FastLaunchImages(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeFastLaunchImages": lateFLHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -229,7 +229,7 @@ func TestScanEC2AllowedImagesSetting_StoresRowPerRegion(t *testing.T) {
 	st := newTestStore(t)
 	client := lateClient(map[string]func(any) (any, error){"GetAllowedImagesSettings": lateAllowedHandler})
 	for _, region := range []string{testRegion, lateOtherZone} {
-		total, _, err := scanEC2AllowedImagesSetting(context.Background(), client, newTestAccount(testAccountID), region, st, testScanID)
+		total, err := scanEC2AllowedImagesSetting(context.Background(), client, newTestAccount(testAccountID), region, st, testScanID)
 		if err != nil || total != 1 {
 			t.Fatalf("%s: total, err = %d, %v; want 1, nil", region, total, err)
 		}
@@ -255,7 +255,7 @@ func TestScanEC2AllowedImagesSetting_StoresRowPerRegion(t *testing.T) {
 func TestScanEC2ReservedInstancesListings_StoresOpenListings(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2ReservedInstancesListings(context.Background(), lateClient(map[string]func(any) (any, error){
+	total, err := scanEC2ReservedInstancesListings(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeReservedInstancesListings": lateListingsHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestScanEC2ReservedInstancesListings_StoresOpenListings(t *testing.T) {
 func TestScanEC2ServiceLinkVirtualInterfaces_StoresAcrossPages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
+	total, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeServiceLinkVirtualInterfaces": lateVifHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -317,7 +317,7 @@ func TestScanEC2ServiceLinkVirtualInterfaces_RepeatedTokenFails(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
-	_, _, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
+	_, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeServiceLinkVirtualInterfaces": func(any) (any, error) {
 			calls++
 			if calls > 3 {
@@ -354,7 +354,7 @@ func lateFirstPage(in any) bool {
 
 type latePhase struct {
 	name, op, sdkOp, typ string
-	run                  func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
+	run                  func(context.Context, ec2API, *account, string, *store.Store, string) (int, error)
 	empty                any
 	handler              func(any) (any, error)
 	// firstPageID is a row of the first page; "" for an op with one page.
@@ -394,13 +394,13 @@ var latePhases = []latePhase{
 func TestScanEC2LatePhases_Errors(t *testing.T) {
 	t.Parallel()
 	for _, ph := range latePhases {
-		run := func(c ec2API, st *store.Store) (int, int, error) {
+		run := func(c ec2API, st *store.Store) (int, error) {
 			return ph.run(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 		}
 		if ph.empty != nil {
 			t.Run(ph.name+"/empty", func(t *testing.T) {
 				st := newTestStore(t)
-				total, _, err := run(lateClient(map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }}), st)
+				total, err := run(lateClient(map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }}), st)
 				if err != nil || total != 0 {
 					t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 				}
@@ -412,7 +412,7 @@ func TestScanEC2LatePhases_Errors(t *testing.T) {
 		t.Run(ph.name+"/denied", func(t *testing.T) {
 			st := newTestStore(t)
 			warnings := countOpWarnings(st, ph.op)
-			if _, _, err := run(lateClient(nil), st); err != nil {
+			if _, err := run(lateClient(nil), st); err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
 			if *warnings != 1 {
@@ -423,7 +423,7 @@ func TestScanEC2LatePhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			var warned int
 			st.OnWarn = func(store.ScanWarning) { warned++ }
-			_, _, err := run(lateClient(map[string]func(any) (any, error){
+			_, err := run(lateClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) {
 					return nil, apiErr("InvalidAction", "The action is not valid for this web service.")
 				},
@@ -437,7 +437,7 @@ func TestScanEC2LatePhases_Errors(t *testing.T) {
 		})
 		t.Run(ph.name+"/other error", func(t *testing.T) {
 			st := newTestStore(t)
-			_, _, err := run(lateClient(map[string]func(any) (any, error){
+			_, err := run(lateClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) { return nil, apiErr("InvalidParameterValue", "bad") },
 			}), st)
 			if !isAPIErrorCode(err, "InvalidParameterValue") {
@@ -449,7 +449,7 @@ func TestScanEC2LatePhases_Errors(t *testing.T) {
 		}
 		t.Run(ph.name+"/error after a page", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := run(lateClient(map[string]func(any) (any, error){
+			total, err := run(lateClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(in any) (any, error) {
 					if !lateFirstPage(in) {
 						return nil, errLateTest
@@ -490,7 +490,7 @@ func lateTopLevelHandlers() map[string]func(in any) (any, error) {
 func lateScanEC2(st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lateDenied)
-	total, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -540,7 +540,7 @@ func TestScanEC2_LatePhasesAfterOlderCategories(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfigCtx(ctxHandlers, lateDenied)
-			_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, errLateTest) {
 				t.Fatalf("err = %v, want the %s error", err, failed.sdkOp)
 			}

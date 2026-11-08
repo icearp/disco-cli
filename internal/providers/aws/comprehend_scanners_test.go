@@ -263,7 +263,7 @@ func (f *comprehendFixture) handlers() map[string]func(in any) (any, error) {
 
 // comprehendScan runs the scan's real entry point against handlers in
 // region; every op they do not answer is denied.
-func comprehendScan(ctx context.Context, st *store.Store, region string, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func comprehendScan(ctx context.Context, st *store.Store, region string, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, comprehendTestDenied)
 	return scanComprehend(ctx, acct, region, st, testScanID)
@@ -291,7 +291,9 @@ func TestScanComprehend_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newComprehendFixture()
 
-	total, inserted, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := comprehendScan(context.Background(), counted, testRegion, f.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -415,7 +417,7 @@ func TestScanComprehend_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := comprehendScan(context.Background(), st, testRegion, handlers); err != nil {
+	if _, err := comprehendScan(context.Background(), st, testRegion, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range []string{"ListDocumentClassifiers", "ListEntityRecognizers", "ListEndpoints", "ListFlywheels"} {
@@ -433,7 +435,7 @@ func TestScanComprehend_EmptyStatus(t *testing.T) {
 	f := newComprehendFixture()
 	f.noStatus = true
 
-	if _, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers()); err != nil {
+	if _, err := comprehendScan(context.Background(), st, testRegion, f.handlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range comprehendKinds() {
@@ -452,16 +454,16 @@ func TestScanComprehend_EmptyStatus(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanComprehend_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers()); err != nil {
+	if _, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers())
+	total, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -485,7 +487,9 @@ func TestScanComprehend_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := comprehendScan(context.Background(), st, testRegion, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := comprehendScan(context.Background(), counted, testRegion, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -531,7 +535,7 @@ func TestScanComprehend_TagReadFailures(t *testing.T) {
 			arn := f.arn(k, "tagged")
 			f.errs[arn] = c.err
 
-			total, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+			total, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -579,7 +583,7 @@ func TestScanComprehend_FlywheelGoneListsNoDatasets(t *testing.T) {
 	f := newComprehendFixture()
 	f.errs[f.flywheelARN("tagged")] = comprehendTestGone
 
-	total, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	total, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -602,7 +606,7 @@ func TestScanComprehend_TagDenialsWarnOncePerScan(t *testing.T) {
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendFlywheel), "bare")] = comprehendTestDenied
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendDataset), "tagged")] = comprehendTestDenied
 
-	total, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	total, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -624,7 +628,7 @@ func TestScanComprehend_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendEntityRecognizer), "bare")] = comprehendTestThrottle
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendDataset), "tagged")] = comprehendTestBad
 
-	_, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	_, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -643,7 +647,7 @@ func TestScanComprehend_FailedWriteStopsScan(t *testing.T) {
 	f := newComprehendFixture()
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendDocumentClassifierEndpoint), "tagged")] = comprehendTestDenied
 
-	total, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	total, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -675,7 +679,7 @@ func TestScanComprehend_FailedDatasetWrite(t *testing.T) {
 	f := newComprehendFixture()
 	f.errs[f.arn(comprehendKindOf(t, TypeComprehendDataset), "tagged")] = comprehendTestDenied
 
-	_, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+	_, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -721,7 +725,7 @@ func TestScanComprehend_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+			total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 			var wantWarn []string
 			if isAccessDenied(c.err) {
 				if err != nil {
@@ -783,7 +787,7 @@ func TestScanComprehend_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+			total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -818,7 +822,7 @@ func TestScanComprehend_ElementWithoutARN(t *testing.T) {
 			f := newComprehendFixture()
 			f.noARN[k.typ] = true
 
-			total, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+			total, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -853,7 +857,7 @@ func TestScanComprehend_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(f.handlers(), comprehendTestDenied)
-			if _, _, err := scanComprehend(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanComprehend(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := f.sortedTagARNs(); !slices.Equal(got, f.allTagARNs()) {
@@ -885,7 +889,7 @@ func TestScanComprehend_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := comprehendScan(ctx, st, testRegion, handlers)
+	_, err := comprehendScan(ctx, st, testRegion, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -915,7 +919,7 @@ func TestScanComprehend_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newComprehendFixture().handlers()
 		handlers["ListFlywheels"] = func(any) (any, error) { return nil, nx }
-		total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+		total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := comprehendTestTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d rows before the flywheels counted", total, want)
@@ -925,7 +929,7 @@ func TestScanComprehend_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newComprehendFixture().handlers()
 		handlers["ListDatasets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+		total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := comprehendTestTotal - 2; total != want {
 			t.Errorf("total = %d; want %d", total, want)
@@ -935,7 +939,7 @@ func TestScanComprehend_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := newComprehendFixture()
 		f.errs[f.arn(comprehendKindOf(t, TypeComprehendDocumentClassifier), "tagged")] = nx
-		_, _, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
+		_, err := comprehendScan(context.Background(), st, testRegion, f.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -951,7 +955,7 @@ func TestScanComprehend_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanComprehend(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanComprehend(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -989,7 +993,7 @@ func TestScanComprehend_RegionGapIsSilent(t *testing.T) {
 					return nil, c.err
 				}
 
-				total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+				total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -1052,7 +1056,7 @@ func TestScanComprehend_DatasetListingFailures(t *testing.T) {
 				return f.listDatasets(in)
 			}
 
-			total, _, err := comprehendScan(context.Background(), st, testRegion, handlers)
+			total, err := comprehendScan(context.Background(), st, testRegion, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)

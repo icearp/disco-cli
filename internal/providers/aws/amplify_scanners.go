@@ -69,7 +69,7 @@ const (
 	amplifyPageMax     = 50
 )
 
-func scanAmplify(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAmplify(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := amplify.NewFromConfig(acct.cfg, func(o *amplify.Options) { o.Region = region })
 	return scanAmplifyAll(ctx, client, acct, region, st, scanID)
 }
@@ -80,30 +80,30 @@ func scanAmplify(ctx context.Context, acct *account, region string, st *store.St
 // Phases run in order. A phase's error does not stop the later phases; only a
 // failed store write does, since every later write would fail too. A failed
 // app listing leaves the child phases the apps stored before it.
-func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var apps []childParent
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{amplifyAppsOp, func() (t, i int, err error) {
-			t, i, apps, err = scanAmplifyApps(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{amplifyAppsOp, func() (t int, err error) {
+			t, apps, err = scanAmplifyApps(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{amplifyBranchesOp, func() (int, int, error) {
+		{amplifyBranchesOp, func() (int, error) {
 			return scanAmplifyBranches(ctx, client, acct, region, st, scanID, apps)
 		}},
-		{amplifyDomainsOp, func() (int, int, error) {
+		{amplifyDomainsOp, func() (int, error) {
 			return scanAmplifyDomains(ctx, client, acct, region, st, scanID, apps)
 		}},
-		{amplifyWebhooksOp, func() (int, int, error) {
+		{amplifyWebhooksOp, func() (int, error) {
 			return scanAmplifyWebhooks(ctx, client, acct, region, st, scanID, apps)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -130,7 +130,7 @@ func amplifyRow(acct *account, region, scanID, rtype, nativeID, name string, att
 
 // scanAmplifyApps also returns the stored apps that carry an AppId, for the
 // child phases.
-func scanAmplifyApps(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanAmplifyApps(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentListDeniedBy(ctx, st, acct, region, amplifyAppsOp, "apps", "AppId", isAmplifyDenied,
 		func(ctx context.Context, token *string) ([]amplifytypes.App, *string, error) {
 			out, err := client.ListApps(ctx, &amplify.ListAppsInput{NextToken: token, MaxResults: amplifyAppsPageMax})
@@ -161,7 +161,7 @@ func storeAmplifyChildren[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, apps []childParent,
 	page func(ctx context.Context, appID string, token *string) ([]Item, *string, error),
 	row func(app childParent, it Item) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	byID := make(map[string]childParent, len(apps))
 	ids := make([]string, len(apps))
 	for i, a := range apps {
@@ -171,7 +171,7 @@ func storeAmplifyChildren[Item any](
 		pairs  [][2]string
 		denied skipTally
 	)
-	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, op, nil, ids, page,
+	total, err := storeTokenEachParentSkip(ctx, st, acct, region, op, nil, ids, page,
 		func(id string, it Item) (*store.Resource, string, string) {
 			app := byID[id]
 			r, why, key := row(app, it)
@@ -188,16 +188,16 @@ func storeAmplifyChildren[Item any](
 			return true
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return total, inserted, errors.Join(err, fmt.Errorf("closure %s: %w", op, herr))
+		return total, errors.Join(err, fmt.Errorf("closure %s: %w", op, herr))
 	}
 	denied.warnDeniedIn(st, op, acct, region, "app(s)")
-	return total, inserted, err
+	return total, err
 }
 
-func scanAmplifyBranches(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanAmplifyBranches(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return storeAmplifyChildren(ctx, st, acct, region, amplifyBranchesOp, apps,
 		func(ctx context.Context, appID string, token *string) ([]amplifytypes.Branch, *string, error) {
 			out, err := client.ListBranches(ctx, &amplify.ListBranchesInput{AppId: &appID, NextToken: token, MaxResults: amplifyPageMax})
@@ -217,7 +217,7 @@ func scanAmplifyBranches(ctx context.Context, client amplifyAPI, acct *account, 
 		})
 }
 
-func scanAmplifyDomains(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanAmplifyDomains(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return storeAmplifyChildren(ctx, st, acct, region, amplifyDomainsOp, apps,
 		func(ctx context.Context, appID string, token *string) ([]amplifytypes.DomainAssociation, *string, error) {
 			out, err := client.ListDomainAssociations(ctx, &amplify.ListDomainAssociationsInput{AppId: &appID, NextToken: token, MaxResults: amplifyPageMax})
@@ -236,7 +236,7 @@ func scanAmplifyDomains(ctx context.Context, client amplifyAPI, acct *account, r
 
 // scanAmplifyWebhooks pages ListWebhooks by hand: the SDK has no paginator
 // for it.
-func scanAmplifyWebhooks(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanAmplifyWebhooks(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	return storeAmplifyChildren(ctx, st, acct, region, amplifyWebhooksOp, apps,
 		func(ctx context.Context, appID string, token *string) ([]amplifytypes.Webhook, *string, error) {
 			out, err := client.ListWebhooks(ctx, &amplify.ListWebhooksInput{AppId: &appID, NextToken: token, MaxResults: amplifyPageMax})

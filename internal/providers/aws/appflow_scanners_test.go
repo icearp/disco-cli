@@ -81,7 +81,9 @@ func TestScanAppFlowConnectors(t *testing.T) {
 			{Connectors: []appflowtypes.ConnectorDetail{{ConnectorLabel: &label}}},
 		},
 	}
-	total, inserted, err := scanAppFlowConnectors(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanAppFlowConnectors(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanAppFlowConnectors: %v", err)
 	}
@@ -103,7 +105,9 @@ func TestScanAppFlowConnectorsEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubAppFlow{}
-	total, inserted, err := scanAppFlowConnectors(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanAppFlowConnectors(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanAppFlowConnectors: %v", err)
 	}
@@ -130,7 +134,9 @@ func TestScanAppFlowConnectorProfiles(t *testing.T) {
 			}}},
 		},
 	}
-	total, inserted, err := scanAppFlowConnectorProfiles(context.Background(), stub, acct, region, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanAppFlowConnectorProfiles(context.Background(), stub, acct, region, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanAppFlowConnectorProfiles: %v", err)
 	}

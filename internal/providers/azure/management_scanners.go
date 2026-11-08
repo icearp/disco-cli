@@ -38,9 +38,9 @@ func init() {
 // fall back. Unreachable under federation — tenantServiceRunnable refuses every
 // non-graphScoped tenant service when wifConfig.configured() — so it is the
 // standalone-CLI path that carries it.
-func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, _ wifConfig, st *store.Store, scanID string) (total int, err error) {
 	if len(subs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	accountID := subs[0].tenantID
 	if accountID == "" {
@@ -48,7 +48,7 @@ func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.
 	}
 	mgClient, err := armmanagementgroups.NewClient(cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmanagementgroups:NewClient: %w", err)
+		return 0, fmt.Errorf("armmanagementgroups:NewClient: %w", err)
 	}
 	return scanManagementInto(ctx, accountID, st, scanID, mgClient)
 }
@@ -57,7 +57,7 @@ func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.
 // group list from the supplied client and upserts each MG under accountID.
 // Split from scanManagementTenant so tests can drive it with a fake-transport
 // client.
-func scanManagementInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armmanagementgroups.Client) (total, inserted int, err error) {
+func scanManagementInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armmanagementgroups.Client) (total int, err error) {
 	// scopeRef satisfies azPageScan's *subscription parameter (used only for the
 	// AccessDenied scope label, never for the stored AccountID).
 	scopeRef := &subscription{ID: accountID, Name: "tenant"}
@@ -314,23 +314,23 @@ func storeNativeIDIndex(st *store.Store, rtype string) (map[string]string, error
 // Recording subscription-as-resource closes a gap for scope-attached
 // resolvers: policy assignments scoped to `/subscriptions/<id>` could not
 // previously FK to a stored resource; they now will.
-func scanSubscriptionResource(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubscriptionResource(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	subClient, err := armsubscription.NewSubscriptionsClient(cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)
+		return 0, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)
 	}
 	return scanSubscriptionResourceWithPager(ctx, sub, st, scanID, subClient.NewListPager(nil))
 }
 
 // scanSubscriptionResourceWithPager is the pager-consuming half, split out so
 // the miss case can be exercised without ARM. See the outer function.
-func scanSubscriptionResourceWithPager(ctx context.Context, sub *subscription, st *store.Store, scanID string, pager azPager[armsubscription.SubscriptionsClientListResponse]) (total, inserted int, err error) {
+func scanSubscriptionResourceWithPager(ctx context.Context, sub *subscription, st *store.Store, scanID string, pager azPager[armsubscription.SubscriptionsClientListResponse]) (total int, err error) {
 	// Track whether the pin appeared at all. Without this a subscription the
 	// credential cannot see — a revoked delegation, a mistyped GUID — filters
-	// to nothing on every page and azPageScan returns (0, 0, nil), which the
+	// to nothing on every page and azPageScan returns (0, nil), which the
 	// dispatcher reports as ServiceOK: indistinguishable from success.
 	seen := false
-	total, inserted, err = azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
+	total, err = azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
 		pager,
 		func(page armsubscription.SubscriptionsClientListResponse) ([]*store.Resource, [][2]string) {
 			batch := subscriptionResourceBatch(page.Value, sub, scanID)
@@ -350,7 +350,7 @@ func scanSubscriptionResourceWithPager(ctx context.Context, sub *subscription, s
 			Message: "subscription not present in the tenant subscription list: it may not exist, or its delegation to this identity may have been revoked",
 		})
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // subscriptionGUID is the entry's subscription GUID, falling back to the tail

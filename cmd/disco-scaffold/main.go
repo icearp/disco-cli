@@ -12,7 +12,7 @@
 //	go run ./cmd/disco-scaffold aws:qbusiness --write
 //
 // The SDK->store.Resource field mapping and the resolver edges stay human
-// judgment — the stub scanner returns (0,0,nil) with a TODO. Every candidate
+// judgment — the stub scanner returns (0, nil) with a TODO. Every candidate
 // already covered is logged, so the tool can never silently skip one.
 package main
 

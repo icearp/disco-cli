@@ -189,7 +189,7 @@ func scanLXLocales(t *testing.T, st *store.Store, bots []childParent, listFail, 
 		"ListBotLocales":    lxLocalesHandler(&calls, listFail),
 		"DescribeBotLocale": lxDescribeLocaleHandler(describeFail),
 	})
-	locales, total, _, err := scanLexBotLocales(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, bots)
+	locales, total, err := scanLexBotLocales(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, bots)
 	return locales, total, &calls, err
 }
 
@@ -234,7 +234,7 @@ func TestScanLexBotLocales_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := lxClient(map[string]func(any) (any, error){"ListBotLocales": func(any) (any, error) { return &lexmodelsv2.ListBotLocalesOutput{}, nil }})
-	locales, total, _, err := scanLexBotLocales(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxBots)
+	locales, total, err := scanLexBotLocales(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxBots)
 	if err != nil || total != 0 || len(locales) != 0 || len(rowsByNativeID(t, st, TypeLexBotLocale)) != 0 {
 		t.Errorf("total = %d, locales = %v, err = %v; want 0 rows, nil", total, locales, err)
 	}
@@ -339,7 +339,7 @@ func TestScanLex_DescribeLocaleDeniedKeepsChildren(t *testing.T) {
 	delete(handlers, "DescribeBotLocale")
 	acct.cfg = opStubConfig(handlers, lxDenied)
 
-	if _, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanLex: %v", err)
 	}
 	for typ, want := range map[string]int{TypeLexBotLocale: lxTopLocales, TypeLexSlotType: lxTopSlotTypes, TypeLexIntent: lxTopIntents, TypeLexSlot: lxTopSlots} {
@@ -381,7 +381,7 @@ var lxChildPhases = []lxChildPhase{
 		op: "ListIntents", typ: TypeLexIntent, parentTyp: TypeLexBotLocale,
 		parents: [2]string{lxLocB1En, lxLocB2En}, failKey: "B2/en_US", handler: lxIntentsHandler,
 		run: func(client lexAPI, st *store.Store) (int, error) {
-			_, total, _, err := scanLexIntents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxLocales)
+			_, total, err := scanLexIntents(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxLocales)
 			return total, err
 		},
 		wantKeys: []string{"B1/en_US", "B2/en_US"}, kind: "/intent/",
@@ -390,7 +390,7 @@ var lxChildPhases = []lxChildPhase{
 		op: "ListSlotTypes", typ: TypeLexSlotType, parentTyp: TypeLexBotLocale,
 		parents: [2]string{lxLocB1En, lxLocB2En}, failKey: "B2/en_US", handler: lxSlotTypesHandler,
 		run: func(client lexAPI, st *store.Store) (int, error) {
-			total, _, err := scanLexSlotTypes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxLocales)
+			total, err := scanLexSlotTypes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxLocales)
 			return total, err
 		},
 		wantKeys: []string{"B1/en_US", "B2/en_US"}, kind: "/slot-type/",
@@ -399,8 +399,7 @@ var lxChildPhases = []lxChildPhase{
 		op: "ListSlots", typ: TypeLexSlot, parentTyp: TypeLexIntent,
 		parents: [2]string{lxIntB1EnA, lxIntB2EnA}, failKey: "B2/en_US/A", handler: lxSlotsHandler,
 		run: func(client lexAPI, st *store.Store) (int, error) {
-			_, total, err := scanLexSlots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxIntents)
-			return total, err
+			return scanLexSlots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxIntents)
 		},
 		wantKeys: []string{"B1/en_US/A", "B2/en_US/A"}, kind: "/slot/",
 	},
@@ -536,7 +535,7 @@ func TestScanLex_StoresDraftModel(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(lxTopLevelHandlers(), lxDenied)
 
-	total, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanLex: %v", err)
 	}
@@ -593,7 +592,7 @@ func TestScanLex_DraftModelPhaseErrors(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, lxDenied)
 
-			total, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
 			if !failed.Load() {
 				t.Fatalf("%s never called", tc.op)
 			}
@@ -796,7 +795,7 @@ func (f *lxTagFixture) handlers() map[string]func(in any) (any, error) {
 
 // scan runs the scan's real entry point against f in f's partition and
 // region; every op f does not answer is denied.
-func (f *lxTagFixture) scan(ctx context.Context, st *store.Store) (int, int, error) {
+func (f *lxTagFixture) scan(ctx context.Context, st *store.Store) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(f.handlers(), lxDenied)
@@ -835,7 +834,9 @@ func TestScanLex_StoresTagsOfTaggedTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newLXTagFixture("aws", testRegion)
 
-	total, inserted, err := f.scan(context.Background(), st)
+	counted, upserts := countUpserts(st)
+	total, err := f.scan(context.Background(), counted)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -946,7 +947,7 @@ func TestScanLex_NoIDKeys(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, lxDenied)
 
-			if _, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := lxNoIDKeys(warns())[c.op]; got != c.want {
@@ -956,17 +957,17 @@ func TestScanLex_NoIDKeys(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanLex_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
-	if _, _, err := f.scan(context.Background(), st); err != nil {
+	if _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil || total != lxTagTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, lxTagTotal)
 	}
@@ -993,7 +994,7 @@ func TestScanLex_EmptyListings(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lxDenied)
 
-	total, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -1050,7 +1051,7 @@ func TestScanLex_TagReadFailures(t *testing.T) {
 			arn := f.arn(c.resource)
 			f.errs["ListTagsForResource/"+arn] = c.err
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1090,7 +1091,7 @@ func TestScanLex_BotGoneHasNoChildren(t *testing.T) {
 	f := newLXTagFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.arn("bot/B1")] = lxGone
 
-	if _, _, err := f.scan(context.Background(), st); err != nil {
+	if _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, op := range []string{"ListBotAliases", "ListBotVersions", "DescribeResourcePolicy"} {
@@ -1111,7 +1112,7 @@ func TestScanLex_TagDenialsWarnOncePerScan(t *testing.T) {
 		f.errs["ListTagsForResource/"+f.arn(r)] = lxDenied
 	}
 
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1130,7 +1131,7 @@ func TestScanLex_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs["ListTagsForResource/"+f.arn("bot-alias/B1/AL1")] = lxThrottle
 	f.errs["ListTagsForResource/"+f.arn("test-set/T1")] = lxBadInput
 
-	_, _, err := f.scan(context.Background(), st)
+	_, err := f.scan(context.Background(), st)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1163,7 +1164,7 @@ func TestScanLex_DescribeBotFailures(t *testing.T) {
 			f := newLXTagFixture("aws", testRegion)
 			f.errs["DescribeBot/B1"] = c.err
 
-			total, _, err := f.scan(context.Background(), st)
+			total, err := f.scan(context.Background(), st)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1227,7 +1228,7 @@ func TestScanLex_PerBotFailureKeepsSiblingsAndLaterPhases(t *testing.T) {
 			f := newLXTagFixture("aws", testRegion)
 			f.errs[c.op+"/"+c.key] = c.err
 
-			_, _, err := f.scan(context.Background(), st)
+			_, err := f.scan(context.Background(), st)
 			denied := c.err == lxDenied
 			if denied {
 				if err != nil {
@@ -1279,7 +1280,7 @@ func TestScanLex_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, lxDenied)
 
-			_, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
 			denied := c.err == lxDenied
 			if denied {
 				if err != nil {
@@ -1323,7 +1324,7 @@ func TestScanLex_NXDOMAIN(t *testing.T) {
 		f := newLXTagFixture("aws", testRegion)
 		f.errs["ListBots/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -1337,7 +1338,7 @@ func TestScanLex_NXDOMAIN(t *testing.T) {
 		f := newLXTagFixture("aws", testRegion)
 		f.errs["ListTestSets/"] = nx
 
-		total, _, err := f.scan(context.Background(), st)
+		total, err := f.scan(context.Background(), st)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := lxTagTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d rows stored before the test sets", total, want)
@@ -1367,7 +1368,7 @@ func TestScanLex_ContextEndReportedOnce(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lxDenied)
 
-	total, _, err := scanLex(ctx, acct, testRegion, st, testScanID)
+	total, err := scanLex(ctx, acct, testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1401,7 +1402,7 @@ func TestScanLex_RepeatedBotToken(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lxDenied)
 
-	_, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1420,7 +1421,7 @@ func TestScanLex_FailedWriteStopsScan(t *testing.T) {
 	f := newLXTagFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.arn("bot-alias/B2/TSTALIASID")] = lxDenied
 
-	total, _, err := f.scan(context.Background(), st)
+	total, err := f.scan(context.Background(), st)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1445,7 +1446,7 @@ func TestScanLex_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newLXTagFixture(c.partition, c.region)
-			if _, _, err := f.scan(context.Background(), st); err != nil {
+			if _, err := f.scan(context.Background(), st); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := f.sortedTagARNs(), f.taggedARNs(); !slices.Equal(got, want) {
@@ -1482,7 +1483,7 @@ func TestScanLex_EmptyPolicyHasNoRow(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, lxDenied)
 
-	if _, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeLexResourcePolicy))), []string{f.arn("bot/B1/policy")}; !slices.Equal(got, want) || *warns != 0 {

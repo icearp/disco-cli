@@ -97,7 +97,7 @@ func TestScanComputeOptimizerPreferences_StoresEveryPageAndType(t *testing.T) {
 		},
 	}
 
-	total, _, err := scanComputeOptimizerPreferences(context.Background(), coClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanComputeOptimizerPreferences(context.Background(), coClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -216,7 +216,7 @@ func TestScanComputeOptimizerPreferences_Errors(t *testing.T) {
 			}
 			handlers := map[string]func(any) (any, error){"GetRecommendationPreferences": coPrefsHandler(byType)}
 
-			total, _, err := scanComputeOptimizerPreferences(context.Background(), coClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanComputeOptimizerPreferences(context.Background(), coClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -258,7 +258,7 @@ func TestScanComputeOptimizer_TopLevelStoresPreferences(t *testing.T) {
 		}),
 	}, coDenied)
 
-	if _, _, err := scanComputeOptimizer(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanComputeOptimizer(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	id := "arn:aws:compute-optimizer:us-east-1:123456789012:recommendation-preferences/EbsVolume/AccountId/123456789012"

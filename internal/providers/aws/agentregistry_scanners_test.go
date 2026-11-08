@@ -121,7 +121,7 @@ func arRegistriesHandler(c *arCalls, ids ...string) func(any) (any, error) {
 
 // arScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func arScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func arScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, arDenied)
 	return scanAgentRegistry(ctx, acct, testRegion, st, testScanID)
@@ -139,7 +139,9 @@ func TestScanAgentRegistry_StoresTagsOfBothTypes(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newARCalls()
 
-	total, inserted, err := arScan(context.Background(), st, arHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := arScan(context.Background(), counted, arHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -238,7 +240,7 @@ func TestScanAgentRegistry_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, arDenied)
 
-	total, _, err := scanAgentRegistry(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanAgentRegistry(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -271,7 +273,7 @@ func TestScanAgentRegistry_EmptyListings(t *testing.T) {
 		calls := newARCalls()
 		h := arHandlers(calls)
 		h["ListRegistries"] = arRegistriesHandler(calls)
-		total, _, err := arScan(context.Background(), st, h)
+		total, err := arScan(context.Background(), st, h)
 		if err != nil || total != 0 || *warns != 0 {
 			t.Errorf("total, err, warnings = %d, %v, %d; want 0, nil, 0", total, err, *warns)
 		}
@@ -285,7 +287,7 @@ func TestScanAgentRegistry_EmptyListings(t *testing.T) {
 		h := arHandlers(calls)
 		h["ListRegistries"] = arRegistriesHandler(calls, "r1")
 		h["ListRegistryRecords"] = calls.answer("ListRegistryRecords", func(any) any { return &agentregistrycontrol.ListRegistryRecordsOutput{} })
-		total, _, err := arScan(context.Background(), st, h)
+		total, err := arScan(context.Background(), st, h)
 		if err != nil || total != 1 {
 			t.Errorf("total, err = %d, %v; want 1, nil", total, err)
 		}
@@ -295,16 +297,16 @@ func TestScanAgentRegistry_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAgentRegistry_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := arScan(context.Background(), st, arHandlers(newARCalls())); err != nil {
+	if _, err := arScan(context.Background(), st, arHandlers(newARCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := arScan(context.Background(), st, arHandlers(newARCalls()))
+	total, err := arScan(context.Background(), st, arHandlers(newARCalls()))
 	if err != nil || total != 5 {
 		t.Errorf("rescan = %d, %v; want 5, nil", total, err)
 	}
@@ -338,7 +340,7 @@ func TestScanAgentRegistry_UnstorableItemsWarn(t *testing.T) {
 				return &agentregistrycontrol.ListRegistryRecordsOutput{RegistryRecords: append([]artypes.RegistryRecordSummary{arRecord(arRegistryOf(in), "c1")}, c.records...)}
 			})
 
-			total, _, err := arScan(context.Background(), st, h)
+			total, err := arScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -385,7 +387,7 @@ func TestScanAgentRegistry_TagReadFailures(t *testing.T) {
 					calls := newARCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := arScan(context.Background(), st, arHandlers(calls))
+					total, err := arScan(context.Background(), st, arHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -433,7 +435,7 @@ func TestScanAgentRegistry_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[arRegistryARN("r2")] = arDenied
 	calls.errs[arRecordARN("r1", "c1")] = arDenied
 
-	if _, _, err := arScan(context.Background(), st, arHandlers(calls)); err != nil {
+	if _, err := arScan(context.Background(), st, arHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if *warns != 1 || *tagWarns != 1 {
@@ -458,7 +460,7 @@ func TestScanAgentRegistry_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[arRegistryARN("r1")] = arThrottled
 	calls.errs[arRecordARN("r2", "c3")] = arBadInput
 
-	total, _, err := arScan(context.Background(), st, arHandlers(calls))
+	total, err := arScan(context.Background(), st, arHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *tagWarns != 1 || total != 5 {
@@ -506,7 +508,7 @@ func TestScanAgentRegistry_RecordListingFailures(t *testing.T) {
 				return &agentregistrycontrol.ListRegistryRecordsOutput{RegistryRecords: []artypes.RegistryRecordSummary{arRecord(id, "c-"+id)}}, nil
 			}
 
-			total, _, err := arScan(context.Background(), st, h)
+			total, err := arScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -566,7 +568,7 @@ func TestScanAgentRegistry_LaterPageFailuresKeepPages(t *testing.T) {
 				return next(in)
 			}
 
-			total, _, err := arScan(context.Background(), st, h)
+			total, err := arScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -612,7 +614,7 @@ func TestScanAgentRegistry_RepeatedTokenKeepsPages(t *testing.T) {
 			h := arHandlers(calls)
 			h[c.op] = calls.answer(c.op, c.out)
 
-			_, _, err := arScan(context.Background(), st, h)
+			_, err := arScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -633,7 +635,7 @@ func TestScanAgentRegistry_FailedRegistryWriteStopsWithoutWarning(t *testing.T) 
 	calls := newARCalls()
 	calls.errs[arRegistryARN("r1")] = arDenied
 
-	_, _, err := arScan(context.Background(), st, arHandlers(calls))
+	_, err := arScan(context.Background(), st, arHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -660,7 +662,7 @@ func TestScanAgentRegistry_FailedRecordWriteSendsNoWarning(t *testing.T) {
 		return records(in)
 	}
 
-	_, _, err := arScan(context.Background(), st, h)
+	_, err := arScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -680,7 +682,7 @@ func TestScanAgentRegistry_LaterRecordWriteFailureKeepsEdges(t *testing.T) {
 		t.Fatalf("create trigger: %v", err)
 	}
 
-	_, _, err := arScan(context.Background(), st, arHandlers(newARCalls()))
+	_, err := arScan(context.Background(), st, arHandlers(newARCalls()))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -704,7 +706,7 @@ func TestScanAgentRegistry_FailedClosureWriteSendsNoWarning(t *testing.T) {
 		return records(in)
 	}
 
-	_, _, err := arScan(context.Background(), st, h)
+	_, err := arScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -738,7 +740,7 @@ func TestScanAgentRegistry_RegistriesFirstPageFails(t *testing.T) {
 			h := arHandlers(calls)
 			h["ListRegistries"] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := arScan(context.Background(), st, h)
+			total, err := arScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -779,7 +781,7 @@ func TestScanAgentRegistry_TransientDoesNotMaskHardError(t *testing.T) {
 	}
 	h["ListRegistryRecords"] = func(any) (any, error) { return nil, arHardErr }
 
-	total, _, err := arScan(context.Background(), st, h)
+	total, err := arScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	if !errors.Is(err, arHardErr) {
 		t.Errorf("err = %v, want the ListRegistryRecords error", err)
@@ -802,7 +804,7 @@ func TestScanAgentRegistry_Unreachable(t *testing.T) {
 		calls := newARCalls()
 		h := arHandlers(calls)
 		h["ListRegistries"] = func(any) (any, error) { return nil, nx }
-		total, _, err := arScan(context.Background(), st, h)
+		total, err := arScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || *warns != 0 || calls.count("ListRegistryRecords") != 0 {
 			t.Errorf("total, warnings, ListRegistryRecords calls = %d, %d, %d; want 0, 0, 0", total, *warns, calls.count("ListRegistryRecords"))
@@ -812,7 +814,7 @@ func TestScanAgentRegistry_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		h := arHandlers(newARCalls())
 		h["ListRegistryRecords"] = func(any) (any, error) { return nil, nx }
-		total, _, err := arScan(context.Background(), st, h)
+		total, err := arScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 2 {
 			t.Errorf("total = %d; want 2 (the registries)", total)
@@ -838,7 +840,7 @@ func TestScanAgentRegistry_ContextEndStopsOnce(t *testing.T) {
 		return registries(in)
 	}
 
-	_, _, err := arScan(ctx, st, h)
+	_, err := arScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}

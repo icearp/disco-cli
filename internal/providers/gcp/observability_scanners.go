@@ -62,70 +62,62 @@ const maxConcurrentLoggingFanout = 10
 //     location", so there is no other location to fan out across.
 //  6. SavedQueries — wildcard `locations/-` (SDK doc confirms wildcard
 //     support).
-func scanLogging(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogging(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := logging.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("logging client: %w", err)
+		return 0, fmt.Errorf("logging client: %w", err)
 	}
 
-	t, n, err := scanLoggingSinks(ctx, svc, p, st, scanID)
+	t, err := scanLoggingSinks(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	bucketIDs, t, n, err := scanLoggingBuckets(ctx, svc, p, st, scanID)
+	bucketIDs, t, err := scanLoggingBuckets(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanLoggingBucketLinks(ctx, svc, p, bucketIDs, st, scanID)
+	t, err = scanLoggingBucketLinks(ctx, svc, p, bucketIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanLoggingBucketViews(ctx, svc, p, bucketIDs, st, scanID)
+	t, err = scanLoggingBucketViews(ctx, svc, p, bucketIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanLoggingExclusions(ctx, svc, p, st, scanID)
+	t, err = scanLoggingExclusions(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanLoggingMetrics(ctx, svc, p, st, scanID)
+	t, err = scanLoggingMetrics(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanLoggingLogScopes(ctx, svc, p, st, scanID)
+	t, err = scanLoggingLogScopes(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanLoggingSavedQueries(ctx, svc, p, st, scanID)
+	t, err = scanLoggingSavedQueries(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanLoggingSinks discovers Cloud Logging sinks.
-func scanLoggingSinks(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingSinks(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "logging:sinks.list",
 		svc.Projects.Sinks.List(parent),
-		func(page *logging.ListSinksResponse) (int, int, error) {
+		func(page *logging.ListSinksResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Sinks))
 			for _, s := range page.Sinks {
 				name := s.Name
@@ -151,11 +143,11 @@ func scanLoggingSinks(ctx context.Context, svc *logging.Service, p *project, st 
 // scanLoggingBuckets discovers log buckets across every location via the
 // wildcard parent. Returns bucket NativeIDs for phase 3's per-bucket
 // Link/View fan-out.
-func scanLoggingBuckets(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (bucketIDs []string, total, inserted int, err error) {
+func scanLoggingBuckets(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (bucketIDs []string, total int, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	total, inserted, err = runPaginated(ctx, st, p, "logging:buckets.list",
+	total, err = runPaginated(ctx, st, p, "logging:buckets.list",
 		svc.Projects.Locations.Buckets.List(parent),
-		func(page *logging.ListBucketsResponse) (int, int, error) {
+		func(page *logging.ListBucketsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Buckets))
 			for _, b := range page.Buckets {
 				if b == nil || b.Name == "" {
@@ -177,12 +169,12 @@ func scanLoggingBuckets(ctx context.Context, svc *logging.Service, p *project, s
 			}
 			return upsertWithProjClosure(p, st, batch)
 		})
-	return bucketIDs, total, inserted, err
+	return bucketIDs, total, err
 }
 
 // scanLoggingBucketLinks fans out Links.List per already-scanned bucket
 // (no wildcard parent support — requires an explicit bucket resource name).
-func scanLoggingBucketLinks(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingBucketLinks(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentLoggingFanout, bucketIDs, func(gctx context.Context, bucketName string) error {
 		bucketResID := store.ResourceID("gcp", p.ID, bucketName)
@@ -215,19 +207,18 @@ func scanLoggingBucketLinks(ctx context.Context, svc *logging.Service, p *projec
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, bucketResID)
+		t, uerr := upsertWithParent(st, batch, bucketResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanLoggingBucketViews fans out Views.List per already-scanned bucket
 // (same shape as Links — no wildcard parent support).
-func scanLoggingBucketViews(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingBucketViews(ctx context.Context, svc *logging.Service, p *project, bucketIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentLoggingFanout, bucketIDs, func(gctx context.Context, bucketName string) error {
 		bucketResID := store.ResourceID("gcp", p.ID, bucketName)
@@ -260,22 +251,21 @@ func scanLoggingBucketViews(ctx context.Context, svc *logging.Service, p *projec
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, bucketResID)
+		t, uerr := upsertWithParent(st, batch, bucketResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanLoggingExclusions discovers project-level log exclusion filters.
-func scanLoggingExclusions(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingExclusions(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "logging:exclusions.list",
 		svc.Projects.Exclusions.List(parent),
-		func(page *logging.ListExclusionsResponse) (int, int, error) {
+		func(page *logging.ListExclusionsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Exclusions))
 			for _, e := range page.Exclusions {
 				if e == nil || e.Name == "" {
@@ -300,11 +290,11 @@ func scanLoggingExclusions(ctx context.Context, svc *logging.Service, p *project
 }
 
 // scanLoggingMetrics discovers user-defined logs-based metrics.
-func scanLoggingMetrics(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingMetrics(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "logging:metrics.list",
 		svc.Projects.Metrics.List(parent),
-		func(page *logging.ListLogMetricsResponse) (int, int, error) {
+		func(page *logging.ListLogMetricsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Metrics))
 			for _, m := range page.Metrics {
 				if m == nil || m.Name == "" {
@@ -337,11 +327,11 @@ func scanLoggingMetrics(ctx context.Context, svc *logging.Service, p *project, s
 // scanLoggingLogScopes discovers log scopes. Log scopes exist only in the
 // global location (LogScope.Name SDK doc), so the parent is the literal
 // `locations/global` — no wildcard, no per-location fan-out needed.
-func scanLoggingLogScopes(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingLogScopes(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/global", p.ID)
 	return runPaginated(ctx, st, p, "logging:logScopes.list",
 		svc.Projects.Locations.LogScopes.List(parent),
-		func(page *logging.ListLogScopesResponse) (int, int, error) {
+		func(page *logging.ListLogScopesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.LogScopes))
 			for _, l := range page.LogScopes {
 				if l == nil || l.Name == "" {
@@ -366,11 +356,11 @@ func scanLoggingLogScopes(ctx context.Context, svc *logging.Service, p *project,
 
 // scanLoggingSavedQueries discovers saved log queries across every location
 // via the wildcard parent.
-func scanLoggingSavedQueries(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingSavedQueries(ctx context.Context, svc *logging.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
 	return runPaginated(ctx, st, p, "logging:savedQueries.list",
 		svc.Projects.Locations.SavedQueries.List(parent),
-		func(page *logging.ListSavedQueriesResponse) (int, int, error) {
+		func(page *logging.ListSavedQueriesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.SavedQueries))
 			for _, q := range page.SavedQueries {
 				if q == nil || q.Name == "" {
@@ -406,76 +396,68 @@ const maxConcurrentMonitoringFanout = 10
 // All flat/project-parented except SLOs (fan out per already-scanned
 // Service) and Group Members (fanned out per Group but embedded, not
 // upserted as an independent type — see scanMonitoringGroups).
-func scanMonitoring(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoring(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := monitoring.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("monitoring client: %w", err)
+		return 0, fmt.Errorf("monitoring client: %w", err)
 	}
 	dashSvc, err := monitoringv1.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("monitoring/v1 client: %w", err)
+		return 0, fmt.Errorf("monitoring/v1 client: %w", err)
 	}
 
-	t, n, err := scanMonitoringAlertPolicies(ctx, svc, p, st, scanID)
+	t, err := scanMonitoringAlertPolicies(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanMonitoringDashboards(ctx, dashSvc, p, st, scanID)
+	t, err = scanMonitoringDashboards(ctx, dashSvc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanMonitoringGroups(ctx, svc, p, st, scanID)
+	t, err = scanMonitoringGroups(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanMonitoringNotificationChannels(ctx, svc, p, st, scanID)
+	t, err = scanMonitoringNotificationChannels(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	serviceIDs, t, n, err := scanMonitoringServices(ctx, svc, p, st, scanID)
+	serviceIDs, t, err := scanMonitoringServices(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanMonitoringSLOs(ctx, svc, p, serviceIDs, st, scanID)
+	t, err = scanMonitoringSLOs(ctx, svc, p, serviceIDs, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
-	t, n, err = scanMonitoringSnoozes(ctx, svc, p, st, scanID)
+	t, err = scanMonitoringSnoozes(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, n, err = scanMonitoringUptimeCheckConfigs(ctx, svc, p, st, scanID)
+	t, err = scanMonitoringUptimeCheckConfigs(ctx, svc, p, st, scanID)
 	total += t
-	inserted += n
-	return total, inserted, err
+	return total, err
 }
 
 // scanMonitoringAlertPolicies discovers Cloud Monitoring alert policies.
 // Notification channels (alert.notificationChannels[]) aren't scanned yet —
 // would need a sibling Channels.List call; deferred to an alert-policy →
 // channel resolver follow-up.
-func scanMonitoringAlertPolicies(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringAlertPolicies(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "monitoring:alertPolicies.list",
 		svc.Projects.AlertPolicies.List(parent),
-		func(page *monitoring.ListAlertPoliciesResponse) (int, int, error) {
+		func(page *monitoring.ListAlertPoliciesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.AlertPolicies))
 			for _, a := range page.AlertPolicies {
 				name := a.DisplayName
@@ -497,11 +479,11 @@ func scanMonitoringAlertPolicies(ctx context.Context, svc *monitoring.Service, p
 // scanMonitoringDashboards discovers custom dashboards (monitoring/v1 —
 // dashboards live on a separate API version from every other monitoring
 // type).
-func scanMonitoringDashboards(ctx context.Context, svc *monitoringv1.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringDashboards(ctx context.Context, svc *monitoringv1.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "monitoring:dashboards.list",
 		svc.Projects.Dashboards.List(parent),
-		func(page *monitoringv1.ListDashboardsResponse) (int, int, error) {
+		func(page *monitoringv1.ListDashboardsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Dashboards))
 			for _, d := range page.Dashboards {
 				if d == nil || d.Name == "" {
@@ -531,7 +513,7 @@ func scanMonitoringDashboards(ctx context.Context, svc *monitoringv1.Service, p 
 // under a "members" key in the owning Group's attributes, per the
 // embed-child-data convention (internal/providers/CLAUDE.md) rather than
 // promoted to their own type.
-func scanMonitoringGroups(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringGroups(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var groups []*monitoring.Group
 	listErr := svc.Projects.Groups.List(parent).Pages(ctx, func(page *monitoring.ListGroupsResponse) error {
@@ -540,12 +522,12 @@ func scanMonitoringGroups(ctx context.Context, svc *monitoring.Service, p *proje
 	})
 	if listErr != nil {
 		if isPermissionDenied(listErr) {
-			return 0, 0, skipIfDenied(st, "monitoring:groups.list", p.ID, listErr)
+			return 0, skipIfDenied(st, "monitoring:groups.list", p.ID, listErr)
 		}
-		return 0, 0, listErr
+		return 0, listErr
 	}
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	// Upsert each group as soon as its own Members fetch completes, rather
@@ -583,14 +565,13 @@ func scanMonitoringGroups(ctx context.Context, svc *monitoring.Service, p *proje
 		}}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithProjClosure(p, st, batch)
+		t, uerr := upsertWithProjClosure(p, st, batch)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // embedMembersJSON merges g's own JSON encoding with a top-level "members"
@@ -615,11 +596,11 @@ func embedMembersJSON(g *monitoring.Group, members []*monitoring.MonitoredResour
 // scanMonitoringNotificationChannels discovers notification channels.
 // Labels carry per-channel-type config (e.g. Slack webhook URL, PagerDuty
 // service key) — redacted, see gcp_redact.go.
-func scanMonitoringNotificationChannels(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringNotificationChannels(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "monitoring:notificationChannels.list",
 		svc.Projects.NotificationChannels.List(parent),
-		func(page *monitoring.ListNotificationChannelsResponse) (int, int, error) {
+		func(page *monitoring.ListNotificationChannelsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.NotificationChannels))
 			for _, c := range page.NotificationChannels {
 				if c == nil || c.Name == "" {
@@ -644,11 +625,11 @@ func scanMonitoringNotificationChannels(ctx context.Context, svc *monitoring.Ser
 // scanMonitoringServices discovers Cloud Monitoring Services (the SLO
 // grouping concept, unrelated to Cloud Run/GKE services). Returns Service
 // NativeIDs for phase's per-Service SLO fan-out.
-func scanMonitoringServices(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (serviceIDs []string, total, inserted int, err error) {
+func scanMonitoringServices(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (serviceIDs []string, total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	total, inserted, err = runPaginated(ctx, st, p, "monitoring:services.list",
+	total, err = runPaginated(ctx, st, p, "monitoring:services.list",
 		svc.Services.List(parent),
-		func(page *monitoring.ListServicesResponse) (int, int, error) {
+		func(page *monitoring.ListServicesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Services))
 			for _, s := range page.Services {
 				if s == nil || s.Name == "" {
@@ -669,13 +650,13 @@ func scanMonitoringServices(ctx context.Context, svc *monitoring.Service, p *pro
 			}
 			return upsertWithProjClosure(p, st, batch)
 		})
-	return serviceIDs, total, inserted, err
+	return serviceIDs, total, err
 }
 
 // scanMonitoringSLOs fans out ServiceLevelObjectives.List per already-
 // scanned Service (no wildcard parent support — requires an explicit
 // `services/{service}`).
-func scanMonitoringSLOs(ctx context.Context, svc *monitoring.Service, p *project, serviceIDs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringSLOs(ctx context.Context, svc *monitoring.Service, p *project, serviceIDs []string, st *store.Store, scanID string) (total int, err error) {
 	var mu sync.Mutex
 	if err := forEachItem(ctx, maxConcurrentMonitoringFanout, serviceIDs, func(gctx context.Context, serviceName string) error {
 		serviceResID := store.ResourceID("gcp", p.ID, serviceName)
@@ -707,22 +688,21 @@ func scanMonitoringSLOs(ctx context.Context, svc *monitoring.Service, p *project
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		t, n, uerr := upsertWithParent(st, batch, serviceResID)
+		t, uerr := upsertWithParent(st, batch, serviceResID)
 		total += t
-		inserted += n
 		return uerr
 	}); err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanMonitoringSnoozes discovers Snoozes (temporary alert-policy silences).
-func scanMonitoringSnoozes(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringSnoozes(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "monitoring:snoozes.list",
 		svc.Projects.Snoozes.List(parent),
-		func(page *monitoring.ListSnoozesResponse) (int, int, error) {
+		func(page *monitoring.ListSnoozesResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Snoozes))
 			for _, sn := range page.Snoozes {
 				if sn == nil || sn.Name == "" {
@@ -745,11 +725,11 @@ func scanMonitoringSnoozes(ctx context.Context, svc *monitoring.Service, p *proj
 }
 
 // scanMonitoringUptimeCheckConfigs discovers Uptime check configurations.
-func scanMonitoringUptimeCheckConfigs(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMonitoringUptimeCheckConfigs(ctx context.Context, svc *monitoring.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "monitoring:uptimeCheckConfigs.list",
 		svc.Projects.UptimeCheckConfigs.List(parent),
-		func(page *monitoring.ListUptimeCheckConfigsResponse) (int, int, error) {
+		func(page *monitoring.ListUptimeCheckConfigsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.UptimeCheckConfigs))
 			for _, u := range page.UptimeCheckConfigs {
 				if u == nil || u.Name == "" {

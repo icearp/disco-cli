@@ -228,7 +228,7 @@ func locHandlers(c *locCalls) map[string]func(in any) (any, error) {
 
 // locScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func locScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func locScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, locDenied)
 	return scanLocation(ctx, acct, testRegion, st, testScanID)
@@ -262,7 +262,9 @@ func TestScanLocation_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newLocCalls()
 
-	total, inserted, err := locScan(context.Background(), st, locHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := locScan(context.Background(), counted, locHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -357,7 +359,9 @@ func TestScanLocation_EmptyListings(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := locScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := locScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("total, inserted, err = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -386,10 +390,12 @@ func TestScanLocation_EmptyListings(t *testing.T) {
 func TestScanLocation_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := locScan(context.Background(), st, locHandlers(newLocCalls())); err != nil {
+	if _, err := locScan(context.Background(), st, locHandlers(newLocCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := locScan(context.Background(), st, locHandlers(newLocCalls()))
+	counted, upserts := countUpserts(st)
+	total, err := locScan(context.Background(), counted, locHandlers(newLocCalls()))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -428,7 +434,7 @@ func TestScanLocation_TagReadFailures(t *testing.T) {
 				arn := locTestARN(x.kind, "x1")
 				calls.errs[arn] = c.err
 
-				total, _, err := locScan(context.Background(), st, locHandlers(calls))
+				total, err := locScan(context.Background(), st, locHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -476,7 +482,7 @@ func TestScanLocation_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[locTestARN(kind, "x2")] = locDenied
 	}
 
-	total, _, err := locScan(context.Background(), st, locHandlers(calls))
+	total, err := locScan(context.Background(), st, locHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -498,7 +504,7 @@ func TestScanLocation_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[locTestARN("map", "x1")] = locThrottle
 	calls.errs[locTestARN("route-calculator", "x2")] = locBadInput
 
-	_, _, err := locScan(context.Background(), st, locHandlers(calls))
+	_, err := locScan(context.Background(), st, locHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -538,7 +544,7 @@ func TestScanLocation_DescribeFailures(t *testing.T) {
 				name, arn := locName(x.kind, "x1"), locTestARN(x.kind, "x1")
 				calls.describeErrs[name] = c.err
 
-				total, _, err := locScan(context.Background(), st, locHandlers(calls))
+				total, err := locScan(context.Background(), st, locHandlers(calls))
 				if c.outcome < 0 {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -603,7 +609,7 @@ func TestScanLocation_FailedWriteStopsScan(t *testing.T) {
 	calls := newLocCalls()
 	calls.errs[locTestARN("map", "x1")] = locDenied
 
-	total, _, err := locScan(context.Background(), st, locHandlers(calls))
+	total, err := locScan(context.Background(), st, locHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -640,7 +646,7 @@ func TestScanLocation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			handlers[c.op] = failOnCall(2, locBadInput, handlers[c.op])
 			l := locListingOf(t, c.op)
 
-			total, _, err := locScan(context.Background(), st, handlers)
+			total, err := locScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != locTestTotal-c.lost {
@@ -667,7 +673,7 @@ func TestScanLocation_RepeatedTokenKeepsPages(t *testing.T) {
 		return l.out(sdkaws.String("same"), sdkaws.String(locName(l.kind, id))), nil
 	}
 
-	total, _, err := locScan(context.Background(), st, handlers)
+	total, err := locScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -700,7 +706,7 @@ func TestScanLocation_ElementWithoutName(t *testing.T) {
 				return l.out(nil, nil), nil
 			}
 
-			total, _, err := locScan(context.Background(), st, handlers)
+			total, err := locScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -753,7 +759,7 @@ func TestScanLocation_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(locHandlers(calls), locDenied)
 
-			if _, _, err := scanLocation(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanLocation(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := calls.readARNs(); !slices.Equal(got, want) {
@@ -783,7 +789,7 @@ func TestScanLocation_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := locScan(ctx, st, handlers)
+	_, err := locScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -830,7 +836,7 @@ func TestScanLocation_NXDOMAIN(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			handlers := locHandlers(newLocCalls())
 			handlers[c.op] = func(any) (any, error) { return nil, nx }
-			total, _, err := locScan(context.Background(), st, handlers)
+			total, err := locScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -867,7 +873,7 @@ func TestScanLocation_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := locHandlers(newLocCalls())
 		handlers["ListGeofences"] = func(any) (any, error) { return nil, nx }
-		total, _, err := locScan(context.Background(), st, handlers)
+		total, err := locScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != locTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, locTestTotal-2)
@@ -877,7 +883,7 @@ func TestScanLocation_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newLocCalls()
 		calls.errs[locTestARN("map", "x2")] = nx
-		_, _, err := locScan(context.Background(), st, locHandlers(calls))
+		_, err := locScan(context.Background(), st, locHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -885,7 +891,7 @@ func TestScanLocation_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanLocation(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -922,7 +928,7 @@ func TestScanLocation_TrackerConsumerFailures(t *testing.T) {
 				calls.consumerErrs[t1] = c.err
 			}
 
-			total, _, err := locScan(context.Background(), st, locHandlers(calls))
+			total, err := locScan(context.Background(), st, locHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)

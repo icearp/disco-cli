@@ -18,10 +18,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeSSHPublicKey, Service: "microsoft.compute"})
 }
 
-func scanAvailabilitySets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAvailabilitySets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewAvailabilitySetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewAvailabilitySetsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewAvailabilitySetsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcompute:AvailabilitySets.ListBySubscription", TypeComputeAvailabilitySet, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -33,10 +33,10 @@ func scanAvailabilitySets(ctx context.Context, sub *subscription, cred azcore.To
 		})
 }
 
-func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewSSHPublicKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewSSHPublicKeysClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewSSHPublicKeysClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcompute:SSHPublicKeys.ListBySubscription", TypeComputeSSHPublicKey, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -48,10 +48,10 @@ func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred azcore.Token
 		})
 }
 
-func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewProximityPlacementGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewProximityPlacementGroupsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewProximityPlacementGroupsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcompute:ProximityPlacementGroups.ListBySubscription", TypeComputeProximityPlacementGroup, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -63,10 +63,10 @@ func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred a
 		})
 }
 
-func scanComputeImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewImagesClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewImagesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcompute:Images.List", TypeComputeImage, sub, st, scanID,
 		client.NewListPager(nil),
@@ -76,10 +76,10 @@ func scanComputeImages(ctx context.Context, sub *subscription, cred azcore.Token
 		})
 }
 
-func scanRestorePointCollections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRestorePointCollections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armcompute.NewRestorePointCollectionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armcompute:NewRestorePointCollectionsClient: %w", err)
+		return 0, fmt.Errorf("armcompute:NewRestorePointCollectionsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armcompute:RestorePointCollections.ListAll", TypeComputeRestorePointCollection, sub, st, scanID,
 		client.NewListAllPager(nil),

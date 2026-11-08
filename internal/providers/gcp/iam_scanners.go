@@ -18,17 +18,17 @@ func init() {
 }
 
 // scanIAMServiceAccounts discovers IAM service accounts for a project.
-func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := iam.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("iam client: %w", err)
+		return 0, fmt.Errorf("iam client: %w", err)
 	}
 
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	return runPaginated(ctx, st, p, "iam:serviceAccounts.list",
 		svc.Projects.ServiceAccounts.List(parent),
-		func(page *iam.ListServiceAccountsResponse) (int, int, error) {
+		func(page *iam.ListServiceAccountsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Accounts))
 			for _, sa := range page.Accounts {
 				name := sa.DisplayName
@@ -47,12 +47,12 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 				})
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			n, e := st.UpsertResources(batch)
+			_, e := st.UpsertResources(batch)
 			if e != nil {
-				return 0, 0, fmt.Errorf("upsert IAM service accounts: %w", e)
+				return 0, fmt.Errorf("upsert IAM service accounts: %w", e)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }

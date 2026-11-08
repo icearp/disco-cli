@@ -26,10 +26,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:ground-station-satellites",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			region, err := acct.onceRegion("groundstation")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := groundstation.NewFromConfig(acct.cfg, func(o *groundstation.Options) { o.Region = region })
 			return scanGSSatellites(ctx, client, acct, st, scanID)
@@ -45,7 +45,7 @@ type groundStationSatelliteAPI interface {
 // Ground Station User Guide every satellite, public broadcast ones such as Aqua
 // and Terra included, must be onboarded to an account before it can be used,
 // so the list is the account's own and not a public catalog.
-func scanGSSatellites(ctx context.Context, client groundStationSatelliteAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanGSSatellites(ctx context.Context, client groundStationSatelliteAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	pager := groundstation.NewListSatellitesPaginator(client, &groundstation.ListSatellitesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -55,7 +55,7 @@ func scanGSSatellites(ctx context.Context, client groundStationSatelliteAPI, acc
 				_ = skipIfAccessDenied(st, "groundstation:ListSatellites", acct.ID, groundStationSatelliteRegion, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("groundstation:ListSatellites: %w", err)
+			return 0, fmt.Errorf("groundstation:ListSatellites: %w", err)
 		}
 		for _, s := range out.Satellites {
 			arn := sv(s.SatelliteArn)

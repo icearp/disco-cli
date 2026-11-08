@@ -114,7 +114,9 @@ func testScanSageMakerRegistry(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, pkgARN, grpARN, cardARN, fgARN, srvARN)
-	total, inserted, err := scanSageMakerRegistry(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerRegistry(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
@@ -138,7 +140,9 @@ func TestScanSageMakerRegistryEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerRegistry{}
-	total, inserted, err := scanSageMakerRegistry(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerRegistry(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

@@ -157,7 +157,7 @@ type rssSingleCallPhase struct {
 	op      string
 	typ     string
 	twoPage func(*stubRSS) []string // seeds two pages plus an id-less item; returns the stored NativeIDs
-	scan    func(context.Context, *stubRSS, *store.Store) (int, int, error)
+	scan    func(context.Context, *stubRSS, *store.Store) (int, error)
 }
 
 func rssSingleCallPhases() []rssSingleCallPhase {
@@ -170,7 +170,7 @@ func rssSingleCallPhases() []rssSingleCallPhase {
 				s.reservations = [][]rsstypes.Reservation{{rssReservation("r1"), {Capacity: 4}}, {rssReservation("r2")}}
 				return []string{rssARN("reservation", "r1"), rssARN("reservation", "r2")}
 			},
-			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 				return scanRSSReservations(ctx, s, acct, testRegion, st, testScanID)
 			},
 		},
@@ -180,7 +180,7 @@ func rssSingleCallPhases() []rssSingleCallPhase {
 				s.copyConfigs = [][]rsstypes.SnapshotCopyConfiguration{{rssCopyConfig("c1"), {NamespaceName: sdkaws.String("ns1")}}, {rssCopyConfig("c2")}}
 				return []string{rssARN("snapshotcopyconfiguration", "c1"), rssARN("snapshotcopyconfiguration", "c2")}
 			},
-			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 				return scanRSSSnapshotCopyConfigurations(ctx, s, acct, testRegion, st, testScanID)
 			},
 		},
@@ -190,7 +190,7 @@ func rssSingleCallPhases() []rssSingleCallPhase {
 				s.usageLimits = [][]rsstypes.UsageLimit{{rssUsageLimit("u1"), {UsageLimitId: sdkaws.String("u-noarn")}}, {rssUsageLimit("u2")}}
 				return []string{rssARN("usagelimit", "u1"), rssARN("usagelimit", "u2")}
 			},
-			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 				return scanRSSUsageLimits(ctx, s, acct, testRegion, st, testScanID)
 			},
 		},
@@ -200,7 +200,7 @@ func rssSingleCallPhases() []rssSingleCallPhase {
 				s.domains = [][]rsstypes.Association{{rssDomain("wg1", "db.example.com"), {WorkgroupName: sdkaws.String("wg1")}}, {rssDomain("wg2", "db2.example.com")}}
 				return []string{rssARN("workgroup", "w-1") + "/custom-domain-association/db.example.com", rssARN("workgroup", "w-2") + "/custom-domain-association/db2.example.com"}
 			},
-			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 				return scanRSSCustomDomainAssociations(ctx, s, acct, testRegion, st, testScanID, wgs)
 			},
 		},
@@ -210,7 +210,7 @@ func rssSingleCallPhases() []rssSingleCallPhase {
 				s.actions = [][]rsstypes.ScheduledActionAssociation{{rssAction("ns1", "nightly"), {NamespaceName: sdkaws.String("ns1")}}, {rssAction("ns2", "hourly")}}
 				return []string{rssARN("namespace", "n-1") + "/scheduled-action/nightly", rssARN("namespace", "n-2") + "/scheduled-action/hourly"}
 			},
-			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+			scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 				return scanRSSScheduledActions(ctx, s, acct, testRegion, st, testScanID, nss)
 			},
 		},
@@ -244,7 +244,7 @@ func TestScanRSSSingleCallPhases_PagesStoreEveryRow(t *testing.T) {
 			stub := &stubRSS{}
 			want := ph.twoPage(stub)
 
-			total, _, err := ph.scan(context.Background(), stub, st)
+			total, err := ph.scan(context.Background(), stub, st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -296,7 +296,7 @@ func TestScanRSSSingleCallPhases_Errors(t *testing.T) {
 					ph.twoPage(stub)
 				}
 
-				_, _, err := ph.scan(context.Background(), stub, st)
+				_, err := ph.scan(context.Background(), stub, st)
 				if tc.wantErr != "" {
 					if !isAPIErrorCode(err, tc.wantErr) {
 						t.Fatalf("err=%v, want %s propagated", err, tc.wantErr)
@@ -321,7 +321,7 @@ func TestScanRSSReservations_FieldsAndAttrs(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubRSS{reservations: [][]rsstypes.Reservation{{rssReservation("r1"), {ReservationArn: sdkaws.String(rssARN("reservation", "r0")), Status: sdkaws.String("")}}}}
-	if _, _, err := scanRSSReservations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanRSSReservations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := lmvRows(t, st, TypeRedshiftServerlessReservation)
@@ -349,7 +349,7 @@ func TestScanRSSCustomDomainAssociations_KeyedAndContainedByWorkgroup(t *testing
 		rssDomain("wg1", "db.example.com"),
 		rssDomain("unscanned", "orphan.example.com"),
 	}}}
-	if _, _, err := scanRSSCustomDomainAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rssWorkgroupParents()); err != nil {
+	if _, err := scanRSSCustomDomainAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rssWorkgroupParents()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := lmvRows(t, st, TypeRedshiftServerlessCustomDomainAssociation)
@@ -393,7 +393,7 @@ func TestScanRSSScheduledActions_KeyedAndContainedByNamespace(t *testing.T) {
 		rssAction("unscanned", "orphan"),
 	}}}
 
-	if _, _, err := scanRSSScheduledActions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rssNamespaceParents()); err != nil {
+	if _, err := scanRSSScheduledActions(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rssNamespaceParents()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := lmvRows(t, st, TypeRedshiftServerlessScheduledAction)
@@ -433,12 +433,12 @@ func TestScanRSSNamedChildren_NoParentsNoCall(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	for _, tc := range []struct {
 		op   string
-		scan func(context.Context, *stubRSS, *store.Store) (int, int, error)
+		scan func(context.Context, *stubRSS, *store.Store) (int, error)
 	}{
-		{op: "ListScheduledActions", scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+		{op: "ListScheduledActions", scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 			return scanRSSScheduledActions(ctx, s, acct, testRegion, st, testScanID, nil)
 		}},
-		{op: "ListCustomDomainAssociations", scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, int, error) {
+		{op: "ListCustomDomainAssociations", scan: func(ctx context.Context, s *stubRSS, st *store.Store) (int, error) {
 			return scanRSSCustomDomainAssociations(ctx, s, acct, testRegion, st, testScanID, nil)
 		}},
 	} {
@@ -448,7 +448,7 @@ func TestScanRSSNamedChildren_NoParentsNoCall(t *testing.T) {
 				actions: [][]rsstypes.ScheduledActionAssociation{{rssAction("ns1", "nightly")}},
 				domains: [][]rsstypes.Association{{rssDomain("wg1", "db.example.com")}},
 			}
-			total, _, err := tc.scan(context.Background(), stub, st)
+			total, err := tc.scan(context.Background(), stub, st)
 			if err != nil || total != 0 || stub.calls[tc.op] != 0 {
 				t.Fatalf("total=%d err=%v calls=%d, want 0/nil/0", total, err, stub.calls[tc.op])
 			}
@@ -471,7 +471,7 @@ func rssPhasesStub() *stubRSS {
 func TestScanRSSPhases_ChildrenUseListedParents(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := scanRSSPhases(context.Background(), rssPhasesStub(), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanRSSPhases(context.Background(), rssPhasesStub(), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if _, ok := lmvRows(t, st, TypeRedshiftServerlessScheduledAction)[rssARN("namespace", "n-1")+"/scheduled-action/nightly"]; !ok {
@@ -494,7 +494,7 @@ func TestScanRSSPhases_PhaseErrorKeepsLaterPhases(t *testing.T) {
 			stub := rssPhasesStub()
 			stub.errs = map[string]error{failing: apiErr("ValidationException", "bad")}
 
-			_, _, err := scanRSSPhases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanRSSPhases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			assertAPICode(t, err, "ValidationException")
 			if _, ok := lmvRows(t, st, TypeRedshiftServerlessNamespace)[rssARN("namespace", "n-1")]; !ok {
 				t.Error("namespace row not stored")
@@ -525,7 +525,7 @@ func TestScanRSSPhases_NamelessParentAdoptsNothing(t *testing.T) {
 	stub.actions[0] = append(stub.actions[0], rsstypes.ScheduledActionAssociation{ScheduledActionName: sdkaws.String("orphan")})
 	stub.domains[0] = append(stub.domains[0], rsstypes.Association{CustomDomainName: sdkaws.String("orphan.example.com")})
 
-	if _, _, err := scanRSSPhases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanRSSPhases(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if rows := lmvRows(t, st, TypeRedshiftServerlessScheduledAction); len(rows) != 1 {
@@ -715,7 +715,7 @@ func rssHandlers(c *rssCalls) map[string]func(in any) (any, error) {
 
 // rssScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func rssScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func rssScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, rssDenied)
 	return scanRedshiftServerless(ctx, acct, testRegion, st, testScanID)
@@ -733,7 +733,9 @@ func TestScanRedshiftServerless_StoresTagsOfTaggedTypes(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newRSSCalls()
 
-	total, inserted, err := rssScan(context.Background(), st, rssHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := rssScan(context.Background(), counted, rssHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -805,7 +807,7 @@ func TestScanRedshiftServerless_EmptyListings(t *testing.T) {
 	handlers["ListWorkgroups"] = calls.empty("ListWorkgroups", &redshiftserverless.ListWorkgroupsOutput{})
 	handlers["ListRecoveryPoints"] = calls.empty("ListRecoveryPoints", &redshiftserverless.ListRecoveryPointsOutput{})
 
-	total, _, err := rssScan(context.Background(), st, handlers)
+	total, err := rssScan(context.Background(), st, handlers)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -817,16 +819,16 @@ func TestScanRedshiftServerless_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanRedshiftServerless_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls())); err != nil {
+	if _, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls()))
+	total, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -867,7 +869,7 @@ func TestScanRedshiftServerless_TagReadFailures(t *testing.T) {
 			calls := newRSSCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := rssScan(context.Background(), st, rssHandlers(calls))
+			total, err := rssScan(context.Background(), st, rssHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -912,7 +914,7 @@ func TestScanRedshiftServerless_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = rssDenied
 	}
 
-	total, _, err := rssScan(context.Background(), st, rssHandlers(calls))
+	total, err := rssScan(context.Background(), st, rssHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -943,7 +945,7 @@ func TestScanRedshiftServerless_TagThrottleDemotedBesideHardError(t *testing.T) 
 	calls.errs[rssTagKindOf(t, "ListNamespaces").arn("tagged")] = rssThrottle
 	calls.errs[rssTagKindOf(t, "ListWorkgroups").arn("bare")] = rssValidation
 
-	_, _, err := rssScan(context.Background(), st, rssHandlers(calls))
+	_, err := rssScan(context.Background(), st, rssHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -981,7 +983,7 @@ func TestScanRedshiftServerless_OtherAccountRowsKeptUntagged(t *testing.T) {
 					return k.page(&own, sdkaws.String(k.name("tagged")), nil), nil
 				}
 
-				total, _, err := rssScan(context.Background(), st, handlers)
+				total, err := rssScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -1027,7 +1029,7 @@ func TestScanRedshiftServerless_FailedWriteStopsScan(t *testing.T) {
 			calls := newRSSCalls()
 			calls.errs[k.arn("tagged")] = rssDenied
 
-			total, _, err := rssScan(context.Background(), st, rssHandlers(calls))
+			total, err := rssScan(context.Background(), st, rssHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1062,7 +1064,7 @@ func TestScanRedshiftServerless_ListFailureKeepsPagesAndLaterPhases(t *testing.T
 			k := rssTagKindOf(t, op)
 			handlers[op] = failOnCall(2, rssValidation, handlers[op])
 
-			total, _, err := rssScan(context.Background(), st, handlers)
+			total, err := rssScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != rssTestTotal-1 {
@@ -1091,7 +1093,7 @@ func TestScanRedshiftServerless_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			k := rssTagKindOf(t, "ListSnapshots")
 			handlers[k.op] = failOnCall(call, rssDenied, handlers[k.op])
 
-			total, _, err := rssScan(context.Background(), st, handlers)
+			total, err := rssScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1125,7 +1127,7 @@ func TestScanRedshiftServerless_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := rssScan(context.Background(), st, handlers)
+	total, err := rssScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1163,7 +1165,7 @@ func TestScanRedshiftServerless_ElementWithoutARNWarns(t *testing.T) {
 				return k.page(nil, name, nil), nil
 			}
 
-			total, _, err := rssScan(context.Background(), st, handlers)
+			total, err := rssScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1209,7 +1211,7 @@ func TestScanRedshiftServerless_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, rssDenied)
-			if _, _, err := scanRedshiftServerless(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanRedshiftServerless(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, k := range rssTagKinds() {
@@ -1242,7 +1244,7 @@ func TestScanRedshiftServerless_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := rssScan(ctx, st, handlers)
+	_, err := rssScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1269,7 +1271,7 @@ func TestScanRedshiftServerless_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := rssHandlers(newRSSCalls())
 		handlers["ListWorkgroups"] = func(any) (any, error) { return nil, nx }
-		total, _, err := rssScan(context.Background(), st, handlers)
+		total, err := rssScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != rssTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, rssTestTotal-2)
@@ -1279,7 +1281,7 @@ func TestScanRedshiftServerless_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newRSSCalls()
 		calls.errs[rssTagKindOf(t, "ListNamespaces").arn("bare")] = nx
-		_, _, err := rssScan(context.Background(), st, rssHandlers(calls))
+		_, err := rssScan(context.Background(), st, rssHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1287,7 +1289,7 @@ func TestScanRedshiftServerless_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanRedshiftServerless(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanRedshiftServerless(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

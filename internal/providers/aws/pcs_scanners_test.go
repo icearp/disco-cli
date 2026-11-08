@@ -146,7 +146,7 @@ func pcsHandlers(c *crtCalls) map[string]func(any) (any, error) {
 
 // pcsScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func pcsScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func pcsScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -182,7 +182,9 @@ func TestScanPCS_StoresTagsOfEveryType(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := pcsScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := pcsScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -257,7 +259,7 @@ func TestScanPCS_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, crDenied)
 
-	total, _, err := scanPCS(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanPCS(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -291,7 +293,9 @@ func TestScanPCS_NoClusters(t *testing.T) {
 	h := pcsHandlers(calls)
 	h["ListClusters"] = calls.answer("ListClusters", func(any) any { return &pcs.ListClustersOutput{} })
 
-	total, inserted, err := pcsScan(context.Background(), t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := pcsScan(context.Background(), t, counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -320,7 +324,7 @@ func TestScanPCS_EmptyCluster(t *testing.T) {
 		h[op] = calls.answer(op, func(any) any { return pcsEmptyOut(op) })
 	}
 
-	total, _, err := pcsScan(context.Background(), t, st, h)
+	total, err := pcsScan(context.Background(), t, st, h)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d, %v; want 1, nil", total, err)
 	}
@@ -334,17 +338,17 @@ func TestScanPCS_EmptyCluster(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanPCS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newPCSCalls()
-	if _, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls)); err != nil {
+	if _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+	total, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -386,7 +390,7 @@ func TestScanPCS_TagReadFailures(t *testing.T) {
 					calls := newPCSCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+					total, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -436,7 +440,7 @@ func TestScanPCS_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[d.arn] = crDenied
 	}
 
-	total, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+	total, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 	if err != nil || total != 6 {
 		t.Fatalf("scan = %d, %v; want 6, nil", total, err)
 	}
@@ -460,7 +464,7 @@ func TestScanPCS_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[pcsTestARN("cluster/pcs_t")] = crThrottled
 	calls.errs[pcsTestARN("cluster/pcs_b/queue/q_b")] = crtBadInput
 
-	_, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+	_, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -482,7 +486,7 @@ func TestScanPCS_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := pcsHandlers(calls)
 			h[op] = func(any) (any, error) { return nil, crDenied }
 
-			total, _, err := pcsScan(context.Background(), t, st, h)
+			total, err := pcsScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -522,7 +526,7 @@ func TestScanPCS_FailedWriteStopsWithoutWarning(t *testing.T) {
 			calls := newPCSCalls()
 			calls.errs[c.deniedARN] = crDenied
 
-			_, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+			_, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -563,7 +567,7 @@ func TestScanPCS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return pcsChildOut("ListQueues", pcsClusterOf(in), sdkaws.String("p2")), nil
 	}
 
-	total, _, err := pcsScan(context.Background(), t, st, h)
+	total, err := pcsScan(context.Background(), t, st, h)
 	for _, code := range []string{"ValidationException", "ConflictException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -613,7 +617,7 @@ func TestScanPCS_ClusterGoneSkipsItsChildren(t *testing.T) {
 		return pcsChildOut("ListQueues", pcsClusterOf(in), next), nil
 	}
 
-	total, _, err := pcsScan(context.Background(), t, st, h)
+	total, err := pcsScan(context.Background(), t, st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -643,7 +647,7 @@ func TestScanPCS_ClusterPageFailureKeepsPage(t *testing.T) {
 	h := pcsHandlers(calls)
 	h["ListClusters"] = failOnCall(2, apiErr("ConflictException", "page 2"), h["ListClusters"])
 
-	total, _, err := pcsScan(context.Background(), t, st, h)
+	total, err := pcsScan(context.Background(), t, st, h)
 	assertAPICode(t, err, "ConflictException")
 	if total != 3 {
 		t.Errorf("total = %d; want 3, pcs_t and its children", total)
@@ -678,7 +682,7 @@ func TestScanPCS_UnstorableItemsWarn(t *testing.T) {
 			h := pcsHandlers(calls)
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			total, _, err := pcsScan(context.Background(), t, st, h)
+			total, err := pcsScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -714,7 +718,7 @@ func TestScanPCS_RepeatedTokenKeepsPages(t *testing.T) {
 				h[c.op] = func(in any) (any, error) { return pcsChildOut(c.op, pcsClusterOf(in), sdkaws.String("same")), nil }
 			}
 
-			_, _, err := pcsScan(context.Background(), t, st, h)
+			_, err := pcsScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -750,7 +754,7 @@ func TestScanPCS_ChildListingsReadEveryPage(t *testing.T) {
 				return page2.out
 			})
 
-			if _, _, err := pcsScan(context.Background(), t, st, h); err != nil {
+			if _, err := pcsScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if want := []string{"(none)", "p2"}; !slices.Equal(tokens, want) {
@@ -798,7 +802,7 @@ func TestScanPCS_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := pcsScan(ctx, t, st, h)
+	_, err := pcsScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -827,7 +831,7 @@ func TestScanPCS_Unreachable(t *testing.T) {
 		calls := newPCSCalls()
 		h := pcsHandlers(calls)
 		h["ListClusters"] = func(any) (any, error) { return nil, nx }
-		total, _, err := pcsScan(context.Background(), t, st, h)
+		total, err := pcsScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListComputeNodeGroups") != 0 {
 			t.Errorf("total, ListComputeNodeGroups calls = %d, %d; want 0, 0", total, calls.count("ListComputeNodeGroups"))
@@ -837,7 +841,7 @@ func TestScanPCS_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newPCSCalls()
 		calls.errs[pcsTestARN("cluster/pcs_t/queue/q_t")] = nx
-		total, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+		total, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 6 {
 			t.Errorf("total = %d; want 6", total)

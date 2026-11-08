@@ -12,27 +12,25 @@ import (
 // scanKinesisExtended discovers stream consumers (per stream) and
 // resource-based policies (per stream + per consumer). ResourcePolicy synth
 // ARN: {targetArn}/policy.
-func scanKinesisExtended(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKinesisExtended(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	streamARNs, lerr := loadKinesisStreamARNs(ctx, client, acct, region, st)
 	if lerr != nil {
-		return 0, 0, lerr
+		return 0, lerr
 	}
 
-	consumerARNs, t, i, ferr := scanKinesisStreamConsumers(ctx, client, streamARNs, acct, region, st, scanID)
+	consumerARNs, t, ferr := scanKinesisStreamConsumers(ctx, client, streamARNs, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	policyTargets := append(append([]string{}, streamARNs...), consumerARNs...)
-	t, i, ferr = scanKinesisResourcePolicies(ctx, client, policyTargets, acct, region, st, scanID)
+	t, ferr = scanKinesisResourcePolicies(ctx, client, policyTargets, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 func loadKinesisStreamARNs(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store) ([]string, error) {
@@ -56,7 +54,7 @@ func loadKinesisStreamARNs(ctx context.Context, client kinesisAPI, acct *account
 	return arns, nil
 }
 
-func scanKinesisStreamConsumers(ctx context.Context, client kinesisAPI, streamARNs []string, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanKinesisStreamConsumers(ctx context.Context, client kinesisAPI, streamARNs []string, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	var batch []*store.Resource
 	var consumerARNs []string
 	for _, arn := range streamARNs {
@@ -75,7 +73,7 @@ func scanKinesisStreamConsumers(ctx context.Context, client kinesisAPI, streamAR
 				if isAPIErrorCode(err, "ResourceNotFoundException") {
 					break
 				}
-				return nil, 0, 0, fmt.Errorf("kinesis:ListStreamConsumers s=%s: %w", streamArn, err)
+				return nil, 0, fmt.Errorf("kinesis:ListStreamConsumers s=%s: %w", streamArn, err)
 			}
 			for _, c := range out.Consumers {
 				cArn := sv(c.ConsumerARN)
@@ -97,11 +95,11 @@ func scanKinesisStreamConsumers(ctx context.Context, client kinesisAPI, streamAR
 			nextToken = out.NextToken
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "kinesis stream-consumers")
-	return consumerARNs, t, i, err
+	t, err := upsertBatch(st, batch, "kinesis stream-consumers")
+	return consumerARNs, t, err
 }
 
-func scanKinesisResourcePolicies(ctx context.Context, client kinesisAPI, targets []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKinesisResourcePolicies(ctx context.Context, client kinesisAPI, targets []string, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, t := range targets {
 		target := t
@@ -110,7 +108,7 @@ func scanKinesisResourcePolicies(ctx context.Context, client kinesisAPI, targets
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "ResourcePolicyNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("kinesis:GetResourcePolicy %s: %w", target, err)
+			return 0, fmt.Errorf("kinesis:GetResourcePolicy %s: %w", target, err)
 		}
 		if sv(out.Policy) == "" {
 			continue
@@ -140,7 +138,7 @@ func scanKinesisResourcePolicies(ctx context.Context, client kinesisAPI, targets
 // isOpNotDeployed). It models no not-found error, so a 404 on its unfiltered
 // first call means the op is absent. Once a page has succeeded the op is deployed: a later error of any
 // shape except a denial is returned, after the rows listed so far are stored.
-func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "kinesis:ListChannels"
 	// The model allows MaxResults up to 10000, but the op doc caps a page at 100.
 	pager := kinesis.NewListChannelsPaginator(client, &kinesis.ListChannelsInput{},
@@ -153,7 +151,7 @@ func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, 
 		if perr != nil {
 			switch {
 			case !listed && isOpNotDeployed(perr):
-				return 0, 0, nil
+				return 0, nil
 			case isAccessDenied(perr):
 				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
 			default:
@@ -175,6 +173,6 @@ func scanKinesisChannels(ctx context.Context, client kinesisAPI, acct *account, 
 			})
 		}
 	}
-	t, i, uerr := upsertBatch(st, batch, "kinesis channels")
-	return t, i, errors.Join(listErr, uerr)
+	t, uerr := upsertBatch(st, batch, "kinesis channels")
+	return t, errors.Join(listErr, uerr)
 }

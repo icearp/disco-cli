@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanAzureSphere discovers azuresphere resources.
-func scanAzureSphere(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureSphere(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armsphere.NewCatalogsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsphere:NewCatalogsClient: %w", err)
+		return 0, fmt.Errorf("armsphere:NewCatalogsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armsphere:Catalogs.ListBySubscription", TypeAzureSphereCatalog, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

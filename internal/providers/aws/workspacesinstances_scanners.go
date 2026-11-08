@@ -29,13 +29,13 @@ type workspacesInstancesAPI interface {
 // scanWorkspacesInstances discovers WorkspacesInstances workspace instances.
 // Volume and VolumeAssociation skip-logged: SDK has no list endpoints; the
 // underlying volumes are EC2 EBS volumes covered separately.
-func scanWorkspacesInstances(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWorkspacesInstances(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	enabled, rerr := workspacesInstancesEnabledRegions(ctx, acct)
 	if rerr != nil {
 		if isAccessDenied(rerr) {
-			return 0, 0, skipIfAccessDenied(st, "workspacesinstances:ListRegions", acct.ID, region, rerr)
+			return 0, skipIfAccessDenied(st, "workspacesinstances:ListRegions", acct.ID, region, rerr)
 		}
-		return 0, 0, fmt.Errorf("workspacesinstances:ListRegions: %w", rerr)
+		return 0, fmt.Errorf("workspacesinstances:ListRegions: %w", rerr)
 	}
 	client := workspacesinstances.NewFromConfig(acct.cfg, func(o *workspacesinstances.Options) { o.Region = region })
 	return scanWorkspacesInstancesIn(ctx, client, enabled, acct, region, st, scanID)
@@ -45,9 +45,9 @@ func scanWorkspacesInstances(ctx context.Context, acct *account, region string, 
 // where the service isn't enabled: an inactive endpoint kills the connection
 // with an HTTP/2 GOAWAY (non-replayable POST body — every retry fails) instead
 // of a clean error, so the enabled set is resolved up front via ListRegions.
-func scanWorkspacesInstancesIn(ctx context.Context, client workspacesInstancesAPI, enabled map[string]bool, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWorkspacesInstancesIn(ctx context.Context, client workspacesInstancesAPI, enabled map[string]bool, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if !enabled[region] {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	pager := workspacesinstances.NewListWorkspaceInstancesPaginator(client, &workspacesinstances.ListWorkspaceInstancesInput{})
@@ -56,9 +56,9 @@ func scanWorkspacesInstancesIn(ctx context.Context, client workspacesInstancesAP
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "workspacesinstances:ListWorkspaceInstances", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "workspacesinstances:ListWorkspaceInstances", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("workspacesinstances:ListWorkspaceInstances: %w", perr)
+			return 0, fmt.Errorf("workspacesinstances:ListWorkspaceInstances: %w", perr)
 		}
 		for _, w := range out.WorkspaceInstances {
 			id := sv(w.WorkspaceInstanceId)

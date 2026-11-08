@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanDomainRegistration discovers domainregistration resources.
-func scanDomainRegistration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDomainRegistration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdomainregistration.NewDomainsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdomainregistration:NewDomainsClient: %w", err)
+		return 0, fmt.Errorf("armdomainregistration:NewDomainsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdomainregistration:Domains.List", TypeDomain, sub, st, scanID,
 		client.NewListPager(nil),

@@ -20,10 +20,10 @@ func init() {
 
 // scanTrustedSigning discovers Trusted Signing (Microsoft.CodeSigning)
 // code-signing accounts.
-func scanTrustedSigning(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrustedSigning(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armtrustedsigning.NewCodeSigningAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armtrustedsigning:NewCodeSigningAccountsClient: %w", err)
+		return 0, fmt.Errorf("armtrustedsigning:NewCodeSigningAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armtrustedsigning:CodeSigningAccounts.ListBySubscription", TypeCodeSigningAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

@@ -55,7 +55,7 @@ func TestScanFDDetectorVersions_VersionReadFailures(t *testing.T) {
 				return get(in)
 			}
 
-			_, _, err := fdtScan(context.Background(), st, h)
+			_, err := fdtScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -109,7 +109,7 @@ func TestScanFDDetectorVersions_ThrottledRead(t *testing.T) {
 		warns := countOpWarnings(st, fdGetDetectorVersionOp)
 		h := fdtHandlers(newFDTCalls())
 		fail(h, fdtBadInput)
-		_, _, err := fdtScan(context.Background(), st, h)
+		_, err := fdtScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if *warns != 1 {
 			t.Errorf("%s warnings = %d; want 1", fdGetDetectorVersionOp, *warns)
@@ -131,7 +131,7 @@ func TestScanFDDetectorVersions_ThrottledRead(t *testing.T) {
 			calls := newFDTCalls()
 			h := fdtHandlers(calls)
 			fail(h, fdtDenied)
-			_, _, err := fdtScan(context.Background(), st, h)
+			_, err := fdtScan(context.Background(), st, h)
 			if !errors.Is(err, store.ErrStoreWrite) || !joinCarriesAPIErrorCode(err, "ThrottlingException") {
 				t.Errorf("err = %v; want store.ErrStoreWrite carrying the throttle", err)
 			}
@@ -162,7 +162,7 @@ func TestScanFDDetectorVersions_UnstorableVersionsWarn(t *testing.T) {
 		return &frauddetector.GetDetectorVersionOutput{DetectorId: v.DetectorId, DetectorVersionId: v.DetectorVersionId}, nil
 	}
 
-	if _, _, err := fdtScan(context.Background(), st, h); err != nil {
+	if _, err := fdtScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeFraudDetectorDetectorVersion)); n != 0 {
@@ -203,7 +203,7 @@ func TestScanFDDetectorVersions_Pages(t *testing.T) {
 				return &frauddetector.DescribeDetectorOutput{DetectorVersionSummaries: []fdtypes.DetectorVersionSummary{{DetectorVersionId: sdkaws.String("2")}}, NextToken: next}, nil
 			}
 
-			_, _, err := fdtScan(context.Background(), st, h)
+			_, err := fdtScan(context.Background(), st, h)
 			if c.repeat != errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken %v", err, c.repeat)
 			}
@@ -262,7 +262,7 @@ func TestScanFD_PerParentListingFailures(t *testing.T) {
 					return next(in)
 				}
 
-				_, _, err := fdtScan(context.Background(), st, h)
+				_, err := fdtScan(context.Background(), st, h)
 				if e.err == fdtNotFound && err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -294,7 +294,7 @@ func TestScanFDModels_NoTypeNotReadForVersions(t *testing.T) {
 		return &frauddetector.GetModelsOutput{Models: []fdtypes.Model{{Arn: sdkaws.String(fdtItemARN("model", "t")), ModelId: sdkaws.String("model_t")}}}, nil
 	}
 
-	if _, _, err := fdtScan(context.Background(), st, h); err != nil {
+	if _, err := fdtScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if _, ok := fdtRowOf(t, st, TypeFraudDetectorModel, fdtItemARN("model", "t")); !ok {
@@ -332,7 +332,7 @@ func TestScanFDModelVersions_SameModelIDTwoTypes(t *testing.T) {
 		}}}, nil
 	}
 
-	if _, _, err := fdtScan(context.Background(), st, h); err != nil {
+	if _, err := fdtScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeFraudDetectorModelVersion)); n != 2 {

@@ -609,9 +609,9 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 	if _, err := st.UpsertQuotas(quotas(1, "L-C1", "L-C2", "L-C3")); err != nil {
 		t.Fatalf("seed quotas: %v", err)
 	}
-	fn := func(_ context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+	fn := func(_ context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 		if _, qerr := st.UpsertQuotas(quotas(2, "L-N1", "L-N2", "L-C1", "L-C2", "L-C3")); qerr != nil {
-			return 0, 0, qerr
+			return 0, qerr
 		}
 		var rows []*store.Resource
 		for _, nid := range []string{"arn:aws:sqs:us-east-1:123456789012:new", changedNID} {
@@ -620,11 +620,11 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 				Region: ptrStr(region), AttributesJSON: `{"v":2}`, DiscoveredBy: scanID,
 			})
 		}
-		n, uerr := st.UpsertResources(rows)
+		_, uerr := st.UpsertResources(rows)
 		if uerr != nil {
-			return 0, 0, uerr
+			return 0, uerr
 		}
-		return len(rows), n, err
+		return len(rows), err
 	}
 	saved := registeredServices
 	registeredServices = append(slices.Clone(registeredServices), serviceEntry{name: name, global: global, fn: fn})

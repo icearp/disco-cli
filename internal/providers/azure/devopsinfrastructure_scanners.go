@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanDevOpsInfrastructure discovers Microsoft Managed DevOps Pools.
-func scanDevOpsInfrastructure(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevOpsInfrastructure(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armdevopsinfrastructure.NewPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdevopsinfrastructure:NewPoolsClient: %w", err)
+		return 0, fmt.Errorf("armdevopsinfrastructure:NewPoolsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armdevopsinfrastructure:Pools.ListBySubscription", TypeDevOpsInfrastructurePool, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

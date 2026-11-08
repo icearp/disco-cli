@@ -25,12 +25,12 @@ type migrationHubAPI interface {
 	ListProgressUpdateStreams(context.Context, *migrationhub.ListProgressUpdateStreamsInput, ...func(*migrationhub.Options)) (*migrationhub.ListProgressUpdateStreamsOutput, error)
 }
 
-func scanMigrationHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMigrationHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := migrationhub.NewFromConfig(acct.cfg, func(o *migrationhub.Options) { o.Region = region })
 	return scanMigrationHubProgressUpdateStreams(ctx, client, acct, region, st, scanID)
 }
 
-func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migrationHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migrationHubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := migrationhub.NewListProgressUpdateStreamsPaginator(client, &migrationhub.ListProgressUpdateStreamsInput{})
 	for p.HasMorePages() {
@@ -47,7 +47,7 @@ func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migration
 				_ = skipIfAccessDenied(st, "migrationhub:ListProgressUpdateStreams", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("migrationhub:ListProgressUpdateStreams: %w", err)
+			return 0, fmt.Errorf("migrationhub:ListProgressUpdateStreams: %w", err)
 		}
 		for _, s := range page.ProgressUpdateStreamSummaryList {
 			name := sv(s.ProgressUpdateStreamName)

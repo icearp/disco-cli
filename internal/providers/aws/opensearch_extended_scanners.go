@@ -46,7 +46,7 @@ var errOpenSearchOpNotDeployed = errors.New("opensearch:ListDataSourceAttachment
 // skipped silently. The op is newer than the application APIs (SDK v1.72.0,
 // 2026-06), so an app's first call failing as isOpNotDeployed is also a silent
 // skip; on a later page that error is returned.
-func scanOpenSearchDataSourceAttachments(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanOpenSearchDataSourceAttachments(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	isSkip := func(err error) bool {
 		return errors.Is(err, errOpenSearchOpNotDeployed) || isAPIErrorCode(err, "ResourceNotFoundException")
 	}

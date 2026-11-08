@@ -20,21 +20,21 @@ func init() {
 // scanSSMGuiConnect captures the per-(account,region) SSM GUI Connect
 // connection recording preferences (singleton). Synth ARN:
 // arn:{p}:ssm-guiconnect:{r}:{a}:preferences.
-func scanSSMGuiConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSMGuiConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := ssmguiconnect.NewFromConfig(acct.cfg, func(o *ssmguiconnect.Options) { o.Region = region })
 
 	out, err := client.GetConnectionRecordingPreferences(ctx, &ssmguiconnect.GetConnectionRecordingPreferencesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ssm-guiconnect:GetConnectionRecordingPreferences", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ssm-guiconnect:GetConnectionRecordingPreferences", acct.ID, region, err)
 		}
 		if isAPIErrorCode(err, "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("ssm-guiconnect:GetConnectionRecordingPreferences: %w", err)
+		return 0, fmt.Errorf("ssm-guiconnect:GetConnectionRecordingPreferences: %w", err)
 	}
 	if out.ConnectionRecordingPreferences == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "ssm-guiconnect", region, acct.ID, "preferences")
 	label := acct.ID

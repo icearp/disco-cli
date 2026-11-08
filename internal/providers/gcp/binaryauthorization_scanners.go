@@ -22,23 +22,23 @@ func init() {
 // per project — `projects/{p}/policy`) and any user-defined attestors. The
 // policy is fetched via Get rather than List because there is no list
 // surface — exactly one policy exists per project.
-func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := binaryauthorization.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("binaryauthorization client: %w", err)
+		return 0, fmt.Errorf("binaryauthorization client: %w", err)
 	}
 
 	// Policy (singleton).
 	policy, err := svc.Projects.GetPolicy(fmt.Sprintf("projects/%s/policy", p.ID)).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "binaryauthorization:projects.getPolicy", p.ID, err)
+			return 0, skipIfDenied(st, "binaryauthorization:projects.getPolicy", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	pname := lastSegment(policy.Name)
-	t, n, e := upsertWithProjClosure(p, st, []*store.Resource{{
+	t, e := upsertWithProjClosure(p, st, []*store.Resource{{
 		Provider:       "gcp",
 		AccountID:      p.ID,
 		AccountName:    &p.Name,
@@ -49,15 +49,14 @@ func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, s
 		DiscoveredBy:   scanID,
 	}})
 	total += t
-	inserted += n
 	if e != nil {
-		return total, inserted, e
+		return total, e
 	}
 
 	// Attestors.
-	at, an, aerr := runPaginated(ctx, st, p, "binaryauthorization:attestors.list",
+	at, aerr := runPaginated(ctx, st, p, "binaryauthorization:attestors.list",
 		svc.Projects.Attestors.List(fmt.Sprintf("projects/%s", p.ID)),
-		func(page *binaryauthorization.ListAttestorsResponse) (int, int, error) {
+		func(page *binaryauthorization.ListAttestorsResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Attestors))
 			for _, a := range page.Attestors {
 				name := lastSegment(a.Name)
@@ -75,6 +74,5 @@ func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, s
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += at
-	inserted += an
-	return total, inserted, aerr
+	return total, aerr
 }

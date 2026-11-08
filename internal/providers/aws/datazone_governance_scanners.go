@@ -70,12 +70,12 @@ func (f *dzFanout) noID(parent string) {
 // finish stores what the fan-out listed, warns once about items with no id,
 // and returns the recorded parent failures beside any write error. A failed
 // write is the phase's whole outcome, so it warns about nothing else.
-func (f *dzFanout) finish(batch []*store.Resource) (int, int, error) {
-	total, inserted, err := upsertListed(f.st, batch, f.op, errors.Join(f.errs...))
+func (f *dzFanout) finish(batch []*store.Resource) (int, error) {
+	total, err := upsertListed(f.st, batch, f.op, errors.Join(f.errs...))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNotStored(f.st, f.op, f.acct, f.region, &f.unkeyed, f.what+" have an empty id")
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // dzCollect drains one parent's pages, keeping the items read before a failed
@@ -107,7 +107,7 @@ func dzStatus(r *store.Resource, status string) {
 	}
 }
 
-func scanDataZoneAccountPools(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneAccountPools(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListAccountPools", what: "account pools"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -139,7 +139,7 @@ func scanDataZoneAccountPools(ctx context.Context, client dataZoneAPI, acct *acc
 // blueprints: the Managed filter selects one population per call, and only the
 // managed pass is provider-owned. The managed pass runs first so a blueprint
 // both passes return is stored once, as managed.
-func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentBlueprints", what: "environment blueprints", notFoundModeled: true}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -177,7 +177,7 @@ func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, 
 	return f.finish(batch)
 }
 
-func scanDataZoneNotebooks(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneNotebooks(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListNotebooks", what: "notebooks"}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -215,7 +215,7 @@ func scanDataZoneNotebooks(ctx context.Context, client dataZoneAPI, acct *accoun
 // undocumented) so a rule should come back only at the unit it targets; the
 // per-domain seen set still keeps one row per rule if the server cascades
 // anyway.
-func scanDataZoneRules(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneRules(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListRules", what: "rules", notFoundModeled: true}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -256,7 +256,7 @@ func scanDataZoneRules(ctx context.Context, client dataZoneAPI, acct *account, r
 // scanDataZoneSubscriptions leaves Status unset, so DataZone returns only
 // APPROVED subscriptions; REVOKED and CANCELLED are terminal history, not live
 // access.
-func scanDataZoneSubscriptions(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneSubscriptions(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListSubscriptions", what: "subscriptions", notFoundModeled: true}
 	var batch []*store.Resource
 	for _, d := range domains {
@@ -283,7 +283,7 @@ func scanDataZoneSubscriptions(ctx context.Context, client dataZoneAPI, acct *ac
 	return f.finish(batch)
 }
 
-func scanDataZoneSubscriptionGrants(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+func scanDataZoneSubscriptionGrants(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, error) {
 	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListSubscriptionGrants", what: "subscription grants", notFoundModeled: true}
 	var batch []*store.Resource
 	for _, d := range domains {

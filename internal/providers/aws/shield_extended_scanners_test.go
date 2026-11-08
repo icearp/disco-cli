@@ -30,10 +30,10 @@ func TestShieldSingletons_RecordCallerRegion(t *testing.T) {
 	acct := testAccountIn("aws-us-gov")
 	const region = "us-gov-west-1"
 
-	if _, _, err := scanShieldDRTAccess(context.Background(), client, acct, region, st, testScanID); err != nil {
+	if _, err := scanShieldDRTAccess(context.Background(), client, acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanShieldDRTAccess: %v", err)
 	}
-	if _, _, err := scanShieldProactiveEngagement(context.Background(), client, acct, region, st, testScanID); err != nil {
+	if _, err := scanShieldProactiveEngagement(context.Background(), client, acct, region, st, testScanID); err != nil {
 		t.Fatalf("scanShieldProactiveEngagement: %v", err)
 	}
 	for _, typ := range []string{TypeShieldDRTAccess, TypeShieldProactiveEngagement} {

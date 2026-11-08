@@ -59,7 +59,7 @@ func scanOSAttachments(t *testing.T, st *store.Store, handler func(in any) (any,
 	t.Helper()
 	seedParentRows(t, st, TypeOpenSearchApplication, osApp1ARN, osApp2ARN, osApp3ARN)
 	client := osClient(map[string]func(any) (any, error){"ListDataSourceAttachments": handler})
-	total, _, err := scanOpenSearchDataSourceAttachments(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, osApps)
+	total, err := scanOpenSearchDataSourceAttachments(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, osApps)
 	return total, err
 }
 
@@ -137,7 +137,7 @@ func TestScanOpenSearchDataSourceAttachments_NoApps(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := osClient(map[string]func(any) (any, error){})
-	total, _, err := scanOpenSearchDataSourceAttachments(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	total, err := scanOpenSearchDataSourceAttachments(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Errorf("total = %d, err = %v; want 0, nil", total, err)
 	}

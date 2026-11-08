@@ -210,7 +210,7 @@ func chimeVoiceTags(client chimeVoiceAPI) rowTagReader {
 // later ones; a failed write and ctx's end do (runHostPhases). The phases run
 // one at a time, so readEachKey's own bound is the bound on the tag reads in
 // flight.
-func scanChime(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChime(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	// The SDK neither lists ThrottledClientException, the Chime SDK models'
 	// HTTP 429 throttle, among its throttle codes nor retries a 429 by status,
 	// so without this a single throttle fails the call unretried. It gets
@@ -274,13 +274,13 @@ func scanChime(ctx context.Context, acct *account, region string, st *store.Stor
 			domains, storeWriteFailed = scanChimeVoiceProfileDomains(ctx, vClient, acct, region, st, scanID, vTags, p)
 			return storeWriteFailed
 		}},
-		countedPhase(chimeVoiceHost, "chime:ListVoiceProfiles", func() (int, int, error) {
+		countedPhase(chimeVoiceHost, "chime:ListVoiceProfiles", func() (int, error) {
 			return scanChimeVoiceProfiles(ctx, vClient, acct, region, st, scanID, domains)
 		}),
-		countedPhase(chimeVoiceHost, "chime:ListSipRules", func() (int, int, error) {
+		countedPhase(chimeVoiceHost, "chime:ListSipRules", func() (int, error) {
 			return scanChimeSipRules(ctx, vClient, acct, region, st, scanID)
 		}),
-		countedPhase(chimeVoiceHost, "chime:ListVoiceConnectorGroups", func() (int, int, error) {
+		countedPhase(chimeVoiceHost, "chime:ListVoiceConnectorGroups", func() (int, error) {
 			return scanChimeVoiceConnectorGroups(ctx, vClient, acct, region, st, scanID)
 		}),
 	})
@@ -350,13 +350,13 @@ func chimeTokenList[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op, what string,
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (*store.Resource, string, string),
-) (int, int, error) {
+) (int, error) {
 	d := listDenial{isDenied: isChimeDenied, unread: what + " on later pages"}
-	total, inserted, err := storeTokenList(ctx, st, acct, region, op, deniedPages(&d, page), row)
+	total, err := storeTokenList(ctx, st, acct, region, op, deniedPages(&d, page), row)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		d.warn(st, op, acct, region)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // scanChimeAppInstances stores the app instances and returns them as the
@@ -526,7 +526,7 @@ func scanChimeVoiceProfileDomains(ctx context.Context, client chimeVoiceAPI, acc
 	ids := map[*store.Resource]string{}
 	d := &detailedRows{getOp: "chime:GetVoiceProfileDomain", what: "voice profile domain(s)", notFound: chimeNotFound, isDenied: isChimeDenied, tags: tags}
 	denial := listDenial{isDenied: isChimeDenied, unread: "voice profile domains on later pages and their voice profiles"}
-	total, inserted, domains, err := storeParentListWith(ctx, st, acct, region, op, "voice profile domains", "VoiceProfileDomainId",
+	total, domains, err := storeParentListWith(ctx, st, acct, region, op, "voice profile domains", "VoiceProfileDomainId",
 		deniedPages(&denial, chimePages(func(ctx context.Context, token *string) ([]cvtypes.VoiceProfileDomainSummary, *string, error) {
 			out, err := client.ListVoiceProfileDomains(ctx, &cv.ListVoiceProfileDomainsInput{NextToken: token, MaxResults: sdkaws.Int32(chimePageCap)})
 			if err != nil {
@@ -553,14 +553,14 @@ func scanChimeVoiceProfileDomains(ctx context.Context, client chimeVoiceAPI, acc
 			}
 			return *out.VoiceProfileDomain, nil
 		}))
-	storeWriteFailed := d.addPhase(p, op, total, inserted, err)
+	storeWriteFailed := d.addPhase(p, op, total, err)
 	if !storeWriteFailed {
 		denial.warn(st, op, acct, region)
 	}
 	return domains, storeWriteFailed
 }
 
-func scanChimeVoiceProfiles(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string, domains []childParent) (int, int, error) {
+func scanChimeVoiceProfiles(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string, domains []childParent) (int, error) {
 	return storeTokenEachParentDeniedBy(ctx, st, acct, region, "chime:ListVoiceProfiles", chimeNotFound, childParentIDs(domains), isChimeDenied,
 		func(ctx context.Context, domainID string, token *string) ([]cvtypes.VoiceProfileSummary, *string, error) {
 			out, err := client.ListVoiceProfiles(ctx, &cv.ListVoiceProfilesInput{VoiceProfileDomainId: sdkaws.String(domainID), NextToken: token, MaxResults: sdkaws.Int32(chimePageCap)})
@@ -587,7 +587,7 @@ func chimeSipRuleNativeID(partition, region, accountID, sipRuleID string) string
 
 // scanChimeSipRules stores the SIP rules without tags: the Service Reference
 // lists no sip-rule resource, so ListTagsForResource has no ARN to take.
-func scanChimeSipRules(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChimeSipRules(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return chimeTokenList(ctx, st, acct, region, "chime:ListSipRules", "SIP rules",
 		chimePages(func(ctx context.Context, token *string) ([]cvtypes.SipRule, *string, error) {
 			out, err := client.ListSipRules(ctx, &cv.ListSipRulesInput{NextToken: token, MaxResults: sdkaws.Int32(chimePageCap)})
@@ -614,7 +614,7 @@ func scanChimeSipRules(ctx context.Context, client chimeVoiceAPI, acct *account,
 // the VoiceConnectorGroupArn the API returns, without tags: neither
 // ListTagsForResource nor TagResource lists a voice-connector-group resource
 // in the Service Reference, and CreateVoiceConnectorGroup takes no tags.
-func scanChimeVoiceConnectorGroups(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanChimeVoiceConnectorGroups(ctx context.Context, client chimeVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return chimeTokenList(ctx, st, acct, region, "chime:ListVoiceConnectorGroups", "voice connector groups",
 		chimePages(func(ctx context.Context, token *string) ([]cvtypes.VoiceConnectorGroup, *string, error) {
 			out, err := client.ListVoiceConnectorGroups(ctx, &cv.ListVoiceConnectorGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(chimePageCap)})

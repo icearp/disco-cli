@@ -71,14 +71,14 @@ func qbARN(partition, region, acct string, segments ...string) string {
 // Every type but subscriptions and chat controls, which are not taggable, has
 // its tags read per row (qbTags), whose denials are one warning for the whole
 // scan.
-func scanQBusiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanQBusiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := qbusiness.NewFromConfig(acct.cfg, func(o *qbusiness.Options) { o.Region = region })
 	tags := qbTags(client).sharingDenials()
 	var (
 		apps    []qbAppRef
 		indices []qbIndex
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "qbusiness", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "qbusiness", 0, []hostPhase{
 		{op: "qbusiness:ListApplications", run: func(p *phaseTotals) (failed bool) {
 			apps, failed = scanQBApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -102,7 +102,7 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 		{op: "qbusiness:ListChatResponseConfigurations", run: func(p *phaseTotals) bool {
 			return scanQBChatResponseConfigurations(ctx, client, acct, region, st, scanID, apps, tags, p)
 		}},
-		countedPhase(0, "qbusiness:ListSubscriptions", func() (int, int, error) {
+		countedPhase(0, "qbusiness:ListSubscriptions", func() (int, error) {
 			return scanQBSubscriptions(ctx, client, acct, region, st, scanID, apps)
 		}),
 		{op: "qbusiness:ListDataSources", run: func(p *phaseTotals) bool {
@@ -113,7 +113,7 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // qbTags reads a row's tags with ListTagsForResource, sent the row's
@@ -390,7 +390,7 @@ func scanQBChatResponseConfigurations(ctx context.Context, client qbusinessAPI, 
 // taggable, named by their id. One application's failure costs the others
 // none of theirs. Every application's subscriptions are held until one
 // write: a subscription is a few small fields.
-func scanQBSubscriptions(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID string, apps []qbAppRef) (int, int, error) {
+func scanQBSubscriptions(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID string, apps []qbAppRef) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "qbusiness:ListSubscriptions", qbNotFound, childParentIDs(qbAppParents(apps)),
 		func(ctx context.Context, appID string, token *string) ([]qbtypes.Subscription, *string, error) {
 			out, err := client.ListSubscriptions(ctx, &qbusiness.ListSubscriptionsInput{ApplicationId: &appID, MaxResults: sdkaws.Int32(100), NextToken: token})
@@ -466,7 +466,7 @@ func scanQBChatControlsConfigurations(ctx context.Context, client qbusinessAPI, 
 		}
 	}
 	var transients transientTally
-	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, qbChatControlsOp, qbNotFound, ready,
+	total, err := storeTokenEachParentSkip(ctx, st, acct, region, qbChatControlsOp, qbNotFound, ready,
 		func(ctx context.Context, appID string, _ *string) ([]*qbusiness.GetChatControlsConfigurationOutput, *string, error) {
 			cfg, err := getQBChatControls(ctx, client, appID)
 			if err != nil {
@@ -484,10 +484,10 @@ func scanQBChatControlsConfigurations(ctx context.Context, client qbusinessAPI, 
 		transient = fmt.Errorf("%s: %d application(s) not read, first %s: %w", qbChatControlsOp, t.count, t.first, t.err)
 	}
 	if errors.Is(err, store.ErrStoreWrite) {
-		return p.addPhase(qbChatControlsOp, total, inserted, errors.Join(err, transient))
+		return p.addPhase(qbChatControlsOp, total, errors.Join(err, transient))
 	}
 	p.errs.add(qbChatControlsOp, transient)
-	return p.addPhase(qbChatControlsOp, total, inserted, err)
+	return p.addPhase(qbChatControlsOp, total, err)
 }
 
 // getQBChatControls reads every page of an application's chat controls. Only

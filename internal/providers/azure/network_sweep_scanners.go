@@ -21,10 +21,10 @@ import (
 // (azurefirewallfqdntags, azurewebcategories, bgpservicecommunities,
 // expressrouteportslocations, expressrouteserviceproviders) are upserted with
 // managed=true so they hide from default `disco resources` / `disco graph`.
-func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	phases, err := networkSweepPhases(ctx, sub, cred, st, scanID)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return azRunPhases(phases...)
 }
@@ -35,7 +35,7 @@ func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenC
 // failing means all would).
 //
 //nolint:gocognit // linear client-construct + one closure per type; splitting hides the per-type list.
-func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]func() (int, int, error), error) {
+func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]func() (int, error), error) {
 	var (
 		waf       *armnetwork.WebApplicationFirewallPoliciesClient
 		asg       *armnetwork.ApplicationSecurityGroupsClient
@@ -195,8 +195,8 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 		}
 	}
 
-	return []func() (int, int, error){
-		func() (int, int, error) {
+	return []func() (int, error){
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:WebApplicationFirewallPolicies.ListAll", TypeNetworkWAFPolicy, sub, st, scanID,
 				waf.NewListAllPager(nil),
 				func(p armnetwork.WebApplicationFirewallPoliciesClientListAllResponse) []*armnetwork.WebApplicationFirewallPolicy {
@@ -206,7 +206,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ApplicationSecurityGroups.ListAll", TypeNetworkApplicationSecurityGroup, sub, st, scanID,
 				asg.NewListAllPager(nil),
 				func(p armnetwork.ApplicationSecurityGroupsClientListAllResponse) []*armnetwork.ApplicationSecurityGroup {
@@ -216,7 +216,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:AzureFirewallFqdnTags.ListAll", TypeNetworkAzureFirewallFqdnTag, sub, st, scanID,
 				fqdnTags.NewListAllPager(nil),
 				func(p armnetwork.AzureFirewallFqdnTagsClientListAllResponse) []*armnetwork.AzureFirewallFqdnTag {
@@ -226,13 +226,13 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netManagedBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:AzureFirewalls.ListAll", TypeNetworkAzureFirewall, sub, st, scanID,
 				firewalls.NewListAllPager(nil),
 				func(p armnetwork.AzureFirewallsClientListAllResponse) []*armnetwork.AzureFirewall { return p.Value },
 				func(r *armnetwork.AzureFirewall) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:WebCategories.ListBySubscription", TypeNetworkAzureWebCategory, sub, st, scanID,
 				webCat.NewListBySubscriptionPager(nil),
 				func(p armnetwork.WebCategoriesClientListBySubscriptionResponse) []*armnetwork.AzureWebCategory {
@@ -240,13 +240,13 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 				},
 				func(r *armnetwork.AzureWebCategory) azTrackedBase { return netManagedProxyBase(r.ID, r.Name, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:BastionHosts.List", TypeNetworkBastionHost, sub, st, scanID,
 				bastion.NewListPager(nil),
 				func(p armnetwork.BastionHostsClientListResponse) []*armnetwork.BastionHost { return p.Value },
 				func(r *armnetwork.BastionHost) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:BgpServiceCommunities.List", TypeNetworkBgpServiceCommunity, sub, st, scanID,
 				bgpComm.NewListPager(nil),
 				func(p armnetwork.BgpServiceCommunitiesClientListResponse) []*armnetwork.BgpServiceCommunity {
@@ -257,7 +257,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 				})
 		},
 		// connections — RG-scoped only.
-		func() (int, int, error) {
+		func() (int, error) {
 			return azRGFanoutScan(ctx, "armnetwork:VirtualNetworkGatewayConnections.List", TypeNetworkConnection, sub, cred, st, scanID,
 				func(rg string) azPager[armnetwork.VirtualNetworkGatewayConnectionsClientListResponse] {
 					return conns.NewListPager(rg, nil)
@@ -269,13 +269,13 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:CustomIPPrefixes.ListAll", TypeNetworkCustomIPPrefix, sub, st, scanID,
 				customIP.NewListAllPager(nil),
 				func(p armnetwork.CustomIPPrefixesClientListAllResponse) []*armnetwork.CustomIPPrefix { return p.Value },
 				func(r *armnetwork.CustomIPPrefix) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:DdosProtectionPlans.List", TypeNetworkDdosProtectionPlan, sub, st, scanID,
 				ddos.NewListPager(nil),
 				func(p armnetwork.DdosProtectionPlansClientListResponse) []*armnetwork.DdosProtectionPlan {
@@ -285,7 +285,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:DscpConfiguration.ListAll", TypeNetworkDscpConfiguration, sub, st, scanID,
 				dscp.NewListAllPager(nil),
 				func(p armnetwork.DscpConfigurationClientListAllResponse) []*armnetwork.DscpConfiguration {
@@ -295,7 +295,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ExpressRoutePorts.List", TypeNetworkExpressRoutePort, sub, st, scanID,
 				erPorts.NewListPager(nil),
 				func(p armnetwork.ExpressRoutePortsClientListResponse) []*armnetwork.ExpressRoutePort { return p.Value },
@@ -303,7 +303,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ExpressRoutePortsLocations.List", TypeNetworkExpressRoutePortsLocation, sub, st, scanID,
 				erPortLoc.NewListPager(nil),
 				func(p armnetwork.ExpressRoutePortsLocationsClientListResponse) []*armnetwork.ExpressRoutePortsLocation {
@@ -313,7 +313,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netManagedBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ExpressRouteServiceProviders.List", TypeNetworkExpressRouteServiceProv, sub, st, scanID,
 				erSP.NewListPager(nil),
 				func(p armnetwork.ExpressRouteServiceProvidersClientListResponse) []*armnetwork.ExpressRouteServiceProvider {
@@ -323,32 +323,32 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netManagedBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:FirewallPolicies.ListAll", TypeNetworkFirewallPolicy, sub, st, scanID,
 				fwPolicy.NewListAllPager(nil),
 				func(p armnetwork.FirewallPoliciesClientListAllResponse) []*armnetwork.FirewallPolicy { return p.Value },
 				func(r *armnetwork.FirewallPolicy) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:IPAllocations.List", TypeNetworkIPAllocation, sub, st, scanID,
 				ipAlloc.NewListPager(nil),
 				func(p armnetwork.IPAllocationsClientListResponse) []*armnetwork.IPAllocation { return p.Value },
 				func(r *armnetwork.IPAllocation) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:IPGroups.List", TypeNetworkIPGroup, sub, st, scanID,
 				ipGroups.NewListPager(nil),
 				func(p armnetwork.IPGroupsClientListResponse) []*armnetwork.IPGroup { return p.Value },
 				func(r *armnetwork.IPGroup) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:LoadBalancers.ListAll", TypeNetworkLoadBalancer, sub, st, scanID,
 				lbs.NewListAllPager(nil),
 				func(p armnetwork.LoadBalancersClientListAllResponse) []*armnetwork.LoadBalancer { return p.Value },
 				func(r *armnetwork.LoadBalancer) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
 		// localnetworkgateways — RG-scoped only.
-		func() (int, int, error) {
+		func() (int, error) {
 			return azRGFanoutScan(ctx, "armnetwork:LocalNetworkGateways.List", TypeNetworkLocalNetworkGateway, sub, cred, st, scanID,
 				func(rg string) azPager[armnetwork.LocalNetworkGatewaysClientListResponse] {
 					return localGW.NewListPager(rg, nil)
@@ -360,19 +360,19 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:NatGateways.ListAll", TypeNetworkNatGateway, sub, st, scanID,
 				natGW.NewListAllPager(nil),
 				func(p armnetwork.NatGatewaysClientListAllResponse) []*armnetwork.NatGateway { return p.Value },
 				func(r *armnetwork.NatGateway) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:Interfaces.ListAll", TypeNetworkInterface, sub, st, scanID,
 				nics.NewListAllPager(nil),
 				func(p armnetwork.InterfacesClientListAllResponse) []*armnetwork.Interface { return p.Value },
 				func(r *armnetwork.Interface) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:SubscriptionNetworkManagerConnections.List", TypeNetworkManagerConnection, sub, st, scanID,
 				mgrConn.NewListPager(nil),
 				func(p armnetwork.SubscriptionNetworkManagerConnectionsClientListResponse) []*armnetwork.ManagerConnection {
@@ -380,19 +380,19 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 				},
 				func(r *armnetwork.ManagerConnection) azTrackedBase { return netProxyBase(r.ID, r.Name, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:Managers.ListBySubscription", TypeNetworkManager, sub, st, scanID,
 				mgrs.NewListBySubscriptionPager(nil),
 				func(p armnetwork.ManagersClientListBySubscriptionResponse) []*armnetwork.Manager { return p.Value },
 				func(r *armnetwork.Manager) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:Profiles.ListAll", TypeNetworkProfile, sub, st, scanID,
 				netProf.NewListAllPager(nil),
 				func(p armnetwork.ProfilesClientListAllResponse) []*armnetwork.Profile { return p.Value },
 				func(r *armnetwork.Profile) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VirtualAppliances.List", TypeNetworkVirtualAppliance, sub, st, scanID,
 				nva.NewListPager(nil),
 				func(p armnetwork.VirtualAppliancesClientListResponse) []*armnetwork.VirtualAppliance { return p.Value },
@@ -400,19 +400,19 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:Watchers.ListAll", TypeNetworkWatcher, sub, st, scanID,
 				watchers.NewListAllPager(nil),
 				func(p armnetwork.WatchersClientListAllResponse) []*armnetwork.Watcher { return p.Value },
 				func(r *armnetwork.Watcher) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:P2SVPNGateways.List", TypeNetworkP2SVPNGateway, sub, st, scanID,
 				p2sGW.NewListPager(nil),
 				func(p armnetwork.P2SVPNGatewaysClientListResponse) []*armnetwork.P2SVPNGateway { return p.Value },
 				func(r *armnetwork.P2SVPNGateway) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:PrivateLinkServices.ListBySubscription", TypeNetworkPrivateLinkService, sub, st, scanID,
 				pls.NewListBySubscriptionPager(nil),
 				func(p armnetwork.PrivateLinkServicesClientListBySubscriptionResponse) []*armnetwork.PrivateLinkService {
@@ -422,25 +422,25 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:PublicIPPrefixes.ListAll", TypeNetworkPublicIPPrefix, sub, st, scanID,
 				pipPrefix.NewListAllPager(nil),
 				func(p armnetwork.PublicIPPrefixesClientListAllResponse) []*armnetwork.PublicIPPrefix { return p.Value },
 				func(r *armnetwork.PublicIPPrefix) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:RouteFilters.List", TypeNetworkRouteFilter, sub, st, scanID,
 				routeFltr.NewListPager(nil),
 				func(p armnetwork.RouteFiltersClientListResponse) []*armnetwork.RouteFilter { return p.Value },
 				func(r *armnetwork.RouteFilter) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:RouteTables.ListAll", TypeNetworkRouteTable, sub, st, scanID,
 				routeTbl.NewListAllPager(nil),
 				func(p armnetwork.RouteTablesClientListAllResponse) []*armnetwork.RouteTable { return p.Value },
 				func(r *armnetwork.RouteTable) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:SecurityPartnerProviders.List", TypeNetworkSecurityPartnerProvider, sub, st, scanID,
 				secPP.NewListPager(nil),
 				func(p armnetwork.SecurityPartnerProvidersClientListResponse) []*armnetwork.SecurityPartnerProvider {
@@ -450,7 +450,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:ServiceEndpointPolicies.List", TypeNetworkServiceEndpointPolicy, sub, st, scanID,
 				sepPolicy.NewListPager(nil),
 				func(p armnetwork.ServiceEndpointPoliciesClientListResponse) []*armnetwork.ServiceEndpointPolicy {
@@ -460,7 +460,7 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VirtualNetworkTaps.ListAll", TypeNetworkVirtualNetworkTap, sub, st, scanID,
 				vnetTaps.NewListAllPager(nil),
 				func(p armnetwork.VirtualNetworkTapsClientListAllResponse) []*armnetwork.VirtualNetworkTap {
@@ -470,13 +470,13 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.Toke
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VirtualRouters.List", TypeNetworkVirtualRouter, sub, st, scanID,
 				vrouters.NewListPager(nil),
 				func(p armnetwork.VirtualRoutersClientListResponse) []*armnetwork.VirtualRouter { return p.Value },
 				func(r *armnetwork.VirtualRouter) azTrackedBase { return netBase(r.ID, r.Name, r.Location, r.Tags, r) })
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armnetwork:VPNServerConfigurations.List", TypeNetworkVPNServerConfiguration, sub, st, scanID,
 				vpnSrvCfg.NewListPager(nil),
 				func(p armnetwork.VPNServerConfigurationsClientListResponse) []*armnetwork.VPNServerConfiguration {

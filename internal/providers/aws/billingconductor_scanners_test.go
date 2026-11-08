@@ -195,7 +195,7 @@ func bcHandlers(c *bcCalls) map[string]func(in any) (any, error) {
 
 // bcScanIn runs the scan for acct in region against handlers; every op they
 // do not answer fails with deny.
-func bcScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error), deny error) (int, int, error) {
+func bcScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error), deny error) (int, error) {
 	acct.cfg = opStubConfig(handlers, deny)
 	client := billingconductor.NewFromConfig(acct.cfg, func(o *billingconductor.Options) { o.Region = region })
 	return scanBillingConductor(ctx, client, acct, region, st, testScanID)
@@ -203,7 +203,7 @@ func bcScanIn(ctx context.Context, st *store.Store, acct *account, region string
 
 // bcScan runs the scan in the commercial home against handlers; every op
 // they do not answer is denied.
-func bcScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func bcScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return bcScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers, bcTestDenied)
 }
 
@@ -236,7 +236,9 @@ func TestScanBillingConductor_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
 
-	total, inserted, err := bcScan(context.Background(), st, bcHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := bcScan(context.Background(), counted, bcHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -322,7 +324,7 @@ func TestScanBillingConductor_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := bcScan(context.Background(), st, handlers); err != nil {
+	if _, err := bcScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range bcKinds() {
@@ -351,7 +353,7 @@ func TestScanBillingConductor_ManagedPricingPlanNotRead(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := bcScan(context.Background(), st, handlers); err != nil {
+	if _, err := bcScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeBillingConductorPricingPlan)
@@ -390,7 +392,9 @@ func TestScanBillingConductor_PayerOnlyNotEntitled(t *testing.T) {
 		return nil, bcTestPayerOnly
 	}
 
-	total, inserted, err := bcScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := bcScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	assertGlueOutcome(t, err, outcomeNotEntitled)
 	if total != 0 || inserted != 0 {
 		t.Errorf("total, inserted = %d, %d; want 0, 0", total, inserted)
@@ -441,7 +445,9 @@ func TestScanBillingConductor_PayerOnlyBeforeAnyRow(t *testing.T) {
 				return nil, bcTestPayerOnly
 			}
 
-			total, inserted, err := bcScan(context.Background(), st, handlers)
+			counted, upserts := countUpserts(st)
+			total, err := bcScan(context.Background(), counted, handlers)
+			inserted := upserts()
 			assertGlueOutcome(t, err, c.want)
 			if got, want := errors.Is(err, errServiceNotEntitled), c.want == outcomeNotEntitled; got != want {
 				t.Errorf("err = %v carries errServiceNotEntitled: %v; want %v", err, got, want)
@@ -496,7 +502,7 @@ func TestScanBillingConductor_PayerOnlyAfterAnswersIsDenial(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := bcScan(context.Background(), st, handlers)
+			total, err := bcScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -513,16 +519,16 @@ func TestScanBillingConductor_PayerOnlyAfterAnswersIsDenial(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanBillingConductor_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := bcScan(context.Background(), st, bcHandlers(newBCCalls())); err != nil {
+	if _, err := bcScan(context.Background(), st, bcHandlers(newBCCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := bcScan(context.Background(), st, bcHandlers(newBCCalls()))
+	total, err := bcScan(context.Background(), st, bcHandlers(newBCCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -552,7 +558,9 @@ func TestScanBillingConductor_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := bcScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := bcScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -598,7 +606,7 @@ func TestScanBillingConductor_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.errs[arn] = c.err
 
-			total, _, err := bcScan(context.Background(), st, bcHandlers(calls))
+			total, err := bcScan(context.Background(), st, bcHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -649,7 +657,7 @@ func TestScanBillingConductor_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[bcKindOf(t, "ListPricingPlans").arn("tagged")] = bcTestDenied
 	calls.errs[bcKindOf(t, "ListPricingRules").arn("bare")] = bcTestDenied
 
-	total, _, err := bcScan(context.Background(), st, bcHandlers(calls))
+	total, err := bcScan(context.Background(), st, bcHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -671,7 +679,7 @@ func TestScanBillingConductor_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[bcKindOf(t, "ListCustomLineItems").arn("bare")] = bcTestThrottle
 	calls.errs[bcKindOf(t, "ListPricingRules").arn("tagged")] = bcTestBad
 
-	_, _, err := bcScan(context.Background(), st, bcHandlers(calls))
+	_, err := bcScan(context.Background(), st, bcHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -690,7 +698,7 @@ func TestScanBillingConductor_FailedWriteStopsScan(t *testing.T) {
 	calls := newBCCalls()
 	calls.errs[bcKindOf(t, "ListPricingPlans").arn("tagged")] = bcTestDenied
 
-	total, _, err := bcScan(context.Background(), st, bcHandlers(calls))
+	total, err := bcScan(context.Background(), st, bcHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -740,7 +748,7 @@ func TestScanBillingConductor_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 				return list(in)
 			}
 
-			total, _, err := bcScan(context.Background(), st, handlers)
+			total, err := bcScan(context.Background(), st, handlers)
 			var wantWarn []string
 			if isAccessDenied(c.err) {
 				if err != nil {
@@ -785,7 +793,7 @@ func TestScanBillingConductor_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := bcScan(context.Background(), st, handlers)
+	total, err := bcScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -817,7 +825,7 @@ func TestScanBillingConductor_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := bcScan(context.Background(), st, handlers)
+			total, err := bcScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -864,7 +872,7 @@ func TestScanBillingConductor_BillingGroupIDOutsideTagPattern(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := bcScan(context.Background(), st, handlers); err != nil {
+	if _, err := bcScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if w := warns(); len(w) != 0 {
@@ -925,7 +933,7 @@ func TestScanBillingConductor_ElementWithoutName(t *testing.T) {
 				return out, nil
 			}
 
-			if _, _, err := bcScan(context.Background(), st, handlers); err != nil {
+			if _, err := bcScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := rowsByNativeID(t, st, k.typ)[arn]
@@ -964,7 +972,7 @@ func TestScanBillingConductor_TagReadsKeepPartitionARNs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = "aws-cn"
 
-	if _, _, err := bcScanIn(context.Background(), st, acct, "cn-northwest-1", handlers, bcTestDenied); err != nil {
+	if _, err := bcScanIn(context.Background(), st, acct, "cn-northwest-1", handlers, bcTestDenied); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, want := range []string{groupARN, ruleARN} {
@@ -994,7 +1002,7 @@ func TestScanBillingConductor_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := bcScan(ctx, st, handlers)
+	_, err := bcScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1024,7 +1032,7 @@ func TestScanBillingConductor_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := bcHandlers(newBCCalls())
 		handlers["ListPricingRules"] = func(any) (any, error) { return nil, nx }
-		total, _, err := bcScan(context.Background(), st, handlers)
+		total, err := bcScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := bcTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1034,7 +1042,7 @@ func TestScanBillingConductor_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newBCCalls()
 		calls.errs[bcKindOf(t, "ListBillingGroups").arn("tagged")] = nx
-		_, _, err := bcScan(context.Background(), st, bcHandlers(calls))
+		_, err := bcScan(context.Background(), st, bcHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1048,7 +1056,7 @@ func TestScanBillingConductor_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := bcScanIn(context.Background(), st, newTestAccount(testAccountID), testRegion, handlers, nx)
+		_, err := bcScanIn(context.Background(), st, newTestAccount(testAccountID), testRegion, handlers, nx)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

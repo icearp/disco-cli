@@ -20,10 +20,10 @@ func init() {
 }
 
 // scanIoTHub discovers Azure IoT Hubs.
-func scanIoTHub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTHub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armiothub.NewResourceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armiothub:NewResourceClient: %w", err)
+		return 0, fmt.Errorf("armiothub:NewResourceClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armiothub:Resource.ListBySubscription", TypeIoTHub, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -36,9 +36,9 @@ func scanIoTHub(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 // scanDevicesNamespace runs every Microsoft.devices scanner phase concurrently —
 // several disco scanners merged under one serviceEntry so the service name
 // aligns to the namespace.
-func scanDevicesNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevicesNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanIoTHub(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanDeviceProvisioningServices(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanIoTHub(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanDeviceProvisioningServices(ctx, sub, cred, st, scanID) },
 	)
 }

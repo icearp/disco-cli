@@ -30,7 +30,7 @@ type s3filesAPI interface {
 // scanS3Files discovers S3 Files file systems and per-FS access points,
 // mount targets, and policies. MountTarget and FileSystemPolicy synthesize
 // ARN; the SDK returns none for either.
-func scanS3Files(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3Files(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := s3files.NewFromConfig(acct.cfg, func(o *s3files.Options) { o.Region = region })
 
 	type fsRef struct{ id, arn string }
@@ -41,9 +41,9 @@ func scanS3Files(ctx context.Context, acct *account, region string, st *store.St
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "s3files:ListFileSystems", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "s3files:ListFileSystems", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("s3files:ListFileSystems: %w", perr)
+			return 0, fmt.Errorf("s3files:ListFileSystems: %w", perr)
 		}
 		for _, f := range out.FileSystems {
 			arn := sv(f.FileSystemArn)
@@ -61,35 +61,33 @@ func scanS3Files(ctx context.Context, acct *account, region string, st *store.St
 			})
 		}
 	}
-	t, i, ferr := upsertBatch(st, batch, "s3files file-systems")
+	t, ferr := upsertBatch(st, batch, "s3files file-systems")
 	if ferr != nil {
-		return 0, 0, ferr
+		return 0, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, fs := range systems {
-		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanS3FAccessPoints(ctx, client, acct, region, st, scanID, fs.id) },
-			func() (int, int, error) {
+		for _, phase := range []func() (int, error){
+			func() (int, error) { return scanS3FAccessPoints(ctx, client, acct, region, st, scanID, fs.id) },
+			func() (int, error) {
 				return scanS3FMountTargets(ctx, client, acct, region, st, scanID, fs.id, fs.arn)
 			},
-			func() (int, int, error) {
+			func() (int, error) {
 				return scanS3FFileSystemPolicy(ctx, client, acct, region, st, scanID, fs.id, fs.arn)
 			},
 		} {
-			t, i, perr := phase()
+			t, perr := phase()
 			if perr != nil {
-				return total, inserted, perr
+				return total, perr
 			}
 			total += t
-			inserted += i
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanS3FAccessPoints(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID string) (int, int, error) {
+func scanS3FAccessPoints(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID string) (int, error) {
 	id := fsID
 	pager := s3files.NewListAccessPointsPaginator(client, &s3files.ListAccessPointsInput{FileSystemId: &id})
 	var batch []*store.Resource
@@ -97,9 +95,9 @@ func scanS3FAccessPoints(ctx context.Context, client s3filesAPI, acct *account, 
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3files:ListAccessPoints", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "s3files:ListAccessPoints", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("s3files:ListAccessPoints: %w", err)
+			return 0, fmt.Errorf("s3files:ListAccessPoints: %w", err)
 		}
 		for _, a := range out.AccessPoints {
 			arn := sv(a.AccessPointArn)
@@ -118,7 +116,7 @@ func scanS3FAccessPoints(ctx context.Context, client s3filesAPI, acct *account, 
 	return upsertBatch(st, batch, "s3files access-points")
 }
 
-func scanS3FMountTargets(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID, fsARN string) (int, int, error) {
+func scanS3FMountTargets(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID, fsARN string) (int, error) {
 	id := fsID
 	pager := s3files.NewListMountTargetsPaginator(client, &s3files.ListMountTargetsInput{FileSystemId: &id})
 	var batch []*store.Resource
@@ -126,9 +124,9 @@ func scanS3FMountTargets(ctx context.Context, client s3filesAPI, acct *account, 
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3files:ListMountTargets", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "s3files:ListMountTargets", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("s3files:ListMountTargets: %w", err)
+			return 0, fmt.Errorf("s3files:ListMountTargets: %w", err)
 		}
 		for _, m := range out.MountTargets {
 			mtid := sv(m.MountTargetId)
@@ -149,17 +147,17 @@ func scanS3FMountTargets(ctx context.Context, client s3filesAPI, acct *account, 
 	return upsertBatch(st, batch, "s3files mount-targets")
 }
 
-func scanS3FFileSystemPolicy(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID, fsARN string) (int, int, error) {
+func scanS3FFileSystemPolicy(ctx context.Context, client s3filesAPI, acct *account, region string, st *store.Store, scanID string, fsID, fsARN string) (int, error) {
 	id := fsID
 	out, err := client.GetFileSystemPolicy(ctx, &s3files.GetFileSystemPolicyInput{FileSystemId: &id})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "PolicyNotFound") {
-			return 0, 0, nil
+			return 0, nil
 		}
-		return 0, 0, fmt.Errorf("s3files:GetFileSystemPolicy: %w", err)
+		return 0, fmt.Errorf("s3files:GetFileSystemPolicy: %w", err)
 	}
 	if sv(out.Policy) == "" {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := fsARN + "/policy"
 	label := "policy"

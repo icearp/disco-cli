@@ -372,7 +372,7 @@ func (s *ssoTagScan) handlers() map[string]func(any) (any, error) {
 	}
 }
 
-func (s *ssoTagScan) scan(st *store.Store) (int, int, error) {
+func (s *ssoTagScan) scan(st *store.Store) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = s.partition
 	h := s.handlers()
@@ -400,7 +400,9 @@ func TestScanSSOAdmin_TagsEveryTaggableType(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, inserted, err := s.scan(st)
+	counted, upserts := countUpserts(st)
+	total, err := s.scan(counted)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -441,7 +443,9 @@ func TestScanSSOAdmin_TagsEveryTaggableType(t *testing.T) {
 		t.Errorf("permission set attrs = %s (%v); want the DescribePermissionSet body", psRow.AttributesJSON, err)
 	}
 
-	total, inserted, err = s.scan(st)
+	counted, upserts = countUpserts(st)
+	total, err = s.scan(counted)
+	inserted = upserts()
 	if err != nil || total != ssoTagRowCount || inserted != 0 {
 		t.Errorf("rescan total=%d inserted=%d err=%v; want %d, 0, nil", total, inserted, err, ssoTagRowCount)
 	}
@@ -474,7 +478,7 @@ func TestScanSSOAdmin_TagDenialsWarnOnce(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, _, err := s.scan(st)
+	total, err := s.scan(st)
 	if err != nil || total != ssoTagRowCount {
 		t.Fatalf("total=%d err=%v; want %d, nil", total, err, ssoTagRowCount)
 	}
@@ -509,7 +513,7 @@ func TestScanSSOAdmin_TagNotFoundDropsRow(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -574,7 +578,7 @@ func TestScanSSOAdmin_TagReadErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "ssoadmin:ListTagsForResource")
 
-			_, _, err := s.scan(st)
+			_, err := s.scan(st)
 			assertGlueOutcome(t, err, tc.outcome)
 			assertAPICode(t, err, tc.code)
 			if *warns != tc.warnings {
@@ -608,7 +612,7 @@ func TestScanSSOAdmin_TagsOwnedElsewhere(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if err != nil || total != ssoTagRowCount {
 				t.Fatalf("total=%d err=%v; want %d, nil", total, err, ssoTagRowCount)
 			}
@@ -663,7 +667,7 @@ func TestScanSSOAdmin_ApplicationAndIssuerTagsJudgedByTheirARN(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if err != nil || total != c.wantRows {
 				t.Fatalf("total=%d err=%v; want %d, nil", total, err, c.wantRows)
 			}
@@ -699,7 +703,7 @@ func TestScanSSOAdmin_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			s := newSSOTagScanIn(c.partition, c.region)
 			st := newTestStore(t)
-			if _, _, err := s.scan(st); err != nil {
+			if _, err := s.scan(st); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := s.tagReads(), s.allTagReads(); !slices.Equal(got, want) {
@@ -745,7 +749,7 @@ func TestScanSSOAdmin_PermissionSetDescribeFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "sso-admin:DescribePermissionSet")
 
-			_, _, err := s.scan(st)
+			_, err := s.scan(st)
 			if tc.code == "" && err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -791,7 +795,7 @@ func TestScanSSOAdmin_ListingFailuresKeepEarlierPages(t *testing.T) {
 			s.failAfterFirst[k.listOp] = ssoTagConflict
 			st := newTestStore(t)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ConflictException")
 			if total != ssoTagRowCount-1 {
@@ -808,7 +812,7 @@ func TestScanSSOAdmin_ListingFailuresKeepEarlierPages(t *testing.T) {
 		s.repeatToken["ListApplications"] = true
 		st := newTestStore(t)
 
-		total, _, err := s.scan(st)
+		total, err := s.scan(st)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v; want errRepeatedNextToken", err)
 		}
@@ -832,7 +836,7 @@ func TestScanSSOAdmin_InstanceWithoutARNWarns(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 
-	total, _, err := s.scan(st)
+	total, err := s.scan(st)
 	if err != nil || total != ssoTagRowCount+1 {
 		t.Fatalf("total=%d err=%v; want %d (the user included), nil", total, err, ssoTagRowCount+1)
 	}
@@ -858,7 +862,9 @@ func TestScanSSOAdmin_NoInstancesListsNothingElse(t *testing.T) {
 	s.noInstances = true
 	st := newTestStore(t)
 
-	total, inserted, err := s.scan(st)
+	counted, upserts := countUpserts(st)
+	total, err := s.scan(counted)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("total=%d inserted=%d err=%v; want 0, 0, nil", total, inserted, err)
 	}
@@ -890,7 +896,7 @@ func TestScanSSOAdmin_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -941,7 +947,7 @@ func TestScanSSOAdmin_PermissionSetListingPerInstance(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if c.code == "" && err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1001,7 +1007,7 @@ func TestScanSSOAdmin_PermissionSetDenialsWarnOncePerScan(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 
-			if _, _, err := s.scan(st); err != nil {
+			if _, err := s.scan(st); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if w := warns(); len(w) != 1 || w[0].Service != c.op || w[0].Scope != testAccountID+"/"+testRegion {
@@ -1048,7 +1054,7 @@ func TestScanSSOAdmin_NXDOMAIN(t *testing.T) {
 		s.opErr["ListInstances"] = ssoNXDOMAIN
 		st := newTestStore(t)
 
-		total, _, err := s.scan(st)
+		total, err := s.scan(st)
 		if !isDNSNotFound(err) || classifyServiceError(err) != outcomeUnavailable || total != 0 {
 			t.Fatalf("total=%d err=%v (%v); want 0 and an NXDOMAIN read as unavailable", total, err, classifyServiceError(err))
 		}
@@ -1082,7 +1088,7 @@ func TestScanSSOAdmin_NXDOMAIN(t *testing.T) {
 			c.set(s)
 			st := newTestStore(t)
 
-			total, _, err := s.scan(st)
+			total, err := s.scan(st)
 			if err == nil || isDNSNotFound(err) || classifyServiceError(err) != outcomeError {
 				t.Fatalf("err = %v (%v); want a hard error, not an NXDOMAIN", err, classifyServiceError(err))
 			}

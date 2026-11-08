@@ -185,7 +185,7 @@ func sv32(p *int32) int32 {
 func TestScanEC2ByoipCidrs_StoresLiveRangesAcrossPages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2ByoipCidrs(context.Background(), ipxClient(map[string]func(any) (any, error){
+	total, err := scanEC2ByoipCidrs(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeByoipCidrs": ipxByoipHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -226,7 +226,7 @@ func TestEC2ByoipNativeIDShape(t *testing.T) {
 func TestScanEC2IpamByoasns_StoresLiveAsnsAcrossPages(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
+	total, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamByoasn": ipxByoasnHandler,
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -257,7 +257,7 @@ func TestScanEC2IpamByoasns_RepeatedTokenFails(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
-	_, _, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
+	_, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamByoasn": func(any) (any, error) {
 			calls++
 			if calls > 3 {
@@ -289,7 +289,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 	phases := []struct {
 		name, op, sdkOp string
 		typ             string
-		run             func(ec2API, *store.Store) (int, int, error)
+		run             func(ec2API, *store.Store) (int, error)
 		empty           any
 		firstPage       func(any) (any, error)
 		wantFirstPageID string
@@ -298,14 +298,14 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 	}{
 		{
 			name: "byoip", op: ec2ByoipCidrsOp, sdkOp: "DescribeByoipCidrs", typ: TypeEC2ByoipCidr,
-			run: func(c ec2API, st *store.Store) (int, int, error) {
+			run: func(c ec2API, st *store.Store) (int, error) {
 				return scanEC2ByoipCidrs(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			empty: &ec2.DescribeByoipCidrsOutput{}, firstPage: ipxByoipHandler, wantFirstPageID: ipxByoipID(ipxCidr1),
 		},
 		{
 			name: "byoasn", op: ec2IpamByoasnOp, sdkOp: "DescribeIpamByoasn", typ: TypeEC2IpamByoasn,
-			run: func(c ec2API, st *store.Store) (int, int, error) {
+			run: func(c ec2API, st *store.Store) (int, error) {
 				return scanEC2IpamByoasns(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			empty: &ec2.DescribeIpamByoasnOutput{}, firstPage: ipxByoasnHandler, wantFirstPageID: ipxByoasnID(ipxAsn1),
@@ -314,7 +314,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 		{
 			name: "internet registry associations", op: ec2IpamInternetRegistryAssocsOp,
 			sdkOp: "DescribeIpamInternetRegistryAssociations", typ: TypeEC2IpamInternetRegistryAssociation,
-			run: func(c ec2API, st *store.Store) (int, int, error) {
+			run: func(c ec2API, st *store.Store) (int, error) {
 				return scanEC2IpamInternetRegistryAssociations(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			empty: &ec2.DescribeIpamInternetRegistryAssociationsOutput{}, firstPage: ipxIrAssocHandler, wantFirstPageID: ipxIrAssocARN(ipxIrAssoc1),
@@ -324,7 +324,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 	for _, ph := range phases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := ph.run(ipxClient(map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }}), st)
+			total, err := ph.run(ipxClient(map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { return ph.empty, nil }}), st)
 			if err != nil || total != 0 {
 				t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 			}
@@ -335,7 +335,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 		t.Run(ph.name+"/denied", func(t *testing.T) {
 			st := newTestStore(t)
 			warnings := countOpWarnings(st, ph.op)
-			if _, _, err := ph.run(ipxClient(nil), st); err != nil {
+			if _, err := ph.run(ipxClient(nil), st); err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
 			if *warnings != 1 {
@@ -346,7 +346,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 			st := newTestStore(t)
 			var warned int
 			st.OnWarn = func(store.ScanWarning) { warned++ }
-			_, _, err := ph.run(ipxClient(map[string]func(any) (any, error){
+			_, err := ph.run(ipxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) {
 					return nil, apiErr("InvalidAction", "The action is not valid for this web service.")
 				},
@@ -360,7 +360,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 		})
 		t.Run(ph.name+"/other error", func(t *testing.T) {
 			st := newTestStore(t)
-			_, _, err := ph.run(ipxClient(map[string]func(any) (any, error){
+			_, err := ph.run(ipxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(any) (any, error) { return nil, apiErr("InvalidParameterValue", "bad") },
 			}), st)
 			if !isAPIErrorCode(err, "InvalidParameterValue") {
@@ -369,7 +369,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 		})
 		t.Run(ph.name+"/error after a page", func(t *testing.T) {
 			st := newTestStore(t)
-			_, _, err := ph.run(ipxClient(map[string]func(any) (any, error){
+			_, err := ph.run(ipxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(in any) (any, error) {
 					if !isFirstPage(in) {
 						return nil, errIpxTest
@@ -386,7 +386,7 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 		})
 		t.Run(ph.name+"/feature gap after a page", func(t *testing.T) {
 			st := newTestStore(t)
-			_, _, err := ph.run(ipxClient(map[string]func(any) (any, error){
+			_, err := ph.run(ipxClient(map[string]func(any) (any, error){
 				ph.sdkOp: func(in any) (any, error) {
 					if !isFirstPage(in) {
 						return nil, apiErr("InvalidAction", "The action is not valid for this web service.")
@@ -424,7 +424,7 @@ func TestScanEC2IpamPolicyAllocationRules_StoresDocumentsUnderPolicies(t *testin
 	st := newTestStore(t)
 	ipxSeedPolicies(t, st, ipxPolicy1, ipxPolicy2)
 	var calls parentCalls
-	total, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
+	total, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"GetIpamPolicyAllocationRules": ipxAllocationHandler(&calls),
 	}), newTestAccount(testAccountID), testRegion, st, testScanID, ipxParents(ipxPolicy1, ipxPolicy2))
 	if err != nil {
@@ -463,7 +463,7 @@ func TestScanEC2IpamPolicyAllocationRules_StoresDocumentsUnderPolicies(t *testin
 func TestScanEC2IpamPolicyAllocationRules_NoPolicies(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(nil),
+	total, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(nil),
 		newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
@@ -499,7 +499,7 @@ func TestScanEC2IpamPolicyAllocationRules_PerPolicyErrors(t *testing.T) {
 					warned++
 				}
 			}
-			_, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
+			_, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
 				"GetIpamPolicyAllocationRules": func(in any) (any, error) {
 					if id := sv(in.(*ec2.GetIpamPolicyAllocationRulesInput).IpamPolicyId); id == ipxPolicy1 || id == ipxPolicy3 {
 						return nil, c.failErr
@@ -537,7 +537,7 @@ func TestScanIpamPolicies_ReturnsStoredLivePolicies(t *testing.T) {
 			}}, nil
 		},
 	})
-	_, _, policies, err := scanIpamPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, policies, err := scanIpamPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanIpamPolicies: %v", err)
 	}
@@ -575,7 +575,7 @@ func scanEC2TopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ipxDenied)
-	total, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -631,7 +631,7 @@ func TestScanEC2_IpamExtendedPhasesAfterOlderCategories(t *testing.T) {
 				}
 			}
 			acct.cfg = opStubConfigCtx(ctxHandlers, ipxDenied)
-			_, _, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanEC2(context.Background(), acct, testRegion, st, testScanID)
 			if !errors.Is(err, errIpxTest) {
 				t.Fatalf("err = %v, want the %s error", err, failOp)
 			}
@@ -791,7 +791,7 @@ func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenFails(t *testing.T) {
 	ipxSeedPolicies(t, st, ipxPolicy1)
 	calls := 0
 	locales := []string{ipxLocale, ipxLocale2}
-	_, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
+	_, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"GetIpamPolicyAllocationRules": func(any) (any, error) {
 			calls++
 			if calls > 2 {
@@ -819,9 +819,11 @@ func TestScanEC2IpamInternetRegistryAssociations_StoresLiveAssociationsAcrossPag
 	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
-	total, inserted, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+	counted, upserts := countUpserts(st)
+	total, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamInternetRegistryAssociations": ipxIrAssocHandler,
-	}), newTestAccount(testAccountID), testRegion, st, testScanID)
+	}), newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanEC2IpamInternetRegistryAssociations: %v", err)
 	}
@@ -862,7 +864,7 @@ func TestScanEC2IpamInternetRegistryAssociations_DeniedAfterPageKeepsRows(t *tes
 	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
-	total, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+	total, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamInternetRegistryAssociations": func(in any) (any, error) {
 			if !isFirstPage(in) {
 				return nil, ipxDenied
@@ -889,7 +891,7 @@ func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenFails(t *testing.T
 	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
-	_, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+	_, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamInternetRegistryAssociations": func(any) (any, error) {
 			calls++
 			if calls > 3 {

@@ -54,11 +54,11 @@ type grafanaServiceAccount struct{ workspaceID, id, nativeID string }
 // in the hard error instead of reported under its op; the permission phase's
 // error is joined as is, because its fan-out already drops each workspace's
 // transient error. The counts are summed.
-func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := grafana.NewFromConfig(acct.cfg, func(o *grafana.Options) { o.Region = region })
-	total, inserted, permWorkspaces, err := scanGrafanaOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, perr := scanGrafanaPermissions(ctx, client, acct, region, st, scanID, permWorkspaces)
-	return total + t, inserted + i, demoteBeside(st, "grafana", acct, region, err, perr)
+	total, permWorkspaces, err := scanGrafanaOlderPhases(ctx, client, acct, region, st, scanID)
+	t, perr := scanGrafanaPermissions(ctx, client, acct, region, st, scanID, permWorkspaces)
+	return total + t, demoteBeside(st, "grafana", acct, region, err, perr)
 }
 
 // grafanaParents are the workspaces the workspace phase stored, split by the
@@ -73,38 +73,37 @@ type grafanaParents struct {
 // workspaces that use, or may use, IAM Identity Center (see
 // grafanaMayUseIdentityCenter), which are empty when the workspace phase
 // failed.
-func scanGrafanaOlderPhases(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, permWorkspaces []childParent, err error) {
+func scanGrafanaOlderPhases(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (total int, permWorkspaces []childParent, err error) {
 	var (
 		workspaces grafanaParents
 		accounts   []grafanaServiceAccount
 	)
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			workspaces, t, i, err = scanGrafanaWorkspaces(ctx, client, acct, region, st, scanID)
-			return t, i, err
+	for _, phase := range []func() (int, error){
+		func() (t int, err error) {
+			workspaces, t, err = scanGrafanaWorkspaces(ctx, client, acct, region, st, scanID)
+			return t, err
 		},
-		func() (t, i int, err error) {
-			accounts, t, i, err = scanGrafanaServiceAccounts(ctx, client, acct, region, st, scanID, workspaces.serviceAccounts)
-			return t, i, err
+		func() (t int, err error) {
+			accounts, t, err = scanGrafanaServiceAccounts(ctx, client, acct, region, st, scanID, workspaces.serviceAccounts)
+			return t, err
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanGrafanaServiceAccountTokens(ctx, client, acct, region, st, scanID, accounts)
 		},
 	} {
-		t, i, ferr := phase()
+		t, ferr := phase()
 		total += t
-		inserted += i
 		if ferr != nil {
-			return total, inserted, workspaces.permissions, ferr
+			return total, workspaces.permissions, ferr
 		}
 	}
-	return total, inserted, workspaces.permissions, nil
+	return total, workspaces.permissions, nil
 }
 
 // scanGrafanaWorkspaces stores every workspace and returns, as service
 // account fan-out parents, those whose Grafana version has service accounts
 // and, as permission fan-out parents, those that use IAM Identity Center.
-func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (grafanaParents, int, int, error) {
+func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string) (grafanaParents, int, error) {
 	var (
 		batch   []*store.Resource
 		parents grafanaParents
@@ -114,9 +113,9 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 		out, err := client.ListWorkspaces(ctx, &grafana.ListWorkspacesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return grafanaParents{}, 0, 0, skipIfAccessDenied(st, "grafana:ListWorkspaces", acct.ID, region, err)
+				return grafanaParents{}, 0, skipIfAccessDenied(st, "grafana:ListWorkspaces", acct.ID, region, err)
 			}
-			return grafanaParents{}, 0, 0, fmt.Errorf("grafana:ListWorkspaces: %w", err)
+			return grafanaParents{}, 0, fmt.Errorf("grafana:ListWorkspaces: %w", err)
 		}
 		for _, w := range out.Workspaces {
 			id := sv(w.Id)
@@ -143,11 +142,11 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, err := upsertBatch(st, batch, "grafana workspaces")
+	total, err := upsertBatch(st, batch, "grafana workspaces")
 	if err != nil {
-		return grafanaParents{}, 0, 0, err
+		return grafanaParents{}, 0, err
 	}
-	return parents, total, inserted, nil
+	return parents, total, nil
 }
 
 // grafanaMayUseIdentityCenter reports whether a workspace with this
@@ -191,12 +190,12 @@ func grafanaHasServiceAccounts(version string) bool {
 // scanGrafanaServiceAccounts lists the service accounts of each given
 // workspace, keyed {workspaceARN}/serviceaccount/{id} because the API returns
 // no ARN, and returns them as token fan-out parents.
-func scanGrafanaServiceAccounts(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) ([]grafanaServiceAccount, int, int, error) {
+func scanGrafanaServiceAccounts(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) ([]grafanaServiceAccount, int, error) {
 	var (
 		mu       sync.Mutex
 		accounts []grafanaServiceAccount
 	)
-	total, inserted, err := childFanOut(ctx, st, acct, region, "grafana:ListWorkspaceServiceAccounts", workspaces, isGrafanaNotFound,
+	total, err := childFanOut(ctx, st, acct, region, "grafana:ListWorkspaceServiceAccounts", workspaces, isGrafanaNotFound,
 		func(ctx context.Context, w childParent) ([]*store.Resource, error) {
 			var (
 				rows  []*store.Resource
@@ -233,14 +232,14 @@ func scanGrafanaServiceAccounts(ctx context.Context, client grafanaAPI, acct *ac
 			return rows, nil
 		})
 	if err != nil {
-		return nil, total, inserted, err
+		return nil, total, err
 	}
-	return accounts, total, inserted, nil
+	return accounts, total, nil
 }
 
 // scanGrafanaServiceAccountTokens lists the tokens of each given service
 // account, keyed {serviceAccountNativeID}/token/{id}.
-func scanGrafanaServiceAccountTokens(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, accounts []grafanaServiceAccount) (int, int, error) {
+func scanGrafanaServiceAccountTokens(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, accounts []grafanaServiceAccount) (int, error) {
 	parents := make([]childParent, len(accounts))
 	workspaceOf := make(map[string]string, len(accounts))
 	for i, a := range accounts {
@@ -289,7 +288,7 @@ func scanGrafanaServiceAccountTokens(ctx context.Context, client grafanaAPI, acc
 // workspace that is still being created, or has failed or is being deleted,
 // answers with it is unverified, so such a workspace is skipped with one
 // warning rather than failing the phase on every scan.
-func scanGrafanaPermissions(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+func scanGrafanaPermissions(ctx context.Context, client grafanaAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, error) {
 	return childFanOutSkipNotReady(ctx, st, acct, region, grafanaListPermissionsOp, workspaces, isGrafanaNotFound, byParentID,
 		"workspace(s)", "a workspace that is not active may refuse it",
 		func(ctx context.Context, w childParent) ([]*store.Resource, error) {

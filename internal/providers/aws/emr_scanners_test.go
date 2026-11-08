@@ -141,11 +141,11 @@ func (f *emrFake) client() *emr.Client {
 	}, apiErr("AccessDeniedException", "User: x is not authorized to perform: elasticmapreduce:Op")))
 }
 
-func scanEMRTestClusters(ctx context.Context, f *emrFake, st *store.Store) ([]childParent, int, int, error) {
+func scanEMRTestClusters(ctx context.Context, f *emrFake, st *store.Store) ([]childParent, int, error) {
 	return scanEMRClusters(ctx, f.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
-func scanEMRTestAll(ctx context.Context, f *emrFake, st *store.Store) (int, int, error) {
+func scanEMRTestAll(ctx context.Context, f *emrFake, st *store.Store) (int, error) {
 	return scanEMRAll(ctx, f.client(), newTestAccount(testAccountID), testRegion, st, testScanID)
 }
 
@@ -194,7 +194,9 @@ func TestScanEMRClusters_StoresDescribedClustersWithTags(t *testing.T) {
 	f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-tagged")}, []emrtypes.ClusterSummary{unnamed})
 	f.tags["j-tagged"] = []emrtypes.Tag{{Key: ptrStr("env"), Value: ptrStr("prod")}, {Key: ptrStr("team"), Value: ptrStr("data")}}
 
-	parents, total, inserted, err := scanEMRTestClusters(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	parents, total, err := scanEMRTestClusters(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 2 || inserted != 2 {
 		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, inserted, err)
 	}
@@ -239,7 +241,9 @@ func TestScanEMRClusters_DescribeFailuresKeepListedRow(t *testing.T) {
 				f.bodiless = id
 			}
 
-			parents, total, inserted, err := scanEMRTestClusters(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			parents, total, err := scanEMRTestClusters(context.Background(), f, counted)
+			inserted := upserts()
 			if !tc.wantErr(err) {
 				t.Errorf("err = %v; want it handled as %s", err, tc.name)
 			}
@@ -270,8 +274,9 @@ func TestScanEMRClusters_DeniedReadsShareOneWarning(t *testing.T) {
 	f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-a"), emrListed("j-b")})
 	f.errs["DescribeCluster j-a"] = apiErr("AccessDeniedException", "x")
 	f.errs["DescribeCluster j-b"] = apiErr("AccessDeniedException", "x")
-	if _, total, inserted, err := scanEMRTestClusters(context.Background(), f, st); err != nil || total != 2 || inserted != 2 {
-		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, inserted, err)
+	counted, upserts := countUpserts(st)
+	if _, total, err := scanEMRTestClusters(context.Background(), f, counted); err != nil || total != 2 || upserts() != 2 {
+		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, upserts(), err)
 	}
 	if *warns != 1 {
 		t.Errorf("DescribeCluster warnings = %d; want 1", *warns)
@@ -298,7 +303,9 @@ func TestScanEMRClusters_ListFailures(t *testing.T) {
 			f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-first")}, []emrtypes.ClusterSummary{emrListed("j-second")})
 			f.errs["ListClusters "+tc.failMarker] = apiErr(tc.code, "x")
 
-			parents, total, inserted, err := scanEMRTestClusters(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			parents, total, err := scanEMRTestClusters(context.Background(), f, counted)
+			inserted := upserts()
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -331,7 +338,9 @@ func TestScanEMRClusters_EmptyIDsWarn(t *testing.T) {
 	noID.Id = nil
 	f := newEMRFake([]emrtypes.ClusterSummary{noARN, noID, emrListed("j-ok")})
 
-	parents, total, inserted, err := scanEMRTestClusters(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	parents, total, err := scanEMRTestClusters(context.Background(), f, counted)
+	inserted := upserts()
 	if err != nil || total != 2 || inserted != 2 {
 		t.Fatalf("scan = %d, %d, %v; want 2, 2, nil", total, inserted, err)
 	}
@@ -368,7 +377,9 @@ func TestScanEMRClusters_StoreWriteFailureStops(t *testing.T) {
 	f.errs["DescribeCluster j-slow"] = apiErr("ThrottlingException", "x")
 	f.bodiless = "j-empty"
 
-	parents, total, inserted, err := scanEMRTestClusters(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	parents, total, err := scanEMRTestClusters(context.Background(), f, counted)
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) || isTransientNetworkError(err) {
 		t.Errorf("err = %v; want only the store write failure", err)
 	}
@@ -389,7 +400,9 @@ func TestScanEMRClusters_ContextStop(t *testing.T) {
 	defer cancel()
 	f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-a")})
 	f.afterList = cancel
-	parents, total, inserted, err := scanEMRTestClusters(ctx, f, st)
+	counted, upserts := countUpserts(st)
+	parents, total, err := scanEMRTestClusters(ctx, f, counted)
+	inserted := upserts()
 	if !errors.Is(err, context.Canceled) || total != 0 || inserted != 0 || parents != nil {
 		t.Errorf("scan = %d, %d, %v, %v; want 0, 0, no parents and the cancellation", total, inserted, parents, err)
 	}
@@ -435,7 +448,9 @@ func TestScanEMRAll_PhasesRunPastErrors(t *testing.T) {
 			f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-a"), emrListed("j-b")})
 			f.errs = tc.errs
 
-			total, inserted, err := scanEMRTestAll(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			total, err := scanEMRTestAll(context.Background(), f, counted)
+			inserted := upserts()
 			if (err == nil) != (len(tc.wantCodes) == 0) {
 				t.Errorf("err = %v; want codes %v", err, tc.wantCodes)
 			}
@@ -472,7 +487,9 @@ func TestScanEMRAll_TransientDemotedBesideHardError(t *testing.T) {
 	f.errs["DescribeCluster j-slow"] = apiErr("ThrottlingException", "x")
 	f.errs["ListSecurityConfigurations "] = apiErr("ValidationException", "x")
 
-	total, inserted, err := scanEMRTestAll(context.Background(), f, st)
+	counted, upserts := countUpserts(st)
+	total, err := scanEMRTestAll(context.Background(), f, counted)
+	inserted := upserts()
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ValidationException") || isAPIErrorCode(err, "ThrottlingException") {
 		t.Errorf("outcome = %d, err = %v; want outcomeError (%d) with only the ValidationException", got, err, outcomeError)
 	}
@@ -509,7 +526,9 @@ func TestScanEMRAll_StoreWriteFailureStopsLaterPhases(t *testing.T) {
 			refuseStoreWrites(t, st, tc.refused)
 			f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-a"), emrListed("j-b")})
 
-			total, inserted, err := scanEMRTestAll(context.Background(), f, st)
+			counted, upserts := countUpserts(st)
+			total, err := scanEMRTestAll(context.Background(), f, counted)
+			inserted := upserts()
 			if !errors.Is(err, store.ErrStoreWrite) || total != tc.wantTotal || inserted != tc.wantTotal {
 				t.Errorf("scan = %d, %d, %v; want %d, %d and the store write failure", total, inserted, err, tc.wantTotal, tc.wantTotal)
 			}

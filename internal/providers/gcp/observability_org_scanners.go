@@ -21,28 +21,27 @@ func init() {
 // folder scopes. Sibling to the per-project scanLoggingSinks; runs ONCE
 // per scan via the org-service lane. NativeIDs follow the GCP-canonical
 // `{scope}/sinks/{name}` shape so they don't collide with project-scope sinks.
-func scanLoggingSinksOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingSinksOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := logging.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("logging client: %w", err)
+		return 0, fmt.Errorf("logging client: %w", err)
 	}
 
 	for _, sc := range scopes {
-		t, n, perr := scanLoggingSinksForScope(ctx, svc, sc, st, scanID)
+		t, perr := scanLoggingSinksForScope(ctx, svc, sc, st, scanID)
 		total += t
-		inserted += n
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanLoggingSinksForScope handles either Organizations.Sinks.List or
 // Folders.Sinks.List. The two APIs are structurally identical but live on
 // distinct sub-services; dispatch picks the right one via the scope kind.
-func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgScope, st *store.Store, scanID string) (total int, err error) {
 	pages := func(handler func(*logging.ListSinksResponse) error) error {
 		switch sc.Kind {
 		case "organization":
@@ -79,12 +78,11 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 		if len(batch) == 0 {
 			return nil
 		}
-		n, upErr := st.UpsertResources(batch)
+		_, upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert org logging sinks: %w", upErr)
 		}
 		total += len(batch)
-		inserted += n
 		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure org logging sinks: %w", cErr)
 		}
@@ -92,9 +90,9 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "logging:"+sc.Kind+"-sinks.list", sc.Name, err)
+			return total, skipIfDenied(st, "logging:"+sc.Kind+"-sinks.list", sc.Name, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }

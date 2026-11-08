@@ -79,12 +79,12 @@ func (p *mp2Paths) mp2PathOf(arn string) mp2Path {
 // this scan, those parents concurrently. Channel groups, channels and origin
 // endpoints have their tags read per row (mp2Tags), whose denials are one
 // warning for the whole scan.
-func scanMediaPackageV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMediaPackageV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := mediapackagev2.NewFromConfig(acct.cfg, func(o *mediapackagev2.Options) { o.Region = region })
 	tags := mp2Tags(client).sharingDenials()
 	paths := &mp2Paths{byARN: map[string]mp2Path{}}
 	var groups, channels, endpoints []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "mediapackagev2", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "mediapackagev2", 0, []hostPhase{
 		{op: "mediapackagev2:ListChannelGroups", run: func(p *phaseTotals) (failed bool) {
 			groups, failed = scanMP2ChannelGroups(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -105,7 +105,7 @@ func scanMediaPackageV2(ctx context.Context, acct *account, region string, st *s
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // mp2Tags reads a row's tags with ListTagsForResource, sent the row's

@@ -101,7 +101,9 @@ func TestScanConnectRouting(t *testing.T) {
 		quickOut:   map[string]*connect.DescribeQuickConnectOutput{qcID: {QuickConnect: &cttypes.QuickConnect{QuickConnectARN: &qcARN, Name: &qcName}}},
 	}
 
-	total, inserted, err := scanConnectRouting(context.Background(), stub, instances, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectRouting(context.Background(), stub, instances, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -126,7 +128,9 @@ func TestScanConnectRoutingEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectRouting{}
-	total, inserted, err := scanConnectRouting(context.Background(), stub, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectRouting(context.Background(), stub, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

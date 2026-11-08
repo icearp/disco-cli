@@ -18,33 +18,32 @@ import (
 // skip-logged: Permissions duplicates PrincipalPermissions data via the same
 // ListPermissions API; TagAssociation has no enumerable list endpoint
 // (GetResourceLFTags requires a per-resource Glue ARN).
-func scanLakeFormationExtended(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanLFDataCellsFilter(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLFDataLakeSettings(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLFPrincipalPermissions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLFTags(ctx, client, acct, region, st, scanID) },
+func scanLakeFormationExtended(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanLFDataCellsFilter(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanLFDataLakeSettings(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanLFPrincipalPermissions(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanLFTags(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanLFDataCellsFilter(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLFDataCellsFilter(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := lakeformation.NewListDataCellsFilterPaginator(client, &lakeformation.ListDataCellsFilterInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lakeformation:ListDataCellsFilter", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "lakeformation:ListDataCellsFilter", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("lakeformation:ListDataCellsFilter: %w", err)
+			return 0, fmt.Errorf("lakeformation:ListDataCellsFilter: %w", err)
 		}
 		for _, f := range out.DataCellsFilters {
 			db, table, name := sv(f.DatabaseName), sv(f.TableName), sv(f.Name)
@@ -72,16 +71,16 @@ func lfTagARN(partition, region, catalogID, key string) string {
 	return arnFor(partition, "lakeformation", region, catalogID, "lf-tag/"+key)
 }
 
-func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetDataLakeSettings(ctx, &lakeformation.GetDataLakeSettingsInput{})
 	if err != nil {
 		if isAccessDenied(err) || isAPIErrorCode(err, "EntityNotFoundException") {
-			return 0, 0, skipIfAccessDenied(st, "lakeformation:GetDataLakeSettings", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "lakeformation:GetDataLakeSettings", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("lakeformation:GetDataLakeSettings: %w", err)
+		return 0, fmt.Errorf("lakeformation:GetDataLakeSettings: %w", err)
 	}
 	if out.DataLakeSettings == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	arn := arnFor(acct.partition(), "lakeformation", region, acct.ID, "data-lake-settings")
 	label := "data-lake-settings"
@@ -97,16 +96,16 @@ func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *
 // scanLFPrincipalPermissions enumerates all (principal, resource) permission
 // grants. Each grant has no AWS-issued ARN — synthesize a stable hash over
 // the principal+resource+permissions tuple.
-func scanLFPrincipalPermissions(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLFPrincipalPermissions(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := lakeformation.NewListPermissionsPaginator(client, &lakeformation.ListPermissionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lakeformation:ListPermissions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "lakeformation:ListPermissions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("lakeformation:ListPermissions: %w", err)
+			return 0, fmt.Errorf("lakeformation:ListPermissions: %w", err)
 		}
 		for _, p := range out.PrincipalResourcePermissions {
 			body := mustJSON(p)
@@ -125,16 +124,16 @@ func scanLFPrincipalPermissions(ctx context.Context, client lakeformationAPI, ac
 	return upsertBatch(st, batch, "lakeformation principal-permissions")
 }
 
-func scanLFTags(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanLFTags(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := lakeformation.NewListLFTagsPaginator(client, &lakeformation.ListLFTagsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lakeformation:ListLFTags", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "lakeformation:ListLFTags", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("lakeformation:ListLFTags: %w", err)
+			return 0, fmt.Errorf("lakeformation:ListLFTags: %w", err)
 		}
 		for _, t := range out.LFTags {
 			key := sv(t.TagKey)

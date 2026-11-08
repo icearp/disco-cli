@@ -49,7 +49,7 @@ func cognitoUserPoolReplicaNativeID(primaryARN, replicaRegion string) string {
 // and warns once per scan so the gap stays visible. A pool whose call
 // still fails transiently after the SDK's retries is skipped, keeping its
 // siblings' rows, with one summary warning.
-func scanCognitoUserPoolReplicas(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, pools []childParent) (int, int, error) {
+func scanCognitoUserPoolReplicas(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, pools []childParent) (int, error) {
 	var notEnabled sync.Once
 	return childFanOutSkipTransient(ctx, st, acct, region, cognitoReplicasOp, pools, isCognitoChildSkip, byParentARN,
 		func(ctx context.Context, pool childParent) ([]*store.Resource, error) {
@@ -127,7 +127,7 @@ func cognitoReplicaRows(acct *account, region, scanID string, pool childParent, 
 // A secret has no ARN, so its NativeID is {clientARN}/secret/{ClientSecretId}.
 // A client whose call still fails transiently after the SDK's retries is
 // skipped, keeping its siblings' rows, with one summary warning.
-func scanCognitoUserPoolClientSecrets(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, clients []cognitoAppClientRef) (int, int, error) {
+func scanCognitoUserPoolClientSecrets(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, clients []cognitoAppClientRef) (int, error) {
 	parents := make([]childParent, len(clients))
 	poolOf := make(map[string]string, len(clients))
 	for i, c := range clients {

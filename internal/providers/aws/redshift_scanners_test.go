@@ -32,7 +32,7 @@ type rsListedCase struct {
 	tagged, hasStatus bool
 	page              func(next *string, elems ...rsElem) any
 	nativeID          func(key string) string
-	run               func(context.Context, *redshift.Client, *store.Store) (int, int, error)
+	run               func(context.Context, *redshift.Client, *store.Store) (int, error)
 }
 
 var rsTags = []redshifttypes.Tag{{Key: ptrStr("env"), Value: ptrStr("prod")}}
@@ -61,8 +61,8 @@ func rsKindID(kind string) func(key string) string {
 
 // rsRun adapts a list phase to the case's runner, whatever narrow client
 // interface it takes.
-func rsRun[C any](f func(context.Context, C, *account, string, *store.Store, string) (int, int, error)) func(context.Context, *redshift.Client, *store.Store) (int, int, error) {
-	return func(ctx context.Context, c *redshift.Client, st *store.Store) (int, int, error) {
+func rsRun[C any](f func(context.Context, C, *account, string, *store.Store, string) (int, error)) func(context.Context, *redshift.Client, *store.Store) (int, error) {
+	return func(ctx context.Context, c *redshift.Client, st *store.Store) (int, error) {
 		return f(ctx, any(c).(C), newTestAccount(testAccountID), testRegion, st, testScanID)
 	}
 }
@@ -84,9 +84,9 @@ func rsListedCases() []rsListedCase {
 				return o
 			},
 			nativeID: rsClusterARN,
-			run: func(ctx context.Context, c *redshift.Client, st *store.Store) (int, int, error) {
-				t, i, _, err := scanRedshiftClusters(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
-				return t, i, err
+			run: func(ctx context.Context, c *redshift.Client, st *store.Store) (int, error) {
+				t, _, err := scanRedshiftClusters(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID)
+				return t, err
 			},
 		},
 		{
@@ -369,7 +369,9 @@ func TestScanRedshiftLists_TagsEveryPageWarnIDless(t *testing.T) {
 					warnings = append(warnings, w.Message)
 				}
 			}
-			total, inserted, err := c.run(context.Background(), rsListedClient(c, nil, nil), st)
+			counted, upserts := countUpserts(st)
+			total, err := c.run(context.Background(), rsListedClient(c, nil, nil), counted)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -418,7 +420,7 @@ func TestScanRedshiftSnapshots_NoARNFallsBackToIdentifiers(t *testing.T) {
 			{ClusterIdentifier: ptrStr("c1"), SnapshotIdentifier: ptrStr("s1")},
 		}}, nil
 	}})
-	if _, _, err := scanRedshiftSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanRedshiftSnapshots(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := "arn:aws:redshift:us-east-1:123456789012:snapshot:c1/s1"
@@ -436,7 +438,7 @@ func TestScanRedshiftLists_FailedFirstPage(t *testing.T) {
 			t.Run(c.op+"/"+tc.name, func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, "redshift:"+c.op)
-				total, _, err := c.run(context.Background(), rsListedClient(c, tc.err, nil), st)
+				total, err := c.run(context.Background(), rsListedClient(c, tc.err, nil), st)
 				if *warns != tc.wantWarn {
 					t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
 				}
@@ -467,7 +469,7 @@ func TestScanRedshiftLists_FailedLaterPageKeepsRows(t *testing.T) {
 			t.Run(c.op+"/"+tc.name, func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, "redshift:"+c.op)
-				total, _, err := c.run(context.Background(), rsListedClient(c, nil, tc.err), st)
+				total, err := c.run(context.Background(), rsListedClient(c, nil, tc.err), st)
 				if *warns != tc.wantWarn {
 					t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
 				}
@@ -496,7 +498,7 @@ func TestScanRedshiftLists_RepeatedMarker(t *testing.T) {
 		return c.page(ptrStr("m2"), rsElem{key: "b"}), nil
 	}})
 	st := newTestStore(t)
-	total, _, err := c.run(context.Background(), client, st)
+	total, err := c.run(context.Background(), client, st)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -529,7 +531,7 @@ func TestScanRedshift_PhaseErrorRunsLaterPhases(t *testing.T) {
 			called := rsFailOp(handlers, op, rsBadInput)
 			acct.cfg = opStubConfig(handlers, rsDenied)
 
-			_, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
 			if !*called {
 				t.Fatalf("%s never called", op)
 			}
@@ -554,7 +556,7 @@ func TestScanRedshift_TransientBesideHardError(t *testing.T) {
 	rsFailOp(handlers, "DescribeSnapshotSchedules", rsBadInput)
 	acct.cfg = opStubConfig(handlers, rsDenied)
 
-	_, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
@@ -577,7 +579,7 @@ func TestScanRedshift_StoreWriteStopsLaterPhases(t *testing.T) {
 	later := rsFailOp(handlers, "DescribeClusterSubnetGroups", rsBadInput)
 	acct.cfg = opStubConfig(handlers, rsDenied)
 
-	_, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want ErrStoreWrite", err)
 	}

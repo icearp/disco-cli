@@ -30,25 +30,23 @@ type secretsManagerAPI interface {
 // scanSecretsManager discovers Secrets Manager secrets in one region. Secret
 // values are never fetched — only metadata (rotation config, last-rotated date,
 // KMS key binding) for posture rules.
-func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := secretsmanager.NewFromConfig(acct.cfg, func(o *secretsmanager.Options) { o.Region = region })
-	t, i, ferr := scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)
+	t, ferr := scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	t, i, ferr = scanSecretsManagerExtended(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSecretsManagerExtended(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanSecretsManagerSecrets holds the testable scan body.
-func scanSecretsManagerSecrets(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecretsManagerSecrets(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := secretsmanager.NewListSecretsPaginator(client, &secretsmanager.ListSecretsInput{})
 	return pageScan(ctx, "secretsmanager:ListSecrets", acct, region, st,
 		p.HasMorePages,

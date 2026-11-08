@@ -141,7 +141,7 @@ func iotSWParentPages[Item any](page iotSWParentPage[Item]) iotSWParentPage[Item
 	}
 }
 
-func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iotsitewise.NewFromConfig(acct.cfg, func(o *iotsitewise.Options) { o.Region = region })
 	return scanIoTSiteWiseAll(ctx, client, acct, region, st, scanID)
 }
@@ -165,7 +165,7 @@ func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *stor
 // iotSWMonitorUnresolvedError, since the monitor host may never have
 // resolved). With nothing stored and every phase failing with an NXDOMAIN,
 // the region reads as unavailable.
-func scanIoTSiteWiseAll(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTSiteWiseAll(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p                  phaseTotals
 		tags               = iotSWTags(client)
@@ -305,14 +305,14 @@ func (d *iotSWDetails) hook(ctx context.Context, st *store.Store, acct *account,
 // addPhase adds the listing's counts and err to p under op, and both reads'
 // errors under their ops, as rowTagErrs.addPhase does. It reports whether the
 // write failed, after which the scanner must stop.
-func (d *iotSWDetails) addPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+func (d *iotSWDetails) addPhase(p *phaseTotals, op string, total int, err error) (storeWriteFailed bool) {
 	if errors.Is(err, store.ErrStoreWrite) {
 		err = errors.Join(err, d.hard, d.transient)
 	} else {
 		p.errs.add(d.op, d.hard)
 		p.errs.add(d.op, d.transient)
 	}
-	return d.tagErrs.addPhase(p, d.tags.op, op, total, inserted, err)
+	return d.tagErrs.addPhase(p, d.tags.op, op, total, err)
 }
 
 // scanIoTSWAssetModels stores the region's asset models, each as its
@@ -327,7 +327,7 @@ func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, r
 			return client.DescribeAssetModel(ctx, &iotsitewise.DescribeAssetModelInput{AssetModelId: &id})
 		},
 	}
-	total, inserted, models, err := storeParentListWith(ctx, st, acct, region, op, "asset models", "Id",
+	total, models, err := storeParentListWith(ctx, st, acct, region, op, "asset models", "Id",
 		func(ctx context.Context, token *string) ([]types.AssetModelSummary, *string, error) {
 			out, err := client.ListAssetModels(ctx, &iotsitewise.ListAssetModelsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
 			if err != nil {
@@ -346,7 +346,7 @@ func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, r
 		},
 		func(m types.AssetModelSummary) string { return sv(m.Id) },
 		d.hook(ctx, st, acct, region))
-	return models, d.addPhase(p, op, total, inserted, err)
+	return models, d.addPhase(p, op, total, err)
 }
 
 // scanIoTSWAssets stores the assets of each asset model the model phase
@@ -382,7 +382,7 @@ func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *acco
 			return client.DescribeComputationModel(ctx, &iotsitewise.DescribeComputationModelInput{ComputationModelId: &id})
 		},
 	}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		iotSWPages(func(ctx context.Context, token *string) ([]types.ComputationModelSummary, *string, error) {
 			out, err := client.ListComputationModels(ctx, &iotsitewise.ListComputationModelsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
 			if err != nil {
@@ -400,7 +400,7 @@ func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *acco
 			return r, "", ""
 		},
 		d.hook(ctx, st, acct, region))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // scanIoTSWGateways stores the region's gateways with their tags, each under
@@ -435,7 +435,7 @@ func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, regi
 			return client.DescribeDataset(ctx, &iotsitewise.DescribeDatasetInput{DatasetId: &id})
 		},
 	}
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		iotSWPages(func(ctx context.Context, token *string) ([]types.DatasetSummary, *string, error) {
 			out, err := client.ListDatasets(ctx, &iotsitewise.ListDatasetsInput{
 				SourceType: types.DatasetSourceTypeKendra, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap),
@@ -455,7 +455,7 @@ func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, regi
 			return r, "", ""
 		},
 		d.hook(ctx, st, acct, region))
-	return d.addPhase(p, op, total, inserted, err)
+	return d.addPhase(p, op, total, err)
 }
 
 // scanIoTSWWorkspaces stores the region's workspaces with their tags and
@@ -515,7 +515,7 @@ func scanIoTSWApplications(ctx context.Context, client iotSWAPI, acct *account, 
 		stored   []*store.Resource
 		tagErrs  rowTagErrs
 	)
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+	total, err := storeTokenListWith(ctx, st, acct, region, op,
 		iotSWPages(func(ctx context.Context, token *string) ([]types.ApplicationSummary, *string, error) {
 			out, err := client.ListApplications(ctx, &iotsitewise.ListApplicationsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
 			if err != nil {
@@ -541,7 +541,7 @@ func scanIoTSWApplications(ctx context.Context, client iotSWAPI, acct *account, 
 	if !errors.Is(err, store.ErrStoreWrite) {
 		err = errors.Join(err, iotSWContain(st, acct, op, stored, parentOf))
 	}
-	return tagErrs.addPhase(p, tags.op, op, total, inserted, err)
+	return tagErrs.addPhase(p, tags.op, op, total, err)
 }
 
 // iotSWStoreChildren stores each parent's children with their tags
@@ -570,7 +570,7 @@ func iotSWStoreChildren[Item any](
 	if stop {
 		return nil, true
 	}
-	return stored, p.addPhase(op, 0, 0, iotSWContain(st, acct, op, stored, parentOf))
+	return stored, p.addPhase(op, 0, iotSWContain(st, acct, op, stored, parentOf))
 }
 
 // scanIoTSWPipelines stores the pipelines of each workspace the workspace

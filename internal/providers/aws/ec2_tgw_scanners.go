@@ -31,55 +31,55 @@ func init() {
 
 // scanEC2TGW discovers all Transit Gateway resource types in parallel: core
 // gateways and attachments, plus extended sub-resources.
-func scanEC2TGW(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2TGW(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTransitGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWConnects(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWConnectPeers(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWMulticastDomains(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWMulticastDomainAssociations(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWMulticastGroupMembers(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWMulticastGroupSources(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWPeeringAttachments(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWRouteTables(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWRouteTableAssociations(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWRouteTablePropagations(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWVPCAttachments(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWRoutes(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanTransitGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTransitGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGateways", acct, region, st,
 		ec2.NewDescribeTransitGatewaysPaginator(client, &ec2.DescribeTransitGatewaysInput{}),
@@ -107,7 +107,7 @@ func scanTransitGateways(ctx context.Context, client ec2API, acct *account, regi
 	)
 }
 
-func scanTransitGatewayAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTransitGatewayAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayAttachments", acct, region, st,
 		ec2.NewDescribeTransitGatewayAttachmentsPaginator(client, &ec2.DescribeTransitGatewayAttachmentsInput{}),
@@ -135,7 +135,7 @@ func scanTransitGatewayAttachments(ctx context.Context, client ec2API, acct *acc
 	)
 }
 
-func scanTGWConnects(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWConnects(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayConnects", acct, region, st,
 		ec2.NewDescribeTransitGatewayConnectsPaginator(client, &ec2.DescribeTransitGatewayConnectsInput{}),
@@ -162,7 +162,7 @@ func scanTGWConnects(ctx context.Context, client ec2API, acct *account, region s
 	)
 }
 
-func scanTGWConnectPeers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWConnectPeers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayConnectPeers", acct, region, st,
 		ec2.NewDescribeTransitGatewayConnectPeersPaginator(client, &ec2.DescribeTransitGatewayConnectPeersInput{}),
@@ -189,7 +189,7 @@ func scanTGWConnectPeers(ctx context.Context, client ec2API, acct *account, regi
 	)
 }
 
-func scanTGWMulticastDomains(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWMulticastDomains(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayMulticastDomains", acct, region, st,
 		ec2.NewDescribeTransitGatewayMulticastDomainsPaginator(client, &ec2.DescribeTransitGatewayMulticastDomainsInput{}),
@@ -218,7 +218,7 @@ func scanTGWMulticastDomains(ctx context.Context, client ec2API, acct *account, 
 }
 
 // scanTGWMulticastDomainAssociations fans out per multicast domain.
-func scanTGWMulticastDomainAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWMulticastDomainAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -226,12 +226,11 @@ func scanTGWMulticastDomainAssociations(ctx context.Context, client ec2API, acct
 	if len(domainIDs) == 0 {
 		return
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	var t atomic.Int64
 	g, ctx := errgroup.WithContext(ctx)
 	for _, domainID := range domainIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
+			tt, e := ec2PageScan(
 				ctx, "ec2:GetTransitGatewayMulticastDomainAssociations", acct, region, st,
 				ec2.NewGetTransitGatewayMulticastDomainAssociationsPaginator(client, &ec2.GetTransitGatewayMulticastDomainAssociationsInput{
 					TransitGatewayMulticastDomainId: &domainID,
@@ -257,25 +256,25 @@ func scanTGWMulticastDomainAssociations(ctx context.Context, client ec2API, acct
 					return out
 				},
 			)
-			add(tt, nn)
+			t.Add(int64(tt))
 			return e
 		})
 	}
 	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), err
 }
 
 // scanTGWMulticastGroupMembers fans out per multicast domain, filtering for member entries.
-func scanTGWMulticastGroupMembers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWMulticastGroupMembers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return scanTGWMulticastGroups(ctx, client, acct, region, st, scanID, true)
 }
 
 // scanTGWMulticastGroupSources fans out per multicast domain, filtering for source entries.
-func scanTGWMulticastGroupSources(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWMulticastGroupSources(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return scanTGWMulticastGroups(ctx, client, acct, region, st, scanID, false)
 }
 
-func scanTGWMulticastGroups(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, isGroupMember bool) (total, inserted int, err error) {
+func scanTGWMulticastGroups(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, isGroupMember bool) (total int, err error) {
 	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -289,12 +288,11 @@ func scanTGWMulticastGroups(ctx context.Context, client ec2API, acct *account, r
 		resourceType = TypeEC2TransitGatewayMulticastGroupMember
 		arnSubtype = "tgw-mcast-group-member"
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	var t atomic.Int64
 	g, ctx := errgroup.WithContext(ctx)
 	for _, domainID := range domainIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
+			tt, e := ec2PageScan(
 				ctx, "ec2:SearchTransitGatewayMulticastGroups", acct, region, st,
 				ec2.NewSearchTransitGatewayMulticastGroupsPaginator(client, &ec2.SearchTransitGatewayMulticastGroupsInput{
 					TransitGatewayMulticastDomainId: &domainID,
@@ -323,15 +321,15 @@ func scanTGWMulticastGroups(ctx context.Context, client ec2API, acct *account, r
 					return out
 				},
 			)
-			add(tt, nn)
+			t.Add(int64(tt))
 			return e
 		})
 	}
 	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), err
 }
 
-func scanTGWPeeringAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWPeeringAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayPeeringAttachments", acct, region, st,
 		ec2.NewDescribeTransitGatewayPeeringAttachmentsPaginator(client, &ec2.DescribeTransitGatewayPeeringAttachmentsInput{}),
@@ -358,7 +356,7 @@ func scanTGWPeeringAttachments(ctx context.Context, client ec2API, acct *account
 	)
 }
 
-func scanTGWRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayRouteTables", acct, region, st,
 		ec2.NewDescribeTransitGatewayRouteTablesPaginator(client, &ec2.DescribeTransitGatewayRouteTablesInput{}),
@@ -387,7 +385,7 @@ func scanTGWRouteTables(ctx context.Context, client ec2API, acct *account, regio
 }
 
 // scanTGWRouteTableAssociations fans out per TGW route table.
-func scanTGWRouteTableAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWRouteTableAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -395,12 +393,11 @@ func scanTGWRouteTableAssociations(ctx context.Context, client ec2API, acct *acc
 	if len(rtIDs) == 0 {
 		return
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	var t atomic.Int64
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
+			tt, e := ec2PageScan(
 				ctx, "ec2:GetTransitGatewayRouteTableAssociations", acct, region, st,
 				ec2.NewGetTransitGatewayRouteTableAssociationsPaginator(client, &ec2.GetTransitGatewayRouteTableAssociationsInput{
 					TransitGatewayRouteTableId: &rtID,
@@ -425,16 +422,16 @@ func scanTGWRouteTableAssociations(ctx context.Context, client ec2API, acct *acc
 					return out
 				},
 			)
-			add(tt, nn)
+			t.Add(int64(tt))
 			return e
 		})
 	}
 	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), err
 }
 
 // scanTGWRouteTablePropagations fans out per TGW route table.
-func scanTGWRouteTablePropagations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWRouteTablePropagations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -442,12 +439,11 @@ func scanTGWRouteTablePropagations(ctx context.Context, client ec2API, acct *acc
 	if len(rtIDs) == 0 {
 		return
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	var t atomic.Int64
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
+			tt, e := ec2PageScan(
 				ctx, "ec2:GetTransitGatewayRouteTablePropagations", acct, region, st,
 				ec2.NewGetTransitGatewayRouteTablePropagationsPaginator(client, &ec2.GetTransitGatewayRouteTablePropagationsInput{
 					TransitGatewayRouteTableId: &rtID,
@@ -472,15 +468,15 @@ func scanTGWRouteTablePropagations(ctx context.Context, client ec2API, acct *acc
 					return out
 				},
 			)
-			add(tt, nn)
+			t.Add(int64(tt))
 			return e
 		})
 	}
 	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), err
 }
 
-func scanTGWVPCAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWVPCAttachments(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayVpcAttachments", acct, region, st,
 		ec2.NewDescribeTransitGatewayVpcAttachmentsPaginator(client, &ec2.DescribeTransitGatewayVpcAttachmentsInput{}),
@@ -510,7 +506,7 @@ func scanTGWVPCAttachments(ctx context.Context, client ec2API, acct *account, re
 
 // scanTGWRoutes fans out per TGW route table, emitting each route as a resource.
 // SearchTransitGatewayRoutes has no paginator; called directly per table.
-func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -518,8 +514,7 @@ func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region str
 	if len(rtIDs) == 0 {
 		return
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	var t atomic.Int64
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
 		g.Go(func() error {
@@ -558,17 +553,17 @@ func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region str
 				})
 			}
 			if len(batch) > 0 {
-				nn, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
 					return fmt.Errorf("upsert tgw-routes: %w", err)
 				}
-				add(len(batch), nn)
+				t.Add(int64(len(batch)))
 			}
 			return nil
 		})
 	}
 	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), err
 }
 
 // listTGWMulticastDomainIDs returns all TGW multicast domain IDs in this region.

@@ -21,17 +21,17 @@ func init() {
 
 // scanHybridCompute discovers Azure Arc-enabled servers (machines) and Arc
 // private-link scopes, both sub-wide via armhybridcompute.
-func scanHybridCompute(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHybridCompute(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	mc, err := armhybridcompute.NewMachinesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridcompute:NewMachinesClient: %w", err)
+		return 0, fmt.Errorf("armhybridcompute:NewMachinesClient: %w", err)
 	}
 	pls, err := armhybridcompute.NewPrivateLinkScopesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridcompute:NewPrivateLinkScopesClient: %w", err)
+		return 0, fmt.Errorf("armhybridcompute:NewPrivateLinkScopesClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhybridcompute:Machines.ListBySubscription", TypeHybridComputeMachine, sub, st, scanID,
 				mc.NewListBySubscriptionPager(nil),
 				func(p armhybridcompute.MachinesClientListBySubscriptionResponse) []*armhybridcompute.Machine {
@@ -41,7 +41,7 @@ func scanHybridCompute(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(m.ID), name: sv(m.Name), location: sv(m.Location), tags: m.Tags, full: m}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhybridcompute:PrivateLinkScopes.List", TypeHybridComputePrivateLinkScope, sub, st, scanID,
 				pls.NewListPager(nil),
 				func(p armhybridcompute.PrivateLinkScopesClientListResponse) []*armhybridcompute.PrivateLinkScope {

@@ -89,49 +89,49 @@ func appInsightsLogPatternNativeID(setNativeID, pattern string) string {
 // error is demoted to a warning beside a child phase's hard error: joined, it
 // would be buried in the hard error instead of reported under its op; alone it
 // is returned, so the scan is marked partial.
-func scanApplicationInsights(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanApplicationInsights(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := applicationinsights.NewFromConfig(acct.cfg, func(o *applicationinsights.Options) { o.Region = region })
-	total, inserted, apps, err := scanApplicationInsightsApplications(ctx, client, acct, region, st, scanID)
+	total, apps, err := scanApplicationInsightsApplications(ctx, client, acct, region, st, scanID)
 	var (
-		wg             sync.WaitGroup
-		ct, ci, pt, pi int
-		cerr, perr     error
+		wg         sync.WaitGroup
+		ct, pt     int
+		cerr, perr error
 	)
-	wg.Go(func() { ct, ci, cerr = scanAppInsightsComponentFamily(ctx, client, acct, region, st, scanID, apps) })
-	wg.Go(func() { pt, pi, perr = scanAppInsightsLogPatternFamily(ctx, client, acct, region, st, scanID, apps) })
+	wg.Go(func() { ct, cerr = scanAppInsightsComponentFamily(ctx, client, acct, region, st, scanID, apps) })
+	wg.Go(func() { pt, perr = scanAppInsightsLogPatternFamily(ctx, client, acct, region, st, scanID, apps) })
 	wg.Wait()
-	return total + ct + pt, inserted + ci + pi, demoteBeside(
+	return total + ct + pt, demoteBeside(
 		st, "applicationinsights:ListApplications", acct, region, err, cerr, perr)
 }
 
 // scanAppInsightsComponentFamily stores the components, then the workloads of
 // the components it stored.
-func scanAppInsightsComponentFamily(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
-	ct, ci, components, cerr := scanAppInsightsComponents(ctx, client, acct, region, st, scanID, apps)
-	wt, wi, werr := scanAppInsightsWorkloads(ctx, client, acct, region, st, scanID, components)
-	return ct + wt, ci + wi, errors.Join(cerr, werr)
+func scanAppInsightsComponentFamily(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
+	ct, components, cerr := scanAppInsightsComponents(ctx, client, acct, region, st, scanID, apps)
+	wt, werr := scanAppInsightsWorkloads(ctx, client, acct, region, st, scanID, components)
+	return ct + wt, errors.Join(cerr, werr)
 }
 
 // scanAppInsightsLogPatternFamily stores the log pattern sets, then the
 // patterns of the sets it stored.
-func scanAppInsightsLogPatternFamily(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
-	st1, si, sets, serr := scanAppInsightsLogPatternSets(ctx, client, acct, region, st, scanID, apps)
-	pt, pi, perr := scanAppInsightsLogPatterns(ctx, client, acct, region, st, scanID, sets)
-	return st1 + pt, si + pi, errors.Join(serr, perr)
+func scanAppInsightsLogPatternFamily(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
+	st1, sets, serr := scanAppInsightsLogPatternSets(ctx, client, acct, region, st, scanID, apps)
+	pt, perr := scanAppInsightsLogPatterns(ctx, client, acct, region, st, scanID, sets)
+	return st1 + pt, errors.Join(serr, perr)
 }
 
 // scanApplicationInsightsApplications stores the applications and returns
 // those it stored (id: resource-group name, arn: NativeID), including the
 // pages stored before an error.
-func scanApplicationInsightsApplications(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []childParent, err error) {
+func scanApplicationInsightsApplications(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string) (total int, apps []childParent, err error) {
 	p := applicationinsights.NewListApplicationsPaginator(client, &applicationinsights.ListApplicationsInput{})
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, apps, skipIfAccessDenied(st, "applicationinsights:ListApplications", acct.ID, region, err)
+				return total, apps, skipIfAccessDenied(st, "applicationinsights:ListApplications", acct.ID, region, err)
 			}
-			return total, inserted, apps, fmt.Errorf("applicationinsights:ListApplications: %w", err)
+			return total, apps, fmt.Errorf("applicationinsights:ListApplications: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(page.ApplicationInfoList))
 		listed := make([]childParent, 0, len(page.ApplicationInfoList))
@@ -156,16 +156,15 @@ func scanApplicationInsightsApplications(ctx context.Context, client application
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, apps, fmt.Errorf("upsert applicationinsights apps: %w", err)
+				return total, apps, fmt.Errorf("upsert applicationinsights apps: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 			apps = append(apps, listed...)
 		}
 	}
-	return total, inserted, apps, nil
+	return total, apps, nil
 }
 
 // isAppInsightsGone reports a child call whose application, component or
@@ -233,7 +232,7 @@ func (c appInsightsComponent) nativeID() string {
 // describes each one: only DescribeComponent returns ResourceList, the ARNs of
 // the resources the component is made of. It returns the components it
 // stored, the parents of the workload phase.
-func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, []appInsightsComponent, error) {
+func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, []appInsightsComponent, error) {
 	listed, err := appInsightsFanOut(ctx, st, acct, region, appInsightsListComponentsOp, apps, appParentKey,
 		func(ctx context.Context, app childParent) ([]appInsightsComponent, error) {
 			var comps []appInsightsComponent
@@ -254,7 +253,7 @@ func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAP
 			return comps, nil
 		})
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
 
 	type described struct {
@@ -270,7 +269,7 @@ func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAP
 			return []described{{comp: c, out: out}}, nil
 		})
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
 	children := make([]containedChild, len(descs))
 	stored := make([]appInsightsComponent, len(descs))
@@ -290,14 +289,14 @@ func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAP
 		}
 		stored[i] = d.comp
 	}
-	total, inserted, err := upsertContained(st, "applicationinsights components", children)
+	total, err := upsertContained(st, "applicationinsights components", children)
 	// upsertContained reports no rows when the upsert failed, and real ones
 	// when only the closure write after it failed: workloads are then still
 	// listed under the components stored.
 	if total == 0 {
 		stored = nil
 	}
-	return total, inserted, stored, err
+	return total, stored, err
 }
 
 type appInsightsWorkload struct {
@@ -322,7 +321,7 @@ func (w appInsightsWorkload) nativeID() string {
 // scanAppInsightsWorkloads lists each stored component's workloads, then
 // describes each one: only DescribeWorkload returns the workload's monitoring
 // configuration.
-func scanAppInsightsWorkloads(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, components []appInsightsComponent) (int, int, error) {
+func scanAppInsightsWorkloads(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, components []appInsightsComponent) (int, error) {
 	listed, err := appInsightsFanOut(ctx, st, acct, region, appInsightsListWorkloadsOp, components, appInsightsComponent.nativeID,
 		func(ctx context.Context, c appInsightsComponent) ([]appInsightsWorkload, error) {
 			var workloads []appInsightsWorkload
@@ -343,7 +342,7 @@ func scanAppInsightsWorkloads(ctx context.Context, client applicationInsightsAPI
 			return workloads, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	children, err := appInsightsFanOut(ctx, st, acct, region, appInsightsDescribeWorkloadOp, listed, appInsightsWorkload.nativeID,
@@ -366,7 +365,7 @@ func scanAppInsightsWorkloads(ctx context.Context, client applicationInsightsAPI
 			}}, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertContained(st, "applicationinsights workloads", children)
 }
@@ -384,7 +383,7 @@ func (s appInsightsPatternSet) nativeID() string {
 // scanAppInsightsLogPatternSets stores each application's log pattern sets,
 // which the API returns as bare names, and returns them as the parents of the
 // log pattern phase.
-func scanAppInsightsLogPatternSets(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, []appInsightsPatternSet, error) {
+func scanAppInsightsLogPatternSets(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, []appInsightsPatternSet, error) {
 	sets, err := appInsightsFanOut(ctx, st, acct, region, appInsightsListLogPatternSetsOp, apps, appParentKey,
 		func(ctx context.Context, app childParent) ([]appInsightsPatternSet, error) {
 			var sets []appInsightsPatternSet
@@ -405,7 +404,7 @@ func scanAppInsightsLogPatternSets(ctx context.Context, client applicationInsigh
 			return sets, nil
 		})
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
 	children := make([]containedChild, len(sets))
 	for i, s := range sets {
@@ -420,16 +419,16 @@ func scanAppInsightsLogPatternSets(ctx context.Context, client applicationInsigh
 			parentID: store.ResourceID("aws", acct.ID, s.app.arn),
 		}
 	}
-	total, inserted, err := upsertContained(st, "applicationinsights log pattern sets", children)
+	total, err := upsertContained(st, "applicationinsights log pattern sets", children)
 	// As for components: patterns are listed under the sets stored.
 	if total == 0 {
 		sets = nil
 	}
-	return total, inserted, sets, err
+	return total, sets, err
 }
 
 // scanAppInsightsLogPatterns lists the patterns of each stored pattern set.
-func scanAppInsightsLogPatterns(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, sets []appInsightsPatternSet) (int, int, error) {
+func scanAppInsightsLogPatterns(ctx context.Context, client applicationInsightsAPI, acct *account, region string, st *store.Store, scanID string, sets []appInsightsPatternSet) (int, error) {
 	children, err := appInsightsFanOut(ctx, st, acct, region, appInsightsListLogPatternsOp, sets, appInsightsPatternSet.nativeID,
 		func(ctx context.Context, s appInsightsPatternSet) ([]containedChild, error) {
 			var rows []containedChild
@@ -461,7 +460,7 @@ func scanAppInsightsLogPatterns(ctx context.Context, client applicationInsightsA
 			return rows, nil
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertContained(st, "applicationinsights log patterns", children)
 }

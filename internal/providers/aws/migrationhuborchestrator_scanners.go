@@ -38,7 +38,7 @@ type migrationHubOrchestratorAPI interface {
 	ListTemplateSteps(context.Context, *migrationhuborchestrator.ListTemplateStepsInput, ...func(*migrationhuborchestrator.Options)) (*migrationhuborchestrator.ListTemplateStepsOutput, error)
 }
 
-func scanMigrationHubOrchestrator(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMigrationHubOrchestrator(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := migrationhuborchestrator.NewFromConfig(acct.cfg, func(o *migrationhuborchestrator.Options) { o.Region = region })
 	return scanMHOWithClient(ctx, client, acct, region, st, scanID)
 }
@@ -46,59 +46,55 @@ func scanMigrationHubOrchestrator(ctx context.Context, acct *account, region str
 // The workflow-steps phase runs last: ListWorkflowSteps tolerates no
 // vanished-parent error, so a workflow deleted mid-scan must not cost the
 // template children.
-func scanMHOWithClient(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	w, wi, workflows, werr := scanMHOWorkflows(ctx, client, acct, region, st, scanID)
+func scanMHOWithClient(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	w, workflows, werr := scanMHOWorkflows(ctx, client, acct, region, st, scanID)
 	if werr != nil {
-		return w, wi, werr
+		return w, werr
 	}
-	t, ti, templates, terr := scanMHOTemplates(ctx, client, acct, region, st, scanID)
-	total, inserted = w+t, wi+ti
+	t, templates, terr := scanMHOTemplates(ctx, client, acct, region, st, scanID)
+	total = w + t
 	if terr != nil {
-		return total, inserted, terr
+		return total, terr
 	}
 
-	n, i, err := scanMHOPlugins(ctx, client, acct, region, st, scanID)
+	n, err := scanMHOPlugins(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += n
-	inserted += i
 
-	n, i, workflowGroups, err := scanMHOStepGroups(ctx, st, acct, region, "migrationhub-orchestrator:ListWorkflowStepGroups", workflows,
+	n, workflowGroups, err := scanMHOStepGroups(ctx, st, acct, region, "migrationhub-orchestrator:ListWorkflowStepGroups", workflows,
 		func(ctx context.Context, p childParent) ([]*store.Resource, []childParent, error) {
 			return listMHOWorkflowStepGroups(ctx, client, acct, region, scanID, p)
 		})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += n
-	inserted += i
 
-	n, i, templateGroups, err := scanMHOStepGroups(ctx, st, acct, region, "migrationhub-orchestrator:ListTemplateStepGroups", templates,
+	n, templateGroups, err := scanMHOStepGroups(ctx, st, acct, region, "migrationhub-orchestrator:ListTemplateStepGroups", templates,
 		func(ctx context.Context, p childParent) ([]*store.Resource, []childParent, error) {
 			return listMHOTemplateStepGroups(ctx, client, acct, region, scanID, p)
 		})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += n
-	inserted += i
 
-	n, i, err = childFanOut(ctx, st, acct, region, "migrationhub-orchestrator:ListTemplateSteps", templateGroups.parents, isMHONotFound,
+	n, err = childFanOut(ctx, st, acct, region, "migrationhub-orchestrator:ListTemplateSteps", templateGroups.parents, isMHONotFound,
 		func(ctx context.Context, g childParent) ([]*store.Resource, error) {
 			return listMHOTemplateSteps(ctx, client, acct, region, scanID, templateGroups.rootID[g.arn], g)
 		})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += n
-	inserted += i
 
-	n, i, err = childFanOut(ctx, st, acct, region, "migrationhub-orchestrator:ListWorkflowSteps", workflowGroups.parents, mhoNeverSkip,
+	n, err = childFanOut(ctx, st, acct, region, "migrationhub-orchestrator:ListWorkflowSteps", workflowGroups.parents, mhoNeverSkip,
 		func(ctx context.Context, g childParent) ([]*store.Resource, error) {
 			return listMHOWorkflowSteps(ctx, client, acct, region, scanID, workflowGroups.rootID[g.arn], g)
 		})
-	return total + n, inserted + i, err
+	return total + n, err
 }
 
 // mhoListErr classifies the two non-fatal shapes the top-level Migration Hub
@@ -131,7 +127,7 @@ func mhoNeverSkip(error) bool { return false }
 // scanMHOWorkflows also returns the stored workflows for the step-group phase.
 // Workflow summaries carry no ARN, so the synthesized ARN is the type's only
 // NativeID source.
-func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var batch []*store.Resource
 	var parents []childParent
 	p := migrationhuborchestrator.NewListWorkflowsPaginator(client, &migrationhuborchestrator.ListWorkflowsInput{}, func(o *migrationhuborchestrator.ListWorkflowsPaginatorOptions) {
@@ -141,13 +137,13 @@ func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, a
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if handled, out := mhoListErr(err); handled {
-				return 0, 0, nil, out
+				return 0, nil, out
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListWorkflows", acct.ID, region, err)
 				break
 			}
-			return 0, 0, nil, fmt.Errorf("migrationhub-orchestrator:ListWorkflows: %w", err)
+			return 0, nil, fmt.Errorf("migrationhub-orchestrator:ListWorkflows: %w", err)
 		}
 		for _, w := range page.MigrationWorkflowSummary {
 			id := sv(w.Id)
@@ -163,17 +159,17 @@ func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, a
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "migrationhub-orchestrator workflows")
+	total, err := upsertBatch(st, batch, "migrationhub-orchestrator workflows")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, parents, nil
+	return total, parents, nil
 }
 
 // scanMHOTemplates also returns the stored templates for the template
 // step-group phase. A template needs both its returned Arn (the NativeID) and
 // its Id (what every child op takes); a summary missing either is skipped.
-func scanMHOTemplates(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanMHOTemplates(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var batch []*store.Resource
 	var parents []childParent
 	p := migrationhuborchestrator.NewListTemplatesPaginator(client, &migrationhuborchestrator.ListTemplatesInput{}, func(o *migrationhuborchestrator.ListTemplatesPaginatorOptions) {
@@ -183,13 +179,13 @@ func scanMHOTemplates(ctx context.Context, client migrationHubOrchestratorAPI, a
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if handled, out := mhoListErr(err); handled {
-				return 0, 0, nil, out
+				return 0, nil, out
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListTemplates", acct.ID, region, err)
 				break
 			}
-			return 0, 0, nil, fmt.Errorf("migrationhub-orchestrator:ListTemplates: %w", err)
+			return 0, nil, fmt.Errorf("migrationhub-orchestrator:ListTemplates: %w", err)
 		}
 		for _, t := range page.TemplateSummary {
 			arn, id := sv(t.Arn), sv(t.Id)
@@ -204,16 +200,16 @@ func scanMHOTemplates(ctx context.Context, client migrationHubOrchestratorAPI, a
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "migrationhub-orchestrator templates")
+	total, err := upsertBatch(st, batch, "migrationhub-orchestrator templates")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, parents, nil
+	return total, parents, nil
 }
 
 // Plugin summaries carry no ARN and the Service Reference defines no plugin
 // resource, so the NativeID follows the synthesized workflow ARN shape.
-func scanMHOPlugins(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMHOPlugins(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	p := migrationhuborchestrator.NewListPluginsPaginator(client, &migrationhuborchestrator.ListPluginsInput{}, func(o *migrationhuborchestrator.ListPluginsPaginatorOptions) {
 		o.Limit = 100
@@ -222,13 +218,13 @@ func scanMHOPlugins(ctx context.Context, client migrationHubOrchestratorAPI, acc
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if handled, out := mhoListErr(err); handled {
-				return 0, 0, out
+				return 0, out
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListPlugins", acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("migrationhub-orchestrator:ListPlugins: %w", err)
+			return 0, fmt.Errorf("migrationhub-orchestrator:ListPlugins: %w", err)
 		}
 		for _, pl := range page.Plugins {
 			id := sv(pl.PluginId)
@@ -267,10 +263,10 @@ type mhoStepGroups struct {
 // handed on either.
 func scanMHOStepGroups(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, []childParent, error),
-) (int, int, mhoStepGroups, error) {
+) (int, mhoStepGroups, error) {
 	var mu sync.Mutex
 	groups := mhoStepGroups{rootID: map[string]string{}}
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, parents, isMHONotFound,
+	total, err := childFanOut(ctx, st, acct, region, op, parents, isMHONotFound,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, found, err := list(ctx, p)
 			if err != nil {
@@ -285,9 +281,9 @@ func scanMHOStepGroups(ctx context.Context, st *store.Store, acct *account, regi
 			return rows, nil
 		})
 	if err != nil {
-		return 0, 0, mhoStepGroups{}, err
+		return 0, mhoStepGroups{}, err
 	}
-	return total, inserted, groups, nil
+	return total, groups, nil
 }
 
 func mhoChildRow(acct *account, region, scanID, rtype, nativeID string, name *string, status string, attrs any) *store.Resource {

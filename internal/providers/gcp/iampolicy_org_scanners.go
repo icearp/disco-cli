@@ -31,11 +31,11 @@ func init() {
 // "folders/456"), matching the per-project convention (project ID for
 // project-scope policies). Closure links the policy to its scope's hierarchy
 // resource so the org/folder appears as parent.
-func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	crmSvc, err := cloudresourcemanager.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cloudresourcemanager client: %w", err)
+		return 0, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 
 	for _, sc := range scopes {
@@ -45,7 +45,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 				_ = skipIfDenied(st, "cloudresourcemanager:"+sc.Kind+".getIamPolicy", sc.Name, getErr)
 				continue
 			}
-			return total, inserted, getErr
+			return total, getErr
 		}
 		nativeID := sc.Name + "/iamPolicy" // synthetic; mirrors project-scope iam:policy id
 		name := nativeID
@@ -63,19 +63,18 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 			AttributesJSON: mustJSON(policy),
 			DiscoveredBy:   scanID,
 		}
-		n, upErr := st.UpsertResources([]*store.Resource{r})
+		_, upErr := st.UpsertResources([]*store.Resource{r})
 		if upErr != nil {
-			return total, inserted, fmt.Errorf("upsert org IAM policy %s: %w", sc.Name, upErr)
+			return total, fmt.Errorf("upsert org IAM policy %s: %w", sc.Name, upErr)
 		}
 		total++
-		inserted += n
 
 		policyID := store.ResourceID("gcp", sc.Name, nativeID)
 		if cErr := st.RecordHierarchy(policyID, sc.Resource); cErr != nil {
-			return total, inserted, fmt.Errorf("closure org IAM policy %s: %w", sc.Name, cErr)
+			return total, fmt.Errorf("closure org IAM policy %s: %w", sc.Name, cErr)
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // getOrgScopePolicy dispatches to the right CRM client method per scope kind,

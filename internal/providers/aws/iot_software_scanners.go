@@ -158,13 +158,13 @@ func scanIoTSoftwarePackageVersions(ctx context.Context, client iotSoftwareAPI, 
 				DiscoveredBy:   scanID,
 			}, nil
 		})
-	total, inserted, err := storeReadRows(st, acct, region, listOp, d.rows, nil, func() {
+	total, err := storeReadRows(st, acct, region, listOp, d.rows, nil, func() {
 		d.warn()
 		if denied.count > 0 {
 			_ = skipIfAccessDenied(st, listOp, acct.ID, region, fmt.Errorf("versions of %d package(s) not listed, first %s: %w", denied.count, denied.first, denied.err))
 		}
 	})
-	stop := p.addPhase(listOp, total, inserted, err)
+	stop := p.addPhase(listOp, total, err)
 	p.errs.add(listOp, errors.Join(errs...))
 	if t := &transients.skipTally; t.count > 0 {
 		p.errs.add(listOp, fmt.Errorf("%s: versions of %d package(s) not listed, first %s: %w", listOp, t.count, t.first, t.err))

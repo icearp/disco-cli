@@ -17,16 +17,16 @@ func init() {
 
 // scanEC2LocalGatewayExtra discovers Outpost local gateways, customer-owned IP
 // (CoIP) pools, and Outpost link-aggregation groups.
-func scanEC2LocalGatewayExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2LocalGatewayExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanLocalGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanCoipPools(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanOutpostLags(ctx, client, acct, region, st, scanID)
 		},
 	)
@@ -34,7 +34,7 @@ func scanEC2LocalGatewayExtra(ctx context.Context, client ec2API, acct *account,
 
 // scanLocalGateways — edge-less: only outbound ref is OutpostArn, which disco
 // doesn't scan (no Outposts service).
-func scanLocalGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLocalGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeLocalGateways", acct, region, st,
 		ec2.NewDescribeLocalGatewaysPaginator(client, &ec2.DescribeLocalGatewaysInput{}),
@@ -64,7 +64,7 @@ func scanLocalGateways(ctx context.Context, client ec2API, acct *account, region
 	)
 }
 
-func scanCoipPools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCoipPools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeCoipPools", acct, region, st,
 		ec2.NewDescribeCoipPoolsPaginator(client, &ec2.DescribeCoipPoolsInput{}),
@@ -93,16 +93,16 @@ func scanCoipPools(ctx context.Context, client ec2API, acct *account, region str
 }
 
 // scanOutpostLags — DescribeOutpostLags has no SDK paginator. Manual loop.
-func scanOutpostLags(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOutpostLags(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var batch []*store.Resource
 	var token *string
 	for {
 		out, perr := client.DescribeOutpostLags(ctx, &ec2.DescribeOutpostLagsInput{NextToken: token})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeOutpostLags", acct.ID, region, perr)
+				return 0, skipIfAccessDenied(st, "ec2:DescribeOutpostLags", acct.ID, region, perr)
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeOutpostLags: %w", perr)
+			return 0, fmt.Errorf("ec2:DescribeOutpostLags: %w", perr)
 		}
 		for _, ol := range out.OutpostLags {
 			id := sv(ol.OutpostLagId)
@@ -129,11 +129,11 @@ func scanOutpostLags(ctx context.Context, client ec2API, acct *account, region s
 		token = out.NextToken
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 outpost-lags: %w", uerr)
+		return 0, fmt.Errorf("upsert ec2 outpost-lags: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

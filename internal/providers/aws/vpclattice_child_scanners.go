@@ -46,7 +46,7 @@ func vlTargetNativeID(tgARN, targetID string, port *int32) string {
 // transient error after the SDK's retries is skipped with one warning for all
 // such networks, and anything else fails the phase, storing none of its rows.
 // The op models no not-found error, so none is skipped.
-func scanVLServiceNetworkVpcEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, int, error) {
+func scanVLServiceNetworkVpcEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent) (int, error) {
 	return childFanOutSkipTransient(ctx, st, acct, region, vlListSNVpcEndpointAssocsOp, networks, func(error) bool { return false }, byParentARN,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			pager := vpclattice.NewListServiceNetworkVpcEndpointAssociationsPaginator(client,
@@ -90,7 +90,7 @@ func scanVLServiceNetworkVpcEndpointAssocs(ctx context.Context, client vpcLattic
 // of its rows. ValidationException is skipped because a target group can be
 // listed while its creation is in progress, has failed, or its deletion is in
 // progress, and how ListTargets answers for one has not been observed.
-func scanVLTargets(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tgs []childParent) (int, int, error) {
+func scanVLTargets(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tgs []childParent) (int, error) {
 	return childFanOutSkipNotReady(ctx, st, acct, region, vlListTargetsOp, tgs,
 		func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }, byParentARN,
 		"target group(s)", "a target group may still be creating, have failed to create, or be deleting",

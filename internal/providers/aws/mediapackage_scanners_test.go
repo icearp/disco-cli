@@ -143,7 +143,7 @@ func mpFixture(t *testing.T, noARN bool) ([]mpListingCase, map[string]func(in an
 	return cases, h
 }
 
-func mpScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, int, error) {
+func mpScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	cfg := opStubConfig(h, apiErr("ForbiddenException", "not authorized to perform this action"))
 	return scanMediaPackageAll(context.Background(), mediapackage.NewFromConfig(cfg), mediapackagevod.NewFromConfig(cfg),
@@ -187,7 +187,9 @@ func TestScanMediaPackageAll_StoresRows(t *testing.T) {
 	t.Parallel()
 	cases, h := mpFixture(t, false)
 	st := newTestStore(t)
-	total, inserted, err := mpScanAll(t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := mpScanAll(t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanMediaPackageAll: %v", err)
 	}
@@ -209,7 +211,7 @@ func TestScanMediaPackageAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 	for _, c := range cases {
 		warns[c.op] = countOpWarnings(st, c.op)
 	}
-	total, _, err := mpScanAll(t, st, h)
+	total, err := mpScanAll(t, st, h)
 	if err != nil {
 		t.Fatalf("scanMediaPackageAll: %v", err)
 	}
@@ -272,7 +274,7 @@ func TestScanMPPackagingGroups_ListOutcomes(t *testing.T) {
 				},
 			}
 			client := mediapackagevod.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			total, _, err := scanMPPackagingGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanMPPackagingGroups(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -307,7 +309,7 @@ func TestScanMediaPackageAll_PhaseErrorRunsOtherPhases(t *testing.T) {
 			_, h := mpFixture(t, false)
 			h[failed.sdkOp] = func(any) (any, error) { return nil, bad }
 			st := newTestStore(t)
-			total, _, err := mpScanAll(t, st, h)
+			total, err := mpScanAll(t, st, h)
 			if !errors.Is(err, bad) {
 				t.Fatalf("err = %v, want the %s error", err, failed.sdkOp)
 			}
@@ -343,7 +345,7 @@ func TestScanMediaPackageAll_StoreWriteStops(t *testing.T) {
 		closeStore()
 		return serve(in)
 	}
-	if _, _, err := mpScanAll(t, st, h); !errors.Is(err, store.ErrStoreWrite) {
+	if _, err := mpScanAll(t, st, h); !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
 	for _, op := range []string{"ListAssets", "ListPackagingConfigurations", "ListPackagingGroups"} {
@@ -371,7 +373,7 @@ func TestScanMediaPackageAll_TransientBesideHardError(t *testing.T) {
 			st := newTestStore(t)
 			var labels []string
 			st.OnWarn = func(w store.ScanWarning) { labels = append(labels, w.Service) }
-			_, _, err := mpScanAll(t, st, h)
+			_, err := mpScanAll(t, st, h)
 			if got := classifyServiceError(err); got != outcomeError {
 				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 			}
@@ -391,7 +393,7 @@ func TestScanMediaPackageAll_DeniedEveryOpWarnsWithRegion(t *testing.T) {
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) { scopes = append(scopes, w.Service+" "+w.Scope) }
-	if _, _, err := mpScanAll(t, st, nil); err != nil {
+	if _, err := mpScanAll(t, st, nil); err != nil {
 		t.Fatalf("scanMediaPackageAll: %v", err)
 	}
 	if len(scopes) != len(cases) {

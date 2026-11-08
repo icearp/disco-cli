@@ -133,7 +133,7 @@ func transcribeTagsJSON(tags []transcribetypes.Tag) *string {
 // error does not stop the later ones; a failed write and ctx's end do
 // (runHostPhases), and so does a region that does not offer Transcribe
 // (transcribeGate). The tag reads' denials are one warning for the scan.
-func scanTranscribe(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanTranscribe(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := transcribe.NewFromConfig(acct.cfg, func(o *transcribe.Options) { o.Region = region })
 	var gate transcribeGate
 	tags := transcribeTags(client).sharingDenials()
@@ -145,7 +145,7 @@ func scanTranscribe(ctx context.Context, acct *account, region string, st *store
 			return run(p)
 		}}
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "transcribe", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "transcribe", 0, []hostPhase{
 		phase(transcribeListCategoriesOp, func(p *phaseTotals) bool {
 			return scanTranscribeCallAnalyticsCategories(ctx, client, acct, region, st, scanID, &gate, p)
 		}),
@@ -164,9 +164,9 @@ func scanTranscribe(ctx context.Context, acct *account, region string, st *store
 	})
 	tags.warnDenials(st, acct, region)
 	if gate.notOffered != nil {
-		return total, inserted, markServiceUnavailable(gate.notOffered)
+		return total, markServiceUnavailable(gate.notOffered)
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // transcribeRow is the row of a listed element of typ, named name and
@@ -190,7 +190,7 @@ func transcribeRow(acct *account, region, scanID, typ, kind, what string, name, 
 // categories, each with the tags its listed element carries. It reports
 // whether the write failed, after which the scan must stop.
 func scanTranscribeCallAnalyticsCategories(ctx context.Context, client transcribeAPI, acct *account, region string, st *store.Store, scanID string, gate *transcribeGate, p *phaseTotals) bool {
-	total, inserted, err := storeTokenList(ctx, st, acct, region, transcribeListCategoriesOp,
+	total, err := storeTokenList(ctx, st, acct, region, transcribeListCategoriesOp,
 		transcribePages(gate, func(ctx context.Context, token *string) ([]transcribetypes.CategoryProperties, *string, error) {
 			out, err := client.ListCallAnalyticsCategories(ctx, &transcribe.ListCallAnalyticsCategoriesInput{MaxResults: sdkaws.Int32(transcribePageCap), NextToken: token})
 			if err != nil {
@@ -205,7 +205,7 @@ func scanTranscribeCallAnalyticsCategories(ctx context.Context, client transcrib
 			}
 			return r, why, key
 		})
-	return p.addPhase(transcribeListCategoriesOp, total, inserted, err)
+	return p.addPhase(transcribeListCategoriesOp, total, err)
 }
 
 // scanTranscribeLanguageModels stores the custom language models, each page

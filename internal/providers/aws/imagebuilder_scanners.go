@@ -54,7 +54,7 @@ const (
 // gives maxResults (RestrictedInteger, 1-25).
 var ibMaxResults = sdkaws.Int32(25)
 
-func scanImageBuilder(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanImageBuilder(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := imagebuilder.NewFromConfig(acct.cfg, func(o *imagebuilder.Options) { o.Region = region })
 	return scanImageBuilderAll(ctx, client, acct, region, st, scanID)
 }
@@ -63,11 +63,11 @@ func scanImageBuilder(ctx context.Context, acct *account, region string, st *sto
 // write failure stops it. The ops that take an Owner are asked for Owner=Self,
 // so Amazon-managed, Marketplace, third-party and shared resources are not
 // listed.
-func scanImageBuilderAll(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanImageBuilderAll(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var phases phaseTotals
 	for _, phase := range []struct {
 		op string
-		fn func(context.Context, imageBuilderAPI, *account, string, *store.Store, string) (int, int, error)
+		fn func(context.Context, imageBuilderAPI, *account, string, *store.Store, string) (int, error)
 	}{
 		{ibListComponentsOp, scanIBComponents},
 		{ibListContainerRecipesOp, scanIBContainerRecipes},
@@ -79,8 +79,8 @@ func scanImageBuilderAll(ctx context.Context, client imageBuilderAPI, acct *acco
 		{ibListLifecyclePoliciesOp, scanIBLifecyclePolicies},
 		{ibListWorkflowsOp, scanIBWorkflows},
 	} {
-		t, i, perr := phase.fn(ctx, client, acct, region, st, scanID)
-		if phases.addPhase(phase.op, t, i, perr) {
+		t, perr := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, perr) {
 			break
 		}
 	}
@@ -102,7 +102,7 @@ func ibRow(acct *account, region, scanID, rtype, arn, name string, element any, 
 
 // scanIBComponents stores component versions. ComponentVersion carries no
 // tags; they need a per-component call, not made here.
-func scanIBComponents(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBComponents(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListComponentsOp,
 		func(ctx context.Context, token *string) ([]types.ComponentVersion, *string, error) {
 			out, err := client.ListComponents(ctx, &imagebuilder.ListComponentsInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
@@ -120,7 +120,7 @@ func scanIBComponents(ctx context.Context, client imageBuilderAPI, acct *account
 		})
 }
 
-func scanIBContainerRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBContainerRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListContainerRecipesOp,
 		func(ctx context.Context, token *string) ([]types.ContainerRecipeSummary, *string, error) {
 			out, err := client.ListContainerRecipes(ctx, &imagebuilder.ListContainerRecipesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
@@ -138,7 +138,7 @@ func scanIBContainerRecipes(ctx context.Context, client imageBuilderAPI, acct *a
 		})
 }
 
-func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListDistributionConfigurationsOp,
 		func(ctx context.Context, token *string) ([]types.DistributionConfigurationSummary, *string, error) {
 			out, err := client.ListDistributionConfigurations(ctx, &imagebuilder.ListDistributionConfigurationsInput{NextToken: token, MaxResults: ibMaxResults})
@@ -160,7 +160,7 @@ func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct
 // unset, so deprecated images are not listed. ImageVersion carries no tags
 // and no per-build refs (recipe, infrastructure, distribution); both live on
 // GetImage, which is not called.
-func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListImagesOp,
 		func(ctx context.Context, token *string) ([]types.ImageVersion, *string, error) {
 			out, err := client.ListImages(ctx, &imagebuilder.ListImagesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
@@ -181,7 +181,7 @@ func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, re
 // scanIBImagePipelines stores pipelines with the pipeline's own Tags.
 // ImageTags are the tags the pipeline applies to the images it builds, not
 // the pipeline's tags.
-func scanIBImagePipelines(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBImagePipelines(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListImagePipelinesOp,
 		func(ctx context.Context, token *string) ([]types.ImagePipeline, *string, error) {
 			out, err := client.ListImagePipelines(ctx, &imagebuilder.ListImagePipelinesInput{NextToken: token, MaxResults: ibMaxResults})
@@ -199,7 +199,7 @@ func scanIBImagePipelines(ctx context.Context, client imageBuilderAPI, acct *acc
 		})
 }
 
-func scanIBImageRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBImageRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListImageRecipesOp,
 		func(ctx context.Context, token *string) ([]types.ImageRecipeSummary, *string, error) {
 			out, err := client.ListImageRecipes(ctx, &imagebuilder.ListImageRecipesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
@@ -220,7 +220,7 @@ func scanIBImageRecipes(ctx context.Context, client imageBuilderAPI, acct *accou
 // scanIBInfrastructureConfigs stores infrastructure configurations with their
 // own Tags. ResourceTags are the tags applied to the build instances, not the
 // configuration's tags.
-func scanIBInfrastructureConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBInfrastructureConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListInfrastructureConfigurationsOp,
 		func(ctx context.Context, token *string) ([]types.InfrastructureConfigurationSummary, *string, error) {
 			out, err := client.ListInfrastructureConfigurations(ctx, &imagebuilder.ListInfrastructureConfigurationsInput{NextToken: token, MaxResults: ibMaxResults})
@@ -238,7 +238,7 @@ func scanIBInfrastructureConfigs(ctx context.Context, client imageBuilderAPI, ac
 		})
 }
 
-func scanIBLifecyclePolicies(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBLifecyclePolicies(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListLifecyclePoliciesOp,
 		func(ctx context.Context, token *string) ([]types.LifecyclePolicySummary, *string, error) {
 			out, err := client.ListLifecyclePolicies(ctx, &imagebuilder.ListLifecyclePoliciesInput{NextToken: token, MaxResults: ibMaxResults})
@@ -258,7 +258,7 @@ func scanIBLifecyclePolicies(ctx context.Context, client imageBuilderAPI, acct *
 
 // scanIBWorkflows stores workflow versions. WorkflowVersion carries no tags;
 // they need a per-workflow call, not made here.
-func scanIBWorkflows(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIBWorkflows(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, ibListWorkflowsOp,
 		func(ctx context.Context, token *string) ([]types.WorkflowVersion, *string, error) {
 			out, err := client.ListWorkflows(ctx, &imagebuilder.ListWorkflowsInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})

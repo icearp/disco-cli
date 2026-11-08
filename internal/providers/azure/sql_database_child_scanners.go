@@ -24,25 +24,25 @@ func init() {
 }
 
 // dbChildScanners returns one closure per database sub-resource type.
-func dbChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) []func() (int, int, error) {
-	return []func() (int, int, error){
-		func() (int, int, error) { return scanDBTransparentDataEnc(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanDBSecurityAlertPolicies(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanDBAdvancedThreatProtection(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanDBAuditingSettings(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanDBVulnAssessments(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanSyncGroups(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanReplicationLinks(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanWorkloadGroups(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanGeoBackupPolicies(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanLedgerDigestUploads(ctx, sub, cred, st, scanID, db) },
+func dbChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) []func() (int, error) {
+	return []func() (int, error){
+		func() (int, error) { return scanDBTransparentDataEnc(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanDBSecurityAlertPolicies(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanDBAdvancedThreatProtection(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanDBAuditingSettings(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanDBVulnAssessments(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanSyncGroups(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanReplicationLinks(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanWorkloadGroups(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanGeoBackupPolicies(ctx, sub, cred, st, scanID, db) },
+		func() (int, error) { return scanLedgerDigestUploads(ctx, sub, cred, st, scanID, db) },
 	}
 }
 
-func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewTransparentDataEncryptionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewTransparentDataEncryptionsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewTransparentDataEncryptionsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -53,7 +53,7 @@ func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcor
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:TransparentDataEncryptions.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:TransparentDataEncryptions.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -78,10 +78,10 @@ func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcor
 	return sqlUpsert(st, batch, pairs, "database transparent data encryptions")
 }
 
-func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewDatabaseSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewDatabaseSecurityAlertPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewDatabaseSecurityAlertPoliciesClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -92,7 +92,7 @@ func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred az
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:DatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:DatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -117,10 +117,10 @@ func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred az
 	return sqlUpsert(st, batch, pairs, "database security alert policies")
 }
 
-func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewDatabaseAdvancedThreatProtectionSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewDatabaseAdvancedThreatProtectionSettingsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewDatabaseAdvancedThreatProtectionSettingsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -131,7 +131,7 @@ func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:DatabaseAdvancedThreatProtection.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:DatabaseAdvancedThreatProtection.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -156,10 +156,10 @@ func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred
 	return sqlUpsert(st, batch, pairs, "database advanced threat protection settings")
 }
 
-func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewDatabaseBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewDatabaseBlobAuditingPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewDatabaseBlobAuditingPoliciesClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -170,7 +170,7 @@ func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:DatabaseBlobAuditingPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:DatabaseBlobAuditingPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -195,10 +195,10 @@ func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.
 	return sqlUpsert(st, batch, pairs, "database auditing settings")
 }
 
-func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewDatabaseVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewDatabaseVulnerabilityAssessmentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewDatabaseVulnerabilityAssessmentsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -209,7 +209,7 @@ func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.T
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:DatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:DatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -234,10 +234,10 @@ func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.T
 	return sqlUpsert(st, batch, pairs, "database vulnerability assessments")
 }
 
-func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewSyncGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewSyncGroupsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewSyncGroupsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -248,7 +248,7 @@ func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:SyncGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:SyncGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -273,10 +273,10 @@ func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCre
 	return sqlUpsert(st, batch, pairs, "sync groups")
 }
 
-func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewReplicationLinksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewReplicationLinksClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewReplicationLinksClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -287,7 +287,7 @@ func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.To
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:ReplicationLinks.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:ReplicationLinks.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -312,10 +312,10 @@ func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.To
 	return sqlUpsert(st, batch, pairs, "replication links")
 }
 
-func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewWorkloadGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewWorkloadGroupsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewWorkloadGroupsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -326,7 +326,7 @@ func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:WorkloadGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:WorkloadGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -351,10 +351,10 @@ func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 	return sqlUpsert(st, batch, pairs, "workload groups")
 }
 
-func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewGeoBackupPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewGeoBackupPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewGeoBackupPoliciesClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -365,7 +365,7 @@ func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.T
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:GeoBackupPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:GeoBackupPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {
@@ -390,10 +390,10 @@ func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.T
 	return sqlUpsert(st, batch, pairs, "geo backup policies")
 }
 
-func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total int, err error) {
 	client, err := armsql.NewLedgerDigestUploadsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewLedgerDigestUploadsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewLedgerDigestUploadsClient: %w", err)
 	}
 	pager := client.NewListByDatabasePager(db.rgName, db.serverName, db.name, nil)
 	var batch []*store.Resource
@@ -404,7 +404,7 @@ func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred azcore
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:LedgerDigestUploads.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
+			return 0, fmt.Errorf("armsql:LedgerDigestUploads.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
 		}
 		for _, item := range page.Value {
 			if item.ID == nil {

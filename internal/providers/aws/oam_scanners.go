@@ -24,35 +24,33 @@ type oamAPI interface {
 }
 
 // scanOAM discovers Observability Access Manager links and sinks.
-func scanOAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := oam.NewFromConfig(acct.cfg, func(o *oam.Options) { o.Region = region })
 
-	t, i, ferr := scanOAMLinks(ctx, client, acct, region, st, scanID)
+	t, ferr := scanOAMLinks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanOAMSinks(ctx, client, acct, region, st, scanID)
+	t, ferr = scanOAMSinks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanOAMLinks(ctx context.Context, client oamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOAMLinks(ctx context.Context, client oamAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListLinks(ctx, &oam.ListLinksInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "oam:ListLinks", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "oam:ListLinks", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("oam:ListLinks: %w", err)
+			return 0, fmt.Errorf("oam:ListLinks: %w", err)
 		}
 		for _, l := range out.Items {
 			arn := sv(l.Arn)
@@ -74,16 +72,16 @@ func scanOAMLinks(ctx context.Context, client oamAPI, acct *account, region stri
 	return upsertBatch(st, batch, "oam links")
 }
 
-func scanOAMSinks(ctx context.Context, client oamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOAMSinks(ctx context.Context, client oamAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListSinks(ctx, &oam.ListSinksInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "oam:ListSinks", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "oam:ListSinks", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("oam:ListSinks: %w", err)
+			return 0, fmt.Errorf("oam:ListSinks: %w", err)
 		}
 		for _, s := range out.Items {
 			arn := sv(s.Arn)

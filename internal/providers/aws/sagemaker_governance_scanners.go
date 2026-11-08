@@ -69,30 +69,30 @@ type sagemakerGovernanceAPI interface {
 // region. Hubs scan before hub-contents and training plans before UltraServers
 // — those phases fan out per scanned parent. Every phase tolerates
 // AccessDenied (skip, preserve siblings).
-func scanSageMakerGovernance(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerGovernance(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListActions", func() (int, int, error) { return scanSageMakerActions(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListContexts", func() (int, int, error) { return scanSageMakerContexts(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListExperiments", func() (int, int, error) { return scanSageMakerExperiments(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListTrials", func() (int, int, error) { return scanSageMakerExperimentTrials(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListHubs", func() (int, int, error) { return scanSageMakerHubs(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListHubContents", func() (int, int, error) { return scanSageMakerHubContents(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListHumanTaskUis", func() (int, int, error) { return scanSageMakerHumanTaskUis(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListFlowDefinitions", func() (int, int, error) { return scanSageMakerFlowDefinitions(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListLineageGroups", func() (int, int, error) { return scanSageMakerLineageGroups(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListAlgorithms", func() (int, int, error) { return scanSageMakerAlgorithms(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListWorkforces", func() (int, int, error) { return scanSageMakerWorkforces(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListComputeQuotas", func() (int, int, error) { return scanSageMakerComputeQuotas(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListClusterSchedulerConfigs", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListActions", func() (int, error) { return scanSageMakerActions(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListContexts", func() (int, error) { return scanSageMakerContexts(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListExperiments", func() (int, error) { return scanSageMakerExperiments(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListTrials", func() (int, error) { return scanSageMakerExperimentTrials(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListHubs", func() (int, error) { return scanSageMakerHubs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListHubContents", func() (int, error) { return scanSageMakerHubContents(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListHumanTaskUis", func() (int, error) { return scanSageMakerHumanTaskUis(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListFlowDefinitions", func() (int, error) { return scanSageMakerFlowDefinitions(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListLineageGroups", func() (int, error) { return scanSageMakerLineageGroups(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListAlgorithms", func() (int, error) { return scanSageMakerAlgorithms(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListWorkforces", func() (int, error) { return scanSageMakerWorkforces(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListComputeQuotas", func() (int, error) { return scanSageMakerComputeQuotas(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListClusterSchedulerConfigs", func() (int, error) {
 			return scanSageMakerClusterSchedulerConfigs(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListEdgeDeploymentPlans", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListEdgeDeploymentPlans", func() (int, error) {
 			return scanSageMakerEdgeDeploymentPlans(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListAIWorkloadConfigs", func() (int, int, error) { return scanSageMakerAIWorkloadConfigs(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListMlflowApps", func() (int, int, error) { return scanSageMakerMlflowApps(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListTrainingPlans", func() (int, int, error) { return scanSageMakerTrainingPlans(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListUltraServersByReservedCapacity", func() (int, int, error) { return scanSageMakerUltraServers(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListAIWorkloadConfigs", func() (int, error) { return scanSageMakerAIWorkloadConfigs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListMlflowApps", func() (int, error) { return scanSageMakerMlflowApps(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListTrainingPlans", func() (int, error) { return scanSageMakerTrainingPlans(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListUltraServersByReservedCapacity", func() (int, error) { return scanSageMakerUltraServers(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
@@ -107,7 +107,7 @@ func scanSagemakerSummaryList[S any](
 	page func(ctx context.Context, token *string) ([]S, *string, error),
 	row func(S) (arn, name, status string, created *time.Time),
 	put sagemakerPut,
-) (int, int, error) {
+) (int, error) {
 	summaries, listErr := readTokenPages(ctx, page)
 	var skips notStoredSkips
 	rows := buildListedRows(summaries, func(s S) (*store.Resource, string, string) {
@@ -258,12 +258,12 @@ func scanSageMakerChildren(
 	ctx context.Context, acct *account, region string, st *store.Store, scanID string,
 	parentType, op string, notFound []string, why sagemakerChildSkips,
 	list func(ctx context.Context, parent store.Resource) []sagemakerChildList[*store.Resource],
-) (int, int, error) {
+) (int, error) {
 	c, err := readSageMakerChildren(ctx, acct, region, st, scanID, parentType, op, notFound, why, list)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	total, inserted, err := upsertBatch(st, c.items, op)
+	total, err := upsertBatch(st, c.items, op)
 	if err == nil {
 		pairs := make([][2]string, len(c.items))
 		for i, child := range c.items {
@@ -276,11 +276,11 @@ func scanSageMakerChildren(
 	if err == nil {
 		c.warn()
 	}
-	c.p.addPhase(op, total, inserted, err)
+	c.p.addPhase(op, total, err)
 	return opErrsResult(&c.p)
 }
 
-func scanSageMakerActions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerActions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerAction, "sagemaker:ListActions",
 		func(ctx context.Context, token *string) ([]smtypes.ActionSummary, *string, error) {
@@ -296,7 +296,7 @@ func scanSageMakerActions(ctx context.Context, client sagemakerGovernanceAPI, ac
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListActions"))
 }
 
-func scanSageMakerContexts(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerContexts(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerContext, "sagemaker:ListContexts",
 		func(ctx context.Context, token *string) ([]smtypes.ContextSummary, *string, error) {
@@ -312,7 +312,7 @@ func scanSageMakerContexts(ctx context.Context, client sagemakerGovernanceAPI, a
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListContexts"))
 }
 
-func scanSageMakerExperiments(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerExperiments(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerExperiment, "sagemaker:ListExperiments",
 		func(ctx context.Context, token *string) ([]smtypes.ExperimentSummary, *string, error) {
@@ -330,7 +330,7 @@ func scanSageMakerExperiments(ctx context.Context, client sagemakerGovernanceAPI
 
 // scanSageMakerExperimentTrials lists trials then fans out DescribeTrial — the
 // trial summary omits the parent ExperimentName the resolver keys on.
-func scanSageMakerExperimentTrials(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerExperimentTrials(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.TrialSummary]{
 		listOp: "sagemaker:ListTrials", describeOp: "sagemaker:DescribeTrial", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.TrialSummary, *string, error) {
@@ -372,7 +372,7 @@ func scanSageMakerExperimentTrials(ctx context.Context, client sagemakerGovernan
 }
 
 // scanSageMakerHubs pages ListHubs by hand: it has no SDK paginator.
-func scanSageMakerHubs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerHubs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerHub, "sagemaker:ListHubs",
 		func(ctx context.Context, token *string) ([]smtypes.HubInfo, *string, error) {
@@ -403,7 +403,7 @@ type sagemakerHubContentAttrs struct {
 // and its own rows read before it failed, as readSageMakerChildren says; a
 // private hub may deny one content type only. The rows are not recorded as
 // contained by their hub: the hub-content resolver links them by HubName.
-func scanSageMakerHubContents(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerHubContents(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "sagemaker:ListHubContents"
 	contentTypes := []smtypes.HubContentType{
 		smtypes.HubContentTypeModel,
@@ -441,10 +441,10 @@ func scanSageMakerHubContents(ctx context.Context, client sagemakerGovernanceAPI
 			return lists
 		})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	total, inserted, err := sagemakerStoreTagged(ctx, client, acct, region, st, op)(c.items, nil, c.warn)
-	addOpErrsPhase(&c.p, op, total, inserted, err)
+	total, err := sagemakerStoreTagged(ctx, client, acct, region, st, op)(c.items, nil, c.warn)
+	addOpErrsPhase(&c.p, op, total, err)
 	return opErrsResult(&c.p)
 }
 
@@ -467,7 +467,7 @@ func sagemakerHubContentRow(acct *account, region, scanID, hubName string, c smt
 	}
 }
 
-func scanSageMakerHumanTaskUis(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerHumanTaskUis(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerHumanTaskUI, "sagemaker:ListHumanTaskUis",
 		func(ctx context.Context, token *string) ([]smtypes.HumanTaskUiSummary, *string, error) {
@@ -483,7 +483,7 @@ func scanSageMakerHumanTaskUis(ctx context.Context, client sagemakerGovernanceAP
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListHumanTaskUis"))
 }
 
-func scanSageMakerFlowDefinitions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerFlowDefinitions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerFlowDefinition, "sagemaker:ListFlowDefinitions",
 		func(ctx context.Context, token *string) ([]smtypes.FlowDefinitionSummary, *string, error) {
@@ -499,7 +499,7 @@ func scanSageMakerFlowDefinitions(ctx context.Context, client sagemakerGovernanc
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListFlowDefinitions"))
 }
 
-func scanSageMakerLineageGroups(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerLineageGroups(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerLineageGroup, "sagemaker:ListLineageGroups",
 		func(ctx context.Context, token *string) ([]smtypes.LineageGroupSummary, *string, error) {
@@ -519,7 +519,7 @@ func scanSageMakerLineageGroups(ctx context.Context, client sagemakerGovernanceA
 		sagemakerStoreUntagged(st, acct, region, "sagemaker:ListLineageGroups"))
 }
 
-func scanSageMakerAlgorithms(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerAlgorithms(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerAlgorithm, "sagemaker:ListAlgorithms",
 		func(ctx context.Context, token *string) ([]smtypes.AlgorithmSummary, *string, error) {
@@ -535,7 +535,7 @@ func scanSageMakerAlgorithms(ctx context.Context, client sagemakerGovernanceAPI,
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListAlgorithms"))
 }
 
-func scanSageMakerWorkforces(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerWorkforces(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerWorkforce, "sagemaker:ListWorkforces",
 		func(ctx context.Context, token *string) ([]smtypes.Workforce, *string, error) {
@@ -551,7 +551,7 @@ func scanSageMakerWorkforces(ctx context.Context, client sagemakerGovernanceAPI,
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListWorkforces"))
 }
 
-func scanSageMakerComputeQuotas(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerComputeQuotas(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerComputeQuota, "sagemaker:ListComputeQuotas",
 		func(ctx context.Context, token *string) ([]smtypes.ComputeQuotaSummary, *string, error) {
@@ -567,7 +567,7 @@ func scanSageMakerComputeQuotas(ctx context.Context, client sagemakerGovernanceA
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListComputeQuotas"))
 }
 
-func scanSageMakerClusterSchedulerConfigs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerClusterSchedulerConfigs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerClusterSchedulerConfig, "sagemaker:ListClusterSchedulerConfigs",
 		func(ctx context.Context, token *string) ([]smtypes.ClusterSchedulerConfigSummary, *string, error) {
@@ -583,7 +583,7 @@ func scanSageMakerClusterSchedulerConfigs(ctx context.Context, client sagemakerG
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListClusterSchedulerConfigs"))
 }
 
-func scanSageMakerEdgeDeploymentPlans(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerEdgeDeploymentPlans(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerEdgeDeploymentPlan, "sagemaker:ListEdgeDeploymentPlans",
 		func(ctx context.Context, token *string) ([]smtypes.EdgeDeploymentPlanSummary, *string, error) {
@@ -599,7 +599,7 @@ func scanSageMakerEdgeDeploymentPlans(ctx context.Context, client sagemakerGover
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListEdgeDeploymentPlans"))
 }
 
-func scanSageMakerAIWorkloadConfigs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerAIWorkloadConfigs(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerAIWorkloadConfig, "sagemaker:ListAIWorkloadConfigs",
 		func(ctx context.Context, token *string) ([]smtypes.AIWorkloadConfigSummary, *string, error) {
@@ -615,7 +615,7 @@ func scanSageMakerAIWorkloadConfigs(ctx context.Context, client sagemakerGoverna
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListAIWorkloadConfigs"))
 }
 
-func scanSageMakerMlflowApps(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMlflowApps(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerMlflowApp, "sagemaker:ListMlflowApps",
 		func(ctx context.Context, token *string) ([]smtypes.MlflowAppSummary, *string, error) {
@@ -631,7 +631,7 @@ func scanSageMakerMlflowApps(ctx context.Context, client sagemakerGovernanceAPI,
 		sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListMlflowApps"))
 }
 
-func scanSageMakerTrainingPlans(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerTrainingPlans(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerTrainingPlan, "sagemaker:ListTrainingPlans",
 		func(ctx context.Context, token *string) ([]smtypes.TrainingPlanSummary, *string, error) {
@@ -653,7 +653,7 @@ func scanSageMakerTrainingPlans(ctx context.Context, client sagemakerGovernanceA
 // reserved capacity of every scanned training plan. Reserved capacities have no
 // List op of their own; the training-plan summary is the only place their ARNs
 // appear. Instance-type capacities hold no UltraServers and are not queried.
-func scanSageMakerUltraServers(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerUltraServers(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "sagemaker:ListUltraServersByReservedCapacity"
 	return scanSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerTrainingPlan, op, []string{"ResourceNotFound"},
 		sagemakerChildSkips{emptyWhy: "UltraServers have an empty UltraServerId"},

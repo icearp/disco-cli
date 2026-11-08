@@ -196,7 +196,7 @@ func mlOnePageHandlers(t *testing.T) map[string]func(in any) (any, error) {
 func mlScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := medialive.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanMLAll(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
+	total, err := scanMLAll(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
 	return total, err
 }
 
@@ -371,7 +371,7 @@ func TestScanMLChannels_ListOutcomes(t *testing.T) {
 				}
 			}
 			client := medialive.NewFromConfig(opStubConfig(mlChannelsHandler(t, c.pages), errors.New("unexpected op")))
-			total, _, err := scanMLChannels(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
+			total, err := scanMLChannels(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -416,7 +416,7 @@ func TestScanMLChannels_WriteFailsWarnsNothing(t *testing.T) {
 		return serve(in)
 	}
 	client := medialive.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	_, _, err := scanMLChannels(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
+	_, err := scanMLChannels(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -557,7 +557,7 @@ func TestScanMLMultiplexPrograms_ParentOutcomes(t *testing.T) {
 			}
 			h := mlProgramsHandler(t, map[string][]mlPage{"m-1": c.m1, "m-2": sibling})
 			client := medialive.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			total, _, err := scanMLMultiplexPrograms(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID, []string{"m-1", "m-2"})
+			total, err := scanMLMultiplexPrograms(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID, []string{"m-1", "m-2"})
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -604,7 +604,7 @@ func TestScanMLNodes_NotFoundIsAnError(t *testing.T) {
 	}
 	st := newTestStore(t)
 	client := medialive.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	_, _, err := scanMLNodes(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID, []string{"c-1", "c-2"})
+	_, err := scanMLNodes(context.Background(), client, newTestAccount(testAccountID), mlTestRegion, st, testScanID, []string{"c-1", "c-2"})
 	if !errors.Is(err, notFound) {
 		t.Fatalf("err = %v, want the NotFoundException", err)
 	}

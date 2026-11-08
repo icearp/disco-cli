@@ -61,7 +61,7 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 		managed,
 		{Arn: &custEastARN, Name: &custEastName, PermissionType: ramtypes.PermissionTypeCustomerManaged},
 	}}
-	if _, _, err := scanRAMPermissions(context.Background(), eastStub, acct, "us-east-1", st, testScanID); err != nil {
+	if _, err := scanRAMPermissions(context.Background(), eastStub, acct, "us-east-1", st, testScanID); err != nil {
 		t.Fatalf("us-east-1 scan: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 		managed,
 		{Arn: &custWestARN, Name: &custWestName, PermissionType: ramtypes.PermissionTypeCustomerManaged},
 	}}
-	westTotal, _, err := scanRAMPermissions(context.Background(), westStub, acct, "us-west-2", st, testScanID)
+	westTotal, err := scanRAMPermissions(context.Background(), westStub, acct, "us-west-2", st, testScanID)
 	if err != nil {
 		t.Fatalf("us-west-2 scan (managed-key collision regression): %v", err)
 	}
@@ -195,7 +195,7 @@ func ramHandlers(rec *ramCallRecorder) map[string]func(any) (any, error) {
 	}
 }
 
-func scanRAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func scanRAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, ramTestDenied)
@@ -208,7 +208,9 @@ func TestScanRAM_StoresShareAssociations(t *testing.T) {
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
 	rec := &ramCallRecorder{}
-	total, inserted, err := scanRAMTopLevel(t, st, ramHandlers(rec))
+	counted, upserts := countUpserts(st)
+	total, err := scanRAMTopLevel(t, counted, ramHandlers(rec))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanRAM: %v", err)
 	}
@@ -283,7 +285,9 @@ func TestScanRAM_NoAssociations(t *testing.T) {
 	st := newTestStore(t)
 	h := ramHandlers(&ramCallRecorder{})
 	h["GetResourceShareAssociations"] = func(any) (any, error) { return &ram.GetResourceShareAssociationsOutput{}, nil }
-	total, inserted, err := scanRAMTopLevel(t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := scanRAMTopLevel(t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanRAM: %v", err)
 	}
@@ -315,7 +319,7 @@ func TestScanRAM_AssociationsStopOnRepeatedToken(t *testing.T) {
 			NextToken: ptrStr("same"),
 		}, nil
 	}
-	if _, _, err := scanRAMTopLevel(t, st, h); err != nil {
+	if _, err := scanRAMTopLevel(t, st, h); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	// Per type: the first page, then the page asked with the repeated token.
@@ -331,7 +335,9 @@ func TestScanRAM_AssociationsDenied(t *testing.T) {
 	h := ramHandlers(&ramCallRecorder{})
 	delete(h, "GetResourceShareAssociations")
 	warnings := countOpWarnings(st, ramAssociationsOp)
-	total, inserted, err := scanRAMTopLevel(t, st, h)
+	counted, upserts := countUpserts(st)
+	total, err := scanRAMTopLevel(t, counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -373,7 +379,9 @@ func TestScanRAM_AssociationsErrorOnSecondPageKeepsFirst(t *testing.T) {
 				return first(in)
 			}
 			warnings := countOpWarnings(st, ramAssociationsOp)
-			total, inserted, err := scanRAMTopLevel(t, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := scanRAMTopLevel(t, counted, h)
+			inserted := upserts()
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -411,7 +419,9 @@ func TestScanRAM_PhaseErrorPropagates(t *testing.T) {
 			st := newTestStore(t)
 			h := ramHandlers(&ramCallRecorder{})
 			h[c.op] = func(any) (any, error) { return nil, errRAMTest }
-			total, inserted, err := scanRAMTopLevel(t, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := scanRAMTopLevel(t, counted, h)
+			inserted := upserts()
 			if !errors.Is(err, errRAMTest) {
 				t.Fatalf("err = %v, want the %s error", err, c.op)
 			}
@@ -456,7 +466,7 @@ func TestScanRAM_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 			h[c.transientOp] = func(any) (any, error) { return nil, throttle }
 			h[c.hardOp] = func(any) (any, error) { return nil, errRAMTest }
 			warnings := countOpWarnings(st, c.warnOp)
-			_, _, err := scanRAMTopLevel(t, st, h)
+			_, err := scanRAMTopLevel(t, st, h)
 			if !errors.Is(err, errRAMTest) {
 				t.Fatalf("err = %v, want the %s error", err, c.hardOp)
 			}
@@ -552,7 +562,9 @@ func TestScanRAM_SharesAndPermissionsStoreTags(t *testing.T) {
 	shareWarns := countOpWarnings(st, ramResourceSharesOp)
 	permWarns := countOpWarnings(st, ramPermissionsOp)
 	rec := &ramListInputs{}
-	total, inserted, err := scanRAMTopLevel(t, st, ramTwoPageListHandlers(rec, nil))
+	counted, upserts := countUpserts(st)
+	total, err := scanRAMTopLevel(t, counted, ramTwoPageListHandlers(rec, nil))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanRAM: %v", err)
 	}
@@ -639,7 +651,9 @@ func TestScanRAM_SharesAndPermissionsKeepRowsPastFailedPage(t *testing.T) {
 			st := newTestStore(t)
 			shareWarns := countOpWarnings(st, ramResourceSharesOp)
 			permWarns := countOpWarnings(st, ramPermissionsOp)
-			total, inserted, err := scanRAMTopLevel(t, st, ramTwoPageListHandlers(&ramListInputs{}, c.page2Err))
+			counted, upserts := countUpserts(st)
+			total, err := scanRAMTopLevel(t, counted, ramTwoPageListHandlers(&ramListInputs{}, c.page2Err))
+			inserted := upserts()
 			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
 				t.Fatalf("err = %v, want %v", err, c.wantErr)
 			}
@@ -680,7 +694,7 @@ func TestScanRAM_SharesAndPermissionsStopOnRepeatedToken(t *testing.T) {
 		}
 		return out, err
 	}
-	total, _, err := scanRAMTopLevel(t, st, h)
+	total, err := scanRAMTopLevel(t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -708,7 +722,7 @@ func TestScanRAM_StoreWriteStopsLaterPhases(t *testing.T) {
 					return next(in)
 				}
 			}
-			_, _, err := scanRAMTopLevel(t, st, h)
+			_, err := scanRAMTopLevel(t, st, h)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v, want ErrStoreWrite", err)
 			}

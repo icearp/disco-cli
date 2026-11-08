@@ -22,21 +22,21 @@ func init() {
 
 // scanDeviceRegistry discovers Device Registry assets, asset endpoint profiles,
 // and billing containers.
-func scanDeviceRegistry(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDeviceRegistry(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	assets, err := armdeviceregistry.NewAssetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdeviceregistry:NewAssetsClient: %w", err)
+		return 0, fmt.Errorf("armdeviceregistry:NewAssetsClient: %w", err)
 	}
 	aeps, err := armdeviceregistry.NewAssetEndpointProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdeviceregistry:NewAssetEndpointProfilesClient: %w", err)
+		return 0, fmt.Errorf("armdeviceregistry:NewAssetEndpointProfilesClient: %w", err)
 	}
 	bcs, err := armdeviceregistry.NewBillingContainersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armdeviceregistry:NewBillingContainersClient: %w", err)
+		return 0, fmt.Errorf("armdeviceregistry:NewBillingContainersClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdeviceregistry:Assets.ListBySubscription", TypeDeviceRegistryAsset, sub, st, scanID,
 				assets.NewListBySubscriptionPager(nil),
 				func(p armdeviceregistry.AssetsClientListBySubscriptionResponse) []*armdeviceregistry.Asset {
@@ -46,7 +46,7 @@ func scanDeviceRegistry(ctx context.Context, sub *subscription, cred azcore.Toke
 					return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdeviceregistry:AssetEndpointProfiles.ListBySubscription", TypeDeviceRegistryAssetEndpointProfile, sub, st, scanID,
 				aeps.NewListBySubscriptionPager(nil),
 				func(p armdeviceregistry.AssetEndpointProfilesClientListBySubscriptionResponse) []*armdeviceregistry.AssetEndpointProfile {
@@ -56,7 +56,7 @@ func scanDeviceRegistry(ctx context.Context, sub *subscription, cred azcore.Toke
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armdeviceregistry:BillingContainers.ListBySubscription", TypeDeviceRegistryBillingContainer, sub, st, scanID,
 				bcs.NewListBySubscriptionPager(nil),
 				func(p armdeviceregistry.BillingContainersClientListBySubscriptionResponse) []*armdeviceregistry.BillingContainer {

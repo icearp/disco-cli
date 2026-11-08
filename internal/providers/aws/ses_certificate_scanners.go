@@ -46,7 +46,7 @@ type sesCertificateTallies struct {
 // warning. That and the warnings for skipped associations are reported only
 // when the phase succeeds. A denial warns once; transient failures are
 // handled by childFanOutSkipTransient.
-func scanSESEmailIdentityCertificates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, identities []sesIdentity) (int, int, error) {
+func scanSESEmailIdentityCertificates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, identities []sesIdentity) (int, error) {
 	var (
 		tallies  sesCertificateTallies
 		answered atomic.Int64
@@ -57,7 +57,7 @@ func scanSESEmailIdentityCertificates(ctx context.Context, client sesv2API, acct
 		parents = append(parents, identity.childParent)
 		byParent[identity.childParent] = identity
 	}
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, sesCertificateOp, parents,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, sesCertificateOp, parents,
 		isSESIdentityDeleted, byParentID,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			rows, err := listSESEmailIdentityCertificates(ctx, client, acct, region, scanID, byParent[p], &tallies)
@@ -71,10 +71,10 @@ func scanSESEmailIdentityCertificates(ctx context.Context, client sesv2API, acct
 			return rows, err
 		})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	tallies.warnSkips(st, acct, region, int(answered.Load()))
-	return total, inserted, nil
+	return total, nil
 }
 
 // warnSkips reports each non-empty tally in one warning. Not-deployed skips

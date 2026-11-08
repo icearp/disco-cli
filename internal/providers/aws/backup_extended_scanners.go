@@ -76,7 +76,7 @@ func scanBackupRestoreTestingPlans(ctx context.Context, client backupAPI, acct *
 // NativeID is synthetic: the plan's ARN shape, keyed by plan name, plus
 // /selection/{name}. A plan ListRestoreTestingSelections no longer finds was
 // deleted since it was listed and is skipped.
-func scanBackupRestoreTestingSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, int, error) {
+func scanBackupRestoreTestingSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "backup:ListRestoreTestingSelections", backupNotFound, childParentIDs(plans),
 		func(ctx context.Context, plan string, token *string) ([]backuptypes.RestoreTestingSelectionForList, *string, error) {
 			out, err := client.ListRestoreTestingSelections(ctx, &backup.ListRestoreTestingSelectionsInput{

@@ -10,7 +10,7 @@ import (
 
 // scanDetectiveOrgAdmins captures Detective delegated administrator
 // accounts. Synth ARN: arn:{p}:detective:{r}:{a}:organization-admin/{id}.
-func scanDetectiveOrgAdmins(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDetectiveOrgAdmins(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
@@ -18,9 +18,9 @@ func scanDetectiveOrgAdmins(ctx context.Context, client detectiveAPI, acct *acco
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "detective:ListOrganizationAdminAccounts", acct.ID, region, err)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("detective:ListOrganizationAdminAccounts: %w", err)
+			return 0, fmt.Errorf("detective:ListOrganizationAdminAccounts: %w", err)
 		}
 		for _, a := range out.Administrators {
 			id := sv(a.AccountId)

@@ -91,7 +91,7 @@ func TestScanLambdaProvisionedConcurrencyConfigs_PagesEveryFunction(t *testing.T
 	st := newTestStore(t)
 	stub, fns := lambdaPCFixture(t, st)
 
-	total, _, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
+	total, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestScanLambdaProvisionedConcurrencyConfigs_PerFunctionErrors(t *testing.T)
 			stub, fns := lambdaPCFixture(t, st)
 			stub.errFor = tc.errFor
 
-			_, _, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
+			_, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
 			if tc.wantErr != "" {
 				if !isAPIErrorCode(err, tc.wantErr) {
 					t.Fatalf("err=%v, want %s propagated", err, tc.wantErr)
@@ -177,7 +177,7 @@ func TestScanLambdaProvisionedConcurrencyConfigs_Empty(t *testing.T) {
 	st := newTestStore(t)
 	stub := &stubLambdaPerFn{}
 	fns := []lambdaFunctionSummary{{name: "f1", arn: lambdaFnARN("f1")}}
-	total, _, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
+	total, err := scanLambdaProvisionedConcurrencyConfigs(context.Background(), stub, newTestAccount(testAccountID), fns, testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("total=%d err=%v, want 0/nil", total, err)
 	}

@@ -165,7 +165,9 @@ func scanR53RRTopLevel(t *testing.T, st *store.Store, fail map[string]map[string
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(r53rrHandlers(newR53RRFixture(), fail, res.calls), r53rrDenied)
-	res.total, res.inserted, res.err = scanR53RecoveryReadiness(context.Background(), acct, "", st, testScanID)
+	counted, upserts := countUpserts(st)
+	res.total, res.err = scanR53RecoveryReadiness(context.Background(), acct, "", counted, testScanID)
+	res.inserted = upserts()
 	return res
 }
 

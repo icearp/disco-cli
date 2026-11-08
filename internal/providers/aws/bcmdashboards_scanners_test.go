@@ -183,12 +183,12 @@ func bcmdTestHandlers(c *bcmdTestCalls) map[string]func(in any) (any, error) {
 
 // bcmdTestScanAs runs the scan for acct against handlers through the real
 // client; every op they do not answer is denied.
-func bcmdTestScanAs(ctx context.Context, acct *account, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func bcmdTestScanAs(ctx context.Context, acct *account, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	client := bcmdashboards.NewFromConfig(opStubConfig(handlers, bcmdTestDenied))
 	return scanBCMDashboards(ctx, client, acct, st, testScanID)
 }
 
-func bcmdTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func bcmdTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return bcmdTestScanAs(ctx, newTestAccount(testAccountID), st, handlers)
 }
 
@@ -222,7 +222,9 @@ func TestScanBCMDashboards_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newBCMDTestCalls()
 
-	total, inserted, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := bcmdTestScan(context.Background(), counted, bcmdTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -299,7 +301,7 @@ func TestScanBCMDashboards_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := bcmdTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := bcmdTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range bcmdTestKinds() {
@@ -309,16 +311,16 @@ func TestScanBCMDashboards_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanBCMDashboards_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls())); err != nil {
+	if _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls()))
+	total, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -346,7 +348,9 @@ func TestScanBCMDashboards_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := bcmdTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := bcmdTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -397,7 +401,7 @@ func TestScanBCMDashboards_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+			total, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -472,7 +476,7 @@ func TestScanBCMDashboards_SharedDashboardKeptUntagged(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := bcmdTestScan(context.Background(), st, handlers)
+			total, err := bcmdTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -510,7 +514,7 @@ func TestScanBCMDashboards_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[bcmdTestKindOf(t, "ListDashboards").arn("bare")] = bcmdTestDenied
 	calls.tagErrs[bcmdTestKindOf(t, "ListScheduledReports").arn("tagged")] = bcmdTestDenied
 
-	total, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+	total, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -532,7 +536,7 @@ func TestScanBCMDashboards_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[bcmdTestKindOf(t, "ListDashboards").arn("bare")] = bcmdTestThrottle
 	calls.tagErrs[bcmdTestKindOf(t, "ListScheduledReports").arn("tagged")] = bcmdTestBad
 
-	_, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+	_, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -550,7 +554,7 @@ func TestScanBCMDashboards_FailedWriteStopsScan(t *testing.T) {
 	calls := newBCMDTestCalls()
 	calls.tagErrs[bcmdTestKindOf(t, "ListDashboards").arn("tagged")] = bcmdTestDenied
 
-	total, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+	total, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -610,7 +614,7 @@ func TestScanBCMDashboards_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := bcmdTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := bcmdTestScan(context.Background(), st, handlers)
+			_, err := bcmdTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := afWarnOps(w); !slices.Equal(got, []string{bcmdTagsOp}) {
@@ -664,7 +668,7 @@ func TestScanBCMDashboards_ListFailureKeepsPagesAndOtherPhase(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := bcmdTestScan(context.Background(), st, handlers)
+			total, err := bcmdTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -716,7 +720,7 @@ func TestScanBCMDashboards_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := bcmdTestScan(context.Background(), st, handlers)
+	total, err := bcmdTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -752,7 +756,7 @@ func TestScanBCMDashboards_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := bcmdTestScan(context.Background(), st, handlers)
+			total, err := bcmdTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -786,7 +790,7 @@ func TestScanBCMDashboards_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(partition, func(t *testing.T) {
 			st := newTestStore(t)
 			calls := newBCMDTestCallsIn(partition, testAccountID)
-			if _, _, err := bcmdTestScanAs(context.Background(), partitionAccount(partition), st, bcmdTestHandlers(calls)); err != nil {
+			if _, err := bcmdTestScanAs(context.Background(), partitionAccount(partition), st, bcmdTestHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -824,7 +828,7 @@ func TestScanBCMDashboards_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := bcmdTestScan(ctx, st, handlers)
+	_, err := bcmdTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -856,7 +860,7 @@ func TestScanBCMDashboards_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := bcmdTestHandlers(newBCMDTestCalls())
 		handlers["ListScheduledReports"] = func(any) (any, error) { return nil, nx }
-		total, _, err := bcmdTestScan(context.Background(), st, handlers)
+		total, err := bcmdTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := bcmdTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d dashboards counted", total, want)
@@ -866,7 +870,7 @@ func TestScanBCMDashboards_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newBCMDTestCalls()
 		calls.tagErrs[bcmdTestKindOf(t, "ListDashboards").arn("tagged")] = nx
-		_, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
+		_, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -880,7 +884,7 @@ func TestScanBCMDashboards_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := bcmdTestScan(context.Background(), st, handlers)
+		_, err := bcmdTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

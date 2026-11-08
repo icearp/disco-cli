@@ -319,11 +319,11 @@ func iotStoreTagged(ctx context.Context, st *store.Store, acct *account, region 
 
 // iotStore is iotStoreTagged for a type that carries no tags.
 func iotStore(st *store.Store, acct *account, region string, p *phaseTotals, l *iotListing, d iotDescribed) (storeWriteFailed bool) {
-	total, inserted, err := storeReadRows(st, acct, region, l.op, d.rows, l.err, func() {
+	total, err := storeReadRows(st, acct, region, l.op, d.rows, l.err, func() {
 		l.warnNoKey(st, acct, region)
 		d.warn()
 	})
-	stop := p.addPhase(l.op, total, inserted, err)
+	stop := p.addPhase(l.op, total, err)
 	p.errs.add(d.op, d.hard)
 	p.errs.add(d.op, d.transient)
 	return stop
@@ -334,8 +334,8 @@ func iotStore(st *store.Store, acct *account, region string, p *phaseTotals, l *
 // warnings run only after a successful write. It reports whether the write
 // failed.
 func iotStoreReads(st *store.Store, acct *account, region string, p *phaseTotals, d iotDescribed) (storeWriteFailed bool) {
-	total, inserted, err := storeReadRows(st, acct, region, d.op, d.rows, nil, d.warn)
-	stop := p.addPhase(d.op, total, inserted, err)
+	total, err := storeReadRows(st, acct, region, d.op, d.rows, nil, d.warn)
+	stop := p.addPhase(d.op, total, err)
 	p.errs.add(d.op, d.hard)
 	p.errs.add(d.op, d.transient)
 	return stop
@@ -403,10 +403,10 @@ type iotPhase func(p *phaseTotals) (storeWriteFailed bool)
 
 // iotCounted is the iotPhase of a phase that returns its counts and error,
 // added to p under op.
-func iotCounted(op string, run func() (int, int, error)) iotPhase {
+func iotCounted(op string, run func() (int, error)) iotPhase {
 	return func(p *phaseTotals) bool {
-		t, i, err := run()
-		return p.addPhase(op, t, i, err)
+		t, err := run()
+		return p.addPhase(op, t, err)
 	}
 }
 
@@ -424,7 +424,7 @@ func runIoTPhases(p *phaseTotals, phases ...iotPhase) (storeWriteFailed bool) {
 
 // scanIoT discovers all IoT resource types in one region by running family
 // scanners concurrently (scanIoTFamilies) over one client and one tag read.
-func scanIoT(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoT(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iot.NewFromConfig(acct.cfg, func(o *iot.Options) { o.Region = region })
 	return scanIoTFamilies(ctx, client, acct, region, st, scanID, newIoTTags(client))
 }
@@ -434,7 +434,7 @@ func scanIoT(ctx context.Context, acct *account, region string, st *store.Store,
 // not cancel the others: each family adds its phases to its own
 // phaseTotals, joined once all are done. A failed write in any family skips
 // the audit-suppression phase that runs after them.
-func scanIoTFamilies(ctx context.Context, client *iot.Client, acct *account, region string, st *store.Store, scanID string, tags iotTags) (int, int, error) {
+func scanIoTFamilies(ctx context.Context, client *iot.Client, acct *account, region string, st *store.Store, scanID string, tags iotTags) (int, error) {
 	families := []iotPhase{
 		func(p *phaseTotals) bool { return scanIoTThings(ctx, client, acct, region, st, scanID, p, tags) },
 		func(p *phaseTotals) bool { return scanIoTCerts(ctx, client, acct, region, st, scanID, p, tags) },
@@ -455,14 +455,13 @@ func scanIoTFamilies(ctx context.Context, client *iot.Client, acct *account, reg
 	var p phaseTotals
 	for _, part := range parts {
 		p.total += part.total
-		p.inserted += part.inserted
 		p.errs = append(p.errs, part.errs...)
 	}
 	// Phases added after the families run once every family is done, so the
 	// established families' calls are made first.
 	if !slices.Contains(stopped, true) {
-		t, i, err := scanIoTAuditSuppressions(ctx, client, acct, region, st, scanID)
-		p.addPhase("iot:ListAuditSuppressions", t, i, err)
+		t, err := scanIoTAuditSuppressions(ctx, client, acct, region, st, scanID)
+		p.addPhase("iot:ListAuditSuppressions", t, err)
 	}
 	return p.resultLateNXDOMAIN(st, acct, region)
 }

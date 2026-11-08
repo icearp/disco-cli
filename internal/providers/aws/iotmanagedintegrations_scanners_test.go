@@ -133,7 +133,7 @@ func (s *stubIMI) ListManagedThingAccountAssociations(_ context.Context, in *iot
 	return &iotmanagedintegrations.ListManagedThingAccountAssociationsOutput{Items: items, NextToken: next}, nil
 }
 
-type imiScanFn func(context.Context, iotManagedIntegrationsAPI, *account, string, *store.Store, string) (int, int, error)
+type imiScanFn func(context.Context, iotManagedIntegrationsAPI, *account, string, *store.Store, string) (int, error)
 
 func imiNID(kind, id string) string { return imiARN("aws", testRegion, testAccountID, kind, id) }
 
@@ -233,7 +233,7 @@ func TestScanIMIList_TwoPagesStored(t *testing.T) {
 			st := newTestStore(t)
 			stub := &stubIMI{t: t}
 			tc.fill(stub)
-			total, _, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -261,7 +261,7 @@ func TestScanIMIList_Empty(t *testing.T) {
 	for _, tc := range imiCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := tc.scan(context.Background(), &stubIMI{t: t}, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := tc.scan(context.Background(), &stubIMI{t: t}, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil || total != 0 {
 				t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 			}
@@ -278,7 +278,7 @@ func TestScanIMIList_AccessDeniedWarnsOnce(t *testing.T) {
 			warnings := countSMWarnings(st)
 			stub := &stubIMI{t: t, err: apiErr("AccessDeniedException", "User: x is not authorized to perform: y")}
 			tc.fill(stub)
-			if _, _, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+			if _, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if *warnings != 1 {
@@ -295,7 +295,7 @@ func TestScanIMIList_OtherErrorPropagates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			stub := &stubIMI{t: t, err: apiErr("InternalServerException", "boom")}
-			_, _, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := tc.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "InternalServerException") {
 				t.Fatalf("err = %v; want wrapped InternalServerException", err)
 			}
@@ -314,7 +314,7 @@ func TestScanIMIList_DeniedOnSecondPageKeepsFirst(t *testing.T) {
 		err:          apiErr("AccessDeniedException", "denied"),
 		errPage:      1,
 	}
-	total, _, err := scanIMIDestinations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanIMIDestinations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestScanIMIConnectorDestinations_NoConnectorNoEdge(t *testing.T) {
 		{Id: sdkaws.String("cd-1"), CloudConnectorId: sdkaws.String("cc-1")},
 		{Id: sdkaws.String("cd-2")},
 	}}}
-	if _, _, err := scanIMIConnectorDestinations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanIMIConnectorDestinations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	linked, orphan := imiNID("connector-destination", "cd-1"), imiNID("connector-destination", "cd-2")
@@ -411,7 +411,7 @@ func TestScanIMIManagedThingAccountAssociations_FanOut(t *testing.T) {
 		},
 		"aa-2": {{{ManagedThingId: s("mt-1"), AccountAssociationId: s("aa-2")}, {ManagedThingId: s("mt-unscanned"), AccountAssociationId: s("aa-2")}, {ManagedThingId: s("mt-2"), AccountAssociationId: s("aa-other")}}},
 	}}
-	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
+	total, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestScanIMIManagedThingAccountAssociations_NoThingsNoRows(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubIMI{t: t}
-	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1"), nil)
+	total, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1"), nil)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -464,7 +464,7 @@ func TestScanIMIManagedThingAccountAssociations_NoAssociationsNoCalls(t *testing
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubIMI{t: t}
-	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, nil, imiParents("managed-thing", "mt-1"))
+	total, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, nil, imiParents("managed-thing", "mt-1"))
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -486,7 +486,7 @@ func TestScanIMIManagedThingAccountAssociations_DeniedWarnsOnceKeepsSiblings(t *
 		assocLinks: map[string][][]imitypes.ManagedThingAssociation{"ok": {{{ManagedThingId: sdkaws.String("mt-1")}}}},
 		assocErrs:  map[string]error{"denied-1": denied, "denied-2": denied},
 	}
-	if _, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "denied-1", "ok", "denied-2"), things); err != nil {
+	if _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "denied-1", "ok", "denied-2"), things); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeIoTManagedIntegrationsManagedThingAccountAssociation, imiLinkNID("mt-1", "ok"))
@@ -512,7 +512,7 @@ func TestScanIMIManagedThingAccountAssociations_DeniedOnSecondPageKeepsFirst(t *
 		assocErrs:    map[string]error{"aa-1": apiErr("AccessDeniedException", "denied")},
 		assocErrPage: map[string]int{"aa-1": 1},
 	}
-	if _, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things); err != nil {
+	if _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeIoTManagedIntegrationsManagedThingAccountAssociation, imiLinkNID("mt-1", "aa-1"), imiLinkNID("mt-2", "aa-2"))
@@ -538,7 +538,7 @@ func TestScanIMIManagedThingAccountAssociations_OtherErrorKeepsSiblings(t *testi
 		assocErrs:    map[string]error{"aa-1": apiErr("ValidationException", "bad")},
 		assocErrPage: map[string]int{"aa-1": 1},
 	}
-	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
+	total, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v; want wrapped ValidationException", err)
 	}
@@ -567,7 +567,7 @@ func TestScanIMIManagedThingAccountAssociations_FailedClosureWriteReturned(t *te
 		assocLinks: map[string][][]imitypes.ManagedThingAssociation{"aa-1": {{{ManagedThingId: sdkaws.String("mt-1")}}}},
 		assocErrs:  map[string]error{"aa-2": crDenied},
 	}
-	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
+	total, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1", "aa-2"), things)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -597,7 +597,7 @@ func TestScanIMIManagedThingAccountAssociations_RepeatedTokenKeepsPage(t *testin
 			NextToken: sdkaws.String("same"),
 		}, nil
 	}
-	_, _, err := imiScan(context.Background(), t, st, h)
+	_, err := imiScan(context.Background(), t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -754,7 +754,7 @@ func imiEmptyHandlers(c *imiCalls) map[string]func(any) (any, error) {
 
 // imiScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func imiScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func imiScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -774,7 +774,9 @@ func TestScanIoTManagedIntegrations_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newIMICalls()
 
-	total, inserted, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := imiScan(context.Background(), t, counted, imiHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -856,7 +858,7 @@ func TestScanIoTManagedIntegrations_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, crDenied)
 
-	total, _, err := scanIoTManagedIntegrations(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanIoTManagedIntegrations(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -887,7 +889,9 @@ func TestScanIoTManagedIntegrations_EmptyListings(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newIMICalls()
 
-	total, inserted, err := imiScan(context.Background(), t, st, imiEmptyHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := imiScan(context.Background(), t, counted, imiEmptyHandlers(calls))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -896,17 +900,17 @@ func TestScanIoTManagedIntegrations_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanIoTManagedIntegrations_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newIMICalls()
-	if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
+	if _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+	total, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -942,7 +946,7 @@ func TestScanIoTManagedIntegrations_TagReadFailures(t *testing.T) {
 			calls := newIMICalls()
 			calls.errs[target] = c.err
 
-			total, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+			total, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -987,7 +991,7 @@ func TestScanIoTManagedIntegrations_VanishedParentIsNotAParent(t *testing.T) {
 		warns := countWarnings(st)
 		calls := newIMICalls()
 		calls.errs[imiNID("account-association", "aat")] = crNotFound
-		if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
+		if _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 		if n := calls.count("ListManagedThingAccountAssociations"); n != 1 {
@@ -1003,7 +1007,7 @@ func TestScanIoTManagedIntegrations_VanishedParentIsNotAParent(t *testing.T) {
 		linkWarns := bacWarnings(st, imiThingLinksOp)
 		calls := newIMICalls()
 		calls.errs[imiNID("managed-thing", "mtt")] = crNotFound
-		if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
+		if _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 		assertSMIDs(t, st, TypeIoTManagedIntegrationsManagedThingAccountAssociation, imiLinkNID("mtb", "aab"))
@@ -1022,7 +1026,7 @@ func TestScanIoTManagedIntegrations_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[imiNID("credential-locker", "clt")] = crDenied
 	calls.errs[imiNID("provisioning-profile", "ppb")] = apiErr("UnauthorizedException", "not authorized")
 
-	if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
+	if _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
@@ -1048,7 +1052,7 @@ func TestScanIoTManagedIntegrations_TagThrottleDemotedBesideHardError(t *testing
 	calls.errs[imiNID("credential-locker", "clt")] = crThrottled
 	calls.errs[imiNID("ota-task", "otb")] = apiErr("InvalidRequestException", "bad")
 
-	_, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+	_, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -1071,7 +1075,7 @@ func TestScanIoTManagedIntegrations_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := imiHandlers(newIMICalls())
 			h[op] = func(any) (any, error) { return nil, crDenied }
 
-			total, _, err := imiScan(context.Background(), t, st, h)
+			total, err := imiScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1105,7 +1109,7 @@ func TestScanIoTManagedIntegrations_UnauthorizedListingWarnsUnderItsOp(t *testin
 			h := imiHandlers(newIMICalls())
 			h[op] = func(any) (any, error) { return nil, unauthorized }
 
-			total, _, err := imiScan(context.Background(), t, st, h)
+			total, err := imiScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1127,7 +1131,7 @@ func TestScanIoTManagedIntegrations_FailedLinkWriteSendsNoWarning(t *testing.T) 
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeIoTManagedIntegrationsManagedThingAccountAssociation)
 
-	_, _, err := imiScan(context.Background(), t, st, imiHandlers(newIMICalls()))
+	_, err := imiScan(context.Background(), t, st, imiHandlers(newIMICalls()))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1156,7 +1160,7 @@ func TestScanIoTManagedIntegrations_FailedWriteStopsWithoutWarning(t *testing.T)
 	calls := newIMICalls()
 	calls.errs[imiNID("credential-locker", "clt")] = crDenied
 
-	_, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+	_, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1182,7 +1186,7 @@ func TestScanIoTManagedIntegrations_ListFailureKeepsPagesAndRunsEveryPhase(t *te
 	h["ListCredentialLockers"] = failOnCall(2, crtBadInput, h["ListCredentialLockers"])
 	h["ListAccountAssociations"] = func(any) (any, error) { return nil, crThrottled }
 
-	total, _, err := imiScan(context.Background(), t, st, h)
+	total, err := imiScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -1221,7 +1225,7 @@ func TestScanIoTManagedIntegrations_UnstorableItemsWarn(t *testing.T) {
 			h := imiHandlers(newIMICalls())
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			if _, _, err := imiScan(context.Background(), t, st, h); err != nil {
+			if _, err := imiScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -1240,7 +1244,7 @@ func TestScanIoTManagedIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
 		return &iotmanagedintegrations.ListOtaTasksOutput{Tasks: []imitypes.OtaTaskSummary{imiOtaTask("t")}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := imiScan(context.Background(), t, st, h)
+	_, err := imiScan(context.Background(), t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1258,7 +1262,7 @@ func TestScanIoTManagedIntegrations_OtaEndpointGap(t *testing.T) {
 		warns := countWarnings(st)
 		h := imiHandlers(newIMICalls())
 		h["ListOtaTasks"] = func(any) (any, error) { return nil, gap }
-		total, _, err := imiScan(context.Background(), t, st, h)
+		total, err := imiScan(context.Background(), t, st, h)
 		if err != nil || total != 10 || *warns != 0 {
 			t.Errorf("total, err, warnings = %d, %v, %d; want 10, nil, 0", total, err, *warns)
 		}
@@ -1267,7 +1271,7 @@ func TestScanIoTManagedIntegrations_OtaEndpointGap(t *testing.T) {
 		st := newTestStore(t)
 		h := imiHandlers(newIMICalls())
 		h["ListOtaTasks"] = failOnCall(2, gap, h["ListOtaTasks"])
-		_, _, err := imiScan(context.Background(), t, st, h)
+		_, err := imiScan(context.Background(), t, st, h)
 		if !isAPIErrorCode(err, "UnknownError") {
 			t.Fatalf("err = %v; want the UnknownError", err)
 		}
@@ -1293,7 +1297,7 @@ func TestScanIoTManagedIntegrations_ContextEndStopsOnce(t *testing.T) {
 		return things(in)
 	}
 
-	_, _, err := imiScan(ctx, t, st, h)
+	_, err := imiScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1326,7 +1330,7 @@ func TestScanIoTManagedIntegrations_Unreachable(t *testing.T) {
 		calls := newIMICalls()
 		h := imiHandlers(calls)
 		h["ListAccountAssociations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := imiScan(context.Background(), t, st, h)
+		total, err := imiScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListCredentialLockers") != 0 || calls.count("ListOtaTaskConfigurations") != 0 {
 			t.Errorf("total = %d, ListCredentialLockers, ListOtaTaskConfigurations calls = %d, %d; want 0, 0, 0",
@@ -1337,7 +1341,7 @@ func TestScanIoTManagedIntegrations_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newIMICalls()
 		calls.errs[imiNID("credential-locker", "clt")] = nx
-		total, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+		total, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 12 {
 			t.Errorf("total = %d; want 12", total)
@@ -1378,7 +1382,7 @@ func TestScanIoTManagedIntegrations_ChildrenContainedByParents(t *testing.T) {
 	})
 	acct := newTestAccount(testAccountID)
 	acct.cfg = cfgWithStub(stub, testRegion)
-	if _, _, err := scanIoTManagedIntegrations(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanIoTManagedIntegrations(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeIoTManagedIntegrationsDestination, imiNID("destination", "d1"))

@@ -20,12 +20,12 @@ func init() {
 }
 
 // scanCommunication discovers Azure Communication Services and Email Services.
-func scanCommunication(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCommunication(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			svcClient, err := armcommunication.NewServicesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armcommunication:NewServicesClient: %w", err)
+				return 0, fmt.Errorf("armcommunication:NewServicesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armcommunication:Services.ListBySubscription", TypeCommunicationService, sub, st, scanID,
 				svcClient.NewListBySubscriptionPager(nil),
@@ -36,10 +36,10 @@ func scanCommunication(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			emailClient, err := armcommunication.NewEmailServicesClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armcommunication:NewEmailServicesClient: %w", err)
+				return 0, fmt.Errorf("armcommunication:NewEmailServicesClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armcommunication:EmailServices.ListBySubscription", TypeCommunicationEmailService, sub, st, scanID,
 				emailClient.NewListBySubscriptionPager(nil),

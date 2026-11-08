@@ -13,28 +13,27 @@ import (
 // via per-pool fan-outs. UserPoolUser and UserPoolUserToGroupAttachment
 // deferred (potential cardinality explosion); ManagedLoginBranding has
 // no list op; IdentityPoolPrincipalTag requires per-(pool, IdP) iteration.
-func scanCognitoExtended(ctx context.Context, idp cognitoidpAPI, id cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, poolIDs, idPoolIDs []string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanCogUserPoolDomains(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogGroups(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogIdentityProviders(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogResourceServers(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogRiskConfig(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogUICustomization(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogLogDelivery(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) { return scanCogTerms(ctx, idp, acct, region, st, scanID, poolIDs) },
-		func() (int, int, error) {
+func scanCognitoExtended(ctx context.Context, idp cognitoidpAPI, id cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, poolIDs, idPoolIDs []string) (total int, err error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanCogUserPoolDomains(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogGroups(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogIdentityProviders(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogResourceServers(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogRiskConfig(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogUICustomization(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogLogDelivery(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) { return scanCogTerms(ctx, idp, acct, region, st, scanID, poolIDs) },
+		func() (int, error) {
 			return scanCogIDPoolRoleAttachments(ctx, id, acct, region, st, scanID, idPoolIDs)
 		},
 	} {
-		t, i, ferr := phase()
+		t, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 func cogUPARN(partition, region, acct, poolID, kind, id string) string {
@@ -43,7 +42,7 @@ func cogUPARN(partition, region, acct, poolID, kind, id string) string {
 
 // scanCogUserPoolDomains: per-pool DescribeUserPool exposes the Domain
 // field; if non-empty, DescribeUserPoolDomain returns the description.
-func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -52,7 +51,7 @@ func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *acc
 			if isAccessDenied(err) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:DescribeUserPool %s: %w", pid, err)
+			return 0, fmt.Errorf("cognito-idp:DescribeUserPool %s: %w", pid, err)
 		}
 		if dpOut.UserPool == nil || dpOut.UserPool.Domain == nil || *dpOut.UserPool.Domain == "" {
 			continue
@@ -63,7 +62,7 @@ func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *acc
 			if isAccessDenied(derr) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:DescribeUserPoolDomain %s: %w", domain, derr)
+			return 0, fmt.Errorf("cognito-idp:DescribeUserPoolDomain %s: %w", domain, derr)
 		}
 		if out.DomainDescription == nil {
 			continue
@@ -79,7 +78,7 @@ func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *acc
 	return upsertBatch(st, batch, "cognito user-pool-domains")
 }
 
-func scanCogGroups(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogGroups(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -90,7 +89,7 @@ func scanCogGroups(ctx context.Context, client cognitoidpAPI, acct *account, reg
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("cognito-idp:ListGroups %s: %w", pid, perr)
+				return 0, fmt.Errorf("cognito-idp:ListGroups %s: %w", pid, perr)
 			}
 			for _, g := range out.Groups {
 				name := sv(g.GroupName)
@@ -110,7 +109,7 @@ func scanCogGroups(ctx context.Context, client cognitoidpAPI, acct *account, reg
 	return upsertBatch(st, batch, "cognito user-pool-groups")
 }
 
-func scanCogIdentityProviders(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogIdentityProviders(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -121,7 +120,7 @@ func scanCogIdentityProviders(ctx context.Context, client cognitoidpAPI, acct *a
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("cognito-idp:ListIdentityProviders %s: %w", pid, perr)
+				return 0, fmt.Errorf("cognito-idp:ListIdentityProviders %s: %w", pid, perr)
 			}
 			for _, p := range out.Providers {
 				name := sv(p.ProviderName)
@@ -141,7 +140,7 @@ func scanCogIdentityProviders(ctx context.Context, client cognitoidpAPI, acct *a
 	return upsertBatch(st, batch, "cognito user-pool-identity-providers")
 }
 
-func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -152,7 +151,7 @@ func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *acc
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("cognito-idp:ListResourceServers %s: %w", pid, perr)
+				return 0, fmt.Errorf("cognito-idp:ListResourceServers %s: %w", pid, perr)
 			}
 			for _, r := range out.ResourceServers {
 				ident := sv(r.Identifier)
@@ -177,7 +176,7 @@ func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *acc
 
 // scanCogRiskConfig — per-pool singleton; tolerates ResourceNotFound when
 // risk config isn't enabled for the pool.
-func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -186,7 +185,7 @@ func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account,
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:DescribeRiskConfiguration %s: %w", pid, err)
+			return 0, fmt.Errorf("cognito-idp:DescribeRiskConfiguration %s: %w", pid, err)
 		}
 		if out.RiskConfiguration == nil {
 			continue
@@ -204,7 +203,7 @@ func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account,
 
 // scanCogUICustomization — per-pool singleton; GetUICustomization returns
 // empty UICustomizationType if no customization configured (skip).
-func scanCogUICustomization(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogUICustomization(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -213,7 +212,7 @@ func scanCogUICustomization(ctx context.Context, client cognitoidpAPI, acct *acc
 			if isAccessDenied(err) {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:GetUICustomization %s: %w", pid, err)
+			return 0, fmt.Errorf("cognito-idp:GetUICustomization %s: %w", pid, err)
 		}
 		if out.UICustomization == nil || sv(out.UICustomization.UserPoolId) == "" {
 			continue
@@ -229,7 +228,7 @@ func scanCogUICustomization(ctx context.Context, client cognitoidpAPI, acct *acc
 	return upsertBatch(st, batch, "cognito user-pool-ui-customizations")
 }
 
-func scanCogLogDelivery(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogLogDelivery(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -238,7 +237,7 @@ func scanCogLogDelivery(ctx context.Context, client cognitoidpAPI, acct *account
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:GetLogDeliveryConfiguration %s: %w", pid, err)
+			return 0, fmt.Errorf("cognito-idp:GetLogDeliveryConfiguration %s: %w", pid, err)
 		}
 		if out.LogDeliveryConfiguration == nil {
 			continue
@@ -254,7 +253,7 @@ func scanCogLogDelivery(ctx context.Context, client cognitoidpAPI, acct *account
 	return upsertBatch(st, batch, "cognito log-delivery-configurations")
 }
 
-func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
+func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range poolIDs {
 		id := pid
@@ -265,7 +264,7 @@ func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, regi
 				if isAccessDenied(err) {
 					break
 				}
-				return 0, 0, fmt.Errorf("cognito-idp:ListTerms %s: %w", pid, err)
+				return 0, fmt.Errorf("cognito-idp:ListTerms %s: %w", pid, err)
 			}
 			for _, t := range out.Terms {
 				tid := sv(t.TermsId)
@@ -295,7 +294,7 @@ func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, regi
 // scanCogIDPoolRoleAttachments — one row per identity pool keyed on the
 // pool ARN with the role mappings as attributes. Distinct type from
 // identity-pool itself; CFN models RoleAttachment separately.
-func scanCogIDPoolRoleAttachments(ctx context.Context, client cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, idPoolIDs []string) (int, int, error) {
+func scanCogIDPoolRoleAttachments(ctx context.Context, client cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, idPoolIDs []string) (int, error) {
 	var batch []*store.Resource
 	for _, pid := range idPoolIDs {
 		id := pid
@@ -304,7 +303,7 @@ func scanCogIDPoolRoleAttachments(ctx context.Context, client cognitoidentityAPI
 			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
 				continue
 			}
-			return 0, 0, fmt.Errorf("cognito-identity:GetIdentityPoolRoles %s: %w", pid, err)
+			return 0, fmt.Errorf("cognito-identity:GetIdentityPoolRoles %s: %w", pid, err)
 		}
 		if len(out.Roles) == 0 && len(out.RoleMappings) == 0 {
 			continue

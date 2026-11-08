@@ -38,7 +38,7 @@ type agentRegistryAPI interface {
 	ListTagsForResource(context.Context, *agentregistrycontrol.ListTagsForResourceInput, ...func(*agentregistrycontrol.Options)) (*agentregistrycontrol.ListTagsForResourceOutput, error)
 }
 
-func scanAgentRegistry(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAgentRegistry(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := agentregistrycontrol.NewFromConfig(acct.cfg, func(o *agentregistrycontrol.Options) { o.Region = region })
 	return scanAgentRegistryAll(ctx, client, acct, region, st, scanID)
 }
@@ -49,10 +49,10 @@ func scanAgentRegistry(ctx context.Context, acct *account, region string, st *st
 // demotes a transient one to a warning only beside a hard one. A region
 // whose registries listing fails only with NXDOMAIN, nothing stored, is
 // reported unavailable. Denied tag reads of both phases are one warning.
-func scanAgentRegistryAll(ctx context.Context, client agentRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAgentRegistryAll(ctx context.Context, client agentRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := agentRegistryTags(client).sharingDenials()
 	var registries []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "agent-registry", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "agent-registry", 0, []hostPhase{
 		{op: agentRegistryListRegistriesOp, run: func(p *phaseTotals) (failed bool) {
 			registries, failed = scanAgentRegistryRegistries(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -62,7 +62,7 @@ func scanAgentRegistryAll(ctx context.Context, client agentRegistryAPI, acct *ac
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // agentRegistryTags reads a registry's or record's tags with

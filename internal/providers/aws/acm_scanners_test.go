@@ -200,7 +200,7 @@ func scanACMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, acmDenied)
-	total, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -396,19 +396,19 @@ func TestScanACM_StoresTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanACM_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := acmChildCalls{tags: map[string]map[string]string{acmTestEP1: {"team": "pki"}}}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(acmTopLevelHandlers(&calls), acmDenied)
-	if _, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanACM(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil || total != acmTestTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, acmTestTotal)
 	}
@@ -788,7 +788,7 @@ func TestScanACM_TagReadsKeepPartitionARNs(t *testing.T) {
 			}
 			acct := partitionAccount(c.partition)
 			acct.cfg = opStubConfig(handlers, acmDenied)
-			if _, _, err := scanACM(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanACM(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			wantARNs := []string{ep, eab, dv}
@@ -1162,7 +1162,7 @@ func TestScanACM_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1181,7 +1181,7 @@ func TestScanACM_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanACM(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanACM(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanACM: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {

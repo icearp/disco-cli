@@ -215,7 +215,7 @@ func sdkInt64(v int64) *int64 { return &v }
 func wisdomScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := qconnect.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanWisdomAll(context.Background(), client, newTestAccount(testAccountID), wisdomTestRegion, st, testScanID)
+	total, err := scanWisdomAll(context.Background(), client, newTestAccount(testAccountID), wisdomTestRegion, st, testScanID)
 	return total, err
 }
 

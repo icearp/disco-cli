@@ -20,7 +20,9 @@ func TestScanComputeGlobalForwardingRules_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeGlobalForwardingRules(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeGlobalForwardingRules(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeGlobalForwardingRules: %v", err)
 	}
@@ -49,7 +51,9 @@ func TestScanComputeHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeHealthChecks: %v", err)
 	}
@@ -80,7 +84,9 @@ func TestScanComputeHealthChecks_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeHealthChecks (denied): expected nil error, got %v", err)
 	}
@@ -97,7 +103,7 @@ func TestScanComputeHealthChecks_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanComputeHealthChecks(t.Context(), svc, p, st, testScanID)
+	_, err := scanComputeHealthChecks(t.Context(), svc, p, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) {
 		t.Fatalf("scanComputeHealthChecks: expected errServiceDisabled sentinel, got %v", err)
 	}
@@ -118,7 +124,9 @@ func TestScanComputeRegionCompositeHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionCompositeHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionCompositeHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionCompositeHealthChecks: %v", err)
 	}
@@ -148,7 +156,9 @@ func TestScanComputeRegionCompositeHealthChecks_SkipsGlobalScope(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionCompositeHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionCompositeHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionCompositeHealthChecks: %v", err)
 	}
@@ -172,7 +182,9 @@ func TestScanComputeRegionHealthAggregationPolicies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionHealthAggregationPolicies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionHealthAggregationPolicies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionHealthAggregationPolicies: %v", err)
 	}
@@ -203,7 +215,9 @@ func TestScanComputeRegionHealthCheckServices_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionHealthCheckServices(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionHealthCheckServices(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionHealthCheckServices: %v", err)
 	}
@@ -234,7 +248,9 @@ func TestScanComputeRegionHealthSources_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionHealthSources(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionHealthSources(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionHealthSources: %v", err)
 	}
@@ -261,7 +277,9 @@ func TestScanComputeRegionNotificationEndpoints_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeRegionNotificationEndpoints(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeRegionNotificationEndpoints(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeRegionNotificationEndpoints: %v", err)
 	}
@@ -288,7 +306,9 @@ func TestScanComputeHttpHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHTTPHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeHTTPHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeHTTPHealthChecks: %v", err)
 	}
@@ -308,7 +328,9 @@ func TestScanComputeHttpsHealthChecks_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeHTTPSHealthChecks(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeHTTPSHealthChecks(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeHTTPSHealthChecks: %v", err)
 	}
@@ -334,7 +356,9 @@ func TestScanComputeSslCertificates_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeSslCertificates(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeSslCertificates(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeSslCertificates: %v", err)
 	}
@@ -374,7 +398,9 @@ func TestScanComputeSslPolicies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeSslPolicies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeSslPolicies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeSslPolicies: %v", err)
 	}
@@ -408,7 +434,9 @@ func TestScanComputeTargetSslProxies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetSslProxies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetSslProxies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetSslProxies: %v", err)
 	}
@@ -434,7 +462,9 @@ func TestScanComputeTargetTcpProxies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetTCPProxies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetTCPProxies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetTCPProxies: %v", err)
 	}
@@ -468,7 +498,9 @@ func TestScanComputeTargetGrpcProxies_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetGrpcProxies(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetGrpcProxies(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetGrpcProxies: %v", err)
 	}
@@ -498,7 +530,9 @@ func TestScanComputeTargetInstances_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetInstances(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetInstances(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetInstances: %v", err)
 	}
@@ -532,7 +566,9 @@ func TestScanComputeTargetPools_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetPools(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetPools(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetPools: %v", err)
 	}
@@ -562,7 +598,9 @@ func TestScanComputeTargetPools_SkipsEmptyScope(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanComputeTargetPools(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComputeTargetPools(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComputeTargetPools: %v", err)
 	}

@@ -27,28 +27,26 @@ func textractAdapterNativeID(partition, region, acct, adapterID string) string {
 	return arnFor(partition, "textract", region, acct, "adapter/"+adapterID)
 }
 
-func scanTextract(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTextract(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := textract.NewFromConfig(acct.cfg, func(o *textract.Options) { o.Region = region })
 
-	adapterIDs, t, i, ferr := scanTextractAdapters(ctx, client, acct, region, st, scanID)
+	adapterIDs, t, ferr := scanTextractAdapters(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, aid := range adapterIDs {
-		t, i, perr := scanTextractAdapterVersions(ctx, client, acct, region, st, scanID, aid)
+		t, perr := scanTextractAdapterVersions(ctx, client, acct, region, st, scanID, aid)
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanTextractAdapters(ctx context.Context, client textractAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanTextractAdapters(ctx context.Context, client textractAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := textract.NewListAdaptersPaginator(client, &textract.ListAdaptersInput{})
 	var batch []*store.Resource
 	var ids []string
@@ -57,9 +55,9 @@ func scanTextractAdapters(ctx context.Context, client textractAPI, acct *account
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "textract:ListAdapters", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("textract:ListAdapters: %w", perr)
+			return nil, 0, fmt.Errorf("textract:ListAdapters: %w", perr)
 		}
 		for _, a := range out.Adapters {
 			aid := sv(a.AdapterId)
@@ -75,11 +73,11 @@ func scanTextractAdapters(ctx context.Context, client textractAPI, acct *account
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "textract adapters")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "textract adapters")
+	return ids, t, err
 }
 
-func scanTextractAdapterVersions(ctx context.Context, client textractAPI, acct *account, region string, st *store.Store, scanID, adapterID string) (int, int, error) {
+func scanTextractAdapterVersions(ctx context.Context, client textractAPI, acct *account, region string, st *store.Store, scanID, adapterID string) (int, error) {
 	aid := adapterID
 	pager := textract.NewListAdapterVersionsPaginator(client, &textract.ListAdapterVersionsInput{AdapterId: &aid})
 	var batch []*store.Resource
@@ -88,9 +86,9 @@ func scanTextractAdapterVersions(ctx context.Context, client textractAPI, acct *
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "textract:ListAdapterVersions", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("textract:ListAdapterVersions: %w", perr)
+			return 0, fmt.Errorf("textract:ListAdapterVersions: %w", perr)
 		}
 		for _, v := range out.AdapterVersions {
 			ver := sv(v.AdapterVersion)

@@ -143,7 +143,7 @@ type batchListCase struct {
 	hasStatus, hasTags bool
 	elem               func(arn, name, status string, tags map[string]string) any
 	install            func(s *stubBatch, pages map[string]batchPage)
-	scan               func(context.Context, batchAPI, *account, string, *store.Store, string) (int, int, error)
+	scan               func(context.Context, batchAPI, *account, string, *store.Store, string) (int, error)
 }
 
 func batchListCases() []batchListCase {
@@ -166,9 +166,9 @@ func batchListCases() []batchListCase {
 		},
 		{
 			op: "batch:DescribeJobQueues", typ: TypeBatchJobQueue, hasStatus: true, hasTags: true,
-			scan: func(ctx context.Context, c batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-				_, t, i, err := scanBatchJobQueues(ctx, c, acct, region, st, scanID)
-				return t, i, err
+			scan: func(ctx context.Context, c batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+				_, t, err := scanBatchJobQueues(ctx, c, acct, region, st, scanID)
+				return t, err
 			},
 			elem: func(arn, name, status string, tags map[string]string) any {
 				return batchtypes.JobQueueDetail{
@@ -261,7 +261,9 @@ func TestScanBatchListedTypes_StoresPagesWithTags(t *testing.T) {
 				"":   {items: []any{tagged, c.elem("", "no-arn", "ENABLED", nil)}, next: "p2"},
 				"p2": {items: []any{bare}},
 			})
-			total, inserted, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, counted, testScanID)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -333,7 +335,7 @@ func TestScanBatchListedTypes_ListErrors(t *testing.T) {
 				}
 				stub := &stubBatch{}
 				c.install(stub, pages)
-				_, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+				_, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if (tc.wantErr == nil) != (err == nil) || (tc.wantErr != nil && !tc.wantErr(err)) {
 					t.Fatalf("err = %v; want error %v", err, tc.wantErr != nil)
 				}
@@ -358,7 +360,7 @@ func TestScanBatchJobQueues_ReturnsStoredARNs(t *testing.T) {
 		c.elem(batchTestARN("job-queue", "q1"), "q1", "", nil), c.elem("", "no-arn", "", nil), c.elem(batchTestARN("job-queue", "q2"), "q2", "", nil),
 	}}})
 	st := newTestStore(t)
-	arns, _, _, err := scanBatchJobQueues(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	arns, _, err := scanBatchJobQueues(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanBatchJobQueues: %v", err)
 	}
@@ -368,7 +370,7 @@ func TestScanBatchJobQueues_ReturnsStoredARNs(t *testing.T) {
 
 	st = newTestStore(t)
 	refuseStoreWrites(t, st, TypeBatchJobQueue)
-	arns, _, _, err = scanBatchJobQueues(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	arns, _, err = scanBatchJobQueues(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || len(arns) != 0 {
 		t.Errorf("failed write: arns %v, err %v; want none and ErrStoreWrite", arns, err)
 	}
@@ -433,7 +435,9 @@ func TestScanBatchSchedulingPolicies_StoresEveryChunk(t *testing.T) {
 		}
 	}(stub.descSched)
 	descWarns := countOpWarnings(st, "batch:DescribeSchedulingPolicies")
-	total, inserted, err := scanBatchSchedulingPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBatchSchedulingPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -503,7 +507,7 @@ func TestScanBatchSchedulingPolicies_Errors(t *testing.T) {
 				prev(w)
 			}
 			stub := batchSchedStub(101, tc.listErr, tc.descErr)
-			_, _, err := scanBatchSchedulingPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanBatchSchedulingPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if (tc.wantErr == nil) != (err == nil) || (tc.wantErr != nil && !tc.wantErr(err)) {
 				t.Fatalf("err = %v; want error %v", err, tc.wantErr != nil)
 			}
@@ -576,7 +580,9 @@ func TestScanBatchQuotaShares(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "batch:ListQuotaShares")
 			stub := &stubBatch{quotaShares: batchQuotaStub(pages)}
-			total, inserted, err := scanBatchQuotaShares(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, []string{q1, q2, q3})
+			counted, upserts := countUpserts(st)
+			total, err := scanBatchQuotaShares(context.Background(), stub, newTestAccount(testAccountID), testRegion, counted, testScanID, []string{q1, q2, q3})
+			inserted := upserts()
 			if tc.wantErr != (err != nil) || (tc.wantErr && !isAPIErrorCode(err, "ClientException")) {
 				t.Fatalf("err = %v; want error %v", err, tc.wantErr)
 			}
@@ -678,7 +684,9 @@ func TestScanBatchAll_PhaseErrorsAreIndependent(t *testing.T) {
 		t.Run("fail "+tc.sdkOp, func(t *testing.T) {
 			st := newTestStore(t)
 			stub := batchAllStub(tc.sdkOp, batchClientErr)
-			total, inserted, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, counted, testScanID)
+			inserted := upserts()
 			if (tc.sdkOp == "") != (err == nil) || (err != nil && !isAPIErrorCode(err, "ClientException")) {
 				t.Errorf("err = %v; want the failed phase's ClientException only when a phase failed", err)
 			}
@@ -713,7 +721,7 @@ func TestScanBatchAll_TransientDemoted(t *testing.T) {
 	stub.jobDefs = func(*batch.DescribeJobDefinitionsInput) (*batch.DescribeJobDefinitionsOutput, error) {
 		return nil, batchClientErr
 	}
-	total, _, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeError || !isAPIErrorCode(err, "ClientException") {
 		t.Errorf("err = %v (outcome %v); want only the hard ClientException (outcomeError)", err, got)
 	}
@@ -725,7 +733,7 @@ func TestScanBatchAll_TransientDemoted(t *testing.T) {
 	}
 
 	st = newTestStore(t)
-	total, _, err = scanBatchAll(context.Background(), batchAllStub("ListQuotaShares", batchThrottled), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err = scanBatchAll(context.Background(), batchAllStub("ListQuotaShares", batchThrottled), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if got := classifyServiceError(err); got != outcomeTransient {
 		t.Errorf("throttled alone: err = %v (outcome %v); want outcomeTransient", err, got)
 	}
@@ -739,7 +747,7 @@ func TestScanBatchAll_StoreWriteFailureStops(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeBatchComputeEnvironment)
-	_, _, err := scanBatchAll(context.Background(), batchAllStub("", nil), newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanBatchAll(context.Background(), batchAllStub("", nil), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want ErrStoreWrite", err)
 	}
@@ -759,7 +767,7 @@ func TestScanBatchAll_QuotaSharesOfQueuesBeforeFailedPage(t *testing.T) {
 		"":   {items: []any{batchtypes.JobQueueDetail{JobQueueArn: &qARN}}, next: "p2"},
 		"p2": {err: batchClientErr},
 	})
-	_, _, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanBatchAll(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ClientException") {
 		t.Errorf("err = %v; want the job-queue page's ClientException", err)
 	}

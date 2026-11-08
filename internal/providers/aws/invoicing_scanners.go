@@ -43,10 +43,10 @@ type invoicingAPI interface {
 // scanInvoicing discovers Invoicing invoice units and procurement portal
 // preferences. Service is global; called once, in its home region
 // (homeRegion).
-func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("invoicing")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := invoicing.NewFromConfig(acct.cfg, func(o *invoicing.Options) { o.Region = region })
 	return scanInvoicingIn(ctx, client, acct, region, st, scanID)
@@ -68,7 +68,7 @@ func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store
 // scan reports not-entitled only when every phase was refused, leaving
 // nothing to store or fail; otherwise it returns the counts, because the
 // dispatcher discards a sentinel's counts.
-func scanInvoicingIn(ctx context.Context, client invoicingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInvoicingIn(ctx context.Context, client invoicingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var payerOnly invoicingPayerOnly
 	tags := invoicingTags(client).sharingDenials()
 	phases := []hostPhase{
@@ -79,12 +79,12 @@ func scanInvoicingIn(ctx context.Context, client invoicingAPI, acct *account, re
 			return scanInvoicingProcurementPortalPreferences(ctx, client, acct, region, st, scanID, &payerOnly, tags, p)
 		}},
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "invoicing", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "invoicing", 0, phases)
 	if payerOnly.refusals == len(phases) {
-		return 0, 0, markServiceNotEntitled(payerOnly.refusal)
+		return 0, markServiceNotEntitled(payerOnly.refusal)
 	}
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // invoicingPayerOnly counts the listings whose first page was refused as

@@ -27,7 +27,9 @@ func TestScanMacieFindingsFilters_ReadsListedTags(t *testing.T) {
 		},
 	}, &smithy.GenericAPIError{Code: "AccessDeniedException"}))
 
-	total, inserted, err := scanMacieFindingsFilters(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanMacieFindingsFilters(context.Background(), client, newTestAccount(testAccountID), testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

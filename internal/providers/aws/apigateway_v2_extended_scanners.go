@@ -56,7 +56,7 @@ func agv2SplitKey(key string) (apiID, childID string) {
 // since it was listed (NotFoundException) stores what it read.
 func scanAPIGatewayV2APIChildren(ctx context.Context, client apigatewayv2ExtAPI, acct *account, region string, apiIDs []string, st *store.Store, scanID string) *phaseTotals {
 	return runFamilies(ctx, "apigatewayv2",
-		countedFamily(agv2GetAuthorizersOp, func() (int, int, error) {
+		countedFamily(agv2GetAuthorizersOp, func() (int, error) {
 			return storeTokenEachParent(ctx, st, acct, region, agv2GetAuthorizersOp, apigatewayv2NotFound, apiIDs,
 				func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Authorizer, *string, error) {
 					out, err := client.GetAuthorizers(ctx, &apigatewayv2.GetAuthorizersInput{ApiId: &apiID, NextToken: token})
@@ -73,7 +73,7 @@ func scanAPIGatewayV2APIChildren(ctx context.Context, client apigatewayv2ExtAPI,
 					return agv2Row(acct, region, scanID, TypeAPIGatewayV2Authorizer, apigatewayARNIn(acct.partition(), region, "apis", apiID, "authorizers", id), sv(a.Name), a), "", ""
 				})
 		}),
-		countedFamily(agv2GetDeploymentsOp, func() (int, int, error) {
+		countedFamily(agv2GetDeploymentsOp, func() (int, error) {
 			return storeTokenEachParent(ctx, st, acct, region, agv2GetDeploymentsOp, apigatewayv2NotFound, apiIDs,
 				func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Deployment, *string, error) {
 					out, err := client.GetDeployments(ctx, &apigatewayv2.GetDeploymentsInput{ApiId: &apiID, NextToken: token})
@@ -93,7 +93,7 @@ func scanAPIGatewayV2APIChildren(ctx context.Context, client apigatewayv2ExtAPI,
 		phaseFamily(func(p *phaseTotals) {
 			scanAPIGatewayV2IntegrationsAndResponses(ctx, client, acct, region, apiIDs, st, scanID, p)
 		}),
-		countedFamily(agv2GetModelsOp, func() (int, int, error) {
+		countedFamily(agv2GetModelsOp, func() (int, error) {
 			return storeTokenEachParent(ctx, st, acct, region, agv2GetModelsOp, apigatewayv2NotFound, apiIDs,
 				func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Model, *string, error) {
 					out, err := client.GetModels(ctx, &apigatewayv2.GetModelsInput{ApiId: &apiID, NextToken: token})
@@ -113,7 +113,7 @@ func scanAPIGatewayV2APIChildren(ctx context.Context, client apigatewayv2ExtAPI,
 		phaseFamily(func(p *phaseTotals) {
 			scanAPIGatewayV2RoutesAndResponses(ctx, client, acct, region, apiIDs, st, scanID, p)
 		}),
-		countedFamily(agv2GetStagesOp, func() (int, int, error) {
+		countedFamily(agv2GetStagesOp, func() (int, error) {
 			return scanAPIGatewayV2Stages(ctx, client, acct, region, apiIDs, st, scanID)
 		}),
 	)
@@ -124,7 +124,7 @@ func scanAPIGatewayV2APIChildren(ctx context.Context, client apigatewayv2ExtAPI,
 // p, each error under its own op; a failed write stops it.
 func scanAPIGatewayV2IntegrationsAndResponses(ctx context.Context, client apigatewayv2ExtAPI, acct *account, region string, apiIDs []string, st *store.Store, scanID string, p *phaseTotals) {
 	var integrations []string
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, agv2GetIntegrationsOp, apigatewayv2NotFound, apiIDs,
+	total, err := storeTokenEachParent(ctx, st, acct, region, agv2GetIntegrationsOp, apigatewayv2NotFound, apiIDs,
 		func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Integration, *string, error) {
 			out, err := client.GetIntegrations(ctx, &apigatewayv2.GetIntegrationsInput{ApiId: &apiID, NextToken: token})
 			if err != nil {
@@ -140,10 +140,10 @@ func scanAPIGatewayV2IntegrationsAndResponses(ctx context.Context, client apigat
 			integrations = append(integrations, agv2ChildKey(apiID, id))
 			return agv2Row(acct, region, scanID, TypeAPIGatewayV2Integration, apigatewayARNIn(acct.partition(), region, "apis", apiID, "integrations", id), id, it), "", ""
 		})
-	if p.addPhase(agv2GetIntegrationsOp, total, inserted, err) {
+	if p.addPhase(agv2GetIntegrationsOp, total, err) {
 		return
 	}
-	total, inserted, err = storeTokenEachParent(ctx, st, acct, region, agv2GetIntegrationResponsesOp, apigatewayv2NotFound, integrations,
+	total, err = storeTokenEachParent(ctx, st, acct, region, agv2GetIntegrationResponsesOp, apigatewayv2NotFound, integrations,
 		func(ctx context.Context, key string, token *string) ([]apigwv2types.IntegrationResponse, *string, error) {
 			apiID, intID := agv2SplitKey(key)
 			out, err := client.GetIntegrationResponses(ctx, &apigatewayv2.GetIntegrationResponsesInput{ApiId: &apiID, IntegrationId: &intID, NextToken: token})
@@ -161,7 +161,7 @@ func scanAPIGatewayV2IntegrationsAndResponses(ctx context.Context, client apigat
 			nativeID := apigatewayARNIn(acct.partition(), region, "apis", apiID, "integrations", intID, "integrationresponses", id)
 			return agv2Row(acct, region, scanID, TypeAPIGatewayV2IntegrationResponse, nativeID, cmp.Or(sv(ir.IntegrationResponseKey), id), ir), "", ""
 		})
-	p.addPhase(agv2GetIntegrationResponsesOp, total, inserted, err)
+	p.addPhase(agv2GetIntegrationResponsesOp, total, err)
 }
 
 // scanAPIGatewayV2RoutesAndResponses stores the APIs' routes, then the
@@ -169,7 +169,7 @@ func scanAPIGatewayV2IntegrationsAndResponses(ctx context.Context, client apigat
 // under its own op; a failed write stops it.
 func scanAPIGatewayV2RoutesAndResponses(ctx context.Context, client apigatewayv2ExtAPI, acct *account, region string, apiIDs []string, st *store.Store, scanID string, p *phaseTotals) {
 	var routes []string
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, agv2GetRoutesOp, apigatewayv2NotFound, apiIDs,
+	total, err := storeTokenEachParent(ctx, st, acct, region, agv2GetRoutesOp, apigatewayv2NotFound, apiIDs,
 		func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Route, *string, error) {
 			out, err := client.GetRoutes(ctx, &apigatewayv2.GetRoutesInput{ApiId: &apiID, NextToken: token})
 			if err != nil {
@@ -185,10 +185,10 @@ func scanAPIGatewayV2RoutesAndResponses(ctx context.Context, client apigatewayv2
 			routes = append(routes, agv2ChildKey(apiID, id))
 			return agv2Row(acct, region, scanID, TypeAPIGatewayV2Route, apigatewayARNIn(acct.partition(), region, "apis", apiID, "routes", id), cmp.Or(sv(r.RouteKey), id), r), "", ""
 		})
-	if p.addPhase(agv2GetRoutesOp, total, inserted, err) {
+	if p.addPhase(agv2GetRoutesOp, total, err) {
 		return
 	}
-	total, inserted, err = storeTokenEachParent(ctx, st, acct, region, agv2GetRouteResponsesOp, apigatewayv2NotFound, routes,
+	total, err = storeTokenEachParent(ctx, st, acct, region, agv2GetRouteResponsesOp, apigatewayv2NotFound, routes,
 		func(ctx context.Context, key string, token *string) ([]apigwv2types.RouteResponse, *string, error) {
 			apiID, routeID := agv2SplitKey(key)
 			out, err := client.GetRouteResponses(ctx, &apigatewayv2.GetRouteResponsesInput{ApiId: &apiID, RouteId: &routeID, NextToken: token})
@@ -206,12 +206,12 @@ func scanAPIGatewayV2RoutesAndResponses(ctx context.Context, client apigatewayv2
 			nativeID := apigatewayARNIn(acct.partition(), region, "apis", apiID, "routes", routeID, "routeresponses", id)
 			return agv2Row(acct, region, scanID, TypeAPIGatewayV2RouteResponse, nativeID, cmp.Or(sv(rr.RouteResponseKey), id), rr), "", ""
 		})
-	p.addPhase(agv2GetRouteResponsesOp, total, inserted, err)
+	p.addPhase(agv2GetRouteResponsesOp, total, err)
 }
 
 // scanAPIGatewayV2Stages stores the APIs' stages with the tags each listed
 // Stage carries, so no GetTags call is made.
-func scanAPIGatewayV2Stages(ctx context.Context, client apigatewayv2ExtAPI, acct *account, region string, apiIDs []string, st *store.Store, scanID string) (int, int, error) {
+func scanAPIGatewayV2Stages(ctx context.Context, client apigatewayv2ExtAPI, acct *account, region string, apiIDs []string, st *store.Store, scanID string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, agv2GetStagesOp, apigatewayv2NotFound, apiIDs,
 		func(ctx context.Context, apiID string, token *string) ([]apigwv2types.Stage, *string, error) {
 			out, err := client.GetStages(ctx, &apigatewayv2.GetStagesInput{ApiId: &apiID, NextToken: token})

@@ -16,32 +16,31 @@ import (
 // with an rds ARN and no engine field, so aws:rds:db-subnet-group owns them
 // (re-reporting under aws:docdb:db-subnet-group would collide on identity, which
 // excludes type).
-func scanDocDBExtended(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanDocDBClusterPGs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDocDBEventSubs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDocDBGlobalClusters(ctx, client, acct, region, st, scanID) },
+func scanDocDBExtended(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanDocDBClusterPGs(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanDocDBEventSubs(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanDocDBGlobalClusters(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanDocDBClusterPGs(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDocDBClusterPGs(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := docdb.NewDescribeDBClusterParameterGroupsPaginator(client, &docdb.DescribeDBClusterParameterGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "docdb:DescribeDBClusterParameterGroups", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "docdb:DescribeDBClusterParameterGroups", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("docdb:DescribeDBClusterParameterGroups: %w", err)
+			return 0, fmt.Errorf("docdb:DescribeDBClusterParameterGroups: %w", err)
 		}
 		for _, g := range out.DBClusterParameterGroups {
 			arn := sv(g.DBClusterParameterGroupArn)
@@ -62,16 +61,16 @@ func scanDocDBClusterPGs(ctx context.Context, client docdbAPI, acct *account, re
 	return upsertBatch(st, batch, "docdb db-cluster-parameter-groups")
 }
 
-func scanDocDBEventSubs(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDocDBEventSubs(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := docdb.NewDescribeEventSubscriptionsPaginator(client, &docdb.DescribeEventSubscriptionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "docdb:DescribeEventSubscriptions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "docdb:DescribeEventSubscriptions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("docdb:DescribeEventSubscriptions: %w", err)
+			return 0, fmt.Errorf("docdb:DescribeEventSubscriptions: %w", err)
 		}
 		for _, s := range out.EventSubscriptionsList {
 			arn := sv(s.EventSubscriptionArn)
@@ -91,16 +90,16 @@ func scanDocDBEventSubs(ctx context.Context, client docdbAPI, acct *account, reg
 
 // scanDocDBGlobalClusters uses manual Marker pagination — the SDK exposes no
 // paginator constructor for DescribeGlobalClusters.
-func scanDocDBGlobalClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDocDBGlobalClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var marker *string
 	for {
 		out, err := client.DescribeGlobalClusters(ctx, &docdb.DescribeGlobalClustersInput{Marker: marker})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "docdb:DescribeGlobalClusters", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "docdb:DescribeGlobalClusters", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("docdb:DescribeGlobalClusters: %w", err)
+			return 0, fmt.Errorf("docdb:DescribeGlobalClusters: %w", err)
 		}
 		for _, g := range out.GlobalClusters {
 			arn := sv(g.GlobalClusterArn)

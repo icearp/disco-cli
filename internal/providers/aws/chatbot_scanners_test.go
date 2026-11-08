@@ -220,7 +220,9 @@ func runChatbotCtx(ctx context.Context, t *testing.T, st *store.Store, handlers 
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = recordCallRegions(opStubConfigCtx(handlers, cbTestDenied), regions)
-	r.total, r.inserted, r.err = scanChatbot(ctx, acct, "", st, testScanID)
+	counted, upserts := countUpserts(st)
+	r.total, r.err = scanChatbot(ctx, acct, "", counted, testScanID)
+	r.inserted = upserts()
 	return r
 }
 
@@ -807,7 +809,7 @@ func TestScanChatbotChimeWebhooks_WebhookURLNeverStored(t *testing.T) {
 	}, func(o *chatbot.Options) { o.BaseEndpoint = sdkaws.String(srv.URL) })
 
 	st := newTestStore(t)
-	total, _, err := scanChatbotChimeWebhooks(context.Background(), client, newTestAccount(testAccountID), "us-east-2", st, testScanID)
+	total, err := scanChatbotChimeWebhooks(context.Background(), client, newTestAccount(testAccountID), "us-east-2", st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("scan = %d rows, err %v; want 1 row", total, err)
 	}

@@ -157,13 +157,13 @@ func bgwHandlers(calls *bgwCalls) map[string]func(in any) (any, error) {
 
 func scanBackupGatewayTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := bgwScan(context.Background(), st, handlers)
+	total, err := bgwScan(context.Background(), st, handlers)
 	return total, err
 }
 
 // bgwScan runs the service scan entry point against handlers; an op without
 // a handler is denied.
-func bgwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func bgwScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, bgwDenied)
 	return scanBackupGateway(ctx, acct, testRegion, st, testScanID)
@@ -466,7 +466,9 @@ func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls bgwCalls
-	total, inserted, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := bgwScan(context.Background(), counted, bgwHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -540,17 +542,17 @@ func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanBackupGateway_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
-	if _, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls)); err != nil {
+	if _, err := bgwScan(context.Background(), st, bgwHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+	total, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -570,7 +572,9 @@ func TestScanBackupGateway_Empty(t *testing.T) {
 	h["ListHypervisors"] = func(any) (any, error) { return &backupgateway.ListHypervisorsOutput{}, nil }
 	h["ListGateways"] = func(any) (any, error) { return &backupgateway.ListGatewaysOutput{}, nil }
 	h["ListVirtualMachines"] = func(any) (any, error) { return &backupgateway.ListVirtualMachinesOutput{}, nil }
-	total, inserted, err := bgwScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := bgwScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -617,7 +621,7 @@ func TestScanBackupGateway_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := bgwCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+			total, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -663,7 +667,7 @@ func TestScanBackupGateway_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := bgwCalls{tagErrs: map[string]error{bgwTestHypB: bgwDenied, bgwTestGwC: bgwDenied, bgwTestVM2: bgwDenied}}
-	total, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+	total, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -682,7 +686,7 @@ func TestScanBackupGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, backupGatewayListTagsForResourceOp)
 	calls := bgwCalls{tagErrs: map[string]error{bgwTestHypC: bgwThrottle, bgwTestVM2: bgwBadInput}}
-	_, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+	_, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -709,7 +713,7 @@ func TestScanBackupGateway_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := bgwCalls{tagErrs: map[string]error{c.denied: bgwDenied}}
-			total, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+			total, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -749,7 +753,7 @@ func TestScanBackupGateway_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := bgwScan(context.Background(), st, h); err != nil {
+	if _, err := bgwScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -817,7 +821,7 @@ func TestScanBackupGateway_ElementWithoutARN(t *testing.T) {
 	h["ListVirtualMachines"] = func(any) (any, error) {
 		return &backupgateway.ListVirtualMachinesOutput{VirtualMachines: []bgwtypes.VirtualMachine{{}, {ResourceArn: &bgwTestVM}}}, nil
 	}
-	if _, _, err := bgwScan(context.Background(), st, h); err != nil {
+	if _, err := bgwScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := bgwStoredIDs(t, st), bgwSorted(bgwTestHypA, bgwTestGwA, bgwTestVM); !slices.Equal(got, want) {
@@ -859,7 +863,7 @@ func TestScanBackupGateway_TagReadsKeepPartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, bgwDenied)
-			if _, _, err := scanBackupGateway(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanBackupGateway(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := bgwSorted(arns["ListHypervisors"], arns["ListGateways"], arns["ListVirtualMachines"])
@@ -894,7 +898,7 @@ func TestScanBackupGateway_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := bgwScan(ctx, st, h)
+	_, err := bgwScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -922,7 +926,7 @@ func TestScanBackupGateway_NXDOMAIN(t *testing.T) {
 		var calls bgwCalls
 		h := bgwHandlers(&calls)
 		h["ListVirtualMachines"] = func(any) (any, error) { return nil, nx }
-		total, _, err := bgwScan(context.Background(), st, h)
+		total, err := bgwScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := bgwTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -931,7 +935,7 @@ func TestScanBackupGateway_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := bgwCalls{tagErrs: map[string]error{bgwTestGwC: nx}}
-		_, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+		_, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -939,7 +943,7 @@ func TestScanBackupGateway_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanBackupGateway(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanBackupGateway(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

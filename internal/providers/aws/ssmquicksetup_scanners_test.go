@@ -155,7 +155,9 @@ func scanQSCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, qsTestDenied)
-	total, inserted, err := scanSSMQuickSetup(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSSMQuickSetup(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if inserted != total {
 		t.Errorf("inserted = %d, want total %d", inserted, total)
 	}

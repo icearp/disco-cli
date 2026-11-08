@@ -85,7 +85,7 @@ func glueClassifierName(c gluetypes.Classifier) string {
 	return ""
 }
 
-func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := glue.NewGetClassifiersPaginator(client, &glue.GetClassifiersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -93,9 +93,9 @@ func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, reg
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "glue:GetClassifiers", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("glue:GetClassifiers: %w", perr)
+			return 0, fmt.Errorf("glue:GetClassifiers: %w", perr)
 		}
 		for _, c := range out.Classifiers {
 			name := glueClassifierName(c)
@@ -117,11 +117,11 @@ func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, reg
 		}
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue classifiers: %w", uerr)
+		return 0, fmt.Errorf("upsert glue classifiers: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

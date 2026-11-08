@@ -23,29 +23,28 @@ type connectExtraAPI interface {
 }
 
 // scanConnectExtra runs the leaf families that the larger family files don't own.
-func scanConnectExtra(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectExtra(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	for _, phase := range []func() (int, error){
+		func() (int, error) {
 			return scanConnectVocabularies(ctx, client, instances, acct, region, st, scanID)
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return scanConnectAuthenticationProfiles(ctx, client, instances, acct, region, st, scanID)
 		},
 	} {
-		t, i, ferr := phase()
+		t, ferr := phase()
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanConnectVocabularies(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectVocabularies(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -61,7 +60,7 @@ func scanConnectVocabularies(ctx context.Context, client connectExtraAPI, instan
 					_ = skipIfAccessDenied(st, "connect:SearchVocabularies", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:SearchVocabularies %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:SearchVocabularies %s: %w", instID, perr)
 			}
 			for _, v := range out.VocabularySummaryList {
 				arn := sv(v.Arn)
@@ -82,7 +81,7 @@ func scanConnectVocabularies(ctx context.Context, client connectExtraAPI, instan
 	return upsertBatch(st, batch, "connect vocabularies")
 }
 
-func scanConnectAuthenticationProfiles(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectAuthenticationProfiles(ctx context.Context, client connectExtraAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -98,7 +97,7 @@ func scanConnectAuthenticationProfiles(ctx context.Context, client connectExtraA
 					_ = skipIfAccessDenied(st, "connect:ListAuthenticationProfiles", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListAuthenticationProfiles %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:ListAuthenticationProfiles %s: %w", instID, perr)
 			}
 			for _, p := range out.AuthenticationProfileSummaryList {
 				arn := sv(p.Arn)

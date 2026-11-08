@@ -348,7 +348,7 @@ func chimeFixture(c *chimeCalls) map[string]func(any) (any, error) {
 
 // chimeScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func chimeScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func chimeScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, chimeDenied)
 	return scanChime(ctx, acct, testRegion, st, testScanID)
@@ -373,7 +373,9 @@ func TestScanChime_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newChimeCalls(t)
 
-	total, inserted, err := chimeScan(context.Background(), st, chimeFixture(calls))
+	counted, upserts := countUpserts(st)
+	total, err := chimeScan(context.Background(), counted, chimeFixture(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -474,17 +476,17 @@ func chimeSipRuleID(id string) string {
 	return chimeSipRuleNativeID("aws", testRegion, testAccountID, id)
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanChime_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newChimeCalls(t)
-	if _, _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
+	if _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
+	total, err := chimeScan(context.Background(), st, chimeFixture(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -553,7 +555,7 @@ func TestScanChime_TagReadFailures(t *testing.T) {
 					calls := newChimeCalls(t)
 					calls.errs[arn] = c.err
 
-					total, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
+					total, err := chimeScan(context.Background(), st, chimeFixture(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -597,7 +599,7 @@ func TestScanChime_TagDenialsOfOnePhaseWarnOnce(t *testing.T) {
 	calls.errs[chimeChildARN(t, k, "tagged")] = chimeDenied
 	calls.errs[chimeChildARN(t, k, "bare")] = chimeUnauth
 
-	if _, _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
+	if _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if *warns != 1 {
@@ -615,7 +617,7 @@ func TestScanChime_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[chimeARN(chimeKindOf(t, "ListSipMediaApplications"), "tagged")] = chimeThrottle
 	calls.errs[chimeARN(chimeKindOf(t, "ListMediaPipelines"), "bare")] = chimeBadRequest
 
-	_, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
+	_, err := chimeScan(context.Background(), st, chimeFixture(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -639,7 +641,7 @@ func TestScanChime_DeniedListingWarnsUnderItsOp(t *testing.T) {
 				handlers := chimeFixture(newChimeCalls(t))
 				handlers[k.op] = func(any) (any, error) { return nil, denial }
 
-				total, _, err := chimeScan(context.Background(), st, handlers)
+				total, err := chimeScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -671,7 +673,7 @@ func TestScanChime_LaterPageDenialKeepsPage(t *testing.T) {
 			handlers[op] = failOnCall(2, chimeUnauth, handlers[op])
 			k := chimeKindOf(t, op)
 
-			total, _, err := chimeScan(context.Background(), st, handlers)
+			total, err := chimeScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -709,7 +711,7 @@ func TestScanChime_DeniedChildListingWarnsOnce(t *testing.T) {
 				return nil, chimeUnauth
 			}
 
-			total, _, err := chimeScan(context.Background(), st, handlers)
+			total, err := chimeScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -742,7 +744,7 @@ func TestScanChime_VoiceProfilesOfDeletedDomainSkipped(t *testing.T) {
 		return next(in)
 	}
 
-	total, _, err := chimeScan(context.Background(), st, handlers)
+	total, err := chimeScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -783,7 +785,7 @@ func TestScanChime_VoiceProfileDomainDetail(t *testing.T) {
 			calls := newChimeCalls(t)
 			calls.getErrs[id] = c.err
 
-			total, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
+			total, err := chimeScan(context.Background(), st, chimeFixture(calls))
 			if c.code == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -816,7 +818,7 @@ func TestScanChime_VoiceProfileDomainDetail(t *testing.T) {
 			return &cv.ListVoiceProfileDomainsOutput{VoiceProfileDomains: []cvtypes.VoiceProfileDomainSummary{{VoiceProfileDomainArn: sdkaws.String(arn), Name: chimeNameOf(id)}}}, nil
 		}
 
-		total, _, err := chimeScan(context.Background(), st, handlers)
+		total, err := chimeScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -884,7 +886,7 @@ func TestScanChime_HostGap(t *testing.T) {
 					return next(in)
 				}
 
-				total, _, err := chimeScan(context.Background(), st, handlers)
+				total, err := chimeScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -914,7 +916,7 @@ func TestScanChime_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	k := chimeKindOf(t, "ListMediaInsightsPipelineConfigurations")
 	handlers[k.op] = failOnCall(2, chimeBadRequest, handlers[k.op])
 
-	total, _, err := chimeScan(context.Background(), st, handlers)
+	total, err := chimeScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if total != chimeTotalCount-1 {
@@ -942,7 +944,7 @@ func TestScanChime_RepeatedTokenKeepsPages(t *testing.T) {
 		return k.page(sdkaws.String(chimeARN(k, suffix)), chimeID(k, suffix), sdkaws.String("same")), nil
 	}
 
-	total, _, err := chimeScan(context.Background(), st, handlers)
+	total, err := chimeScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -969,7 +971,7 @@ func TestScanChime_ElementWithoutIdentifierWarnsOnce(t *testing.T) {
 				return k.page(nil, chimeID(k, "b"), nil), nil
 			}
 
-			total, _, err := chimeScan(context.Background(), st, handlers)
+			total, err := chimeScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -996,7 +998,7 @@ func TestScanChime_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newChimeCalls(t)
 	calls.errs[chimeARN(chimeKindOf(t, "ListAppInstances"), "tagged")] = chimeDenied
 
-	_, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
+	_, err := chimeScan(context.Background(), st, chimeFixture(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1034,7 +1036,7 @@ func TestScanChime_TagReadInAccountPartition(t *testing.T) {
 		},
 	}, chimeGap)
 
-	if _, _, err := scanChime(context.Background(), acct, region, st, testScanID); err != nil {
+	if _, err := scanChime(context.Background(), acct, region, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if want := []string{tagged, gone}; !slices.Equal(slices.Sorted(slices.Values(calls.tagARNs[chimeVoice])), want) {
@@ -1073,7 +1075,7 @@ func TestScanChime_ContextEndStopsOnce(t *testing.T) {
 		return next(in)
 	}
 
-	_, _, err := chimeScan(ctx, st, handlers)
+	_, err := chimeScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1113,7 +1115,7 @@ func TestScanChime_NXDOMAIN(t *testing.T) {
 				for _, op := range ops {
 					handlers[op] = func(any) (any, error) { called[op]++; return nil, chimeNX }
 				}
-				total, _, err := chimeScan(context.Background(), st, handlers)
+				total, err := chimeScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -1136,7 +1138,7 @@ func TestScanChime_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, chimeNX)
-		total, _, err := scanChime(context.Background(), acct, testRegion, st, testScanID)
+		total, err := scanChime(context.Background(), acct, testRegion, st, testScanID)
 		if err != nil || total != 0 {
 			t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 		}
@@ -1145,7 +1147,7 @@ func TestScanChime_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := chimeFixture(newChimeCalls(t))
 		handlers["ListVoiceConnectorGroups"] = func(any) (any, error) { return nil, chimeNX }
-		total, _, err := chimeScan(context.Background(), st, handlers)
+		total, err := chimeScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != chimeTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, chimeTotalCount-2)
@@ -1200,7 +1202,7 @@ func TestScanChime_ThrottledClientExceptionIsRetried(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = lmRetryingConfig(handlers)
-			if _, _, err := scanChime(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanChime(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanChime: %v", err)
 			}
 			if calls != 2 || len(rowsByNativeID(t, st, tc.typ)) != 1 {

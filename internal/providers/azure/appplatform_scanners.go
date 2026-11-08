@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanAppPlatform discovers Azure Spring Apps service instances.
-func scanAppPlatform(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppPlatform(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappplatform.NewServicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappplatform:NewServicesClient: %w", err)
+		return 0, fmt.Errorf("armappplatform:NewServicesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armappplatform:Services.ListBySubscription", TypeAppPlatformService, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

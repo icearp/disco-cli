@@ -19,10 +19,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:billing",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			region, err := acct.homeRegion("billing")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := billing.NewFromConfig(acct.cfg, func(o *billing.Options) { o.Region = region })
 			return scanBillingViews(ctx, client, acct, st, scanID)
@@ -37,16 +37,16 @@ type billingAPI interface {
 	ListBillingViews(context.Context, *billing.ListBillingViewsInput, ...func(*billing.Options)) (*billing.ListBillingViewsOutput, error)
 }
 
-func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	region := billingRegion
 	pager := billing.NewListBillingViewsPaginator(client, &billing.ListBillingViewsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "billing:ListBillingViews", acct.ID, region, perr)
+				return total, skipIfAccessDenied(st, "billing:ListBillingViews", acct.ID, region, perr)
 			}
-			return total, inserted, fmt.Errorf("billing:ListBillingViews: %w", perr)
+			return total, fmt.Errorf("billing:ListBillingViews: %w", perr)
 		}
 		batch := make([]*store.Resource, 0, len(out.BillingViews))
 		for _, bv := range out.BillingViews {
@@ -71,13 +71,12 @@ func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st 
 			})
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert billing views: %w", uerr)
+				return total, fmt.Errorf("upsert billing views: %w", uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

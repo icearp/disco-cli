@@ -64,7 +64,7 @@ const (
 // The Smithy model caps every MediaTailor list page at 100.
 var mtMaxResults = sdkaws.Int32(100)
 
-func scanMediaTailor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMediaTailor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := mediatailor.NewFromConfig(acct.cfg, func(o *mediatailor.Options) { o.Region = region })
 	return scanMediaTailorAll(ctx, client, acct, region, st, scanID)
 }
@@ -72,40 +72,40 @@ func scanMediaTailor(ctx context.Context, acct *account, region string, st *stor
 // scanMediaTailorAll runs every phase and joins their errors; only a store
 // write failure stops it. A failed parent listing leaves its child phases
 // fewer parents to read.
-func scanMediaTailorAll(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMediaTailorAll(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		phases                      phaseTotals
 		channels, locations, config []string
 	)
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{mtListChannelsOp, func() (t, i int, err error) {
-			channels, t, i, err = scanMTChannels(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{mtListChannelsOp, func() (t int, err error) {
+			channels, t, err = scanMTChannels(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{mtGetChannelPolicyOp, func() (int, int, error) {
+		{mtGetChannelPolicyOp, func() (int, error) {
 			return scanMTChannelPolicies(ctx, client, acct, region, st, scanID, channels)
 		}},
-		{mtGetChannelScheduleOp, func() (int, int, error) { return scanMTPrograms(ctx, client, acct, region, st, scanID, channels) }},
-		{mtListSourceLocationsOp, func() (t, i int, err error) {
-			locations, t, i, err = scanMTSourceLocations(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{mtGetChannelScheduleOp, func() (int, error) { return scanMTPrograms(ctx, client, acct, region, st, scanID, channels) }},
+		{mtListSourceLocationsOp, func() (t int, err error) {
+			locations, t, err = scanMTSourceLocations(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{mtListLiveSourcesOp, func() (int, int, error) { return scanMTLiveSources(ctx, client, acct, region, st, scanID, locations) }},
-		{mtListVodSourcesOp, func() (int, int, error) { return scanMTVodSources(ctx, client, acct, region, st, scanID, locations) }},
-		{mtListPlaybackConfigurationsOp, func() (t, i int, err error) {
-			config, t, i, err = scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{mtListLiveSourcesOp, func() (int, error) { return scanMTLiveSources(ctx, client, acct, region, st, scanID, locations) }},
+		{mtListVodSourcesOp, func() (int, error) { return scanMTVodSources(ctx, client, acct, region, st, scanID, locations) }},
+		{mtListPlaybackConfigurationsOp, func() (t int, err error) {
+			config, t, err = scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{mtListPrefetchSchedulesOp, func() (int, int, error) {
+		{mtListPrefetchSchedulesOp, func() (int, error) {
 			return scanMTPrefetchSchedules(ctx, client, acct, region, st, scanID, config)
 		}},
-		{mtListFunctionsOp, func() (int, int, error) { return scanMTFunctions(ctx, client, acct, region, st, scanID) }},
+		{mtListFunctionsOp, func() (int, error) { return scanMTFunctions(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, err := phase.fn()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn()
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -130,12 +130,12 @@ func storeMTParents[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op, what, nameField string,
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (r *store.Resource, why, key string),
-) ([]string, int, int, error) {
+) ([]string, int, error) {
 	var (
 		names  []string
 		noName skipTally
 	)
-	t, i, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+	t, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
 		r, why, key := row(it)
 		switch {
 		case r == nil:
@@ -149,10 +149,10 @@ func storeMTParents[Item any](
 	if !errors.Is(err, store.ErrStoreWrite) {
 		warnNoChildID(st, op, acct, region, &noName, what, nameField)
 	}
-	return names, t, i, err
+	return names, t, err
 }
 
-func scanMTChannels(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMTChannels(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	return storeMTParents(ctx, st, acct, region, mtListChannelsOp, "channel(s)", "ChannelName",
 		func(ctx context.Context, token *string) ([]mttypes.Channel, *string, error) {
 			out, err := client.ListChannels(ctx, &mediatailor.ListChannelsInput{NextToken: token, MaxResults: mtMaxResults})
@@ -177,7 +177,7 @@ func scanMTChannels(ctx context.Context, client mediatailorAPI, acct *account, r
 // /policy. Policy is optional in the output while PutChannelPolicy requires
 // one, so empty text is read as no policy attached and gets no row. The op
 // models no error, so every error fails the channel (nil notFound).
-func scanMTChannelPolicies(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, int, error) {
+func scanMTChannelPolicies(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mtGetChannelPolicyOp, nil, channels,
 		func(ctx context.Context, channel string, _ *string) ([]*mediatailor.GetChannelPolicyOutput, *string, error) {
 			out, err := client.GetChannelPolicy(ctx, &mediatailor.GetChannelPolicyInput{ChannelName: &channel})
@@ -195,7 +195,7 @@ func scanMTChannelPolicies(ctx context.Context, client mediatailorAPI, acct *acc
 // scanMTPrograms stores the programs of each channel's schedule, each keyed by
 // its own ARN. The op models no error, so every error fails the channel (nil
 // notFound).
-func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, int, error) {
+func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mtGetChannelScheduleOp, nil, channels,
 		func(ctx context.Context, channel string, token *string) ([]mttypes.ScheduleEntry, *string, error) {
 			out, err := client.GetChannelSchedule(ctx, &mediatailor.GetChannelScheduleInput{ChannelName: &channel, NextToken: token, MaxResults: mtMaxResults})
@@ -213,7 +213,7 @@ func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, r
 		})
 }
 
-func scanMTSourceLocations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMTSourceLocations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	return storeMTParents(ctx, st, acct, region, mtListSourceLocationsOp, "source location(s)", "SourceLocationName",
 		func(ctx context.Context, token *string) ([]mttypes.SourceLocation, *string, error) {
 			out, err := client.ListSourceLocations(ctx, &mediatailor.ListSourceLocationsInput{NextToken: token, MaxResults: mtMaxResults})
@@ -234,7 +234,7 @@ func scanMTSourceLocations(ctx context.Context, client mediatailorAPI, acct *acc
 // scanMTLiveSources stores the live sources of each source location. The
 // live, VOD and prefetch listings model no error, so none skips a code for a
 // parent deleted since it was listed (nil notFound).
-func scanMTLiveSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, int, error) {
+func scanMTLiveSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mtListLiveSourcesOp, nil, locations,
 		func(ctx context.Context, loc string, token *string) ([]mttypes.LiveSource, *string, error) {
 			out, err := client.ListLiveSources(ctx, &mediatailor.ListLiveSourcesInput{SourceLocationName: &loc, NextToken: token, MaxResults: mtMaxResults})
@@ -252,7 +252,7 @@ func scanMTLiveSources(ctx context.Context, client mediatailorAPI, acct *account
 		})
 }
 
-func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, int, error) {
+func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mtListVodSourcesOp, nil, locations,
 		func(ctx context.Context, loc string, token *string) ([]mttypes.VodSource, *string, error) {
 			out, err := client.ListVodSources(ctx, &mediatailor.ListVodSourcesInput{SourceLocationName: &loc, NextToken: token, MaxResults: mtMaxResults})
@@ -270,7 +270,7 @@ func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account,
 		})
 }
 
-func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	return storeMTParents(ctx, st, acct, region, mtListPlaybackConfigurationsOp, "playback configuration(s)", "Name",
 		func(ctx context.Context, token *string) ([]mttypes.PlaybackConfiguration, *string, error) {
 			out, err := client.ListPlaybackConfigurations(ctx, &mediatailor.ListPlaybackConfigurationsInput{NextToken: token, MaxResults: mtMaxResults})
@@ -292,7 +292,7 @@ func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, ac
 // configuration, each keyed by its own ARN. ScheduleType is ALL because an
 // unset filter lists SINGLE schedules only (SDK CHANGELOG v1.47.0, when
 // RECURRING schedules arrived).
-func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, configs []string) (int, int, error) {
+func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, configs []string) (int, error) {
 	return storeTokenPerParent(ctx, st, acct, region, mtListPrefetchSchedulesOp, nil, configs,
 		func(ctx context.Context, cfg string, token *string) ([]mttypes.PrefetchSchedule, *string, error) {
 			out, err := client.ListPrefetchSchedules(ctx, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &cfg, ScheduleType: mttypes.ListPrefetchScheduleTypeAll, NextToken: token, MaxResults: mtMaxResults})
@@ -323,7 +323,7 @@ func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *a
 // to model, a 404 on its unfiltered first call means the op is absent. Once a
 // page has succeeded the op is deployed: a later error of any shape except a
 // denial is returned, after the rows listed so far are stored.
-func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := false
 	return storeTokenList(ctx, st, acct, region, mtListFunctionsOp,
 		func(ctx context.Context, token *string) ([]mttypes.Function, *string, error) {

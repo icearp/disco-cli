@@ -114,7 +114,7 @@ var odbChildOps = []struct {
 					"p2": {DbServers: []odbtypes.DbServerSummary{odbDbServer("c2")}},
 				}
 			}
-			_, _, err := scanODBDbServers(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanODBDbServers(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			return err
 		},
 	},
@@ -130,7 +130,7 @@ var odbChildOps = []struct {
 					"p2": {AutonomousVirtualMachines: []odbtypes.AutonomousVirtualMachineSummary{odbAVM("c2")}},
 				}
 			}
-			_, _, err := scanODBAutonomousVirtualMachines(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			_, err := scanODBAutonomousVirtualMachines(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			return err
 		},
 	},
@@ -440,7 +440,7 @@ func odbHandlers(c *odbCalls) map[string]func(any) (any, error) {
 
 // odbScan runs scanODB, the real entry point, against handlers; an op without
 // one is denied.
-func odbScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func odbScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, odbDenied)
 	return scanODB(ctx, acct, testRegion, st, testScanID)
@@ -467,7 +467,9 @@ func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newODBCalls()
 
-	total, inserted, err := odbScan(context.Background(), st, odbHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := odbScan(context.Background(), counted, odbHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -524,17 +526,17 @@ func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
 	assertQSContains(t, st, odbAVMClusterARN("bare"), odbAVMClusterARN("bare")+"/autonomous-virtual-machine/vm")
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanODB_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newODBCalls()
-	if _, _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
+	if _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+	total, err := odbScan(context.Background(), st, odbHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -573,7 +575,7 @@ func TestScanODB_TagReadFailures(t *testing.T) {
 					calls := newODBCalls()
 					calls.errs[target.tagARN] = c.err
 
-					total, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+					total, err := odbScan(context.Background(), st, odbHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -620,7 +622,7 @@ func TestScanODB_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[odbARN("cloud-vm-cluster", "tagged")] = odbThrottle
 	calls.errs[odbARN("exadb-vm-cluster", "tagged")] = odbBadInput
 
-	_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+	_, err := odbScan(context.Background(), st, odbHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -679,7 +681,7 @@ func TestScanODB_TagReadOwnership(t *testing.T) {
 			calls.tags[arn], calls.errs[arn] = c.tags, c.err
 			c.acct.cfg = opStubConfig(odbSingleNetwork(calls, arn), odbDenied)
 
-			if _, _, err := scanODB(context.Background(), c.acct, region, st, testScanID); err != nil {
+			if _, err := scanODB(context.Background(), c.acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := odbRowOf(t, st, TypeODBOdbNetwork, arn)
@@ -713,7 +715,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 		handlers := odbHandlers(calls)
 		handlers["ListCloudAutonomousVmClusters"] = func(any) (any, error) { return nil, odbNotOnboarded }
 
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		if !errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want errServiceDisabled", err)
 		}
@@ -732,7 +734,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 		handlers["ListCloudAutonomousVmClusters"] = func(any) (any, error) { return nil, odbDenied }
 		handlers["ListCloudExadataInfrastructures"] = func(any) (any, error) { return nil, odbNotOnboarded }
 
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		if !errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want errServiceDisabled", err)
 		}
@@ -745,7 +747,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 		handlers := odbHandlers(newODBCalls())
 		handlers["ListCloudAutonomousVmClusters"] = failOnCall(2, odbNotOnboarded, handlers["ListCloudAutonomousVmClusters"])
 
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -762,7 +764,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 		handlers := odbHandlers(newODBCalls())
 		handlers["ListOdbNetworks"] = failOnCall(2, odbNotOnboarded, handlers["ListOdbNetworks"])
 
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -778,7 +780,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 		handlers := odbHandlers(newODBCalls())
 		handlers["ListCloudExadataInfrastructures"] = func(any) (any, error) { return nil, odbNotOnboarded }
 
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -804,7 +806,7 @@ func TestScanODB_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := odbHandlers(newODBCalls())
 			handlers[sdkOp] = func(any) (any, error) { return nil, odbDenied }
 
-			total, _, err := odbScan(context.Background(), st, handlers)
+			total, err := odbScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -850,7 +852,7 @@ func TestScanODB_PerParentListingFailures(t *testing.T) {
 					return next(in)
 				}
 
-				total, _, err := odbScan(context.Background(), st, handlers)
+				total, err := odbScan(context.Background(), st, handlers)
 				if f.wantErr {
 					assertGlueOutcome(t, err, outcomeError)
 					assertAPICode(t, err, "ValidationException")
@@ -877,7 +879,7 @@ func TestScanODB_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers := odbHandlers(calls)
 	handlers["ListCloudExadataInfrastructures"] = failOnCall(2, odbBadInput, handlers["ListCloudExadataInfrastructures"])
 
-	total, _, err := odbScan(context.Background(), st, handlers)
+	total, err := odbScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if total != odbFixtureTotal-2 {
@@ -901,7 +903,7 @@ func TestScanODB_RepeatedTokenKeepsPages(t *testing.T) {
 		return &odb.ListOdbNetworksOutput{OdbNetworks: []odbtypes.OdbNetworkSummary{{OdbNetworkArn: sdkaws.String(odbARN("odb-network", "tagged")), OdbNetworkId: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := odbScan(context.Background(), st, handlers)
+	_, err := odbScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -933,7 +935,7 @@ func TestScanODB_UnstorableItemsWarn(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := odbScan(context.Background(), st, handlers); err != nil {
+	if _, err := odbScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := len(rowsByNativeID(t, st, TypeODBOdbNetwork)); got != 0 {
@@ -985,7 +987,7 @@ func TestScanODB_Exascale(t *testing.T) {
 				cluster("gone", odbtypes.ResourceStatusTerminated), cluster("going", odbtypes.ResourceStatusTerminating),
 			}}, nil
 		}
-		if _, _, err := odbScan(context.Background(), st, handlers); err != nil {
+		if _, err := odbScan(context.Background(), st, handlers); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		for typ, kind := range map[string]string{TypeODBExascaleDbStorageVault: "exascale-db-storage-vault", TypeODBExadbVMCluster: "exadb-vm-cluster"} {
@@ -1004,7 +1006,7 @@ func TestScanODB_Exascale(t *testing.T) {
 			warns := countWarnings(st)
 			handlers := odbHandlers(newODBCalls())
 			handlers[sdkOp] = func(any) (any, error) { return nil, apiErr("UnknownOperationException", "") }
-			total, _, err := odbScan(context.Background(), st, handlers)
+			total, err := odbScan(context.Background(), st, handlers)
 			if err != nil || total != odbFixtureTotal-2 || *warns != 0 {
 				t.Errorf("scan = (%d, %v) with %d warnings; want (%d, nil) and none", total, err, *warns, odbFixtureTotal-2)
 			}
@@ -1013,7 +1015,7 @@ func TestScanODB_Exascale(t *testing.T) {
 			st := newTestStore(t)
 			handlers := odbHandlers(newODBCalls())
 			handlers[sdkOp] = failOnCall(2, apiErr("UnknownOperationException", ""), handlers[sdkOp])
-			total, _, err := odbScan(context.Background(), st, handlers)
+			total, err := odbScan(context.Background(), st, handlers)
 			assertAPICode(t, err, "UnknownOperationException")
 			if total != odbFixtureTotal-1 {
 				t.Errorf("total = %d; want %d (the first page kept)", total, odbFixtureTotal-1)
@@ -1024,7 +1026,7 @@ func TestScanODB_Exascale(t *testing.T) {
 		st := newTestStore(t)
 		handlers := odbHandlers(newODBCalls())
 		handlers["ListOdbNetworks"] = func(any) (any, error) { return nil, apiErr("UnknownOperationException", "") }
-		_, _, err := odbScan(context.Background(), st, handlers)
+		_, err := odbScan(context.Background(), st, handlers)
 		assertAPICode(t, err, "UnknownOperationException")
 	})
 }
@@ -1040,7 +1042,7 @@ func TestScanODB_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls.errs[odbARN("odb-network", "tagged")] = odbDenied
 	calls.errs[odbARN("odb-network", "bare")] = odbThrottle
 
-	_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+	_, err := odbScan(context.Background(), st, odbHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1064,7 +1066,7 @@ func TestScanODB_FailedNodeWriteSendsNoNodeWarning(t *testing.T) {
 		return &odb.ListDbNodesOutput{DbNodes: []odbtypes.DbNodeSummary{{DbNodeId: sdkaws.String("n")}}}, nil
 	}
 
-	_, _, err := odbScan(context.Background(), st, handlers)
+	_, err := odbScan(context.Background(), st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1091,7 +1093,7 @@ func TestScanODB_ContextEndStopsOnce(t *testing.T) {
 		return infras(in)
 	}
 
-	_, _, err := odbScan(ctx, st, handlers)
+	_, err := odbScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1121,7 +1123,7 @@ func TestScanODB_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := odbHandlers(newODBCalls())
 		handlers["ListOdbNetworks"] = func(any) (any, error) { return nil, nx }
-		total, _, err := odbScan(context.Background(), st, handlers)
+		total, err := odbScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != odbFixtureTotal-2 {
 			t.Errorf("total = %d; want %d", total, odbFixtureTotal-2)
@@ -1131,7 +1133,7 @@ func TestScanODB_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newODBCalls()
 		calls.errs[odbAVMClusterARN("bare")] = nx
-		_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+		_, err := odbScan(context.Background(), st, odbHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1139,7 +1141,7 @@ func TestScanODB_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

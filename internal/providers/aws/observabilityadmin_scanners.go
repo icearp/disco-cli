@@ -35,28 +35,27 @@ type obsAdminAPI interface {
 // resource types. Organization-scoped lists tolerate AccessDenied for
 // non-management accounts. TelemetryEnrichment is a singleton per
 // (acct, region) with a synthesized ARN.
-func scanObservabilityAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanObservabilityAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := observabilityadmin.NewFromConfig(acct.cfg, func(o *observabilityadmin.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanObsCentralizationRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanObsOrgTelemetryRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanObsTelemetryRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanObsS3TableIntegrations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanObsTelemetryPipelines(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanObsTelemetryEnrichment(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []func() (int, error){
+		func() (int, error) { return scanObsCentralizationRules(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanObsOrgTelemetryRules(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanObsTelemetryRules(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanObsS3TableIntegrations(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanObsTelemetryPipelines(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanObsTelemetryEnrichment(ctx, client, acct, region, st, scanID) },
 	} {
-		t, i, perr := phase()
+		t, perr := phase()
 		if perr != nil {
-			return total, inserted, perr
+			return total, perr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := observabilityadmin.NewListCentralizationRulesForOrganizationPaginator(client, &observabilityadmin.ListCentralizationRulesForOrganizationInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -65,12 +64,12 @@ func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *a
 			// Org-only API: silent no-op from non-org-management or non-org
 			// accounts. Real IAM denies still warn via isAccessDenied.
 			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListCentralizationRulesForOrganization", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "observabilityadmin:ListCentralizationRulesForOrganization", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("observabilityadmin:ListCentralizationRulesForOrganization: %w", err)
+			return 0, fmt.Errorf("observabilityadmin:ListCentralizationRulesForOrganization: %w", err)
 		}
 		for _, r := range out.CentralizationRuleSummaries {
 			arn := sv(r.RuleArn)
@@ -88,7 +87,7 @@ func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *a
 	return upsertBatch(st, batch, "observabilityadmin organization-centralization-rules")
 }
 
-func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := observabilityadmin.NewListTelemetryRulesForOrganizationPaginator(client, &observabilityadmin.ListTelemetryRulesForOrganizationInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -97,16 +96,16 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 			// Org-only API: silent no-op from non-org-management or non-org
 			// accounts. Real IAM denies still warn via isAccessDenied.
 			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			// Telemetry evaluation not enabled at org level — feature gate, not error.
 			if isAPIErrorWithMessage(err, "ValidationException", "Telemetry evaluation is not enabled") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRulesForOrganization", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRulesForOrganization", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryRulesForOrganization: %w", err)
+			return 0, fmt.Errorf("observabilityadmin:ListTelemetryRulesForOrganization: %w", err)
 		}
 		for _, r := range out.TelemetryRuleSummaries {
 			arn := sv(r.RuleArn)
@@ -124,21 +123,21 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 	return upsertBatch(st, batch, "observabilityadmin organization-telemetry-rules")
 }
 
-func scanObsTelemetryRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsTelemetryRules(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := observabilityadmin.NewListTelemetryRulesPaginator(client, &observabilityadmin.ListTelemetryRulesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRules", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRules", acct.ID, region, err)
 			}
 			// ValidationException "Telemetry evaluation is not enabled" =
 			// account not opted into observabilityadmin.
 			if isAPIErrorWithMessage(err, "ValidationException", "Telemetry evaluation is not enabled") {
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryRules: %w", err)
+			return 0, fmt.Errorf("observabilityadmin:ListTelemetryRules: %w", err)
 		}
 		for _, r := range out.TelemetryRuleSummaries {
 			arn := sv(r.RuleArn)
@@ -156,16 +155,16 @@ func scanObsTelemetryRules(ctx context.Context, client obsAdminAPI, acct *accoun
 	return upsertBatch(st, batch, "observabilityadmin telemetry-rules")
 }
 
-func scanObsS3TableIntegrations(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsS3TableIntegrations(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := observabilityadmin.NewListS3TableIntegrationsPaginator(client, &observabilityadmin.ListS3TableIntegrationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListS3TableIntegrations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "observabilityadmin:ListS3TableIntegrations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("observabilityadmin:ListS3TableIntegrations: %w", err)
+			return 0, fmt.Errorf("observabilityadmin:ListS3TableIntegrations: %w", err)
 		}
 		for _, s := range out.IntegrationSummaries {
 			arn := sv(s.Arn)
@@ -184,16 +183,16 @@ func scanObsS3TableIntegrations(ctx context.Context, client obsAdminAPI, acct *a
 	return upsertBatch(st, batch, "observabilityadmin s3-table-integrations")
 }
 
-func scanObsTelemetryPipelines(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsTelemetryPipelines(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := observabilityadmin.NewListTelemetryPipelinesPaginator(client, &observabilityadmin.ListTelemetryPipelinesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryPipelines", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryPipelines", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryPipelines: %w", err)
+			return 0, fmt.Errorf("observabilityadmin:ListTelemetryPipelines: %w", err)
 		}
 		for _, p := range out.PipelineSummaries {
 			arn := sv(p.Arn)
@@ -213,17 +212,17 @@ func scanObsTelemetryPipelines(ctx context.Context, client obsAdminAPI, acct *ac
 
 // scanObsTelemetryEnrichment captures the per-(acct, region) singleton
 // telemetry-enrichment status; ARN synthesized since the API returns none.
-func scanObsTelemetryEnrichment(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanObsTelemetryEnrichment(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetTelemetryEnrichmentStatus(ctx, &observabilityadmin.GetTelemetryEnrichmentStatusInput{})
 	if err != nil {
 		// ResourceNotFoundException = enrichment not configured (default state). Silent.
 		if isAPIErrorCode(err, "ResourceNotFoundException") {
-			return 0, 0, nil
+			return 0, nil
 		}
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "observabilityadmin:GetTelemetryEnrichmentStatus", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "observabilityadmin:GetTelemetryEnrichmentStatus", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("observabilityadmin:GetTelemetryEnrichmentStatus: %w", err)
+		return 0, fmt.Errorf("observabilityadmin:GetTelemetryEnrichmentStatus: %w", err)
 	}
 	arn := arnFor(acct.partition(), "observabilityadmin", region, acct.ID, "telemetry-enrichment")
 	label := "telemetry-enrichment"

@@ -24,12 +24,12 @@ func init() {
 // scanAKS discovers Microsoft.ContainerService resources — AKS managed
 // clusters, node-pool/managed-cluster snapshots, and AKS fleets (the fleet
 // type lives in the separate containerservicefleet SDK module).
-func scanAKS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAKS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
+				return 0, fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
 			}
 			return azPageScan(ctx, "armcontainerservice:ManagedClusters.List", sub, st,
 				client.NewListPager(nil),
@@ -63,10 +63,10 @@ func scanAKS(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 					return batch, pairs
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			snapClient, err := armcontainerservice.NewSnapshotsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armcontainerservice:NewSnapshotsClient: %w", err)
+				return 0, fmt.Errorf("armcontainerservice:NewSnapshotsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armcontainerservice:Snapshots.List", TypeContainerServiceSnapshot, sub, st, scanID,
 				snapClient.NewListPager(nil),
@@ -77,10 +77,10 @@ func scanAKS(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			fleetClient, err := armcontainerservicefleet.NewFleetsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armcontainerservicefleet:NewFleetsClient: %w", err)
+				return 0, fmt.Errorf("armcontainerservicefleet:NewFleetsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armcontainerservicefleet:Fleets.ListBySubscription", TypeContainerServiceFleet, sub, st, scanID,
 				fleetClient.NewListBySubscriptionPager(nil),

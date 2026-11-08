@@ -36,9 +36,9 @@ type connectWorkspaceAPI interface {
 // scanConnectWorkspace runs Workspace-family phases per instance. Views are
 // listed once: the view-version phase walks the same listing, so a listing
 // error is returned once, by the view phase.
-func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	views := connectListPerInstance(ctx, st, acct, region, "connect:ListViews", instances,
 		func(instID string) connectPager[*connect.ListViewsOutput] {
@@ -48,22 +48,22 @@ func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, insta
 		func(o *connect.ListViewsOutput) []cttypes.ViewSummary { return o.ViewsSummaryList },
 		func(s cttypes.ViewSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect task templates", func() (int, int, error) {
+		connectPhase{"connect task templates", func() (int, error) {
 			return scanConnectTaskTemplates(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect evaluation forms", func() (int, int, error) {
+		connectPhase{"connect evaluation forms", func() (int, error) {
 			return scanConnectEvaluationForms(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect views", func() (int, int, error) {
+		connectPhase{"connect views", func() (int, error) {
 			return scanConnectViews(ctx, client, views, acct, region, st, scanID)
 		}},
-		connectPhase{"connect view versions", func() (int, int, error) {
+		connectPhase{"connect view versions", func() (int, error) {
 			return scanConnectViewVersions(ctx, client, views.items, acct, region, st, scanID)
 		}},
-		connectPhase{"connect workspaces", func() (int, int, error) {
+		connectPhase{"connect workspaces", func() (int, error) {
 			return scanConnectWorkspaces(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect prompts", func() (int, int, error) {
+		connectPhase{"connect prompts", func() (int, error) {
 			return scanConnectPrompts(ctx, client, instances, acct, region, st, scanID)
 		}},
 	)
@@ -71,7 +71,7 @@ func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, insta
 
 // scanConnectTaskTemplates is list-only (no Describe op); stores
 // list-summary metadata as attrs.
-func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -86,7 +86,7 @@ func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, i
 					_ = skipIfAccessDenied(st, "connect:ListTaskTemplates", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListTaskTemplates %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:ListTaskTemplates %s: %w", instID, perr)
 			}
 			for _, m := range out.TaskTemplates {
 				arn := sv(m.Arn)
@@ -116,7 +116,7 @@ func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, i
 	return upsertConnectBatch(st, batch, "connect task templates")
 }
 
-func scanConnectEvaluationForms(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectEvaluationForms(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListEvaluationForms", instances,
 		func(instID string) connectPager[*connect.ListEvaluationFormsOutput] {
 			return connect.NewListEvaluationFormsPaginator(client, &connect.ListEvaluationFormsInput{InstanceId: &instID},
@@ -153,7 +153,7 @@ func scanConnectEvaluationForms(ctx context.Context, client connectWorkspaceAPI,
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectViews(ctx context.Context, client connectWorkspaceAPI, listed *connectListing[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectViews(ctx context.Context, client connectWorkspaceAPI, listed *connectListing[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return connectDescribe[cttypes.ViewSummary]{
 		rtype: TypeConnectView, op: "connect:DescribeView", label: "connect views",
 		describe: func(ctx context.Context, it connectListed[cttypes.ViewSummary], r *store.Resource) error {
@@ -181,7 +181,7 @@ func scanConnectViews(ctx context.Context, client connectWorkspaceAPI, listed *c
 
 // scanConnectViewVersions — list-only per view (no Describe): lists the
 // versions of each view scanConnectWorkspace listed.
-func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, views []connectListed[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, views []connectListed[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, v := range views {
 		instID := v.instanceID
@@ -193,7 +193,7 @@ func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, vi
 				if isAccessDenied(perr) {
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListViewVersions %s/%s: %w", instID, viewID, perr)
+				return 0, fmt.Errorf("connect:ListViewVersions %s/%s: %w", instID, viewID, perr)
 			}
 			for _, vv := range out.ViewVersionSummaryList {
 				arn := sv(vv.Arn)
@@ -222,7 +222,7 @@ func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, vi
 	return upsertConnectBatch(st, batch, "connect view versions")
 }
 
-func scanConnectWorkspaces(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectWorkspaces(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListWorkspaces", instances,
 		func(instID string) connectPager[*connect.ListWorkspacesOutput] {
 			return connect.NewListWorkspacesPaginator(client, &connect.ListWorkspacesInput{InstanceId: &instID},
@@ -255,7 +255,7 @@ func scanConnectWorkspaces(ctx context.Context, client connectWorkspaceAPI, inst
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectPrompts(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectPrompts(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListPrompts", instances,
 		func(instID string) connectPager[*connect.ListPromptsOutput] {
 			return connect.NewListPromptsPaginator(client, &connect.ListPromptsInput{InstanceId: &instID},

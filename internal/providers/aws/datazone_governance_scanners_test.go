@@ -118,7 +118,7 @@ func (s *stubDZGov) ListSubscriptionGrants(_ context.Context, in *datazone.ListS
 	return &datazone.ListSubscriptionGrantsOutput{Items: items, NextToken: next}, nil
 }
 
-type dzScanFn func(context.Context, dataZoneAPI, *account, string, *store.Store, string, []*dzDomain) (int, int, error)
+type dzScanFn func(context.Context, dataZoneAPI, *account, string, *store.Store, string, []*dzDomain) (int, error)
 
 var dzCreated = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
@@ -260,7 +260,7 @@ func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
 			warnings := 0
 			st.OnWarn = func(store.ScanWarning) { warnings++ }
 
-			total, _, err := tc.fn(context.Background(), stub, acct, testRegion, st, testScanID, dzFixtureDomains())
+			total, err := tc.fn(context.Background(), stub, acct, testRegion, st, testScanID, dzFixtureDomains())
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -318,7 +318,7 @@ func TestScanDataZoneGovernance_Empty(t *testing.T) {
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := tc.fn(context.Background(), &stubDZGov{}, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			total, err := tc.fn(context.Background(), &stubDZGov{}, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
 			if err != nil || total != 0 {
 				t.Fatalf("total=%d err=%v, want 0/nil", total, err)
 			}
@@ -339,7 +339,7 @@ func TestScanDataZoneGovernance_AccessDeniedWarnsOnce(t *testing.T) {
 			warnings := 0
 			st.OnWarn = func(store.ScanWarning) { warnings++ }
 			stub := &stubDZGov{err: apiErr("AccessDeniedException", "User: arn:aws:iam::123:role/x is not authorized to perform: datazone:List")}
-			total, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			total, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
 			if err != nil || total != 0 {
 				t.Fatalf("total=%d err=%v, want 0/nil", total, err)
 			}
@@ -359,7 +359,7 @@ func TestScanDataZoneGovernance_OtherErrorPropagates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			stub := &stubDZGov{err: apiErr("ValidationException", "bad input")}
-			_, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			_, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
 			if !isAPIErrorCode(err, "ValidationException") {
 				t.Fatalf("err=%v, want ValidationException propagated", err)
 			}
@@ -377,7 +377,7 @@ func TestScanDataZoneGovernance_OtherErrorKeepsSiblings(t *testing.T) {
 			bad := apiErr("ValidationException", "bad input")
 			stub := &stubDZGov{errFor: map[string]error{tc.first: bad}}
 			tc.fill(stub, tc.first, tc.second)
-			total, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			total, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
 			if !errors.Is(err, bad) {
 				t.Fatalf("err=%v, want the failing parent's error returned", err)
 			}
@@ -400,7 +400,7 @@ func TestScanDataZoneGovernance_ParentNotFound(t *testing.T) {
 			st.OnWarn = func(store.ScanWarning) { warnings++ }
 			stub := &stubDZGov{errFor: map[string]error{tc.first: apiErr("ResourceNotFoundException", "gone")}}
 			tc.fill(stub, tc.first, tc.second)
-			total, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			total, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
 			if !tc.notFoundModeled {
 				if !isAPIErrorCode(err, "ResourceNotFoundException") {
 					t.Fatalf("err=%v, want unmodeled ResourceNotFoundException propagated", err)
@@ -443,7 +443,7 @@ func TestScanDataZoneEnvironmentBlueprints_ManagedFlag(t *testing.T) {
 		"dom-1/managed=false": {{{Id: ptrStr("custom")}}},
 		"dom-1/managed=true":  {{{Id: ptrStr("aws")}}},
 	}}
-	if _, _, err := scanDataZoneEnvironmentBlueprints(context.Background(), stub, acct, testRegion, st, testScanID, []*dzDomain{{id: "dom-1"}}); err != nil {
+	if _, err := scanDataZoneEnvironmentBlueprints(context.Background(), stub, acct, testRegion, st, testScanID, []*dzDomain{{id: "dom-1"}}); err != nil {
 		t.Fatal(err)
 	}
 	rows := dzRows(t, st, TypeDataZoneEnvironmentBlueprint)
@@ -468,7 +468,7 @@ func TestScanDataZoneEnvironmentBlueprints_BothPassesStoredOnceAsManaged(t *test
 		"dom-1/managed=false": {dup},
 		"dom-1/managed=true":  {dup},
 	}}
-	total, _, err := scanDataZoneEnvironmentBlueprints(context.Background(), stub, acct, testRegion, st, testScanID, []*dzDomain{{id: "dom-1"}})
+	total, err := scanDataZoneEnvironmentBlueprints(context.Background(), stub, acct, testRegion, st, testScanID, []*dzDomain{{id: "dom-1"}})
 	if err != nil || total != 1 {
 		t.Fatalf("total=%d err=%v, want 1/nil", total, err)
 	}
@@ -488,7 +488,7 @@ func TestScanDataZoneRules_SameRuleUnderTwoUnitsStoredOnce(t *testing.T) {
 		"dom-1/du-2":   {rule},
 	}}
 	domains := []*dzDomain{{id: "dom-1", unitIDs: []string{"root-1", "du-2"}}}
-	total, _, err := scanDataZoneRules(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, domains)
+	total, err := scanDataZoneRules(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, domains)
 	if err != nil || total != 1 {
 		t.Fatalf("total=%d err=%v, want 1/nil", total, err)
 	}
@@ -500,7 +500,7 @@ func TestScanDataZoneRules_SameRuleUnderTwoUnitsStoredOnce(t *testing.T) {
 func TestScanDataZoneRules_TargetsDomainUnits(t *testing.T) {
 	t.Parallel()
 	stub := &stubDZGov{}
-	if _, _, err := scanDataZoneRules(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, dzFixtureDomains()); err != nil {
+	if _, err := scanDataZoneRules(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, dzFixtureDomains()); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"dom-1/root-1", "dom-1/du-2", "dom-2/root-2"}
@@ -537,7 +537,7 @@ func TestScanDataZoneDomainUnits_RecordsUnitIDsIncludingRoot(t *testing.T) {
 	t.Parallel()
 	stub := &stubDZUnits{children: map[string][]string{"root-1": {"du-a"}, "du-a": {"du-b"}}}
 	d := &dzDomain{id: "dom-1", rootUnitID: "root-1"}
-	if _, _, err := scanDataZoneDomainUnits(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, []*dzDomain{d}); err != nil {
+	if _, err := scanDataZoneDomainUnits(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, []*dzDomain{d}); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"root-1", "du-a", "du-b"}; fmt.Sprint(d.unitIDs) != fmt.Sprint(want) {
@@ -571,7 +571,7 @@ func TestScanDataZoneDomains_GetDomainDeniedWarnsOnce(t *testing.T) {
 		arn := "arn:aws:datazone:" + testRegion + ":" + testAccountID + ":domain/" + id
 		items = append(items, dztypes.DomainSummary{Arn: &arn, Id: ptrStr(id)})
 	}
-	domains, total, _, err := scanDZDomains(&stubDZDomains{domains: items}, st)
+	domains, total, err := scanDZDomains(&stubDZDomains{domains: items}, st)
 	if err != nil || total != 2 || len(domains) != 2 {
 		t.Fatalf("domains=%d total=%d err=%v, want 2/2/nil", len(domains), total, err)
 	}
@@ -662,7 +662,7 @@ func TestScanDataZone_GovernancePhasesWiredAndOrdered(t *testing.T) {
 				APIOptions:       []func(*smithymw.Stack) error{stubResponses(t, responses)},
 			}}
 
-			_, _, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanDataZone(context.Background(), acct, testRegion, st, testScanID)
 			if tc.wantErr != isAPIErrorCode(err, "ValidationException") {
 				t.Fatalf("scanDataZone err=%v, wantErr=%t", err, tc.wantErr)
 			}

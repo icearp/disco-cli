@@ -58,7 +58,7 @@ var rhNotFound = []string{"ResourceNotFoundException"}
 // Apps, resiliency policies, app assessments, recommendation templates, v2
 // policies, services and systems are stored with their tags; both clients'
 // tag denials are one warning for the scan.
-func scanResilienceHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanResilienceHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = region })
 	v2 := resiliencehubv2.NewFromConfig(acct.cfg, func(o *resiliencehubv2.Options) { o.Region = region })
 	tags := rhTags(client).sharingDenials()
@@ -69,19 +69,19 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 		apps, assessments, services, systems []childParent
 		v2Absent                             bool
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "resilience-hub", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "resilience-hub", 0, []hostPhase{
 		{op: rhListAppsOp, run: func(p *phaseTotals) (failed bool) {
 			apps, failed = scanRHApps(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, rhListResiliencyPoliciesOp, func() (int, int, error) {
+		countedPhase(0, rhListResiliencyPoliciesOp, func() (int, error) {
 			return scanRHResiliencyPolicies(ctx, client, acct, region, st, scanID)
 		}),
 		{op: rhListAppAssessmentsOp, run: func(p *phaseTotals) (failed bool) {
 			assessments, failed = scanRHAppAssessments(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, rhListRecommendationTemplatesOp, func() (int, int, error) {
+		countedPhase(0, rhListRecommendationTemplatesOp, func() (int, error) {
 			return scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID, assessments)
 		}),
 		{op: rhListPoliciesOp, run: func(p *phaseTotals) (failed bool) {
@@ -104,24 +104,24 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 			systems, failed = scanRHSystems(ctx, v2, acct, region, st, scanID, v2Tags, p)
 			return failed
 		}},
-		countedPhase(0, rhListTestsOp, func() (int, int, error) {
+		countedPhase(0, rhListTestsOp, func() (int, error) {
 			return scanRHTests(ctx, v2, acct, region, st, scanID, childParentIDs(services))
 		}),
-		countedPhase(0, rhListUserJourneysOp, func() (int, int, error) {
+		countedPhase(0, rhListUserJourneysOp, func() (int, error) {
 			return scanRHUserJourneys(ctx, v2, acct, region, st, scanID, childParentIDs(systems))
 		}),
-		countedPhase(0, rhListAppInputSourcesOp, func() (int, int, error) {
+		countedPhase(0, rhListAppInputSourcesOp, func() (int, error) {
 			return scanRHAppInputSources(ctx, client, acct, region, st, scanID, childParentIDs(apps))
 		}),
-		countedPhase(0, rhListServiceFunctionsOp, func() (int, int, error) {
+		countedPhase(0, rhListServiceFunctionsOp, func() (int, error) {
 			return scanRHServiceFunctions(ctx, v2, acct, region, st, scanID, childParentIDs(services))
 		}),
-		countedPhase(0, rhListInputSourcesOp, func() (int, int, error) {
+		countedPhase(0, rhListInputSourcesOp, func() (int, error) {
 			return scanRHInputSources(ctx, v2, acct, region, st, scanID, childParentIDs(services))
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // rhTags reads a v1 row's tags with ListTagsForResource, which the Service
@@ -179,7 +179,7 @@ func scanRHApps(ctx context.Context, client resilienceHubAPI, acct *account, reg
 // ListResiliencyPolicies lists the account's own policies; the AWS-suggested
 // ones come from a separate op (ListSuggestedResiliencyPolicies), which is
 // not called.
-func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, rhListResiliencyPoliciesOp,
 		func(ctx context.Context, token *string) ([]rhtypes.ResiliencyPolicy, *string, error) {
 			out, err := client.ListResiliencyPolicies(ctx, &resiliencehub.ListResiliencyPoliciesInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
@@ -223,7 +223,7 @@ func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *ac
 // models no not-found error, so an assessment deleted since it was listed
 // fails its listing with whatever the service answers, and that error is
 // returned.
-func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessments []childParent) (int, int, error) {
+func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessments []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, rhListRecommendationTemplatesOp, nil, childParentIDs(assessments),
 		func(ctx context.Context, assessmentARN string, token *string) ([]rhtypes.RecommendationTemplate, *string, error) {
 			out, err := client.ListRecommendationTemplates(ctx, &resiliencehub.ListRecommendationTemplatesInput{
@@ -257,7 +257,7 @@ const (
 // scanRHAppInputSources lists the input sources of each app's draft version.
 // An input source has no ARN; its NativeID is {appARN}/input-source/{key}
 // (rhInputSourceKey).
-func scanRHAppInputSources(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, appARNs []string) (int, int, error) {
+func scanRHAppInputSources(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, appARNs []string) (int, error) {
 	return childFanOut(ctx, st, acct, region, rhListAppInputSourcesOp, rhParents(appARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			appARN := p.arn

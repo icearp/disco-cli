@@ -224,7 +224,7 @@ func crmlOpLabel(op string) string {
 
 // crmlScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func crmlScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func crmlScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -249,7 +249,9 @@ func TestScanCleanRoomsML_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
 
-	total, inserted, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := crmlScan(context.Background(), t, counted, crmlHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -332,7 +334,7 @@ func TestScanCleanRoomsML_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, crDenied)
 
-	total, _, err := scanCleanRoomsML(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanCleanRoomsML(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -363,7 +365,9 @@ func TestScanCleanRoomsML_EmptyListings(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
 
-	total, inserted, err := crmlScan(context.Background(), t, st, crmlEmptyHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := crmlScan(context.Background(), t, counted, crmlEmptyHandlers(calls))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -380,7 +384,7 @@ func TestScanCleanRoomsML_EmptyMembershipListings(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
 
-	total, _, err := crmlScan(context.Background(), t, st, crmlEmptyHandlers(calls, "m-t"))
+	total, err := crmlScan(context.Background(), t, st, crmlEmptyHandlers(calls, "m-t"))
 	if err != nil || total != 0 {
 		t.Fatalf("scan = %d, %v; want 0, nil", total, err)
 	}
@@ -394,17 +398,17 @@ func TestScanCleanRoomsML_EmptyMembershipListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCleanRoomsML_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRMLCalls()
-	if _, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
+	if _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+	total, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -443,7 +447,7 @@ func TestScanCleanRoomsML_TagReadFailures(t *testing.T) {
 					calls := newCRMLCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+					total, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -490,7 +494,7 @@ func TestScanCleanRoomsML_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[crmlARN("training-dataset/td-t")] = crDenied
 	calls.errs[crmlChild("m-b", "trained-model")] = crDenied
 
-	if _, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
+	if _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
@@ -516,7 +520,7 @@ func TestScanCleanRoomsML_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[crmlARN("training-dataset/td-t")] = crThrottled
 	calls.errs[crmlARN("audience-model/am-b")] = crtBadInput
 
-	_, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+	_, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -542,7 +546,7 @@ func TestScanCleanRoomsML_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := crmlHandlers(calls)
 			h[op] = func(any) (any, error) { return nil, crDenied }
 
-			total, _, err := crmlScan(context.Background(), t, st, h)
+			total, err := crmlScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -573,7 +577,7 @@ func TestScanCleanRoomsML_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newCRMLCalls()
 	calls.errs[crmlARN("training-dataset/td-t")] = crDenied
 
-	_, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+	_, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -603,7 +607,7 @@ func TestScanCleanRoomsML_FailedMembershipWriteSendsNoSkipWarning(t *testing.T) 
 		return models(in)
 	}
 
-	_, _, err := crmlScan(context.Background(), t, st, h)
+	_, err := crmlScan(context.Background(), t, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -641,7 +645,7 @@ func TestScanCleanRoomsML_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return channels(in)
 	}
 
-	_, _, err := crmlScan(context.Background(), t, st, h)
+	_, err := crmlScan(context.Background(), t, st, h)
 	for _, code := range []string{"ConflictException", "ResourceNotFoundException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -687,7 +691,7 @@ func TestScanCleanRoomsML_MembershipListFailureKeepsPage(t *testing.T) {
 	h["ListMemberships"] = failOnCall(2, crThrottled, h["ListMemberships"])
 	h["ListConfiguredModelAlgorithms"] = func(any) (any, error) { return nil, crtBadInput }
 
-	_, _, err := crmlScan(context.Background(), t, st, h)
+	_, err := crmlScan(context.Background(), t, st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *opWarns != 1 {
@@ -721,7 +725,7 @@ func TestScanCleanRoomsML_UnstorableItemsWarn(t *testing.T) {
 			h := crmlHandlers(newCRMLCalls())
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			if _, _, err := crmlScan(context.Background(), t, st, h); err != nil {
+			if _, err := crmlScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -751,7 +755,7 @@ func TestScanCleanRoomsML_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 			}
 
-			_, _, err := crmlScan(context.Background(), t, st, h)
+			_, err := crmlScan(context.Background(), t, st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -780,7 +784,7 @@ func TestScanCleanRoomsML_ContextEndStopsOnce(t *testing.T) {
 		return memberships(in)
 	}
 
-	_, _, err := crmlScan(ctx, t, st, h)
+	_, err := crmlScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -815,7 +819,7 @@ func TestScanCleanRoomsML_Unreachable(t *testing.T) {
 		calls := newCRMLCalls()
 		h := crmlHandlers(calls)
 		h["ListConfiguredModelAlgorithms"] = func(any) (any, error) { return nil, nx }
-		total, _, err := crmlScan(context.Background(), t, st, h)
+		total, err := crmlScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListTrainingDatasets") != 0 || calls.count("ListMemberships") != 0 || calls.count("ListTrainedModels") != 0 {
 			t.Errorf("total = %d, ListTrainingDatasets, ListMemberships, ListTrainedModels calls = %d, %d, %d; want 0, 0, 0, 0",
@@ -826,7 +830,7 @@ func TestScanCleanRoomsML_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		h := crmlHandlers(newCRMLCalls())
 		h["ListMemberships"] = func(any) (any, error) { return nil, nx }
-		total, _, err := crmlScan(context.Background(), t, st, h)
+		total, err := crmlScan(context.Background(), t, st, h)
 		if err != nil || total != 9 {
 			t.Errorf("total, err = %d, %v; want 9, nil", total, err)
 		}
@@ -840,7 +844,7 @@ func TestScanCleanRoomsML_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		h := crmlHandlers(newCRMLCalls())
 		h["ListMemberships"] = failOnCall(2, nx, h["ListMemberships"])
-		_, _, err := crmlScan(context.Background(), t, st, h)
+		_, err := crmlScan(context.Background(), t, st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if isDNSNotFound(err) || !strings.Contains(err.Error(), crmlMembershipsOp+": the endpoint stopped resolving") {
 			t.Errorf("err = %v; want the NXDOMAIN flattened under %s", err, crmlMembershipsOp)
@@ -856,7 +860,7 @@ func TestScanCleanRoomsML_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCRMLCalls()
 		calls.errs[crmlARN("training-dataset/td-t")] = nx
-		total, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+		total, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 15 {
 			t.Errorf("total = %d; want 15", total)

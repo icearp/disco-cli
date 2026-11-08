@@ -85,7 +85,7 @@ func TestScanRoute53CIDRCollections_ReturnsStoredCollectionsAsParents(t *testing
 			}}, nil
 		},
 	})
-	parents, total, _, err := scanRoute53CIDRCollections(context.Background(), client, newTestAccount(testAccountID), st, testScanID)
+	parents, total, err := scanRoute53CIDRCollections(context.Background(), client, newTestAccount(testAccountID), st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -127,7 +127,7 @@ func scanR53Locations(t *testing.T, st *store.Store, handler func(in any) (any, 
 	t.Helper()
 	parents := r53CollectionParents(t, st, ids...)
 	client := r53Client(map[string]func(any) (any, error){"ListCidrLocations": handler})
-	stored, total, _, err := scanRoute53CIDRLocations(context.Background(), client, newTestAccount(testAccountID), st, testScanID, parents)
+	stored, total, err := scanRoute53CIDRLocations(context.Background(), client, newTestAccount(testAccountID), st, testScanID, parents)
 	return stored, total, err
 }
 
@@ -261,7 +261,7 @@ func scanR53Blocks(t *testing.T, st *store.Store, handler func(in any) (any, err
 		stored[l] = true
 	}
 	client := r53Client(map[string]func(any) (any, error){"ListCidrBlocks": handler})
-	total, _, err := scanRoute53CIDRBlocks(context.Background(), client, newTestAccount(testAccountID), st, testScanID, parents, stored)
+	total, err := scanRoute53CIDRBlocks(context.Background(), client, newTestAccount(testAccountID), st, testScanID, parents, stored)
 	return total, err
 }
 
@@ -400,7 +400,7 @@ func TestScanRoute53_StoresCIDRLocationsAndBlocks(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(r53TopLevelHandlers(), r53Denied)
 
-	total, _, err := scanRoute53(context.Background(), acct, st, testScanID)
+	total, err := scanRoute53(context.Background(), acct, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanRoute53: %v", err)
 	}
@@ -439,7 +439,7 @@ func TestScanRoute53_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, r53Denied)
 
-			total, _, err := scanRoute53(context.Background(), acct, st, testScanID)
+			total, err := scanRoute53(context.Background(), acct, st, testScanID)
 			if !failed.Load() {
 				t.Fatalf("%s never called", tc.op)
 			}

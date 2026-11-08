@@ -43,7 +43,7 @@ type scaffoldOpts struct {
 // genScaffold renders a self-contained <svc>_scanners.go: the Type* consts,
 // the registerType descriptors (each annotated with the SDK list ops, depth
 // and scope the candidate was derived from), a registerService call, and a
-// stub scanner returning (0,0,nil). It compiles as-is; the human fills the
+// stub scanner returning (0, nil). It compiles as-is; the human fills the
 // body and later lifts the consts into <provider>_types.go.
 //
 // An error means the emitted source would not compile or would redeclare an
@@ -94,7 +94,7 @@ func genScaffold(provName, service string, rows []coverage.Row, opts scaffoldOpt
 	b.WriteString("// Code scaffolded by cmd/disco-scaffold — VERIFY before use.\n")
 	b.WriteString("// Const names + disco type strings are best-effort derived from the SDK\n")
 	b.WriteString("// candidate key; reconcile them with <provider>_types.go naming conventions,\n")
-	b.WriteString("// then move the consts there. The scanner body is a TODO stub returning (0,0,nil).\n")
+	b.WriteString("// then move the consts there. The scanner body is a TODO stub returning (0, nil).\n")
 	if sig.sig != "" && !emitScanner {
 		// A second registerService for a registered name panics every provider
 		// at init, and a second func scan<Svc> does not compile.
@@ -118,7 +118,7 @@ func genScaffold(provName, service string, rows []coverage.Row, opts scaffoldOpt
 	if emitScanner {
 		fmt.Fprintf(&b, "\nfunc scan%s%s {\n", svcFn, sig.sig)
 		fmt.Fprintf(&b, "\t// TODO: "+sig.body+"\n", svcFn)
-		b.WriteString("\treturn 0, 0, nil\n}\n")
+		b.WriteString("\treturn 0, nil\n}\n")
 	}
 	// gofmt the result so the emitted file is drop-in clean. On the (unexpected)
 	// event of a syntax error, return the raw source so the human can debug it.

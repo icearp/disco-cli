@@ -257,7 +257,7 @@ func sesHandlers(c *sesCalls) map[string]func(any) (any, error) {
 
 // sesTagScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func sesTagScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func sesTagScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, sesTagDenied)
@@ -296,7 +296,9 @@ func TestScanSES_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 	calls := newSESCalls()
 
-	total, inserted, err := sesTagScan(t, st, sesHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := sesTagScan(t, counted, sesHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -365,17 +367,17 @@ func TestScanSES_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSES_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newSESCalls()
-	if _, _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
+	if _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := sesTagScan(t, st, sesHandlers(calls))
+	total, err := sesTagScan(t, st, sesHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -416,7 +418,7 @@ func TestScanSES_TagReadFailures(t *testing.T) {
 					calls := newSESCalls()
 					calls.errs[target.row.arn] = c.err
 
-					_, _, err := sesTagScan(t, st, sesHandlers(calls))
+					_, err := sesTagScan(t, st, sesHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -498,7 +500,7 @@ func TestScanSES_GetFailuresKeepTheListElement(t *testing.T) {
 					calls := newSESCalls()
 					calls.getErrs[target.stub+" tagged"] = c.err
 
-					_, _, err := sesTagScan(t, st, sesHandlers(calls))
+					_, err := sesTagScan(t, st, sesHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -546,7 +548,7 @@ func TestScanSES_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[sesTestARN("contact-list", "tagged")] = sesTagThrottle
 	calls.errs[sesTestARN("contact-list", "bare")] = sesTagBadInput
 
-	_, _, err := sesTagScan(t, st, sesHandlers(calls))
+	_, err := sesTagScan(t, st, sesHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -564,7 +566,7 @@ func TestScanSES_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newSESCalls()
 	calls.errs[sesTestARN("contact-list", "tagged")] = sesTagDenied
 
-	_, _, err := sesTagScan(t, st, sesHandlers(calls))
+	_, err := sesTagScan(t, st, sesHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -585,7 +587,7 @@ func TestScanSES_FailedWriteKeepsGetError(t *testing.T) {
 	calls := newSESCalls()
 	calls.getErrs["GetEmailIdentity tagged"] = sesTagBadInput
 
-	_, _, err := sesTagScan(t, st, sesHandlers(calls))
+	_, err := sesTagScan(t, st, sesHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -602,7 +604,7 @@ func TestScanSES_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 	handlers["ListContactLists"] = failOnCall(2, apiErr("BadRequestException", "page 2"), handlers["ListContactLists"])
 	handlers["ListAddonInstances"] = func(any) (any, error) { return nil, apiErr("ValidationException", "instances") }
 
-	_, _, err := sesTagScan(t, st, handlers)
+	_, err := sesTagScan(t, st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	if _, ok := sesRowOf(t, st, TypeSESContactList, sesTestARN("contact-list", "tagged")); !ok {
 		t.Error("contact list of the first page missing")
@@ -630,7 +632,7 @@ func TestScanSES_RepeatedTokenKeepsPages(t *testing.T) {
 		return &sesv2.ListEmailTemplatesOutput{TemplatesMetadata: []sesv2types.EmailTemplateMetadata{{TemplateName: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := sesTagScan(t, st, handlers)
+	_, err := sesTagScan(t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -661,7 +663,7 @@ func TestScanSES_UnstorableItemsWarn(t *testing.T) {
 		return &mailmanager.ListRelaysOutput{Relays: []mmtypes.Relay{{RelayName: s("no-id")}, {RelayId: s("tagged")}}}, nil
 	}
 
-	if _, _, err := sesTagScan(t, st, handlers); err != nil {
+	if _, err := sesTagScan(t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, got := range warnings {
@@ -698,7 +700,7 @@ func TestScanSES_NXDOMAIN(t *testing.T) {
 		for _, op := range mmOps {
 			handlers[op] = func(any) (any, error) { return nil, nx("mail-manager") }
 		}
-		total, _, err := sesTagScan(t, st, handlers)
+		total, err := sesTagScan(t, st, handlers)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -716,7 +718,7 @@ func TestScanSES_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx("email"))
-		_, _, err := scanSES(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSES(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 	})
 	// The first Mail Manager listing stores its first page before its second
@@ -727,7 +729,7 @@ func TestScanSES_NXDOMAIN(t *testing.T) {
 		calls := newSESCalls()
 		handlers := sesHandlers(calls)
 		handlers["ListAddonInstances"] = failOnCall(2, nx("mail-manager"), handlers["ListAddonInstances"])
-		_, _, err := sesTagScan(t, st, handlers)
+		_, err := sesTagScan(t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if _, ok := sesRowOf(t, st, TypeSESMailManagerAddonInstance, sesElementARN("addon-instance", "tagged")); !ok {
 			t.Error("add-on instance of the first page missing")
@@ -741,7 +743,7 @@ func TestScanSES_NXDOMAIN(t *testing.T) {
 		calls := newSESCalls()
 		handlers := sesHandlers(calls)
 		handlers["ListRuleSets"] = func(any) (any, error) { return nil, nx("mail-manager") }
-		_, _, err := sesTagScan(t, st, handlers)
+		_, err := sesTagScan(t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if _, ok := sesRowOf(t, st, TypeSESMailManagerTrafficPolicy, mmTestARN("traffic-policy", "tagged")); !ok {
 			t.Error("traffic policy, listed after the failure, missing")
@@ -758,7 +760,7 @@ func TestScanSES_EventDestinationsOfDeletedSetSkipped(t *testing.T) {
 	calls := newSESCalls()
 	calls.getErrs["GetConfigurationSetEventDestinations tagged"] = sesTagGone
 
-	if _, _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
+	if _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeSESConfigurationSetEventDestination)

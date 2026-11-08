@@ -41,14 +41,14 @@ type ecsAPI interface {
 // can run into the service deadline. Each side's transient error is demoted to
 // a warning only beside a hard error: joined, it would be buried in the hard
 // error instead of reported under its op.
-func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ecs.NewFromConfig(acct.cfg, func(o *ecs.Options) { o.Region = region })
-	total, inserted, serr := scanECSAccountSettings(ctx, client, acct, region, st, scanID)
-	t, i, err := scanECSClusterPhases(ctx, client, acct, region, st, scanID)
+	total, serr := scanECSAccountSettings(ctx, client, acct, region, st, scanID)
+	t, err := scanECSClusterPhases(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs
 	errs.add(ecsListAccountSettingsOp, serr)
 	errs.add("ecs", err)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return total + t, errs.join(st, acct, region)
 }
 
 // scanECSClusterPhases discovers ECS clusters, services, task definitions and
@@ -57,53 +57,50 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 // clusters, services and task-definitions phases stop at the first error; the
 // extended and compute-extra phases run regardless, and only a failed store
 // write stops them.
-func scanECSClusterPhases(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	clusterARNs, tt, nn, err := scanECSClusters(ctx, client, acct, region, st, scanID)
+func scanECSClusterPhases(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
+	clusterARNs, tt, err := scanECSClusters(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	total += tt
-	inserted += nn
 
-	tt, nn, err = scanECSServices(ctx, client, acct, region, clusterARNs, st, scanID)
+	tt, err = scanECSServices(ctx, client, acct, region, clusterARNs, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += tt
-	inserted += nn
 
-	tt, nn, err = scanECSTaskDefinitions(ctx, client, acct, region, st, scanID)
+	tt, err = scanECSTaskDefinitions(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += tt
-	inserted += nn
 
 	// The extended phases store what they read before returning an error, so
 	// their counts are kept and compute-extra runs whatever they return,
 	// except after a failed write.
-	p := phaseTotals{total: total, inserted: inserted}
-	tt, nn, err = scanECSExtended(ctx, client, acct, region, st, scanID, clusterARNs)
-	if p.addPhase("ecs", tt, nn, err) {
+	p := phaseTotals{total: total}
+	tt, err = scanECSExtended(ctx, client, acct, region, st, scanID, clusterARNs)
+	if p.addPhase("ecs", tt, err) {
 		return p.result(st, acct, region)
 	}
-	tt, nn, err = scanECSComputeExtra(ctx, client, acct, region, st, scanID, clusterARNs)
-	p.addPhase("ecs", tt, nn, err)
+	tt, err = scanECSComputeExtra(ctx, client, acct, region, st, scanID, clusterARNs)
+	p.addPhase("ecs", tt, err)
 	return p.result(st, acct, region)
 }
 
 // scanECSClusters pages through ListClusters, batch-describes each page via
 // DescribeClusters (max 100 per call), and returns all cluster ARNs for
 // scanECSServices.
-func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total, inserted int, err error) {
+func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total int, err error) {
 	pager := ecs.NewListClustersPaginator(client, &ecs.ListClustersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "ecs:ListClusters", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "ecs:ListClusters", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("ecs:ListClusters: %w", err)
+			return nil, 0, fmt.Errorf("ecs:ListClusters: %w", err)
 		}
 		clusterARNs = append(clusterARNs, page.ClusterArns...)
 	}
@@ -118,9 +115,9 @@ func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region s
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return clusterARNs, total, inserted, nil // proceed with services even if describe is denied
+				return clusterARNs, total, nil // proceed with services even if describe is denied
 			}
-			return nil, 0, 0, fmt.Errorf("ecs:DescribeClusters: %w", err)
+			return nil, 0, fmt.Errorf("ecs:DescribeClusters: %w", err)
 		}
 		var batch []*store.Resource
 		for _, c := range resp.Clusters {
@@ -139,20 +136,19 @@ func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region s
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return nil, 0, 0, fmt.Errorf("upsert ECS clusters: %w", err)
+				return nil, 0, fmt.Errorf("upsert ECS clusters: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return clusterARNs, total, inserted, nil
+	return clusterARNs, total, nil
 }
 
 // scanECSServices iterates each cluster ARN, pages through ListServices, and
 // batch-describes services via DescribeServices (max 10 per call).
-func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total int, err error) {
 	listDenied := false
 	for _, clusterARN := range clusterARNs {
 		var serviceARNs []string
@@ -169,7 +165,7 @@ func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region s
 					}
 					break
 				}
-				return total, inserted, fmt.Errorf("ecs:ListServices (cluster %s): %w", clusterARN, err)
+				return total, fmt.Errorf("ecs:ListServices (cluster %s): %w", clusterARN, err)
 			}
 			serviceARNs = append(serviceARNs, page.ServiceArns...)
 		}
@@ -187,7 +183,7 @@ func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region s
 				if isAccessDenied(err) {
 					break
 				}
-				return total, inserted, fmt.Errorf("ecs:DescribeServices (cluster %s): %w", clusterARN, err)
+				return total, fmt.Errorf("ecs:DescribeServices (cluster %s): %w", clusterARN, err)
 			}
 			var batch []*store.Resource
 			for _, svc := range resp.Services {
@@ -207,12 +203,11 @@ func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region s
 				})
 			}
 			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
+				_, err := st.UpsertResources(batch)
 				if err != nil {
-					return total, inserted, fmt.Errorf("upsert ECS services: %w", err)
+					return total, fmt.Errorf("upsert ECS services: %w", err)
 				}
 				total += len(batch)
-				inserted += n
 			}
 		}
 	}
@@ -221,7 +216,7 @@ func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region s
 
 // scanECSTaskDefinitions lists all ACTIVE task definition ARNs and describes
 // each concurrently (DescribeTaskDefinition has no batch API).
-func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var allARNs []string
 	pager := ecs.NewListTaskDefinitionsPaginator(client, &ecs.ListTaskDefinitionsInput{
 		Status: ecstypes.TaskDefinitionStatusActive,
@@ -230,9 +225,9 @@ func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, r
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ecs:ListTaskDefinitions", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "ecs:ListTaskDefinitions", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("ecs:ListTaskDefinitions: %w", err)
+			return 0, fmt.Errorf("ecs:ListTaskDefinitions: %w", err)
 		}
 		allARNs = append(allARNs, page.TaskDefinitionArns...)
 	}
@@ -277,15 +272,14 @@ func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, r
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert ECS task definitions: %w", err)
+			return 0, fmt.Errorf("upsert ECS task definitions: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }

@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanMaps discovers Azure Maps accounts.
-func scanMaps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMaps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armmaps.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armmaps:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armmaps:NewAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armmaps:Accounts.ListBySubscription", TypeMapsAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

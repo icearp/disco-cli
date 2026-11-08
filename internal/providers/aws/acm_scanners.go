@@ -80,15 +80,15 @@ var errACMNoCertificate = errors.New("acm:DescribeCertificate returned no Certif
 // read with ListTagsForCertificate; ACME endpoints, external account bindings
 // and domain validations with ListTagsForResource, whose denials are one
 // warning for the whole scan. ACME accounts have no ARN and no tag operation.
-func scanACM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanACM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := acm.NewFromConfig(acct.cfg, func(o *acm.Options) { o.Region = region })
 	tags := acmResourceTags(client).sharingDenials()
 	var endpoints []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "acm", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "acm", 0, []hostPhase{
 		{op: "acm:ListCertificates", run: func(p *phaseTotals) bool {
 			return scanACMCertificates(ctx, client, acct, region, st, scanID, p)
 		}},
-		countedPhase(0, "acm:GetAccountConfiguration", func() (int, int, error) {
+		countedPhase(0, "acm:GetAccountConfiguration", func() (int, error) {
 			return scanACMAccountConfig(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "acm:ListAcmeEndpoints", run: func(p *phaseTotals) (failed bool) {
@@ -98,7 +98,7 @@ func scanACM(ctx context.Context, acct *account, region string, st *store.Store,
 		{op: "acm:ListAcmeExternalAccountBindings", run: func(p *phaseTotals) bool {
 			return scanACMAcmeExternalAccountBindings(ctx, client, acct, region, st, scanID, endpoints, tags, p)
 		}},
-		countedPhase(0, "acm:ListAcmeAccounts", func() (int, int, error) {
+		countedPhase(0, "acm:ListAcmeAccounts", func() (int, error) {
 			return scanACMAcmeAccounts(ctx, client, acct, region, st, scanID, endpoints)
 		}),
 		{op: "acm:ListAcmeDomainValidations", run: func(p *phaseTotals) bool {
@@ -106,7 +106,7 @@ func scanACM(ctx context.Context, acct *account, region string, st *store.Store,
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // acmCertificateTags reads a certificate's tags with ListTagsForCertificate,
@@ -258,7 +258,7 @@ func acmAcmeAccountNativeID(endpointARN, accountURL string) string {
 // endpoint's failure costs the others none of theirs. The list element has
 // every field DescribeAcmeAccount returns, so no describe call follows. An
 // account has no ARN and no tag operation, so no tags are read.
-func scanACMAcmeAccounts(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string, endpoints []childParent) (int, int, error) {
+func scanACMAcmeAccounts(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string, endpoints []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, "acm:ListAcmeAccounts", acmNotFound, endpoints, nil, nil,
 		func(ctx context.Context, endpoint childParent, token *string) ([]acmtypes.AcmeAccountSummary, *string, error) {
 			out, err := client.ListAcmeAccounts(ctx, &acm.ListAcmeAccountsInput{
@@ -339,13 +339,13 @@ func scanACMAcmeDomainValidations(ctx context.Context, client acmAPI, acct *acco
 // scanACMAccountConfig discovers the per-(account, region) ACM expiry-events
 // config as a single aws:acm:account row. NativeID synthesized:
 // arn:{p}:acm:{r}:{a}:account.
-func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetAccountConfiguration(ctx, &acm.GetAccountConfigurationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "acm:GetAccountConfiguration", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "acm:GetAccountConfiguration", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("acm:GetAccountConfiguration: %w", err)
+		return 0, fmt.Errorf("acm:GetAccountConfiguration: %w", err)
 	}
 	arn := arnFor(acct.partition(), "acm", region, acct.ID, "account")
 	name := "account"

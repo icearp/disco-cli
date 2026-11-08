@@ -205,7 +205,7 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			total, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
 			// reportStored reports what the service stored: quota limits apart
 			// from resources.
 			reportStored := func(errCount int) {

@@ -99,7 +99,7 @@ type bacPageFunc[Item any] func(ctx context.Context, token *string) ([]Item, *st
 // bacParentPageFunc reads one page of a parent's child listing.
 type bacParentPageFunc[Item any] func(ctx context.Context, parent string, token *string) ([]Item, *string, error)
 
-func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := bac.NewFromConfig(acct.cfg, func(o *bac.Options) {
 		o.Region = region
 		// AgentCore Control returns a *retryable* HTTP 500
@@ -128,18 +128,18 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 // (scanBACABTests), and its counts are kept out of p, since its rows prove
 // nothing about the control-plane host to resultLateNXDOMAIN; they only
 // keep a control-plane NXDOMAIN from reporting the region unavailable.
-func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAgentCoreDataAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAgentCoreDataAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		p                                                phaseTotals
 		tags                                             = bacTags(client)
 		gateways, runtimes, engines, harnesses, managers []childParent
 		registries                                       []childParent
-		abTotal, abInserted                              int
+		abTotal                                          int
 	)
-	counted := func(op string, run func() (int, int, error)) func() bool {
+	counted := func(op string, run func() (int, error)) func() bool {
 		return func() bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
+			t, err := run()
+			return p.addPhase(op, t, err)
 		}
 	}
 	phases := []func() bool{
@@ -161,17 +161,17 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 		},
 		func() bool {
 			var (
-				t, i int
-				err  error
+				t   int
+				err error
 			)
-			t, i, registries, err = scanBACRegistries(ctx, client, acct, region, st, scanID)
-			return p.addPhase("bedrockagentcore:ListRegistries", t, i, err)
+			t, registries, err = scanBACRegistries(ctx, client, acct, region, st, scanID)
+			return p.addPhase("bedrockagentcore:ListRegistries", t, err)
 		},
 		func() (stop bool) {
 			managers, stop = scanBACPaymentManagers(ctx, client, acct, region, st, scanID, tags, &p)
 			return stop
 		},
-		counted("bedrockagentcore:ListGatewayTargets", func() (int, int, error) {
+		counted("bedrockagentcore:ListGatewayTargets", func() (int, error) {
 			return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gateways)
 		}),
 		func() bool { return scanBACRuntimeEndpoints(ctx, client, acct, region, st, scanID, runtimes, tags, &p) },
@@ -183,10 +183,10 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 		func() bool { return scanBACEvaluators(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanBACMemories(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanBACOnlineEvalConfigs(ctx, client, acct, region, st, scanID, tags, &p) },
-		counted("bedrockagentcore:ListPolicies", func() (int, int, error) {
+		counted("bedrockagentcore:ListPolicies", func() (int, error) {
 			return scanBACPolicies(ctx, client, acct, region, st, scanID, engines)
 		}),
-		counted("bedrockagentcore:ListPolicyGenerations", func() (int, int, error) {
+		counted("bedrockagentcore:ListPolicyGenerations", func() (int, error) {
 			return scanBACPolicyGenerations(ctx, client, acct, region, st, scanID, engines)
 		}),
 		func() bool { return scanBACWorkloadIdentities(ctx, client, acct, region, st, scanID, tags, &p) },
@@ -195,25 +195,25 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 		func() bool {
 			return scanBACHarnessEndpoints(ctx, client, acct, region, st, scanID, harnesses, tags, &p)
 		},
-		counted("bedrockagentcore:ListRegistryRecords", func() (int, int, error) {
+		counted("bedrockagentcore:ListRegistryRecords", func() (int, error) {
 			return scanBACRegistryRecords(ctx, client, acct, region, st, scanID, registries)
 		}),
-		counted("bedrockagentcore:ListPaymentConnectors", func() (int, int, error) {
+		counted("bedrockagentcore:ListPaymentConnectors", func() (int, error) {
 			return scanBACPaymentConnectors(ctx, client, acct, region, st, scanID, managers)
 		}),
 		func() bool { return scanBACPaymentCredentialProviders(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanBACCapacityProviders(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool { return scanBACConsentPortals(ctx, client, acct, region, st, scanID, tags, &p) },
 		func() bool {
-			t, i, err := scanBACABTests(ctx, data, acct, region, st, scanID)
-			abTotal, abInserted = t, i
+			t, err := scanBACABTests(ctx, data, acct, region, st, scanID)
+			abTotal = t
 			p.errs.add("bedrockagentcore:ListABTests", err)
 			return errors.Is(err, store.ErrStoreWrite)
 		},
-		counted("bedrockagentcore:ListGatewayRules", func() (int, int, error) {
+		counted("bedrockagentcore:ListGatewayRules", func() (int, error) {
 			return scanBACGatewayRules(ctx, client, acct, region, st, scanID, gateways)
 		}),
-		counted("bedrockagentcore:ListGatewayRateLimits", func() (int, int, error) {
+		counted("bedrockagentcore:ListGatewayRateLimits", func() (int, error) {
 			return scanBACGatewayRateLimits(ctx, client, acct, region, st, scanID, gateways)
 		}),
 	}
@@ -228,7 +228,7 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 		}
 	}
 	p.foldStop(ctx, "bedrockagentcore", notRun)
-	total, inserted, err := p.resultLateNXDOMAIN(st, acct, region)
+	total, err := p.resultLateNXDOMAIN(st, acct, region)
 	// A control-plane NXDOMAIN left after nothing of its own was stored would
 	// report the region unavailable and drop the A/B rows' counts; with A/B
 	// rows stored it is a failure of this scan instead. No failed write can
@@ -237,7 +237,7 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 	if abTotal > 0 {
 		err = lateNXDOMAIN("bedrockagentcore", err)
 	}
-	return total + abTotal, inserted + abInserted, err
+	return total + abTotal, err
 }
 
 // bacTags reads a row's tags with ListTagsForResource, sent the row's
@@ -544,7 +544,7 @@ func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 // stored. A target carries no ARN, so its NativeID is built from the gateway
 // and target ids. A gateway ResourceNotFoundException says was deleted since
 // it was listed is skipped (storeTokenEachParent).
-func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
+func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayTargets", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(nil, func(ctx context.Context, gateway string, token *string) ([]bactypes.TargetSummary, *string, error) {
 			out, err := client.ListGatewayTargets(ctx, &bac.ListGatewayTargetsInput{GatewayIdentifier: &gateway, NextToken: token, MaxResults: sdkaws.Int32(bacGatewayPageCap)})
@@ -596,7 +596,7 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 // scanBACPolicies lists the policies of each engine the policy-engine phase
 // stored. An engine ResourceNotFoundException says was deleted since it was
 // listed is skipped (storeTokenEachParent).
-func scanBACPolicies(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, int, error) {
+func scanBACPolicies(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicies", []string{"ResourceNotFoundException"}, childParentIDs(engines),
 		bacParentPages(nil, func(ctx context.Context, engine string, token *string) ([]bactypes.Policy, *string, error) {
 			out, err := client.ListPolicies(ctx, &bac.ListPoliciesInput{PolicyEngineId: &engine, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})

@@ -33,31 +33,30 @@ type mpaAPI interface {
 //
 // The resource policy phase runs after both existing phases, so its failure
 // cannot cost their rows.
-func scanMPA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMPA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := mpa.NewFromConfig(acct.cfg, func(o *mpa.Options) { o.Region = region })
 
 	var teams []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			teams, t, i, err = scanMPAApprovalTeams(ctx, client, acct, region, st, scanID)
-			return t, i, err
+	for _, phase := range []func() (int, error){
+		func() (t int, err error) {
+			teams, t, err = scanMPAApprovalTeams(ctx, client, acct, region, st, scanID)
+			return t, err
 		},
-		func() (int, int, error) { return scanMPAIdentitySources(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMPAResourcePolicies(ctx, client, acct, region, st, scanID, teams) },
+		func() (int, error) { return scanMPAIdentitySources(ctx, client, acct, region, st, scanID) },
+		func() (int, error) { return scanMPAResourcePolicies(ctx, client, acct, region, st, scanID, teams) },
 	} {
-		t, i, ferr := phase()
+		t, ferr := phase()
 		total += t
-		inserted += i
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanMPAApprovalTeams stores the approval teams and returns them as resource
 // policy fan-out parents.
-func scanMPAApprovalTeams(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanMPAApprovalTeams(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	var batch []*store.Resource
 	var teams []childParent
 	var nextToken *string
@@ -65,9 +64,9 @@ func scanMPAApprovalTeams(ctx context.Context, client mpaAPI, acct *account, reg
 		out, err := client.ListApprovalTeams(ctx, &mpa.ListApprovalTeamsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "mpa:ListApprovalTeams", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "mpa:ListApprovalTeams", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("mpa:ListApprovalTeams: %w", err)
+			return nil, 0, fmt.Errorf("mpa:ListApprovalTeams: %w", err)
 		}
 		for _, t := range out.ApprovalTeams {
 			arn := sv(t.Arn)
@@ -88,20 +87,20 @@ func scanMPAApprovalTeams(ctx context.Context, client mpaAPI, acct *account, reg
 		}
 		nextToken = out.NextToken
 	}
-	total, inserted, err := upsertBatch(st, batch, "mpa approval-teams")
-	return teams, total, inserted, err
+	total, err := upsertBatch(st, batch, "mpa approval-teams")
+	return teams, total, err
 }
 
-func scanMPAIdentitySources(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMPAIdentitySources(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListIdentitySources(ctx, &mpa.ListIdentitySourcesInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mpa:ListIdentitySources", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "mpa:ListIdentitySources", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("mpa:ListIdentitySources: %w", err)
+			return 0, fmt.Errorf("mpa:ListIdentitySources: %w", err)
 		}
 		for _, s := range out.IdentitySources {
 			arn := sv(s.IdentitySourceArn)
@@ -139,9 +138,9 @@ func scanMPAIdentitySources(ctx context.Context, client mpaAPI, acct *account, r
 // The NativeID is {teamARN}/resource-policy/{type}/{name}: GetResourcePolicy
 // keys a policy on that triple, and the returned PolicyArn is not documented
 // as unique per team.
-func scanMPAResourcePolicies(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string, teams []childParent) (int, int, error) {
+func scanMPAResourcePolicies(ctx context.Context, client mpaAPI, acct *account, region string, st *store.Store, scanID string, teams []childParent) (int, error) {
 	const op = "mpa:ListResourcePolicies"
-	total, inserted, err := childFanOut(ctx, st, acct, region, op, teams, isMPANotFound,
+	total, err := childFanOut(ctx, st, acct, region, op, teams, isMPANotFound,
 		func(ctx context.Context, team childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := mpa.NewListResourcePoliciesPaginator(client, &mpa.ListResourcePoliciesInput{ResourceArn: &team.arn})
@@ -171,9 +170,9 @@ func scanMPAResourcePolicies(ctx context.Context, client mpaAPI, acct *account, 
 			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
 			Message: "approval team ARN rejected as ResourceArn (the binding is unverified); resource policies not scanned: " + err.Error(),
 		})
-		return 0, 0, nil
+		return 0, nil
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // isMPANotFound matches an approval team deleted between the phase that

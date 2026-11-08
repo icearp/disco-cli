@@ -22,12 +22,12 @@ func init() {
 
 // scanStorage discovers Azure storage accounts and storage tasks. Storage tasks
 // live under microsoft.storage but ship via the separate armstorageactions SDK module.
-func scanStorage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorage(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			client, err := armstorage.NewAccountsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
+				return 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armstorage:Accounts.List", TypeStorageStorageAccount, sub, st, scanID,
 				client.NewListPager(nil),
@@ -36,10 +36,10 @@ func scanStorage(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 					return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			taskClient, err := armstorageactions.NewStorageTasksClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armstorageactions:NewStorageTasksClient: %w", err)
+				return 0, fmt.Errorf("armstorageactions:NewStorageTasksClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armstorageactions:StorageTasks.ListBySubscription", TypeStorageStorageTask, sub, st, scanID,
 				taskClient.NewListBySubscriptionPager(nil),

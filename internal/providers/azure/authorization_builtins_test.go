@@ -60,7 +60,9 @@ func TestScanBuiltinRoleDefsInto_NormalizesUnderTenant(t *testing.T) {
 	st := newTestStore(t)
 	const tenantID = "tenant-1"
 
-	total, inserted, err := scanBuiltinRoleDefsInto(t.Context(), "/subscriptions/sub-1", tenantID, st, testScanID, roleDefsServer(t))
+	counted, upserts := countUpserts(st)
+	total, err := scanBuiltinRoleDefsInto(t.Context(), "/subscriptions/sub-1", tenantID, counted, testScanID, roleDefsServer(t))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBuiltinRoleDefsInto: %v", err)
 	}
@@ -80,7 +82,7 @@ func TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet(t *testing.T) {
 	t.Run("tenant set → custom only", func(t *testing.T) {
 		st := newTestStore(t)
 		sub := &subscription{ID: "sub-1", tenantID: "tenant-1"}
-		total, _, err := scanRoleDefinitionsInto(t.Context(), sub, st, testScanID, roleDefsServer(t))
+		total, err := scanRoleDefinitionsInto(t.Context(), sub, st, testScanID, roleDefsServer(t))
 		if err != nil {
 			t.Fatalf("scanRoleDefinitionsInto: %v", err)
 		}
@@ -94,7 +96,7 @@ func TestScanRoleDefinitionsInto_SkipsBuiltinsWhenTenantSet(t *testing.T) {
 	t.Run("no tenant → built-in + custom", func(t *testing.T) {
 		st := newTestStore(t)
 		sub := &subscription{ID: "sub-1"} // tenantID empty
-		total, _, err := scanRoleDefinitionsInto(t.Context(), sub, st, testScanID, roleDefsServer(t))
+		total, err := scanRoleDefinitionsInto(t.Context(), sub, st, testScanID, roleDefsServer(t))
 		if err != nil {
 			t.Fatalf("scanRoleDefinitionsInto: %v", err)
 		}
@@ -132,7 +134,9 @@ func TestScanBuiltinPolicyDefsInto(t *testing.T) {
 		t.Fatalf("NewDefinitionsClient: %v", err)
 	}
 
-	total, inserted, err := scanBuiltinPolicyDefsInto(t.Context(), tenantID, st, testScanID, client)
+	counted, upserts := countUpserts(st)
+	total, err := scanBuiltinPolicyDefsInto(t.Context(), tenantID, counted, testScanID, client)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBuiltinPolicyDefsInto: %v", err)
 	}

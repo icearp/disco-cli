@@ -21,17 +21,17 @@ func init() {
 
 // scanHybridNetwork discovers Azure Operator Service Manager network functions
 // and devices, both sub-wide via armhybridnetwork.
-func scanHybridNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHybridNetwork(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	nf, err := armhybridnetwork.NewNetworkFunctionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridnetwork:NewNetworkFunctionsClient: %w", err)
+		return 0, fmt.Errorf("armhybridnetwork:NewNetworkFunctionsClient: %w", err)
 	}
 	dev, err := armhybridnetwork.NewDevicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhybridnetwork:NewDevicesClient: %w", err)
+		return 0, fmt.Errorf("armhybridnetwork:NewDevicesClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhybridnetwork:NetworkFunctions.ListBySubscription", TypeHybridNetworkFunction, sub, st, scanID,
 				nf.NewListBySubscriptionPager(nil),
 				func(p armhybridnetwork.NetworkFunctionsClientListBySubscriptionResponse) []*armhybridnetwork.NetworkFunction {
@@ -41,7 +41,7 @@ func scanHybridNetwork(ctx context.Context, sub *subscription, cred azcore.Token
 					return azTrackedBase{id: sv(f.ID), name: sv(f.Name), location: sv(f.Location), tags: f.Tags, full: f}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhybridnetwork:Devices.ListBySubscription", TypeHybridNetworkDevice, sub, st, scanID,
 				dev.NewListBySubscriptionPager(nil),
 				func(p armhybridnetwork.DevicesClientListBySubscriptionResponse) []*armhybridnetwork.Device {

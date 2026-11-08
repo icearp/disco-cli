@@ -37,7 +37,7 @@ func TestScanSnowDeviceManagement_ReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanSnowDeviceManagement(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSnowDeviceManagement(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSnowDeviceManagement: %v", err)
 	}

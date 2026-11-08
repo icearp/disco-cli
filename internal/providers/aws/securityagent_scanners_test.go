@@ -207,7 +207,7 @@ func TestScanSAPentests_StoresFullDefinitionsUnderSpaces(t *testing.T) {
 	var gets batchCalls
 	client := saClient(saPentestHandlers(&lists, &gets, nil))
 
-	total, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+	total, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 	if err != nil {
 		t.Fatalf("scanSAPentests: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestScanSAPentests_BatchGetFailureKeepsSummaries(t *testing.T) {
 			var gets batchCalls
 			client := saClient(saPentestHandlers(&lists, &gets, batchErr))
 
-			total, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+			total, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 			if err != nil {
 				t.Fatalf("scanSAPentests: %v", err)
 			}
@@ -288,7 +288,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 		var lists parentCalls
 		var gets batchCalls
 		client := saClient(saPentestHandlers(&lists, &gets, saConflict))
-		_, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		_, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		assertAPICode(t, err, "ConflictException")
 	})
 	t.Run("vanished space warns once and siblings continue", func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 			}
 			return list(in)
 		}
-		total, _, err := scanSAPentests(context.Background(), saClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		total, err := scanSAPentests(context.Background(), saClient(h), newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		if err != nil || *warns != 1 {
 			t.Fatalf("err = %v, warnings = %d; want nil, 1", err, *warns)
 		}
@@ -317,7 +317,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListPentests")
 		client := saClient(nil)
-		total, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		total, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warns)
 		}
@@ -327,7 +327,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 		client := saClient(map[string]func(in any) (any, error){
 			"ListPentests": func(any) (any, error) { return nil, saConflict },
 		})
-		_, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		_, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		assertAPICode(t, err, "ConflictException")
 	})
 	t.Run("empty space calls no batch get", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 		client := saClient(map[string]func(in any) (any, error){
 			"ListPentests": func(any) (any, error) { return &securityagent.ListPentestsOutput{}, nil },
 		})
-		total, _, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		total, err := scanSAPentests(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		if err != nil || total != 0 {
 			t.Errorf("err = %v, total = %d; want nil, 0", err, total)
 		}
@@ -351,7 +351,7 @@ func TestScanSACodeReviewsAndThreatModels(t *testing.T) {
 	cases := []struct {
 		name     string
 		handlers map[string]func(in any) (any, error)
-		scan     func(context.Context, securityAgentAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+		scan     func(context.Context, securityAgentAPI, *account, string, *store.Store, string, []childParent) (int, error)
 		typ      string
 		native   string
 	}{
@@ -392,7 +392,7 @@ func TestScanSACodeReviewsAndThreatModels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			seedSASpaces(t, st)
-			total, _, err := tc.scan(context.Background(), saClient(tc.handlers), newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+			total, err := tc.scan(context.Background(), saClient(tc.handlers), newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -448,7 +448,7 @@ func TestScanSAMemberships_StoresEveryApplicationsMembersUnderSpaces(t *testing.
 	var calls parentCalls
 	client := saClient(map[string]func(in any) (any, error){"ListMemberships": saMembershipHandler(&calls, nil)})
 
-	total, _, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1", "a2"})
+	total, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1", "a2"})
 	if err != nil {
 		t.Fatalf("scanSAMemberships: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestScanSAMemberships_Errors(t *testing.T) {
 		warns := countOpWarnings(st, "securityagent:ListMemberships")
 		var calls parentCalls
 		client := saClient(map[string]func(in any) (any, error){"ListMemberships": saMembershipHandler(&calls, map[string]error{"s1": saDenied, "s2": saDenied})})
-		total, _, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1"})
+		total, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1"})
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warns)
 		}
@@ -496,7 +496,7 @@ func TestScanSAMemberships_Errors(t *testing.T) {
 			warns := countOpWarnings(st, "securityagent:ListMemberships")
 			var calls parentCalls
 			client := saClient(map[string]func(in any) (any, error){"ListMemberships": saMembershipHandler(&calls, map[string]error{"s1/a2": pairErr, "s2": pairErr})})
-			total, _, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1", "a2"})
+			total, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1", "a2"})
 			if err != nil || *warns != 1 {
 				t.Fatalf("err = %v, warnings = %d; want nil, 1", err, *warns)
 			}
@@ -510,14 +510,14 @@ func TestScanSAMemberships_Errors(t *testing.T) {
 		st := newTestStore(t)
 		var calls parentCalls
 		client := saClient(map[string]func(in any) (any, error){"ListMemberships": saMembershipHandler(&calls, map[string]error{"s2": saConflict})})
-		_, _, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1"})
+		_, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, []string{"a1"})
 		assertAPICode(t, err, "ConflictException")
 	})
 	t.Run("no applications lists nothing", func(t *testing.T) {
 		st := newTestStore(t)
 		var calls parentCalls
 		client := saClient(map[string]func(in any) (any, error){"ListMemberships": saMembershipHandler(&calls, nil)})
-		total, _, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, nil)
+		total, err := scanSAMemberships(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces, nil)
 		if err != nil || total != 0 || len(calls.distinct()) != 0 {
 			t.Errorf("err = %v, total = %d, calls = %v; want nil, 0, none", err, total, calls.distinct())
 		}
@@ -565,7 +565,7 @@ func TestScanSAIntegratedResources_StoresKnownResourcesUnderSpaces(t *testing.T)
 	var calls parentCalls
 	client := saClient(map[string]func(in any) (any, error){"ListIntegratedResources": saIntegratedResourceHandler(&calls, nil)})
 
-	total, _, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+	total, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 	if err != nil {
 		t.Fatalf("scanSAIntegratedResources: %v", err)
 	}
@@ -603,7 +603,7 @@ func TestScanSAIntegratedResources_Errors(t *testing.T) {
 		warns := countOpWarnings(st, "securityagent:ListIntegratedResources")
 		var calls parentCalls
 		client := saClient(map[string]func(in any) (any, error){"ListIntegratedResources": saIntegratedResourceHandler(&calls, map[string]error{"s1": saGone})})
-		total, _, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		total, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		if err != nil || total != 1 || *warns != 0 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, s2's 1, 0", err, total, *warns)
 		}
@@ -612,7 +612,7 @@ func TestScanSAIntegratedResources_Errors(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListIntegratedResources")
 		client := saClient(nil)
-		total, _, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		total, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warns)
 		}
@@ -621,7 +621,7 @@ func TestScanSAIntegratedResources_Errors(t *testing.T) {
 		st := newTestStore(t)
 		var calls parentCalls
 		client := saClient(map[string]func(in any) (any, error){"ListIntegratedResources": saIntegratedResourceHandler(&calls, map[string]error{"s2": saBadInput})})
-		_, _, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
+		_, err := scanSAIntegratedResources(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saSpaces)
 		assertAPICode(t, err, "ValidationException")
 	})
 }
@@ -690,7 +690,7 @@ func TestScanSecurityAgent_StoresSpaceChildren(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(saTopLevelHandlers(), saDenied)
 
-	total, _, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanSecurityAgent: %v", err)
 	}
@@ -733,7 +733,7 @@ func TestScanSecurityAgent_PhaseErrorsAreIndependent(t *testing.T) {
 			}
 		}
 		acct.cfg = opStubConfig(h, saDenied)
-		_, _, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
 		assertAPICode(t, err, "ValidationException")
 		if got := failed.distinct(); !slices.Equal(got, newOps) {
 			t.Errorf("failing new ops called %v, want all of %v", got, newOps)
@@ -750,7 +750,7 @@ func TestScanSecurityAgent_PhaseErrorsAreIndependent(t *testing.T) {
 		h := saTopLevelHandlers()
 		h["ListTargetDomains"] = func(any) (any, error) { return nil, saBadInput }
 		acct.cfg = opStubConfig(h, saDenied)
-		_, _, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanSecurityAgent(context.Background(), acct, testRegion, st, testScanID)
 		assertAPICode(t, err, "ValidationException")
 		for _, typ := range []string{TypeSecurityAgentCodeReview, TypeSecurityAgentThreatModel, TypeSecurityAgentMembership, TypeSecurityAgentIntegratedResource, TypeSecurityAgentSecurityRequirementPack, TypeSecurityAgentSecurityRequirement} {
 			if len(rowsByNativeID(t, st, typ)) == 0 {
@@ -846,7 +846,7 @@ func TestScanSASecurityRequirements_StoresUnderPacks(t *testing.T) {
 	warns := countOpWarnings(st, "securityagent:BatchGetSecurityRequirements")
 	client := saClient(saRequirementHandlers(nil, nil))
 
-	total, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+	total, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 	if err != nil {
 		t.Fatalf("scanSASecurityRequirements: %v", err)
 	}
@@ -874,7 +874,7 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListSecurityRequirements")
 		client := saClient(saRequirementHandlers(map[string]error{"pk1": saGone}, nil))
-		total, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+		total, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		if err != nil || total != 1 || *warns != 0 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, pk2's 1, 0", err, total, *warns)
 		}
@@ -883,7 +883,7 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:BatchGetSecurityRequirements")
 		client := saClient(saRequirementHandlers(nil, saGone))
-		total, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+		total, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		if err != nil || total != 0 || *warns != 0 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 0", err, total, *warns)
 		}
@@ -892,7 +892,7 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:BatchGetSecurityRequirements")
 		client := saClient(saRequirementHandlers(nil, saBadInput))
-		total, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+		total, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		if err != nil || total != 3 || *warns != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 3, 1", err, total, *warns)
 		}
@@ -900,7 +900,7 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 	t.Run("list denied warns once", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListSecurityRequirements")
-		total, _, err := scanSASecurityRequirements(context.Background(), saClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+		total, err := scanSASecurityRequirements(context.Background(), saClient(nil), newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		if err != nil || total != 0 || *warns != 1 {
 			t.Errorf("err = %v, total = %d, warnings = %d; want nil, 0, 1", err, total, *warns)
 		}
@@ -908,7 +908,7 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 	t.Run("other error propagates", func(t *testing.T) {
 		st := newTestStore(t)
 		client := saClient(saRequirementHandlers(map[string]error{"pk2": saConflict}, nil))
-		_, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
+		_, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		assertAPICode(t, err, "ConflictException")
 	})
 }
@@ -1109,7 +1109,7 @@ func saTagHandlers(c *saTagCalls) map[string]func(in any) (any, error) {
 
 // saTagScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func saTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func saTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, saDenied)
 	return scanSecurityAgent(ctx, acct, testRegion, st, testScanID)
@@ -1137,7 +1137,9 @@ func TestScanSecurityAgent_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newSATagCalls()
 
-	total, inserted, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := saTagScan(context.Background(), counted, saTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1229,7 +1231,7 @@ func TestScanSecurityAgent_GovCloudARNsReachTagOp(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, saDenied)
 
-	total, _, err := scanSecurityAgent(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanSecurityAgent(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != len(want) {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, len(want))
 	}
@@ -1273,7 +1275,9 @@ func TestScanSecurityAgent_EmptyListings(t *testing.T) {
 		h[op] = calls.answer(op, func(any) any { return out })
 	}
 
-	total, inserted, err := saTagScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := saTagScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -1287,16 +1291,16 @@ func TestScanSecurityAgent_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanSecurityAgent_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls())); err != nil {
+	if _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls()))
+	total, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -1337,7 +1341,7 @@ func TestScanSecurityAgent_TagReadFailures(t *testing.T) {
 					calls := newSATagCalls()
 					calls.errs[target.arn] = c.err
 
-					total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+					total, err := saTagScan(context.Background(), st, saTagHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -1386,7 +1390,7 @@ func TestScanSecurityAgent_TagDenialsWarnOnce(t *testing.T) {
 		calls.errs[d.arn] = saDenied
 	}
 
-	total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	total, err := saTagScan(context.Background(), st, saTagHandlers(calls))
 	if err != nil || total != saTagRows {
 		t.Fatalf("scan = %d, %v; want %d, nil", total, err, saTagRows)
 	}
@@ -1410,7 +1414,7 @@ func TestScanSecurityAgent_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[saTagSpaceT] = saThrottled
 	calls.errs[saTagPackB] = saConflict
 
-	_, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	_, err := saTagScan(context.Background(), st, saTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ConflictException")
 	if *warns != 1 {
@@ -1455,7 +1459,7 @@ func TestScanSecurityAgent_FailedWriteStopsWithoutWarning(t *testing.T) {
 				})
 			}
 
-			_, _, err := saTagScan(context.Background(), st, h)
+			_, err := saTagScan(context.Background(), st, h)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1484,7 +1488,7 @@ func TestScanSecurityAgent_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 		h[op] = failOnCall(2, pageTwo, h[op])
 	}
 
-	total, _, err := saTagScan(context.Background(), st, h)
+	total, err := saTagScan(context.Background(), st, h)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidPaginationTokenException")
 	if n := len(bacTopMembers(err)); n != 6 {
@@ -1550,7 +1554,7 @@ func TestScanSecurityAgent_RepeatedTokenKeepsPages(t *testing.T) {
 			h := saTagHandlers(newSATagCalls())
 			h[c.op] = func(any) (any, error) { return c.out(), nil }
 
-			_, _, err := saTagScan(context.Background(), st, h)
+			_, err := saTagScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1584,7 +1588,7 @@ func TestScanSecurityAgent_UnstorableItemsWarn(t *testing.T) {
 			h := saTagHandlers(calls)
 			h[c.op] = func(any) (any, error) { return c.out, nil }
 
-			total, _, err := saTagScan(context.Background(), st, h)
+			total, err := saTagScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1625,7 +1629,7 @@ func TestScanSecurityAgent_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := saTagHandlers(calls)
 			h[c.op] = func(any) (any, error) { return nil, saDenied }
 
-			total, _, err := saTagScan(context.Background(), st, h)
+			total, err := saTagScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1656,7 +1660,7 @@ func TestScanSecurityAgent_ContextEndStopsOnce(t *testing.T) {
 		return nil, context.Canceled
 	}
 
-	_, _, err := saTagScan(ctx, st, h)
+	_, err := saTagScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1687,7 +1691,7 @@ func TestScanSecurityAgent_Unreachable(t *testing.T) {
 		calls := newSATagCalls()
 		h := saTagHandlers(calls)
 		h["ListAgentSpaces"] = func(any) (any, error) { return nil, nx }
-		total, _, err := saTagScan(context.Background(), st, h)
+		total, err := saTagScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("ListApplications") != 0 {
 			t.Errorf("total, ListApplications calls = %d, %d; want 0, 0", total, calls.count("ListApplications"))
@@ -1697,7 +1701,7 @@ func TestScanSecurityAgent_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newSATagCalls()
 		calls.errs[saTagIntegB] = nx
-		total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+		total, err := saTagScan(context.Background(), st, saTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != saTagRows {
 			t.Errorf("total = %d; want %d", total, saTagRows)

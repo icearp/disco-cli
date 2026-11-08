@@ -106,11 +106,11 @@ type rowAccessPolicyAttrs struct {
 // "Embedding child data in parent attributes" convention
 // (`internal/providers/CLAUDE.md`), since the IAM policy has no independent
 // lifecycle apart from its row access policy.
-func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := bigquery.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("bigquery client: %w", err)
+		return 0, fmt.Errorf("bigquery client: %w", err)
 	}
 	return scanBigQueryWithClient(ctx, svc, p, st, scanID)
 }
@@ -125,8 +125,7 @@ type bqDatasetRef struct {
 
 // bigQueryScan holds the shared state threaded through a single BigQuery scan:
 // the SDK client, project, store, scan ID, and the mutex-guarded running
-// (total, inserted) upsert counters. The mutex guards the counters across the
-// bounded per-dataset fan-out. Scoped to one scanBigQueryWithClient call; not
+// total. The mutex guards the total across the bounded per-dataset fan-out. Scoped to one scanBigQueryWithClient call; not
 // safe for concurrent use across scans.
 type bigQueryScan struct {
 	svc    *bigquery.Service
@@ -134,9 +133,8 @@ type bigQueryScan struct {
 	st     *store.Store
 	scanID string
 
-	mu       sync.Mutex
-	total    int
-	inserted int
+	mu    sync.Mutex
+	total int
 }
 
 // scanDataset runs the per-dataset phase-2 work: Datasets.Get for the full
@@ -168,9 +166,8 @@ func (s *bigQueryScan) scanDataset(ctx context.Context, d bqDatasetRef) error {
 		DiscoveredBy:   s.scanID,
 	}
 	s.mu.Lock()
-	tt, nn, uerr := upsertWithProjClosure(s.p, s.st, []*store.Resource{dsResource})
+	tt, uerr := upsertWithProjClosure(s.p, s.st, []*store.Resource{dsResource})
 	s.total += tt
-	s.inserted += nn
 	s.mu.Unlock()
 	if uerr != nil {
 		return uerr
@@ -211,9 +208,8 @@ func (s *bigQueryScan) scanTables(ctx context.Context, d bqDatasetRef, region, d
 			})
 		}
 		s.mu.Lock()
-		bt, bn, berr := upsertWithParent(s.st, batch, dsResourceID)
+		bt, berr := upsertWithParent(s.st, batch, dsResourceID)
 		s.total += bt
-		s.inserted += bn
 		s.mu.Unlock()
 		if berr != nil {
 			return berr
@@ -278,9 +274,8 @@ func (s *bigQueryScan) scanRowAccessPolicies(ctx context.Context, d bqDatasetRef
 			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			rt, rn, rerr := upsertWithParent(s.st, rbatch, tableResID)
+			rt, rerr := upsertWithParent(s.st, rbatch, tableResID)
 			s.total += rt
-			s.inserted += rn
 			return rerr
 		})
 		if rerr != nil {
@@ -302,9 +297,9 @@ func (s *bigQueryScan) scanRowAccessPolicies(ctx context.Context, d bqDatasetRef
 
 // scanModels lists a dataset's ML models, parented under the dataset.
 func (s *bigQueryScan) scanModels(ctx context.Context, d bqDatasetRef, region, dsResourceID string) error {
-	if _, _, err := runPaginated(ctx, s.st, s.p, "bigquery:models.list",
+	if _, err := runPaginated(ctx, s.st, s.p, "bigquery:models.list",
 		s.svc.Models.List(d.projectID, d.datasetID),
-		func(page *bigquery.ListModelsResponse) (int, int, error) {
+		func(page *bigquery.ListModelsResponse) (int, error) {
 			var batch []*store.Resource
 			for _, m := range page.Models {
 				if m == nil || m.ModelReference == nil || m.ModelReference.ModelId == "" {
@@ -331,10 +326,9 @@ func (s *bigQueryScan) scanModels(ctx context.Context, d bqDatasetRef, region, d
 			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			mt, mn, merr := upsertWithParent(s.st, batch, dsResourceID)
+			mt, merr := upsertWithParent(s.st, batch, dsResourceID)
 			s.total += mt
-			s.inserted += mn
-			return mt, mn, merr
+			return mt, merr
 		}); err != nil {
 		return err
 	}
@@ -345,10 +339,10 @@ func (s *bigQueryScan) scanModels(ctx context.Context, d bqDatasetRef, region, d
 // ReadMask additionally populates SparkOptions (bare List omits it) — see the
 // SparkOptions.Connection resolver note above.
 func (s *bigQueryScan) scanRoutines(ctx context.Context, d bqDatasetRef, region, dsResourceID string) error {
-	if _, _, err := runPaginated(ctx, s.st, s.p, "bigquery:routines.list",
+	if _, err := runPaginated(ctx, s.st, s.p, "bigquery:routines.list",
 		s.svc.Routines.List(d.projectID, d.datasetID).ReadMask(
 			"etag,routineReference,routineType,creationTime,lastModifiedTime,language,definitionBody,importedLibraries,sparkOptions,remoteFunctionOptions"),
-		func(page *bigquery.ListRoutinesResponse) (int, int, error) {
+		func(page *bigquery.ListRoutinesResponse) (int, error) {
 			var batch []*store.Resource
 			for _, rt := range page.Routines {
 				if rt == nil || rt.RoutineReference == nil || rt.RoutineReference.RoutineId == "" {
@@ -371,10 +365,9 @@ func (s *bigQueryScan) scanRoutines(ctx context.Context, d bqDatasetRef, region,
 			}
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			rtt, rtn, rterr := upsertWithParent(s.st, batch, dsResourceID)
+			rtt, rterr := upsertWithParent(s.st, batch, dsResourceID)
 			s.total += rtt
-			s.inserted += rtn
-			return rtt, rtn, rterr
+			return rtt, rterr
 		}); err != nil {
 		return err
 	}
@@ -383,12 +376,12 @@ func (s *bigQueryScan) scanRoutines(ctx context.Context, d bqDatasetRef, region,
 
 // scanBigQueryWithClient is the test seam for scanBigQuery — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: list datasets (cheap stub) so we know which IDs to deep-get.
 	var datasets []bqDatasetRef
-	if _, _, err := runPaginated(ctx, st, p, "bigquery:datasets.list",
+	if _, err := runPaginated(ctx, st, p, "bigquery:datasets.list",
 		svc.Datasets.List(p.ID),
-		func(page *bigquery.DatasetList) (int, int, error) {
+		func(page *bigquery.DatasetList) (int, error) {
 			for _, d := range page.Datasets {
 				if d.DatasetReference == nil {
 					continue
@@ -398,15 +391,15 @@ func scanBigQueryWithClient(ctx context.Context, svc *bigquery.Service, p *proje
 					projectID: d.DatasetReference.ProjectId,
 				})
 			}
-			return 0, 0, nil
+			return 0, nil
 		}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	// Phase 2: per-dataset Get + Tables.List, bounded fan-out.
 	s := &bigQueryScan{svc: svc, p: p, st: st, scanID: scanID}
 	if err := forEachItem(ctx, maxConcurrentBQDatasets, datasets, s.scanDataset); err != nil {
-		return s.total, s.inserted, err
+		return s.total, err
 	}
-	return s.total, s.inserted, nil
+	return s.total, nil
 }

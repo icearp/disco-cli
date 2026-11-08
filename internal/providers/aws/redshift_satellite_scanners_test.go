@@ -57,9 +57,9 @@ type rsListCase struct {
 
 func rsListCases() []rsListCase {
 	acct := newTestAccount(testAccountID)
-	runner := func(f func(context.Context, redshiftSatelliteAPI, *account, string, *store.Store, string) (int, int, error)) func(context.Context, redshiftSatelliteAPI, *store.Store) (int, error) {
+	runner := func(f func(context.Context, redshiftSatelliteAPI, *account, string, *store.Store, string) (int, error)) func(context.Context, redshiftSatelliteAPI, *store.Store) (int, error) {
 		return func(ctx context.Context, c redshiftSatelliteAPI, st *store.Store) (int, error) {
-			total, _, err := f(ctx, c, acct, testRegion, st, testScanID)
+			total, err := f(ctx, c, acct, testRegion, st, testScanID)
 			return total, err
 		}
 	}
@@ -223,10 +223,10 @@ func TestScanRedshiftListPhases_RowFields(t *testing.T) {
 		"DescribeReservedNodes":          rsReservedNodesHandler,
 		"DescribeQev2IdcApplications":    rsQev2Handler,
 	})
-	for _, f := range []func(context.Context, redshiftSatelliteAPI, *account, string, *store.Store, string) (int, int, error){
+	for _, f := range []func(context.Context, redshiftSatelliteAPI, *account, string, *store.Store, string) (int, error){
 		scanRedshiftAuthenticationProfiles, scanRedshiftReservedNodes, scanRedshiftQev2IdcApplications,
 	} {
-		if _, _, err := f(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
+		if _, err := f(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 	}
@@ -305,7 +305,7 @@ func TestScanRedshiftCustomDomainAssociations_PairsUnderStoredClusters(t *testin
 	client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": rsDomainHandler(nil)})
 	warns := countOpWarnings(st, "redshift:DescribeCustomDomainAssociations")
 
-	total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
+	total, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestScanRedshiftCustomDomainAssociations_NoClustersNoCall(t *testing.T) {
 		t.Fatal("DescribeCustomDomainAssociations called with no clusters")
 		return nil, nil
 	}})
-	total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	total, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Fatalf("total = %d, err = %v; want 0, nil", total, err)
 	}
@@ -362,7 +362,7 @@ func TestScanRedshiftCustomDomainAssociations_FailedFirstPage(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "redshift:DescribeCustomDomainAssociations")
 			client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": func(any) (any, error) { return nil, tc.err }})
-			total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
+			total, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
 			if *warns != tc.wantWarn {
 				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
 			}
@@ -393,7 +393,7 @@ func TestScanRedshiftCustomDomainAssociations_FailedLaterPageKeepsPairs(t *testi
 			upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c2"), testRegion, "{}")
 			warns := countOpWarnings(st, "redshift:DescribeCustomDomainAssociations")
 			client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": rsDomainHandler(tc.err)})
-			total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
+			total, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
 			if *warns != tc.wantWarn {
 				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
 			}
@@ -420,7 +420,7 @@ func TestScanRedshiftCustomDomainAssociations_RepeatedMarker(t *testing.T) {
 		}
 		return rsDomainPage(ptrStr("p2"), rsAssoc(rsCert, [2]string{"c1", "c.example.com"})), nil
 	}})
-	total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
+	total, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -457,7 +457,7 @@ func TestScanRedshiftPartners_EveryClusterQueried(t *testing.T) {
 	var calls parentCalls
 	client := rsClient(map[string]func(any) (any, error){"DescribePartners": rsPartnerHandler(&calls, nil)})
 
-	total, _, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
+	total, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestScanRedshiftPartners_FailedCluster(t *testing.T) {
 			warns := countOpWarnings(st, "redshift:DescribePartners")
 			var calls parentCalls
 			client := rsClient(map[string]func(any) (any, error){"DescribePartners": rsPartnerHandler(&calls, map[string]error{"bad1": tc.err, "bad2": tc.err})})
-			total, _, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("bad1", "ok", "bad2"))
+			total, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("bad1", "ok", "bad2"))
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -517,7 +517,7 @@ func TestScanRedshiftPartners_FailedCluster(t *testing.T) {
 		st := newTestStore(t)
 		var calls parentCalls
 		client := rsClient(map[string]func(any) (any, error){"DescribePartners": rsPartnerHandler(&calls, map[string]error{"bad": rsBadInput})})
-		_, _, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("bad"))
+		_, err := scanRedshiftPartners(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("bad"))
 		assertAPICode(t, err, "InvalidParameterValue")
 	})
 }
@@ -550,7 +550,7 @@ func TestScanRedshift_StoresSatellitesUnderListedClusters(t *testing.T) {
 	var calls parentCalls
 	acct.cfg = opStubConfig(rsTopLevelHandlers(&calls), rsDenied)
 
-	if _, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanRedshift: %v", err)
 	}
 	for typ, n := range map[string]int{
@@ -589,7 +589,7 @@ func TestScanRedshift_SkipCodeLetsLaterPhasesRun(t *testing.T) {
 			handlers[tc.op] = func(any) (any, error) { return nil, &smithy.GenericAPIError{Code: tc.code} }
 			acct.cfg = opStubConfig(handlers, rsDenied)
 
-			if _, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID); err != nil {
+			if _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanRedshift: %v", err)
 			}
 			if *warns != 0 {
@@ -622,7 +622,7 @@ func TestScanRedshift_SatelliteErrorAfterExistingPhases(t *testing.T) {
 			}
 			acct.cfg = opStubConfig(handlers, rsDenied)
 
-			_, _, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanRedshift(context.Background(), acct, testRegion, st, testScanID)
 			if !failed.Load() {
 				t.Fatalf("%s never called", op)
 			}

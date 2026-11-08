@@ -459,7 +459,7 @@ func TestScanNetworkFirewall_StoresProxyAndContainerAssociationRows(t *testing.T
 	t.Parallel()
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, nfTopLevelResponses(nil)), testRegion)}
-	total, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanNetworkFirewall: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestScanNetworkFirewall_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			st := newTestStore(t)
 			responses := nfTopLevelResponses(map[string][]stubCall{op: boom})
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-			if _, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InternalServerError") {
+			if _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InternalServerError") {
 				t.Fatalf("err = %v; want the %s InternalServerError", err, op)
 			}
 			for _, rtype := range []string{TypeNetworkFirewallRuleGroup, TypeNetworkFirewallProxyRuleGroup} {

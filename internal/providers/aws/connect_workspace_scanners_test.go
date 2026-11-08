@@ -113,7 +113,9 @@ func TestScanConnectWorkspace(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanConnectWorkspace(context.Background(), stub, instances, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectWorkspace(context.Background(), stub, instances, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -139,7 +141,9 @@ func TestScanConnectWorkspaceEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectWorkspace{}
-	total, inserted, err := scanConnectWorkspace(context.Background(), stub, nil, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanConnectWorkspace(context.Background(), stub, nil, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

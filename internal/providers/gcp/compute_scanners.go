@@ -24,102 +24,101 @@ func init() {
 // scanCompute discovers Compute Engine instances, VPC networks, subnetworks,
 // and firewalls. Uses AggregatedList for instances/subnetworks so all zones
 // are covered in a single API call.
-func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("compute client: %w", err)
+		return 0, fmt.Errorf("compute client: %w", err)
 	}
 
-	for _, sub := range []func() (int, int, error){
-		func() (int, int, error) { return scanComputeInstances(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeSubnetworks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeFirewalls(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeDisks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionDisks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeImages(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeMachineImages(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeSnapshots(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionSnapshots(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInstantSnapshots(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionInstantSnapshots(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInstantSnapshotGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionInstantSnapshotGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeStoragePools(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInstanceGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionInstanceGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInstanceGroupManagers(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionInstanceGroupManagers(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInstanceTemplates(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeAddresses(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeGlobalAddresses(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputePublicAdvertisedPrefixes(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputePublicDelegatedPrefixes(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRoutes(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRouters(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeVpnGateways(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeExternalVpnGateways(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetVpnGateways(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeVpnTunnels(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworkAttachments(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworkEndpointGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionNetworkEndpointGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeGlobalNetworkEndpointGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworkFirewallPolicies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworkProfiles(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNodeGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNodeTemplates(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputePacketMirrorings(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeServiceAttachments(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeNetworkEdgeSecurityServices(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeCrossSiteNetworks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInterconnects(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInterconnectAttachments(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInterconnectGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeInterconnectAttachmentGroups(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeGlobalForwardingRules(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeHealthChecks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionCompositeHealthChecks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionHealthAggregationPolicies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionHealthCheckServices(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionHealthSources(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionNotificationEndpoints(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeHTTPHealthChecks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeHTTPSHealthChecks(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeSslCertificates(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeSslPolicies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetSslProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetTCPProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetGrpcProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionTargetHTTPProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionTargetHTTPSProxies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionURLMaps(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionBackendBuckets(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetInstances(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeTargetPools(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeAutoscalers(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeReservations(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeFutureReservations(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionCommitments(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeResourcePolicies(ctx, svc, p, st, scanID) },
-		func() (int, int, error) { return scanComputeRegionSecurityPolicies(ctx, svc, p, st, scanID) },
+	for _, sub := range []func() (int, error){
+		func() (int, error) { return scanComputeInstances(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeSubnetworks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeFirewalls(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeDisks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionDisks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeImages(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeMachineImages(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInstantSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionInstantSnapshots(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInstantSnapshotGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionInstantSnapshotGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeStoragePools(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInstanceGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionInstanceGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInstanceGroupManagers(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionInstanceGroupManagers(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInstanceTemplates(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeAddresses(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeGlobalAddresses(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputePublicAdvertisedPrefixes(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputePublicDelegatedPrefixes(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRoutes(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRouters(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeVpnGateways(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeExternalVpnGateways(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetVpnGateways(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeVpnTunnels(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworkAttachments(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworkEndpointGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionNetworkEndpointGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeGlobalNetworkEndpointGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworkFirewallPolicies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworkProfiles(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNodeGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNodeTemplates(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputePacketMirrorings(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeServiceAttachments(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeNetworkEdgeSecurityServices(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeCrossSiteNetworks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInterconnects(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInterconnectAttachments(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInterconnectGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeInterconnectAttachmentGroups(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeGlobalForwardingRules(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeHealthChecks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionCompositeHealthChecks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionHealthAggregationPolicies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionHealthCheckServices(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionHealthSources(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionNotificationEndpoints(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeHTTPHealthChecks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeHTTPSHealthChecks(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeSslCertificates(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeSslPolicies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetSslProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetTCPProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetGrpcProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionTargetHTTPProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionTargetHTTPSProxies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionURLMaps(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionBackendBuckets(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetInstances(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeTargetPools(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeAutoscalers(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeReservations(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeFutureReservations(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionCommitments(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeResourcePolicies(ctx, svc, p, st, scanID) },
+		func() (int, error) { return scanComputeRegionSecurityPolicies(ctx, svc, p, st, scanID) },
 	} {
-		t, n, err := sub()
+		t, err := sub()
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += n
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	projParentID := store.ResourceID("gcp", p.ID, p.ID)
 	return runPaginated(ctx, st, p, "compute:instances.aggregatedList",
 		svc.Instances.AggregatedList(p.ID),
-		func(page *compute.InstanceAggregatedList) (int, int, error) {
+		func(page *compute.InstanceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, inst := range items.Instances {
@@ -146,11 +145,11 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 				}
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert compute instances: %w", err)
+				return 0, fmt.Errorf("upsert compute instances: %w", err)
 			}
 			pairs := make([][2]string, 0, len(batch))
 			for _, r := range batch {
@@ -160,16 +159,16 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 				})
 			}
 			if err := st.RecordHierarchyBatch(pairs); err != nil {
-				return len(batch), n, fmt.Errorf("closure compute instances: %w", err)
+				return len(batch), fmt.Errorf("closure compute instances: %w", err)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 
-func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networks.list",
 		svc.Networks.List(p.ID),
-		func(page *compute.NetworkList) (int, int, error) {
+		func(page *compute.NetworkList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, net := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -185,20 +184,20 @@ func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, 
 				})
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			n, e := st.UpsertResources(batch)
+			_, e := st.UpsertResources(batch)
 			if e != nil {
-				return 0, 0, fmt.Errorf("upsert compute networks: %w", e)
+				return 0, fmt.Errorf("upsert compute networks: %w", e)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 
-func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:subnetworks.aggregatedList",
 		svc.Subnetworks.AggregatedList(p.ID),
-		func(page *compute.SubnetworkAggregatedList) (int, int, error) {
+		func(page *compute.SubnetworkAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, sn := range items.Subnetworks {
@@ -218,20 +217,20 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 				}
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			n, e := st.UpsertResources(batch)
+			_, e := st.UpsertResources(batch)
 			if e != nil {
-				return 0, 0, fmt.Errorf("upsert compute subnetworks: %w", e)
+				return 0, fmt.Errorf("upsert compute subnetworks: %w", e)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 
-func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:firewalls.list",
 		svc.Firewalls.List(p.ID),
-		func(page *compute.FirewallList) (int, int, error) {
+		func(page *compute.FirewallList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, fw := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -247,13 +246,13 @@ func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project,
 				})
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			n, e := st.UpsertResources(batch)
+			_, e := st.UpsertResources(batch)
 			if e != nil {
-				return 0, 0, fmt.Errorf("upsert compute firewalls: %w", e)
+				return 0, fmt.Errorf("upsert compute firewalls: %w", e)
 			}
-			return len(batch), n, nil
+			return len(batch), nil
 		})
 }
 

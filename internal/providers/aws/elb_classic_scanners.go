@@ -28,7 +28,7 @@ type elbClassicAPI interface {
 // scanELBClassic discovers Classic (v1) load balancers in one region.
 // Classic ELBs have no ARN in the API response; we synthesise one as
 // arn:{p}:elasticloadbalancing:<region>:<accountID>:loadbalancer/<name>.
-func scanELBClassic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanELBClassic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := elasticloadbalancing.NewFromConfig(acct.cfg, func(o *elasticloadbalancing.Options) { o.Region = region })
 	return scanELBClassicLoadBalancers(ctx, client, acct, region, st, scanID)
 }
@@ -37,7 +37,7 @@ func scanELBClassic(ctx context.Context, acct *account, region string, st *store
 // a time, with its tags read by DescribeTags, sent the names of 20 load
 // balancers a call (elbClassicTags). A failed page keeps the pages stored
 // before it.
-func scanELBClassicLoadBalancers(ctx context.Context, client elbClassicAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanELBClassicLoadBalancers(ctx context.Context, client elbClassicAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	bulk := elbClassicTags(client)
 	return runHostPhases(ctx, st, acct, region, "elasticloadbalancing", 0, []hostPhase{
 		{op: "elasticloadbalancing:DescribeLoadBalancers", run: func(p *phaseTotals) bool {

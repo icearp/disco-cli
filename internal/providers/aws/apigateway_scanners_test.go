@@ -153,7 +153,7 @@ func TestScanAPIGateway_Tags(t *testing.T) {
 	// An op not stubbed, a tag op included, fails the scan.
 	acct.cfg = opStubConfig(handlers, apiErr("BadRequestException", "unstubbed op"))
 	st := newTestStore(t)
-	if _, _, err := scanAPIGateway(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanAPIGateway(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanAPIGateway: %v", err)
 	}
 

@@ -229,7 +229,7 @@ func ibHandlers(t *testing.T, noARN bool) map[string]func(in any) (any, error) {
 func ibScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	cfg := opStubConfig(h, apiErr("AccessDeniedException", "not authorized to perform this action"))
-	total, _, err := scanImageBuilderAll(context.Background(), imagebuilder.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanImageBuilderAll(context.Background(), imagebuilder.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 

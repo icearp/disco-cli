@@ -24,26 +24,24 @@ type securityIRAPI interface {
 }
 
 // scanSecurityIR discovers Security Incident Response cases and memberships.
-func scanSecurityIR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityIR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := securityir.NewFromConfig(acct.cfg, func(o *securityir.Options) { o.Region = region })
 
-	t, i, ferr := scanSecurityIRCases(ctx, client, acct, region, st, scanID)
+	t, ferr := scanSecurityIRCases(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSecurityIRMemberships(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSecurityIRMemberships(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securityir.NewListCasesPaginator(client, &securityir.ListCasesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -53,12 +51,12 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 			// so mark disabled (progress line reads "(account: disabled)")
 			// rather than surfacing a scan error.
 			if isAPIErrorCode(err, "SecurityIncidentResponseNotActiveException") {
-				return 0, 0, markServiceDisabled(err)
+				return 0, markServiceDisabled(err)
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "security-ir:ListCases", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "security-ir:ListCases", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("security-ir:ListCases: %w", err)
+			return 0, fmt.Errorf("security-ir:ListCases: %w", err)
 		}
 		for _, c := range out.Items {
 			id := sv(c.CaseId)
@@ -83,16 +81,16 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 	return upsertBatch(st, batch, "security-ir cases")
 }
 
-func scanSecurityIRMemberships(ctx context.Context, client securityIRAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecurityIRMemberships(ctx context.Context, client securityIRAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := securityir.NewListMembershipsPaginator(client, &securityir.ListMembershipsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "security-ir:ListMemberships", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "security-ir:ListMemberships", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("security-ir:ListMemberships: %w", err)
+			return 0, fmt.Errorf("security-ir:ListMemberships: %w", err)
 		}
 		for _, m := range out.Items {
 			id := sv(m.MembershipId)

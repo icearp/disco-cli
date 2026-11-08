@@ -26,7 +26,7 @@ type pager[P any] interface {
 
 // runPaginated drives a paginated List call with the boilerplate every GCP
 // scanner phase repeats: invoke req.Pages with a page handler that returns
-// (pageTotal, pageInserted, err), accumulate totals, then classify the final
+// (pageTotal, err), accumulate totals, then classify the final
 // error via isPermissionDenied / skipIfDenied. Behavior:
 //
 //   - API-not-enabled (`isAPINotEnabled`) → returns wrapped errServiceDisabled
@@ -38,21 +38,20 @@ type pager[P any] interface {
 // "pubsub:topics.list"). `pageHandler` builds + persists the batch from each
 // page and reports its own counts; counts are summed across pages.
 func runPaginated[P any](ctx context.Context, st *store.Store, p *project, action string,
-	req pager[P], pageHandler func(*P) (int, int, error),
-) (total, inserted int, err error) {
+	req pager[P], pageHandler func(*P) (int, error),
+) (total int, err error) {
 	err = req.Pages(ctx, func(page *P) error {
-		t, n, e := pageHandler(page)
+		t, e := pageHandler(page)
 		total += t
-		inserted += n
 		return e
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, action, p.ID, err)
+			return total, skipIfDenied(st, action, p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // forEachItem runs fn over each item with at most concurrency goroutines in
@@ -156,10 +155,10 @@ func gcpRegionFanoutScan[P any, T any](
 	pagerFn func(region string) pager[P],
 	pageItems func(*P) []T,
 	itemToResource func(item T, region string) *store.Resource,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	regions, err := gcpRegions(ctx, p)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return gcpRegionFanoutScanIn(ctx, p, st, concurrency, regions, action, pagerFn, pageItems, itemToResource)
 }
@@ -178,9 +177,9 @@ func gcpRegionFanoutScanIn[P any, T any](
 	pagerFn func(region string) pager[P],
 	pageItems func(*P) []T,
 	itemToResource func(item T, region string) *store.Resource,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	if len(regions) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -210,10 +209,10 @@ func gcpRegionFanoutScanIn[P any, T any](
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	return upsertWithProjClosure(p, st, batch)
 }

@@ -38,7 +38,7 @@ func TestScanPipes_ReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanPipes: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestScanPipes_DescribeFails(t *testing.T) {
 			warns := countOpWarnings(st, pipesDescribeOp)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-			_, _, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
 			switch {
 			case c.wantCode == "" && err != nil:
 				t.Fatalf("err = %v, want nil", err)
@@ -143,7 +143,7 @@ func TestScanPipes_KeptPipeWarnsOnlyOnceStored(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	_, _, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want the store write failure", err)
 	}
@@ -204,7 +204,7 @@ func TestScanPipes_LaterListPageFails(t *testing.T) {
 			warns := countOpWarnings(st, pipesListOp)
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-			total, _, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
 			if !c.wantErr(err) {
 				t.Fatalf("err = %v, unexpected for %s", err, c.name)
 			}
@@ -239,7 +239,7 @@ func TestScanPipes_EmptyARNWarns(t *testing.T) {
 	warns := countOpWarnings(st, pipesListOp)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanPipes(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanPipes: %v", err)
 	}

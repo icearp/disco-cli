@@ -29,7 +29,7 @@ func TestScanEC2IPAMExtra_RepeatedTokenFails(t *testing.T) {
 				{IpamPolicyArn: &policyARN, IpamPolicyId: ptrStr("ipam-policy-1")},
 			}},
 			run: func(c ec2API, st *store.Store) error {
-				_, _, _, err := scanIpamPolicies(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
+				_, _, err := scanIpamPolicies(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -39,7 +39,7 @@ func TestScanEC2IPAMExtra_RepeatedTokenFails(t *testing.T) {
 				{IpamExternalResourceVerificationTokenArn: &tokenARN},
 			}},
 			run: func(c ec2API, st *store.Store) error {
-				_, _, err := scanIpamExternalResourceVerificationTokens(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
+				_, err := scanIpamExternalResourceVerificationTokens(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 				return err
 			},
 		},
@@ -96,7 +96,7 @@ func TestScanEC2IPAMExtra_RepeatedPolicyTokenKeepsSibling(t *testing.T) {
 			}}, nil
 		},
 	}, ipxDenied))
-	_, _, _, err := scanEC2IPAMExtra(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, _, err := scanEC2IPAMExtra(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}

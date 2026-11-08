@@ -24,7 +24,9 @@ func TestScanVolumes_KeysByOwner(t *testing.T) {
 		"DescribeVolumes": {{Output: page}},
 	}), testRegion))
 
-	total, inserted, err := scanVolumes(context.Background(), client, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanVolumes(context.Background(), client, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanVolumes: %v", err)
 	}

@@ -150,7 +150,7 @@ func mlHandlers(t *testing.T, calls *mlCalls, pages map[string][][]string, errs 
 	return h
 }
 
-func runML(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, int, error) {
+func runML(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
@@ -177,7 +177,9 @@ func TestScanMachineLearning_TwoPagesStored(t *testing.T) {
 			st := newTestStore(t)
 			warns := mlWarnings(st)
 			h := mlHandlers(t, &calls, map[string][][]string{k.op: {{"a1", ""}, {"b2"}}}, nil)
-			total, inserted, err := runML(t, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := runML(t, counted, h)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -227,7 +229,9 @@ func TestScanMachineLearning_EmptyStoresNothing(t *testing.T) {
 	var calls mlCalls
 	st := newTestStore(t)
 	warns := mlWarnings(st)
-	total, inserted, err := runML(t, st, mlHandlers(t, &calls, nil, nil))
+	counted, upserts := countUpserts(st)
+	total, err := runML(t, counted, mlHandlers(t, &calls, nil, nil))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Errorf("got (%d, %d, %v), want (0, 0, nil)", total, inserted, err)
 	}
@@ -260,7 +264,9 @@ func TestScanMachineLearning_ClosedAccountNotEntitled(t *testing.T) {
 			warns := mlWarnings(st)
 			h := mlHandlers(t, &calls, nil, nil)
 			h["DescribeDataSources"] = func(any) (any, error) { return nil, apiErr("AccessDeniedException", c.msg) }
-			total, inserted, err := runML(t, st, h)
+			counted, upserts := countUpserts(st)
+			total, err := runML(t, counted, h)
+			inserted := upserts()
 			if !errors.Is(err, errServiceNotEntitled) {
 				t.Fatalf("err = %v, want errServiceNotEntitled", err)
 			}
@@ -294,7 +300,7 @@ func TestScanMachineLearning_ClosedPhaseSkippedSilently(t *testing.T) {
 			h := mlHandlers(t, &calls,
 				map[string][][]string{"DescribeDataSources": {{"d1"}}, "DescribeEvaluations": {{"e1"}}},
 				map[string]error{"DescribeMLModels": apiErr("AccessDeniedException", c.msg)})
-			total, _, err := runML(t, st, h)
+			total, err := runML(t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -322,7 +328,7 @@ func TestScanMachineLearning_GateIAMDenialNotClosed(t *testing.T) {
 	h["DescribeDataSources"] = func(any) (any, error) {
 		return nil, apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/r is not authorized to perform: machinelearning:DescribeDataSources")
 	}
-	total, _, err := runML(t, st, h)
+	total, err := runML(t, st, h)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -348,7 +354,7 @@ func TestScanMachineLearning_DeniedPhaseWarnsAndOthersRun(t *testing.T) {
 			h := mlHandlers(t, &calls, pages, map[string]error{
 				k.op: apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/r is not authorized to perform: "+k.label),
 			})
-			total, _, err := runML(t, st, h)
+			total, err := runML(t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -375,7 +381,7 @@ func TestScanMachineLearning_UnmodelledSkipFailsPhase(t *testing.T) {
 				pages[o.op] = [][]string{{"x" + o.kind}}
 			}
 			h := mlHandlers(t, &calls, pages, map[string]error{k.op: apiErr("InvalidInputException", "bad filter")})
-			total, _, err := runML(t, st, h)
+			total, err := runML(t, st, h)
 			if !isAPIErrorCode(err, "InvalidInputException") {
 				t.Fatalf("err = %v, want the InvalidInputException", err)
 			}
@@ -405,7 +411,7 @@ func TestScanMachineLearning_ThrottleDemotedBesideHardError(t *testing.T) {
 		"DescribeMLModels":         apiErr("ThrottlingException", "Rate exceeded"),
 		"DescribeBatchPredictions": apiErr("InvalidInputException", "bad"),
 	})
-	_, _, err := runML(t, st, h)
+	_, err := runML(t, st, h)
 	if o := classifyServiceError(err); o != outcomeError {
 		t.Errorf("classifyServiceError = %v (err %v), want outcomeError", o, err)
 	}
@@ -430,7 +436,7 @@ func TestScanMachineLearning_LaterPageErrorKeepsEarlierRows(t *testing.T) {
 		}
 		return nil, apiErr("InvalidInputException", "bad token")
 	}
-	total, _, err := runML(t, st, h)
+	total, err := runML(t, st, h)
 	if !isAPIErrorCode(err, "InvalidInputException") {
 		t.Fatalf("err = %v, want the second page's error", err)
 	}
@@ -455,7 +461,7 @@ func TestScanMachineLearning_RepeatedNextTokenFails(t *testing.T) {
 		}
 		return mlKinds[2].page([]string{"e" + strconv.Itoa(n)}, sdkaws.String("same")), nil
 	}
-	total, _, err := runML(t, st, h)
+	total, err := runML(t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}

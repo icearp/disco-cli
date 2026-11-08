@@ -68,7 +68,7 @@ func TestScanAPSAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 			h[c.failOp] = func(any) (any, error) { return nil, bad }
 			st := newTestStore(t)
 			client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			total, _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, bad) {
 				t.Fatalf("err = %v, want the %s error", err, c.failOp)
 			}
@@ -108,7 +108,7 @@ func TestScanAPSAll_StoreWriteStopsPhases(t *testing.T) {
 				return serve(in)
 			}
 			client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			_, _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v, want ErrStoreWrite", err)
 			}
@@ -133,7 +133,7 @@ func TestScanAPSAll_DeniedWorkspacesListedOnce(t *testing.T) {
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
 	client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -180,7 +180,7 @@ func TestScanAPSAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 		warns[op] = countOpWarnings(st, op)
 	}
 	client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	if _, _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	for _, op := range ops {
@@ -223,7 +223,7 @@ func TestScanAPSAll_WorkspacesPageFailsKeepsChildren(t *testing.T) {
 			}
 			st := newTestStore(t)
 			client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			_, _, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanAPSAll(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if got := errors.Is(err, c.err); got != c.wantErr || !c.wantErr && err != nil {
 				t.Fatalf("err = %v, want the page-2 error returned: %v", err, c.wantErr)
 			}
@@ -253,7 +253,7 @@ func TestScanAPSWorkspaces_NoIDStoredAndWarns(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "amp:ListWorkspaces")
 	client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	refs, total, _, err := scanAPSWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	refs, total, err := scanAPSWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -287,7 +287,7 @@ func TestScanAPS_WriteFailsWarnsNothing(t *testing.T) {
 			},
 		}
 		client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-		_, _, _, err := scanAPSWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		_, _, err := scanAPSWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v, want ErrStoreWrite", err)
 		}
@@ -308,7 +308,7 @@ func TestScanAPS_WriteFailsWarnsNothing(t *testing.T) {
 			},
 		}
 		client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-		_, _, err := scanAPSScrapers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+		_, err := scanAPSScrapers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v, want ErrStoreWrite", err)
 		}
@@ -350,7 +350,7 @@ func TestScanAPS_WriteFailsWarnsNothing(t *testing.T) {
 			workspaces = append(workspaces, apsWorkspaceRef{ID: id, ARN: "arn:aws:aps:us-east-1:123456789012:workspace/" + id})
 		}
 		client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-		_, _, err := scanAPSAnomalyDetectors(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
+		_, err := scanAPSAnomalyDetectors(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v, want ErrStoreWrite", err)
 		}
@@ -380,7 +380,7 @@ func TestScanAPSResourcePolicies_NotReadyWarnsOnce(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "amp:DescribeResourcePolicy")
 	client := amp.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-	total, _, err := scanAPSResourcePolicies(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanAPSResourcePolicies(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}

@@ -44,7 +44,7 @@ const (
 // since it was listed.
 var caGone = []string{"ResourceNotFoundException"}
 
-func scanCodeArtifact(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeArtifact(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := codeartifact.NewFromConfig(acct.cfg, func(o *codeartifact.Options) { o.Region = region })
 	return scanCodeArtifactAll(ctx, client, acct, region, st, scanID)
 }
@@ -57,13 +57,13 @@ func scanCodeArtifact(ctx context.Context, acct *account, region string, st *sto
 // stored this scan. Domains, repositories and package groups have their tags
 // read per row (caTags), whose denials are one warning for the whole scan;
 // packages have none (Untaggable).
-func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := caTags(client).sharingDenials()
 	var (
 		domains []childParent
 		repos   []caRepository
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "codeartifact", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "codeartifact", 0, []hostPhase{
 		{op: "codeartifact:ListDomains", run: func(p *phaseTotals) (failed bool) {
 			domains, failed = scanCADomains(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -75,12 +75,12 @@ func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *acco
 		{op: "codeartifact:ListPackageGroups", run: func(p *phaseTotals) bool {
 			return scanCAPackageGroups(ctx, client, acct, region, st, scanID, domains, tags, p)
 		}},
-		countedPhase(0, "codeartifact:ListPackages", func() (int, int, error) {
+		countedPhase(0, "codeartifact:ListPackages", func() (int, error) {
 			return scanCAPackages(ctx, client, acct, region, st, scanID, repos)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // caTags reads a row's tags with ListTagsForResource, sent the row's
@@ -219,7 +219,7 @@ func scanCAPackageGroups(ctx context.Context, client codeArtifactAPI, acct *acco
 // fanoutMed repositories at a time, and holds at most one page per repository
 // in flight. A repository deleted after ListRepositories
 // (ResourceNotFoundException) is skipped.
-func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string, repos []caRepository) (int, int, error) {
+func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string, repos []caRepository) (int, error) {
 	const op = "codeartifact:ListPackages"
 	parents := make([]childParent, len(repos))
 	owners := make(map[string]string, len(repos))
@@ -228,10 +228,10 @@ func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, 
 		owners[r.arn] = r.domainOwner
 	}
 	return childFanOutStoredSkipTransient(ctx, st, acct, region, op, parents, isCANotFound, byParentARN,
-		func(ctx context.Context, p childParent) (int, int, error) {
+		func(ctx context.Context, p childParent) (int, error) {
 			repo, err := parseCARepositoryARN(p.arn)
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			pager := codeartifact.NewListPackagesPaginator(client, &codeartifact.ListPackagesInput{
@@ -240,11 +240,11 @@ func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, 
 				o.Limit = caPageCap
 				o.StopOnDuplicateToken = true
 			})
-			var total, inserted int
+			var total int
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				page := make([]containedChild, 0, len(out.Packages))
 				for _, pkg := range out.Packages {
@@ -258,13 +258,13 @@ func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, 
 						AttributesJSON: mustJSON(pkg), DiscoveredBy: scanID,
 					}})
 				}
-				t, i, err := upsertContained(st, op, page)
-				total, inserted = total+t, inserted+i
+				t, err := upsertContained(st, op, page)
+				total += t
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }
 

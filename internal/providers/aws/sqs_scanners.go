@@ -34,7 +34,7 @@ type sqsAPI interface {
 // GetQueueAttributes fetches concurrently the queue ARN (used as the NativeID
 // so other services referencing queues by ARN resolve) and attributes
 // (KmsMasterKeyId, RedrivePolicy) needed by the resolver.
-func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := sqs.NewFromConfig(acct.cfg, func(o *sqs.Options) { o.Region = region })
 	return scanSQSQueues(ctx, client, acct, region, st, scanID)
 }
@@ -42,7 +42,7 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 // scanSQSQueues is the testable scan body: depends only on the narrow sqsAPI
 // interface so unit tests inject a stub client without standing up HTTP
 // mocks. Top-level scanSQS wires the concrete *sqs.Client.
-func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := sqs.NewListQueuesPaginator(client, &sqs.ListQueuesInput{
 		MaxResults: sdkaws.Int32(1000),
 	})
@@ -50,9 +50,9 @@ func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region str
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "sqs:ListQueues", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "sqs:ListQueues", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("sqs:ListQueues: %w", err)
+			return 0, fmt.Errorf("sqs:ListQueues: %w", err)
 		}
 
 		var (
@@ -97,16 +97,15 @@ func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region str
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert SQS queues: %w", err)
+				return 0, fmt.Errorf("upsert SQS queues: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

@@ -99,13 +99,13 @@ func sagemakerTagReader(client sagemakerTagsAPI) rowTagReader {
 // successful write. scanSageMaker's probe has reached the endpoint before any
 // listing runs, so an NXDOMAIN in listErr is a failure of this scan, not a
 // region gap (lateNXDOMAIN).
-type sagemakerPut func(rows []*store.Resource, listErr error, warn func()) (int, int, error)
+type sagemakerPut func(rows []*store.Resource, listErr error, warn func()) (int, error)
 
 // sagemakerStoreTagged returns the store step of a phase listed by op whose
 // rows hold their ARN as NativeID: each row's tags are read
 // (sagemakerTagReader) before the rows are written.
 func sagemakerStoreTagged(ctx context.Context, client sagemakerTagsAPI, acct *account, region string, st *store.Store, op string) sagemakerPut {
-	return func(rows []*store.Resource, listErr error, warn func()) (int, int, error) {
+	return func(rows []*store.Resource, listErr error, warn func()) (int, error) {
 		var p phaseTotals
 		// A failed write is also in p's errors, and this one phase has
 		// nothing after it to stop.
@@ -117,7 +117,7 @@ func sagemakerStoreTagged(ctx context.Context, client sagemakerTagsAPI, acct *ac
 // sagemakerStoreUntagged returns the store step of a phase listed by op whose
 // tags are not read; each caller says why.
 func sagemakerStoreUntagged(st *store.Store, acct *account, region, op string) sagemakerPut {
-	return func(rows []*store.Resource, listErr error, warn func()) (int, int, error) {
+	return func(rows []*store.Resource, listErr error, warn func()) (int, error) {
 		return storeReadRows(st, acct, region, op, rows, lateNXDOMAIN(op, listErr), warn)
 	}
 }
@@ -125,17 +125,17 @@ func sagemakerStoreUntagged(st *store.Store, acct *account, region, op string) s
 // sagemakerPhase is one phase of a family; op labels its error.
 type sagemakerPhase struct {
 	op  string
-	run func() (int, int, error)
+	run func() (int, error)
 }
 
 // runSageMakerPhases runs every phase in order, so a failed phase does not
 // skip the ones after it (a dependent phase then sees fewer parents). Only a
 // failed write stops it: every later write would fail too.
-func runSageMakerPhases(phases ...sagemakerPhase) (int, int, error) {
+func runSageMakerPhases(phases ...sagemakerPhase) (int, error) {
 	var p phaseTotals
 	for _, phase := range phases {
-		t, i, err := phase.run()
-		if addOpErrsPhase(&p, phase.op, t, i, err) {
+		t, err := phase.run()
+		if addOpErrsPhase(&p, phase.op, t, err) {
 			break
 		}
 	}
@@ -144,7 +144,7 @@ func runSageMakerPhases(phases ...sagemakerPhase) (int, int, error) {
 
 // runSageMakerFamilies runs the families concurrently (runFamilies) and joins
 // every family's errors once (phaseErrs.join).
-func runSageMakerFamilies(ctx context.Context, st *store.Store, acct *account, region string, families ...func(context.Context) (int, int, error)) (int, int, error) {
+func runSageMakerFamilies(ctx context.Context, st *store.Store, acct *account, region string, families ...func(context.Context) (int, error)) (int, error) {
 	return runFamilies(ctx, sagemakerService, families...).result(st, acct, region)
 }
 
@@ -233,14 +233,14 @@ type sagemakerDescribed struct {
 //     as when denied; one error under describeOp covers every such key;
 //   - any other error, an NXDOMAIN included: stored from its listing as when
 //     denied, and the error is returned under describeOp.
-func (d sagemakerDescribe[Key]) scan(ctx context.Context, st *store.Store, acct *account, region string, put sagemakerPut) (int, int, error) {
+func (d sagemakerDescribe[Key]) scan(ctx context.Context, st *store.Store, acct *account, region string, put sagemakerPut) (int, error) {
 	listed, listErr := readTokenPages(ctx, d.list)
 	return d.describeEach(ctx, st, acct, region, listed, listErr, put)
 }
 
 // describeEach is scan on keys already listed, whose listing ended with
 // listErr; d.list is not called.
-func (d sagemakerDescribe[Key]) describeEach(ctx context.Context, st *store.Store, acct *account, region string, listed []Key, listErr error, put sagemakerPut) (int, int, error) {
+func (d sagemakerDescribe[Key]) describeEach(ctx context.Context, st *store.Store, acct *account, region string, listed []Key, listErr error, put sagemakerPut) (int, error) {
 	var (
 		keys         []Key
 		names        []string
@@ -317,13 +317,13 @@ func (d sagemakerDescribe[Key]) describeEach(ctx context.Context, st *store.Stor
 	if t := &transients.skipTally; t.count > 0 {
 		p.errs.add(d.describeOp, fmt.Errorf("%s: %d listed item(s) not described, first %s: %w", d.describeOp, t.count, t.first, t.err))
 	}
-	total, inserted, err := put(rows, listErr, func() {
+	total, err := put(rows, listErr, func() {
 		warnNotStored(st, d.listOp, acct, region, &nameless, "items lack a field their describe needs")
 		denied.warnDeniedIn(st, d.describeOp, acct, region, "listed item(s) not stored as their describe was")
 		deniedListed.warnDeniedIn(st, d.describeOp, acct, region, "listed item(s) stored from their listing only as their describe was")
 		warnNotStored(st, d.describeOp, acct, region, &noARN, "items were described without an ARN")
 	})
-	addOpErrsPhase(&p, d.listOp, total, inserted, err)
+	addOpErrsPhase(&p, d.listOp, total, err)
 	return opErrsResult(&p)
 }
 
@@ -357,7 +357,7 @@ func sagemakerInUseProbe(ctx context.Context, client *sagemaker.Client) (bool, e
 // scanSageMaker discovers all SageMaker resource types in one region by
 // running family scanners concurrently (runSageMakerFamilies); each runs its
 // own phases in order (runSageMakerPhases).
-func scanSageMaker(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSageMaker(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := newSageMakerClient(acct.cfg, region)
 
 	// Phase 0: cheap probe skips the full 42-phase fan-out on dormant accounts.
@@ -366,45 +366,45 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 	switch {
 	case perr == nil:
 		if !inUse {
-			return 0, 0, nil
+			return 0, nil
 		}
 	case isAccessDenied(perr):
-		return 0, 0, skipIfAccessDenied(st, "sagemaker:probe", acct.ID, region, perr)
+		return 0, skipIfAccessDenied(st, "sagemaker:probe", acct.ID, region, perr)
 	case !errors.As(perr, &apiErr):
 		// No answer from the endpoint (an NXDOMAIN, a DNS server timeout, a
 		// reset): returned for the dispatcher to classify. The families run
 		// only once the endpoint answered, so a later NXDOMAIN is a failure
 		// of this scan, not a region gap (sagemakerPut).
-		return 0, 0, perr
+		return 0, perr
 	}
 	// The endpoint answered, possibly with an API error: every family runs,
 	// with its own per-call tolerance.
 	return runSageMakerFamilies(ctx, st, acct, region,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerStudio(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerTraining(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerInference(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerRegistry(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerMonitoring(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerPipelines(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerEdge(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerMisc(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanSageMakerGovernance(ctx, client, acct, region, st, scanID)
 		},
 	)

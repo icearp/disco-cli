@@ -57,24 +57,24 @@ type codeBuildAPI interface {
 // names or ARNs only, so each is followed by its BatchGet op, whose elements
 // are stored. The phases are independent: only a store write failure stops
 // the rest.
-func scanCodeBuild(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeBuild(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := codebuild.NewFromConfig(acct.cfg, func(o *codebuild.Options) { o.Region = region })
 	return scanCodeBuildAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanCodeBuildAll(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCodeBuildAll(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var p phaseTotals
 	for _, ph := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{cbListFleetsOp, func() (int, int, error) { return scanCBFleets(ctx, client, acct, region, st, scanID) }},
-		{cbListProjectsOp, func() (int, int, error) { return scanCBProjects(ctx, client, acct, region, st, scanID) }},
-		{cbListReportGroupsOp, func() (int, int, error) { return scanCBReportGroups(ctx, client, acct, region, st, scanID) }},
-		{cbListSourceCredentialsOp, func() (int, int, error) { return scanCBSourceCredentials(ctx, client, acct, region, st, scanID) }},
+		{cbListFleetsOp, func() (int, error) { return scanCBFleets(ctx, client, acct, region, st, scanID) }},
+		{cbListProjectsOp, func() (int, error) { return scanCBProjects(ctx, client, acct, region, st, scanID) }},
+		{cbListReportGroupsOp, func() (int, error) { return scanCBReportGroups(ctx, client, acct, region, st, scanID) }},
+		{cbListSourceCredentialsOp, func() (int, error) { return scanCBSourceCredentials(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -114,10 +114,10 @@ type cbBatchRead[Elem any] struct {
 // warned about once for the op, any other error is returned after the rows
 // are stored. Listed keys the BatchGet op reports not found, and elements
 // with no ARN, are warned about once per reason after a successful write.
-func storeCBBatchPhase[Elem any](ctx context.Context, st *store.Store, acct *account, region string, b cbBatchPhase[Elem]) (int, int, error) {
+func storeCBBatchPhase[Elem any](ctx context.Context, st *store.Store, acct *account, region string, b cbBatchPhase[Elem]) (int, error) {
 	keys, listErr := readTokenPages(ctx, b.page)
 	if len(keys) == 0 && b.isGap != nil && b.isGap(listErr) {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batches := slices.Collect(slices.Chunk(keys, cbBatchMax))
 	reads, stopped := readEachKey(ctx, batches, func(ctx context.Context, keys []string) cbBatchRead[Elem] {
@@ -168,7 +168,7 @@ func cbRow(acct *account, region, scanID, rtype, what string, arn, name *string,
 	}, "", ""
 }
 
-func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeCBBatchPhase(ctx, st, acct, region, cbBatchPhase[cbtypes.Fleet]{
 		listOp: cbListFleetsOp, getOp: cbBatchGetFleetsOp, what: "fleets",
 		page: func(ctx context.Context, token *string) ([]string, *string, error) {
@@ -201,7 +201,7 @@ func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, regio
 // scanCBProjects stores the BatchGetProjects body of each listed project:
 // ServiceRole, VpcConfig, EncryptionKey, Artifacts and LogsConfig, which the
 // resolver reads, are not on the name-only listing.
-func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeCBBatchPhase(ctx, st, acct, region, cbBatchPhase[cbtypes.Project]{
 		listOp: cbListProjectsOp, getOp: cbBatchGetProjectsOp, what: "projects",
 		page: func(ctx context.Context, token *string) ([]string, *string, error) {
@@ -224,7 +224,7 @@ func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, reg
 	})
 }
 
-func scanCBReportGroups(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCBReportGroups(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeCBBatchPhase(ctx, st, acct, region, cbBatchPhase[cbtypes.ReportGroup]{
 		listOp: cbListReportGroupsOp, getOp: cbBatchGetReportGroupsOp, what: "report groups",
 		page: func(ctx context.Context, token *string) ([]string, *string, error) {
@@ -253,7 +253,7 @@ func scanCBReportGroups(ctx context.Context, client codeBuildAPI, acct *account,
 
 // scanCBSourceCredentials stores the source credentials; ListSourceCredentials
 // is not paginated.
-func scanCBSourceCredentials(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCBSourceCredentials(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, cbListSourceCredentialsOp,
 		func(ctx context.Context, _ *string) ([]cbtypes.SourceCredentialsInfo, *string, error) {
 			out, err := client.ListSourceCredentials(ctx, &codebuild.ListSourceCredentialsInput{})

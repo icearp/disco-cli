@@ -25,27 +25,27 @@ type cloudSearchAPI interface {
 // scanCloudSearch discovers CloudSearch domains: ListDomainNames enumerates the
 // region's domain names, then DescribeDomains fetches each one's full status
 // (List returns only name→state). Neither op is paginated.
-func scanCloudSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := cloudsearch.NewFromConfig(acct.cfg, func(o *cloudsearch.Options) { o.Region = region })
 	return scanCloudSearchWithClient(ctx, client, acct, region, st, scanID)
 }
 
-func scanCloudSearchWithClient(ctx context.Context, client cloudSearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanCloudSearchWithClient(ctx context.Context, client cloudSearchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	names, err := client.ListDomainNames(ctx, &cloudsearch.ListDomainNamesInput{})
 	if err != nil {
 		// Accounts not yet eligible for CloudSearch get NotAuthorized "New domain
 		// creation not supported on this account" — not self-enableable (needs
 		// AWS Support), so (account: not entitled).
 		if isAPIErrorWithMessage(err, "NotAuthorized", "not supported on this account") {
-			return 0, 0, markServiceNotEntitled(err)
+			return 0, markServiceNotEntitled(err)
 		}
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "cloudsearch:ListDomainNames", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "cloudsearch:ListDomainNames", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("cloudsearch:ListDomainNames: %w", err)
+		return 0, fmt.Errorf("cloudsearch:ListDomainNames: %w", err)
 	}
 	if len(names.DomainNames) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	domainNames := make([]string, 0, len(names.DomainNames))
 	for name := range names.DomainNames {
@@ -55,9 +55,9 @@ func scanCloudSearchWithClient(ctx context.Context, client cloudSearchAPI, acct 
 	out, err := client.DescribeDomains(ctx, &cloudsearch.DescribeDomainsInput{DomainNames: domainNames})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "cloudsearch:DescribeDomains", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "cloudsearch:DescribeDomains", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("cloudsearch:DescribeDomains: %w", err)
+		return 0, fmt.Errorf("cloudsearch:DescribeDomains: %w", err)
 	}
 	var batch []*store.Resource
 	for _, d := range out.DomainStatusList {

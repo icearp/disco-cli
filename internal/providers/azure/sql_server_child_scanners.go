@@ -51,7 +51,7 @@ func sqlChildScan[C any, T any](
 	pager azPager[C],
 	pageItems func(C) []*T,
 	extract func(*T) sqlChildExtract,
-) (total, inserted int, err error) {
+) (total int, err error) {
 	var batch []*store.Resource
 	var pairs [][2]string
 	for pager.More() {
@@ -60,7 +60,7 @@ func sqlChildScan[C any, T any](
 			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("armsql:%s.ListByServer(%s): %w", label, srv.name, err)
+			return 0, fmt.Errorf("armsql:%s.ListByServer(%s): %w", label, srv.name, err)
 		}
 		for _, item := range pageItems(page) {
 			if item == nil {
@@ -105,31 +105,31 @@ func sqlTrackedExtract(id, name, location *string, tags map[string]*string) sqlC
 }
 
 // serverChildScanners returns one closure per server sub-resource type (excluding databases).
-func serverChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) []func() (int, int, error) {
-	return []func() (int, int, error){
-		func() (int, int, error) { return scanServerKeys(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanEncryptionProtectors(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerAdministrators(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerAuditingSettings(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerExtAuditingSettings(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerDevOpsAuditSettings(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerAdvancedThreatProtection(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerVulnAssessments(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanElasticPools(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanFailoverGroups(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanServerDNSAliases(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanVirtualNetworkRules(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanJobAgents(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanSyncAgents(ctx, sub, cred, st, scanID, srv) },
-		func() (int, int, error) { return scanRestorableDroppedDBs(ctx, sub, cred, st, scanID, srv) },
+func serverChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) []func() (int, error) {
+	return []func() (int, error){
+		func() (int, error) { return scanServerKeys(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanEncryptionProtectors(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerAdministrators(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerAuditingSettings(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerExtAuditingSettings(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerDevOpsAuditSettings(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerAdvancedThreatProtection(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerVulnAssessments(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanElasticPools(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanFailoverGroups(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanServerDNSAliases(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanVirtualNetworkRules(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanJobAgents(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanSyncAgents(ctx, sub, cred, st, scanID, srv) },
+		func() (int, error) { return scanRestorableDroppedDBs(ctx, sub, cred, st, scanID, srv) },
 	}
 }
 
-func scanServerKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerKeysClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerKeysClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerKeys", TypeSQLServerKey, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -137,10 +137,10 @@ func scanServerKeys(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		func(x *armsql.ServerKey) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanEncryptionProtectors(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanEncryptionProtectors(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewEncryptionProtectorsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewEncryptionProtectorsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "EncryptionProtectors", TypeSQLEncryptionProtector, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -150,10 +150,10 @@ func scanEncryptionProtectors(ctx context.Context, sub *subscription, cred azcor
 		func(x *armsql.EncryptionProtector) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAdministrators(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerAdministrators(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerAzureADAdministratorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerAzureADAdministratorsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerAzureADAdministratorsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerAdministrators", TypeSQLServerAdministrator, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -163,10 +163,10 @@ func scanServerAdministrators(ctx context.Context, sub *subscription, cred azcor
 		func(x *armsql.ServerAzureADAdministrator) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerBlobAuditingPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerBlobAuditingPoliciesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerBlobAuditingPolicies", TypeSQLServerAuditingSettings, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -176,10 +176,10 @@ func scanServerAuditingSettings(ctx context.Context, sub *subscription, cred azc
 		func(x *armsql.ServerBlobAuditingPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerExtAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerExtAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewExtendedServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewExtendedServerBlobAuditingPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewExtendedServerBlobAuditingPoliciesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ExtendedServerBlobAuditingPolicies", TypeSQLServerExtAuditingSettings, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -189,10 +189,10 @@ func scanServerExtAuditingSettings(ctx context.Context, sub *subscription, cred 
 		func(x *armsql.ExtendedServerBlobAuditingPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerDevOpsAuditSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerDevOpsAuditSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerDevOpsAuditSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerDevOpsAuditSettingsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerDevOpsAuditSettingsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerDevOpsAuditSettings", TypeSQLServerDevOpsAuditSettings, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -202,10 +202,10 @@ func scanServerDevOpsAuditSettings(ctx context.Context, sub *subscription, cred 
 		func(x *armsql.ServerDevOpsAuditingSettings) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerSecurityAlertPoliciesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerSecurityAlertPoliciesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerSecurityAlertPolicies", TypeSQLServerSecurityAlert, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -215,10 +215,10 @@ func scanServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cre
 		func(x *armsql.ServerSecurityAlertPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAdvancedThreatProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerAdvancedThreatProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerAdvancedThreatProtectionSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerAdvancedThreatProtectionSettingsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerAdvancedThreatProtectionSettingsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerAdvancedThreatProtection", TypeSQLServerAdvancedThreatProt, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -228,10 +228,10 @@ func scanServerAdvancedThreatProtection(ctx context.Context, sub *subscription, 
 		func(x *armsql.ServerAdvancedThreatProtection) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerVulnerabilityAssessmentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerVulnerabilityAssessmentsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerVulnerabilityAssessments", TypeSQLServerVulnAssessment, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -241,10 +241,10 @@ func scanServerVulnAssessments(ctx context.Context, sub *subscription, cred azco
 		func(x *armsql.ServerVulnerabilityAssessment) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanElasticPools(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanElasticPools(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewElasticPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewElasticPoolsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewElasticPoolsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ElasticPools", TypeSQLElasticPool, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -254,10 +254,10 @@ func scanElasticPools(ctx context.Context, sub *subscription, cred azcore.TokenC
 		})
 }
 
-func scanFailoverGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanFailoverGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewFailoverGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewFailoverGroupsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewFailoverGroupsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "FailoverGroups", TypeSQLFailoverGroup, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -267,10 +267,10 @@ func scanFailoverGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 		})
 }
 
-func scanServerDNSAliases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanServerDNSAliases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewServerDNSAliasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewServerDNSAliasesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewServerDNSAliasesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "ServerDNSAliases", TypeSQLServerDNSAlias, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -278,10 +278,10 @@ func scanServerDNSAliases(ctx context.Context, sub *subscription, cred azcore.To
 		func(x *armsql.ServerDNSAlias) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanVirtualNetworkRules(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanVirtualNetworkRules(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewVirtualNetworkRulesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewVirtualNetworkRulesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewVirtualNetworkRulesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "VirtualNetworkRules", TypeSQLVirtualNetworkRule, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -291,10 +291,10 @@ func scanVirtualNetworkRules(ctx context.Context, sub *subscription, cred azcore
 		func(x *armsql.VirtualNetworkRule) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanJobAgents(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanJobAgents(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewJobAgentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewJobAgentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewJobAgentsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "JobAgents", TypeSQLJobAgent, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -302,10 +302,10 @@ func scanJobAgents(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		func(x *armsql.JobAgent) sqlChildExtract { return sqlTrackedExtract(x.ID, x.Name, x.Location, x.Tags) })
 }
 
-func scanSyncAgents(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanSyncAgents(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewSyncAgentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewSyncAgentsClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewSyncAgentsClient: %w", err)
 	}
 	return sqlChildScan(ctx, "SyncAgents", TypeSQLSyncAgent, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),
@@ -313,10 +313,10 @@ func scanSyncAgents(ctx context.Context, sub *subscription, cred azcore.TokenCre
 		func(x *armsql.SyncAgent) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanRestorableDroppedDBs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+func scanRestorableDroppedDBs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (int, error) {
 	c, err := armsql.NewRestorableDroppedDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armsql:NewRestorableDroppedDatabasesClient: %w", err)
+		return 0, fmt.Errorf("armsql:NewRestorableDroppedDatabasesClient: %w", err)
 	}
 	return sqlChildScan(ctx, "RestorableDroppedDatabases", TypeSQLRestorableDroppedDB, sub, st, scanID, srv,
 		c.NewListByServerPager(srv.rgName, srv.name, nil),

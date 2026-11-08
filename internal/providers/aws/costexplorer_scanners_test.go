@@ -196,7 +196,7 @@ func ceHandlers(c *ceCalls) map[string]func(in any) (any, error) {
 
 // ceScanIn runs the scan for acct in region against handlers; every op they
 // do not answer fails with deny.
-func ceScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error), deny error) (int, int, error) {
+func ceScanIn(ctx context.Context, st *store.Store, acct *account, region string, handlers map[string]func(in any) (any, error), deny error) (int, error) {
 	acct.cfg = opStubConfig(handlers, deny)
 	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
 	return scanCostExplorerAll(ctx, client, acct, region, st, testScanID)
@@ -204,7 +204,7 @@ func ceScanIn(ctx context.Context, st *store.Store, acct *account, region string
 
 // ceScan runs the scan in the commercial home against handlers; every op
 // they do not answer is denied.
-func ceScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func ceScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return ceScanIn(ctx, st, newTestAccount(testAccountID), testRegion, handlers, ceTestDenied)
 }
 
@@ -238,7 +238,9 @@ func TestScanCostExplorer_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newCECalls()
 
-	total, inserted, err := ceScan(context.Background(), st, ceHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := ceScan(context.Background(), counted, ceHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -333,7 +335,7 @@ func TestScanCostExplorer_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := ceScan(context.Background(), st, handlers); err != nil {
+	if _, err := ceScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range ceKinds() {
@@ -398,7 +400,7 @@ func TestScanCostExplorer_NotEnabled(t *testing.T) {
 				}
 			}
 
-			total, _, err := ceScan(context.Background(), st, handlers)
+			total, err := ceScan(context.Background(), st, handlers)
 			if c.want < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -439,7 +441,7 @@ func TestScanCostExplorer_NotEnabledLaterPageIsDenial(t *testing.T) {
 	k := ceKindOf(t, "GetAnomalyMonitors")
 	handlers[k.op] = calls.failing(k, true, ceTestNotEnabled)
 
-	total, _, err := ceScan(context.Background(), st, handlers)
+	total, err := ceScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -460,7 +462,7 @@ func TestScanCostExplorer_NotEnabledLaterPageIsDenial(t *testing.T) {
 func TestScanCostExplorer_NotEnabledRescanKeepsCounts(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := ceScan(context.Background(), st, ceHandlers(newCECalls())); err != nil {
+	if _, err := ceScan(context.Background(), st, ceHandlers(newCECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	calls := newCECalls()
@@ -468,7 +470,9 @@ func TestScanCostExplorer_NotEnabledRescanKeepsCounts(t *testing.T) {
 	k := ceKindOf(t, "GetAnomalyMonitors")
 	handlers[k.op] = calls.failing(k, false, ceTestNotEnabled)
 
-	total, inserted, err := ceScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := ceScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan err = %v; want nil", err)
 	}
@@ -497,7 +501,9 @@ func TestScanCostExplorer_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := ceScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := ceScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -544,7 +550,7 @@ func TestScanCostExplorer_TagReadFailures(t *testing.T) {
 			arn := k.ceARN("tagged")
 			calls.errs[arn] = c.err
 
-			total, _, err := ceScan(context.Background(), st, ceHandlers(calls))
+			total, err := ceScan(context.Background(), st, ceHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -595,7 +601,7 @@ func TestScanCostExplorer_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[ceKindOf(t, "GetAnomalySubscriptions").ceARN("tagged")] = ceTestDenied
 	calls.errs[ceKindOf(t, "ListCostCategoryDefinitions").ceARN("bare")] = ceTestDenied
 
-	total, _, err := ceScan(context.Background(), st, ceHandlers(calls))
+	total, err := ceScan(context.Background(), st, ceHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -617,7 +623,7 @@ func TestScanCostExplorer_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[ceKindOf(t, "GetAnomalyMonitors").ceARN("bare")] = ceTestThrottle
 	calls.errs[ceKindOf(t, "ListCostCategoryDefinitions").ceARN("tagged")] = ceTestBad
 
-	_, _, err := ceScan(context.Background(), st, ceHandlers(calls))
+	_, err := ceScan(context.Background(), st, ceHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -636,7 +642,7 @@ func TestScanCostExplorer_FailedWriteStopsScan(t *testing.T) {
 	calls := newCECalls()
 	calls.errs[ceKindOf(t, "GetAnomalySubscriptions").ceARN("tagged")] = ceTestDenied
 
-	total, _, err := ceScan(context.Background(), st, ceHandlers(calls))
+	total, err := ceScan(context.Background(), st, ceHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -687,7 +693,7 @@ func TestScanCostExplorer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := ceKindOf(t, c.op)
 			handlers[c.op] = calls.failing(k, c.laterPage, c.err)
 
-			total, _, err := ceScan(context.Background(), st, handlers)
+			total, err := ceScan(context.Background(), st, handlers)
 			var wantWarn []string
 			if c.outcome < 0 {
 				if err != nil {
@@ -740,7 +746,7 @@ func TestScanCostExplorer_RepeatedTokenKeepsPages(t *testing.T) {
 				return k.cePage(&arn, &name, sdkaws.String("same")), nil
 			}
 
-			total, _, err := ceScan(context.Background(), st, handlers)
+			total, err := ceScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -774,7 +780,7 @@ func TestScanCostExplorer_ElementWithoutARN(t *testing.T) {
 				return k.cePage(&arn, nil, sdkaws.String("p2")), nil
 			}
 
-			total, _, err := ceScan(context.Background(), st, handlers)
+			total, err := ceScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -826,7 +832,7 @@ func TestScanCostExplorer_TagReadsKeepPartitionARNs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = "aws-cn"
 
-	if _, _, err := ceScanIn(context.Background(), st, acct, "cn-northwest-1", handlers, ceTestDenied); err != nil {
+	if _, err := ceScanIn(context.Background(), st, acct, "cn-northwest-1", handlers, ceTestDenied); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := calls.sortedTagARNs(); !slices.Equal(got, want) {
@@ -857,7 +863,7 @@ func TestScanCostExplorer_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := ceScan(ctx, st, handlers)
+	_, err := ceScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -885,7 +891,7 @@ func TestScanCostExplorer_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := ceHandlers(newCECalls())
 		handlers["ListCostCategoryDefinitions"] = func(any) (any, error) { return nil, nx }
-		total, _, err := ceScan(context.Background(), st, handlers)
+		total, err := ceScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := ceTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -895,7 +901,7 @@ func TestScanCostExplorer_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCECalls()
 		calls.errs[ceKindOf(t, "GetAnomalyMonitors").ceARN("tagged")] = nx
-		_, _, err := ceScan(context.Background(), st, ceHandlers(calls))
+		_, err := ceScan(context.Background(), st, ceHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -909,7 +915,7 @@ func TestScanCostExplorer_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := ceScanIn(context.Background(), st, newTestAccount(testAccountID), testRegion, handlers, nx)
+		_, err := ceScanIn(context.Background(), st, newTestAccount(testAccountID), testRegion, handlers, nx)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

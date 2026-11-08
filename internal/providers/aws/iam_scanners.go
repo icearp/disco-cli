@@ -47,7 +47,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:iam",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total int, err error) {
 			return scanIAM(ctx, acct, st, scanID)
 		},
 	})
@@ -101,10 +101,10 @@ type iamAPI interface {
 // failure still marks the scan partial.
 //
 // IAM is a global service scanned once per account.
-func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total int, err error) {
 	client := iam.NewFromConfig(acct.cfg)
 	var (
-		t, n atomic.Int64
+		t    atomic.Int64
 		mu   sync.Mutex
 		errs phaseErrs
 	)
@@ -113,62 +113,60 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 		defer mu.Unlock()
 		errs.add(op, e)
 	}
-	collect := func(op string, tt, nn int, e error) {
+	collect := func(op string, tt int, e error) {
 		t.Add(int64(tt))
-		n.Add(int64(nn))
 		addErr(op, e)
 	}
 
 	// Phase 1: independent scanners in parallel.
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		tt, nn := scanIAMAccount(ctx, client, acct, st, scanID, addErr)
+		tt := scanIAMAccount(ctx, client, acct, st, scanID, addErr)
 		t.Add(int64(tt))
-		n.Add(int64(nn))
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMAuthDetails(ctx, client, acct, st, scanID)
-		collect("iam:GetAccountAuthorizationDetails", tt, nn, e)
+		tt, e := scanIAMAuthDetails(ctx, client, acct, st, scanID)
+		collect("iam:GetAccountAuthorizationDetails", tt, e)
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMInstanceProfiles(ctx, client, acct, st, scanID)
-		collect("iam:ListInstanceProfiles", tt, nn, e)
+		tt, e := scanIAMInstanceProfiles(ctx, client, acct, st, scanID)
+		collect("iam:ListInstanceProfiles", tt, e)
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMOIDCProviders(ctx, client, acct, st, scanID)
-		collect(iamListOIDCProvidersOp, tt, nn, e)
+		tt, e := scanIAMOIDCProviders(ctx, client, acct, st, scanID)
+		collect(iamListOIDCProvidersOp, tt, e)
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMSAMLProviders(ctx, client, acct, st, scanID)
-		collect(iamListSAMLProvidersOp, tt, nn, e)
+		tt, e := scanIAMSAMLProviders(ctx, client, acct, st, scanID)
+		collect(iamListSAMLProvidersOp, tt, e)
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMServerCertificates(ctx, client, acct, st, scanID)
-		collect("iam:ListServerCertificates", tt, nn, e)
+		tt, e := scanIAMServerCertificates(ctx, client, acct, st, scanID)
+		collect("iam:ListServerCertificates", tt, e)
 	})
 	wg.Go(func() {
-		tt, nn, e := scanIAMVirtualMFADevices(ctx, client, acct, st, scanID)
-		collect("iam:ListVirtualMFADevices", tt, nn, e)
+		tt, e := scanIAMVirtualMFADevices(ctx, client, acct, st, scanID)
+		collect("iam:ListVirtualMFADevices", tt, e)
 	})
 	wg.Wait()
 
 	// Phases 2-3 list per-user credentials for the users phase 1 stored.
 	if users, uerr := iamScannedUsers(st, acct, scanID); uerr != nil {
-		collect("iam user read-back", 0, 0, uerr)
+		collect("iam user read-back", 0, uerr)
 	} else {
-		tt, nn, e := scanIAMAccessKeys(ctx, client, users, acct, st, scanID)
-		collect("iam:ListAccessKeys", tt, nn, e)
-		tt, nn, e = scanIAMServiceSpecificCredentials(ctx, client, users, acct, st, scanID)
-		collect("iam:ListServiceSpecificCredentials", tt, nn, e)
-		tt, nn, e = scanIAMSigningCertificates(ctx, client, users, acct, st, scanID)
-		collect("iam:ListSigningCertificates", tt, nn, e)
-		tt, nn, e = scanIAMSSHPublicKeys(ctx, client, users, acct, st, scanID)
-		collect("iam:ListSSHPublicKeys", tt, nn, e)
+		tt, e := scanIAMAccessKeys(ctx, client, users, acct, st, scanID)
+		collect("iam:ListAccessKeys", tt, e)
+		tt, e = scanIAMServiceSpecificCredentials(ctx, client, users, acct, st, scanID)
+		collect("iam:ListServiceSpecificCredentials", tt, e)
+		tt, e = scanIAMSigningCertificates(ctx, client, users, acct, st, scanID)
+		collect("iam:ListSigningCertificates", tt, e)
+		tt, e = scanIAMSSHPublicKeys(ctx, client, users, acct, st, scanID)
+		collect("iam:ListSSHPublicKeys", tt, e)
 	}
 
-	tt, nn, e := scanIAMDelegationRequests(ctx, client, acct, st, scanID)
-	collect("iam:ListDelegationRequests", tt, nn, e)
-	return int(t.Load()), int(n.Load()), errs.join(st, acct, "global")
+	tt, e := scanIAMDelegationRequests(ctx, client, acct, st, scanID)
+	collect("iam:ListDelegationRequests", tt, e)
+	return int(t.Load()), errs.join(st, acct, "global")
 }
 
 // iamAccountNativeID builds the aws:iam:account self-node key, shared by
@@ -208,7 +206,7 @@ func iamAccountPlaceholder(partition, accountID, scanID string) *store.Resource 
 // would version-split and record the summary, alias or password policy as
 // removed, a change that did not happen. An upsert failure is passed to add
 // too.
-func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, add func(op string, err error)) (int, int) {
+func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, add func(op string, err error)) int {
 	attrs := map[string]any{}
 	withhold := false
 	failed := func(op string, err error) {
@@ -242,7 +240,7 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 		failed("iam:GetAccountPasswordPolicy", err)
 	}
 	if withhold {
-		return 0, 0
+		return 0
 	}
 
 	row := &store.Resource{
@@ -255,9 +253,9 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 		AttributesJSON: mustJSON(attrs),
 		DiscoveredBy:   scanID,
 	}
-	total, inserted, err := upsertBatch(st, []*store.Resource{row}, "iam account")
+	total, err := upsertBatch(st, []*store.Resource{row}, "iam account")
 	add("iam account upsert", err)
-	return total, inserted
+	return total
 }
 
 // scanIAMAuthDetails paginates iam:GetAccountAuthorizationDetails to upsert
@@ -278,10 +276,10 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 // fan-out that triggered IAM throttling). Order: GAAD first (captures attached
 // AWS-managed ARNs), then the catalogue stub for the unattached remainder —
 // reversing the historical catalogue-first order keeps each row upserted
-// exactly once so per-service totals == inserted on a fresh DB. Unattached
+// exactly once, so the per-service total counts no row twice. Unattached
 // catalogue policies keep their stub form as FK targets for
 // resolveManagedPolicyAttachments; the walker silently skips no-document rows.
-func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	attachedManagedARNs := map[string]bool{}
 
 	maxItems := int32(1000)
@@ -299,9 +297,9 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "iam:GetAccountAuthorizationDetails", acct.ID, "global", perr)
+				return total, skipIfAccessDenied(st, "iam:GetAccountAuthorizationDetails", acct.ID, "global", perr)
 			}
-			return total, inserted, fmt.Errorf("iam:GetAccountAuthorizationDetails: %w", perr)
+			return total, fmt.Errorf("iam:GetAccountAuthorizationDetails: %w", perr)
 		}
 
 		var batch []*store.Resource
@@ -407,19 +405,17 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 		}
 
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM auth details: %w", err)
+				return total, fmt.Errorf("upsert IAM auth details: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 
-	t0, n0, err := scanIAMAWSManagedCatalogue(ctx, client, acct, st, scanID, attachedManagedARNs)
+	t0, err := scanIAMAWSManagedCatalogue(ctx, client, acct, st, scanID, attachedManagedARNs)
 	total += t0
-	inserted += n0
-	return total, inserted, err
+	return total, err
 }
 
 // scanIAMAWSManagedCatalogue lists every AWS-managed policy ARN (`Scope=AWS`)
@@ -428,9 +424,9 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 // returns ~1500 entries across ~15 paginated calls — cheap, no per-policy
 // fan-out, no throttling risk. `skipARNs` holds the attached-managed ARN set
 // GAAD already inserted with rich PolicyVersion bodies; the catalogue pass
-// skips those to avoid a redundant second upsert that would inflate `total`
-// above `inserted`.
-func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, skipARNs map[string]bool) (total, inserted int, err error) {
+// skips those to avoid a redundant second upsert that would count them twice
+// in `total`.
+func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, skipARNs map[string]bool) (total int, err error) {
 	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{
 		Scope: iamtypes.PolicyScopeTypeAws,
 	})
@@ -438,9 +434,9 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListPolicies", acct.ID, "global", perr)
+				return total, skipIfAccessDenied(st, "iam:ListPolicies", acct.ID, "global", perr)
 			}
-			return total, inserted, fmt.Errorf("iam:ListPolicies(AWS): %w", perr)
+			return total, fmt.Errorf("iam:ListPolicies(AWS): %w", perr)
 		}
 		var batch []*store.Resource
 		for _, p := range page.Policies {
@@ -471,15 +467,14 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert AWS-managed policy catalogue: %w", err)
+				return total, fmt.Errorf("upsert AWS-managed policy catalogue: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // inlinePolicyRows projects GAAD-embedded inline policies into store.Resource
@@ -525,15 +520,15 @@ func defaultPolicyVersion(p iamtypes.ManagedPolicyDetail) *iamtypes.PolicyVersio
 	return nil
 }
 
-func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := iam.NewListInstanceProfilesPaginator(client, &iam.ListInstanceProfilesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListInstanceProfiles", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "iam:ListInstanceProfiles", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("iam:ListInstanceProfiles: %w", err)
+			return total, fmt.Errorf("iam:ListInstanceProfiles: %w", err)
 		}
 		var batch []*store.Resource
 		for _, ip := range page.InstanceProfiles {
@@ -552,12 +547,11 @@ func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, 
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM instance profiles: %w", err)
+				return total, fmt.Errorf("upsert IAM instance profiles: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -573,7 +567,7 @@ const (
 // scanIAMOIDCProviders stores each listed OIDC provider from its
 // GetOpenIDConnectProvider body, the only source of its tags, as
 // storeIAMProviders says.
-func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	out, listErr := client.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	var arns []*string
 	if listErr == nil {
@@ -594,7 +588,7 @@ func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st 
 // scanIAMSAMLProviders stores each listed SAML provider from its
 // GetSAMLProvider body, as storeIAMProviders says. The body's PrivateKeyList
 // holds key ids and upload times only, no key material.
-func scanIAMSAMLProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMSAMLProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	out, listErr := client.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
 	var arns []*string
 	if listErr == nil {
@@ -627,7 +621,7 @@ func storeIAMProviders(
 	ctx context.Context, st *store.Store, acct *account, listOp, getOp, kind string,
 	listed []*string, listErr error,
 	get func(ctx context.Context, arn string) (*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	var (
 		arns          []string
 		noARN, denied skipTally
@@ -700,15 +694,15 @@ func iamProviderRow(acct *account, scanID, typ, arn string, created *time.Time, 
 	}
 }
 
-func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := iam.NewListServerCertificatesPaginator(client, &iam.ListServerCertificatesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListServerCertificates", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "iam:ListServerCertificates", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("iam:ListServerCertificates: %w", err)
+			return total, fmt.Errorf("iam:ListServerCertificates: %w", err)
 		}
 		var batch []*store.Resource
 		for _, cert := range page.ServerCertificateMetadataList {
@@ -727,27 +721,26 @@ func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM server certificates: %w", err)
+				return total, fmt.Errorf("upsert IAM server certificates: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
 }
 
 // scanIAMVirtualMFADevices lists virtual MFA devices. SerialNumber is the ARN.
-func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	pager := iam.NewListVirtualMFADevicesPaginator(client, &iam.ListVirtualMFADevicesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListVirtualMFADevices", acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, "iam:ListVirtualMFADevices", acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("iam:ListVirtualMFADevices: %w", err)
+			return total, fmt.Errorf("iam:ListVirtualMFADevices: %w", err)
 		}
 		var batch []*store.Resource
 		for _, dev := range page.VirtualMFADevices {
@@ -767,12 +760,11 @@ func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account,
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM virtual MFA devices: %w", err)
+				return total, fmt.Errorf("upsert IAM virtual MFA devices: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
 	return
@@ -784,7 +776,7 @@ func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account,
 // No user's failure cancels another's: every key read is stored before the
 // errors are returned. A user deleted since GAAD (NoSuchEntity) is skipped; a
 // transient or denied call skips that user with one warning per cause.
-func scanIAMAccessKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMAccessKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, error) {
 	const op = "iam:ListAccessKeys"
 	var (
 		mu        sync.Mutex
@@ -817,8 +809,8 @@ func scanIAMAccessKeys(ctx context.Context, client iamAPI, users []childParent, 
 	transient.warnSkipped(st, op, acct, "global")
 	denied.warnDenied(st, op, acct.ID, "user(s)")
 	warnNotStored(st, op, acct, "global", &noID, "access keys without AccessKeyId, the NativeID's key, by user name")
-	total, inserted, err := upsertBatch(st, batch, "IAM access keys")
-	return total, inserted, errors.Join(append(errs, err)...)
+	total, err := upsertBatch(st, batch, "IAM access keys")
+	return total, errors.Join(append(errs, err)...)
 }
 
 // listIAMAccessKeys reads every page of one user's access keys, returning the
@@ -897,9 +889,9 @@ func iamUserChildRow(acct *account, scanID, typ, userARN, kind, id string, statu
 
 // scanIAMServiceSpecificCredentials lists each user's service-specific
 // credentials (CodeCommit, Keyspaces, Bedrock and CloudWatch Logs API keys).
-func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, error) {
 	var idless skipTally
-	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListServiceSpecificCredentials", users, isIAMUserGone,
+	total, err := childFanOut(ctx, st, acct, "global", "iam:ListServiceSpecificCredentials", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			// Per user, not AllUsers: no live call has confirmed what AllUsers
@@ -928,13 +920,13 @@ func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users
 			}
 		})
 	warnNotStored(st, "iam:ListServiceSpecificCredentials", acct, "global", &idless, "service-specific credentials have no ServiceSpecificCredentialId")
-	return total, inserted, err
+	return total, err
 }
 
 // scanIAMSigningCertificates lists each user's X.509 signing certificates.
-func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, error) {
 	var idless skipTally
-	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListSigningCertificates", users, isIAMUserGone,
+	total, err := childFanOut(ctx, st, acct, "global", "iam:ListSigningCertificates", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := iam.NewListSigningCertificatesPaginator(client, &iam.ListSigningCertificatesInput{UserName: &u.id})
@@ -955,16 +947,16 @@ func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []chil
 			return rows, nil
 		})
 	warnNotStored(st, "iam:ListSigningCertificates", acct, "global", &idless, "signing certificates have no CertificateId")
-	return total, inserted, err
+	return total, err
 }
 
 // scanIAMSSHPublicKeys lists each user's SSH public keys (CodeCommit). The list
 // element is stored as is: GetSSHPublicKey would add the key body and
 // fingerprint at one more call per key against IAM's low TPS ceiling, and
 // neither is needed to inventory the key or link it to its user.
-func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, error) {
 	var idless skipTally
-	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListSSHPublicKeys", users, isIAMUserGone,
+	total, err := childFanOut(ctx, st, acct, "global", "iam:ListSSHPublicKeys", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := iam.NewListSSHPublicKeysPaginator(client, &iam.ListSSHPublicKeysInput{UserName: &u.id})
@@ -985,7 +977,7 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 			return rows, nil
 		})
 	warnNotStored(st, "iam:ListSSHPublicKeys", acct, "global", &idless, "SSH public keys have no SSHPublicKeyId")
-	return total, inserted, err
+	return total, err
 }
 
 // iamDelegationRequestNativeID builds the delegation-request ARN in the format
@@ -1015,7 +1007,7 @@ func iamDelegationRequestNativeID(partition, accountID, id string) string {
 // per-request Get is made. GetHumanReadableSummary is not called: an LLM
 // generates its text asynchronously, so the text describes the request and is
 // not state of it.
-func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total int, err error) {
 	const op = "iam:ListDelegationRequests"
 	// The model does not mark DelegationRequestId required, and a row cannot be
 	// keyed without it, so such requests are counted and warned about once.
@@ -1033,9 +1025,9 @@ func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account
 		out, err := client.ListDelegationRequests(ctx, input)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, op, acct.ID, "global", err)
+				return total, skipIfAccessDenied(st, op, acct.ID, "global", err)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", op, err)
+			return total, fmt.Errorf("%s: %w", op, err)
 		}
 		var batch []*store.Resource
 		for _, r := range out.DelegationRequests {
@@ -1059,19 +1051,18 @@ func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM delegation requests: %w", err)
+				return total, fmt.Errorf("upsert IAM delegation requests: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		next := sv(out.Marker)
 		if next == "" {
-			return total, inserted, nil
+			return total, nil
 		}
 		if next == sv(input.Marker) {
-			return total, inserted, fmt.Errorf("%s: Marker %q: %w", op, next, errRepeatedNextToken)
+			return total, fmt.Errorf("%s: Marker %q: %w", op, next, errRepeatedNextToken)
 		}
 		input.Marker = out.Marker
 	}

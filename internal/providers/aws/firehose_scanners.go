@@ -31,13 +31,13 @@ type firehoseAPI interface {
 // ListDeliveryStreams returns names (paginated via ExclusiveStartDeliveryStreamName);
 // DescribeDeliveryStream runs concurrently per name for full config
 // (destinations, encryption).
-func scanFirehose(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirehose(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := firehose.NewFromConfig(acct.cfg, func(o *firehose.Options) { o.Region = region })
 	return scanFirehoseDeliveryStreams(ctx, client, acct, region, st, scanID)
 }
 
 // scanFirehoseDeliveryStreams holds the testable scan body.
-func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var exclusiveStart *string
 	for {
 		out, err := client.ListDeliveryStreams(ctx, &firehose.ListDeliveryStreamsInput{
@@ -45,9 +45,9 @@ func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "firehose:ListDeliveryStreams", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "firehose:ListDeliveryStreams", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("firehose:ListDeliveryStreams: %w", err)
+			return 0, fmt.Errorf("firehose:ListDeliveryStreams: %w", err)
 		}
 
 		var (
@@ -91,15 +91,14 @@ func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Firehose delivery streams: %w", err)
+				return 0, fmt.Errorf("upsert Firehose delivery streams: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 
 		if out.HasMoreDeliveryStreams == nil || !*out.HasMoreDeliveryStreams || len(out.DeliveryStreamNames) == 0 {
@@ -108,5 +107,5 @@ func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *
 		last := out.DeliveryStreamNames[len(out.DeliveryStreamNames)-1]
 		exclusiveStart = &last
 	}
-	return total, inserted, nil
+	return total, nil
 }

@@ -236,7 +236,7 @@ func wafRegionalHandlers(c *wafRegionalCalls) map[string]func(in any) (any, erro
 
 // wafRegionalScan runs the scan's real entry point in us-east-1 against
 // handlers; every op they do not answer is denied.
-func wafRegionalScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func wafRegionalScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wafTestDenied)
 	return scanWAFRegional(ctx, acct, testRegion, st, testScanID)
@@ -262,7 +262,9 @@ func TestScanWAFRegional_StoresEveryListingWithTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newWAFRegionalCalls("aws", testRegion)
 
-	total, inserted, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := wafRegionalScan(context.Background(), counted, wafRegionalHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -350,16 +352,16 @@ func TestScanWAFRegional_StoresEveryListingWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanWAFRegional_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))); err != nil {
+	if _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
+	total, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -384,7 +386,9 @@ func TestScanWAFRegional_NoResources(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := wafRegionalScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := wafRegionalScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -433,7 +437,7 @@ func TestScanWAFRegional_TagReadFailures(t *testing.T) {
 			calls := newWAFRegionalCalls("aws", testRegion)
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+			total, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -499,7 +503,7 @@ func TestScanWAFRegional_TagPages(t *testing.T) {
 		}}, nil
 	}
 
-	if _, _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
+	if _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !slices.Equal(markers, []string{"", "t2"}) || !slices.Equal(limits, []int32{100, 100}) {
@@ -522,7 +526,7 @@ func TestScanWAFRegional_TagResponseWithoutInfo(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	if _, _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
+	if _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeWAFRegionalRule)[arn]
@@ -544,7 +548,7 @@ func TestScanWAFRegional_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[wafRegionalTestKindOf(t, "ListWebACLs").arn("aws", testRegion, "1")] = wafTestDenied
 	calls.tagErrs[wafRegionalTestKindOf(t, "ListRateBasedRules").arn("aws", testRegion, "2")] = wafTestDenied
 
-	total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+	total, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -566,7 +570,7 @@ func TestScanWAFRegional_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[wafRegionalTestKindOf(t, "ListWebACLs").arn("aws", testRegion, "2")] = wafTestThrottle
 	calls.tagErrs[wafRegionalTestKindOf(t, "ListRules").arn("aws", testRegion, "1")] = wafTestBad
 
-	_, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+	_, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "WAFInvalidParameterException")
 	if *warns != 1 {
@@ -596,7 +600,7 @@ func TestScanWAFRegional_FailedWriteStopsScan(t *testing.T) {
 			refuseStoreWrites(t, st, wafRegionalTestKindOf(t, c.op).typ)
 			calls := newWAFRegionalCalls("aws", testRegion)
 
-			total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+			total, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -624,7 +628,7 @@ func TestScanWAFRegional_FailedAssociationWrite(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeWAFRegionalWebACLAssociation)
-	_, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
+	_, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -678,7 +682,7 @@ func TestScanWAFRegional_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := wafRegionalScan(context.Background(), st, handlers)
+			total, err := wafRegionalScan(context.Background(), st, handlers)
 			if c.wantErr != nil {
 				if !errors.Is(err, c.wantErr) {
 					t.Fatalf("err = %v; want %v", err, c.wantErr)
@@ -724,7 +728,7 @@ func TestScanWAFRegional_DeniedListingWarns(t *testing.T) {
 			handlers := wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))
 			delete(handlers, c.op)
 
-			total, _, err := wafRegionalScan(context.Background(), st, handlers)
+			total, err := wafRegionalScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -772,7 +776,7 @@ func TestScanWAFRegional_ElementWithoutID(t *testing.T) {
 				return k.page(nil, c.elem, nil), nil
 			}
 
-			if _, _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
+			if _, err := wafRegionalScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			rows := rowsByNativeID(t, st, k.typ)
@@ -859,7 +863,7 @@ func TestScanWAFRegional_AssociationFailures(t *testing.T) {
 			calls := newWAFRegionalCalls("aws", testRegion)
 			calls.assocErrs = c.failed
 
-			total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+			total, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -899,7 +903,7 @@ func TestScanWAFRegional_AssociationThrottleDemotedBesideHardError(t *testing.T)
 	calls.assocErrs["webacl-1 API_GATEWAY"] = wafTestThrottle
 	calls.tagErrs[wafRegionalTestKindOf(t, "ListRules").arn("aws", testRegion, "1")] = wafTestBad
 
-	_, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
+	_, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "WAFInvalidParameterException")
 	if *warns != 1 {
@@ -917,7 +921,7 @@ func TestScanWAFRegional_PartitionARNs(t *testing.T) {
 			calls := newWAFRegionalCalls(pf.partition, pf.region)
 			client := wafregional.NewFromConfig(opStubConfig(wafRegionalHandlers(calls), wafTestDenied), func(o *wafregional.Options) { o.Region = pf.region })
 
-			total, _, err := scanWAFRegionalAll(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID)
+			total, err := scanWAFRegionalAll(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -962,7 +966,7 @@ func TestScanWAFRegional_ContextEndReportedOnce(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	_, _, err := wafRegionalScan(ctx, st, handlers)
+	_, err := wafRegionalScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1000,7 +1004,7 @@ func TestScanWAFRegional_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))
 		handlers["ListXssMatchSets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := wafRegionalScan(context.Background(), st, handlers)
+		total, err := wafRegionalScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := wafRegionalTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1017,7 +1021,7 @@ func TestScanWAFRegional_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			}
 		}
-		_, _, err := wafRegionalScan(context.Background(), st, handlers)
+		_, err := wafRegionalScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

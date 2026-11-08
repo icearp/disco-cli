@@ -513,7 +513,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 // unregistered service that scanned nothing as disabled.
 func runSubscriptionService(ctx context.Context, svc serviceEntry, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) {
 	var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
-	total, _, err := svc.fn(ctx, sub, cred, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+	total, err := svc.fn(ctx, sub, cred, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
 	// reportStored reports what the service stored: quota limits apart from resources.
 	reportStored := func(errCount int) {
 		st.ReportQuotas(svc.name, sub.scopeLabel(), int(quotaNewC.Load()), int(quotaChangedC.Load()))

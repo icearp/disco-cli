@@ -240,7 +240,7 @@ func leHandlers(c *leCalls) map[string]func(in any) (any, error) {
 
 // leScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func leScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func leScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, leTestDenied)
 	return scanLookoutEquipment(ctx, acct, testRegion, st, testScanID)
@@ -292,7 +292,9 @@ func TestScanLookoutEquipment_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newLECalls()
 
-	total, inserted, err := leScan(context.Background(), st, leHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := leScan(context.Background(), counted, leHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -387,16 +389,16 @@ func TestScanLookoutEquipment_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanLookoutEquipment_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := leScan(context.Background(), st, leHandlers(newLECalls())); err != nil {
+	if _, err := leScan(context.Background(), st, leHandlers(newLECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := leScan(context.Background(), st, leHandlers(newLECalls()))
+	total, err := leScan(context.Background(), st, leHandlers(newLECalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -430,7 +432,9 @@ func TestScanLookoutEquipment_Empty(t *testing.T) {
 		return &lookoutequipment.ListModelsOutput{}, nil
 	}
 
-	total, inserted, err := leScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := leScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -484,7 +488,7 @@ func TestScanLookoutEquipment_TagReadFailures(t *testing.T) {
 			calls := newLECalls()
 			calls.errs[c.tagARN] = c.err
 
-			total, _, err := leScan(context.Background(), st, leHandlers(calls))
+			total, err := leScan(context.Background(), st, leHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -531,7 +535,7 @@ func TestScanLookoutEquipment_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.errs[leKindOf(t, "ListModels").arn("tagged")] = leTestDenied
 	calls.errs[leTestVersionARN("model-bare", 2)] = leTestDenied
 
-	total, _, err := leScan(context.Background(), st, leHandlers(calls))
+	total, err := leScan(context.Background(), st, leHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -553,7 +557,7 @@ func TestScanLookoutEquipment_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[leKindOf(t, "ListDatasets").arn("bare")] = leTestThrottle
 	calls.errs[leTestVersionARN("model-tagged", 2)] = leTestBad
 
-	_, _, err := leScan(context.Background(), st, leHandlers(calls))
+	_, err := leScan(context.Background(), st, leHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -592,7 +596,7 @@ func TestScanLookoutEquipment_DescribeFailures(t *testing.T) {
 			calls := newLECalls()
 			calls.describeErrs["sched-tagged"] = c.err
 
-			total, _, err := leScan(context.Background(), st, leHandlers(calls))
+			total, err := leScan(context.Background(), st, leHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -636,7 +640,7 @@ func TestScanLookoutEquipment_DescribeFailures(t *testing.T) {
 			return &lookoutequipment.ListInferenceSchedulersOutput{InferenceSchedulerSummaries: []letypes.InferenceSchedulerSummary{{InferenceSchedulerArn: &arn}}}, nil
 		}
 
-		total, _, err := leScan(context.Background(), st, handlers)
+		total, err := leScan(context.Background(), st, handlers)
 		if !errors.Is(err, errLESchedulerNoName) {
 			t.Fatalf("err = %v; want errLESchedulerNoName", err)
 		}
@@ -667,7 +671,7 @@ func TestScanLookoutEquipment_FailedWriteStopsScan(t *testing.T) {
 	calls := newLECalls()
 	calls.errs[leKindOf(t, "ListDatasets").arn("tagged")] = leTestDenied
 
-	total, _, err := leScan(context.Background(), st, leHandlers(calls))
+	total, err := leScan(context.Background(), st, leHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -711,7 +715,7 @@ func TestScanLookoutEquipment_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 				return list(in)
 			}
 
-			total, _, err := leScan(context.Background(), st, handlers)
+			total, err := leScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if total != c.wantTotal {
@@ -745,7 +749,7 @@ func TestScanLookoutEquipment_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := leScan(context.Background(), st, handlers)
+	total, err := leScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -791,7 +795,7 @@ func TestScanLookoutEquipment_PerModelVersionFailures(t *testing.T) {
 				return calls.versions(in)
 			}
 
-			total, _, err := leScan(context.Background(), st, handlers)
+			total, err := leScan(context.Background(), st, handlers)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -843,7 +847,7 @@ func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
 			page.DatasetSummaries = append(page.DatasetSummaries, letypes.DatasetSummary{DatasetName: sdkaws.String("ds-noarn")})
 			return out, err
 		}
-		total, _, err := leScan(context.Background(), st, handlers)
+		total, err := leScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -878,7 +882,7 @@ func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
 				page.ModelVersionSummaries = append(page.ModelVersionSummaries, v)
 				return out, err
 			}
-			total, _, err := leScan(context.Background(), st, handlers)
+			total, err := leScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -906,7 +910,7 @@ func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
 			calls.record("ListModels", in)
 			return &lookoutequipment.ListModelsOutput{ModelSummaries: []letypes.ModelSummary{{ModelArn: &arn}}}, nil
 		}
-		total, _, err := leScan(context.Background(), st, handlers)
+		total, err := leScan(context.Background(), st, handlers)
 		if err != nil {
 			t.Fatalf("scan: %v", err)
 		}
@@ -934,7 +938,7 @@ func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
 			}
 			return out, err
 		}
-		total, _, err := leScan(context.Background(), st, handlers)
+		total, err := leScan(context.Background(), st, handlers)
 		if !errors.Is(err, errLEVersionNoARN) {
 			t.Fatalf("err = %v; want errLEVersionNoARN", err)
 		}
@@ -989,7 +993,7 @@ func TestScanLookoutEquipment_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, leTestDenied)
-			if _, _, err := scanLookoutEquipment(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanLookoutEquipment(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, want := range []string{datasetARN, versionARN} {
@@ -1021,7 +1025,7 @@ func TestScanLookoutEquipment_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := leScan(ctx, st, handlers)
+	_, err := leScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1049,7 +1053,7 @@ func TestScanLookoutEquipment_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := leHandlers(newLECalls())
 		handlers["ListModelVersions"] = func(any) (any, error) { return nil, nx }
-		total, _, err := leScan(context.Background(), st, handlers)
+		total, err := leScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := leTestTotal - 4; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1059,7 +1063,7 @@ func TestScanLookoutEquipment_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newLECalls()
 		calls.errs[leKindOf(t, "ListInferenceSchedulers").arn("tagged")] = nx
-		_, _, err := leScan(context.Background(), st, leHandlers(calls))
+		_, err := leScan(context.Background(), st, leHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1075,7 +1079,7 @@ func TestScanLookoutEquipment_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanLookoutEquipment(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanLookoutEquipment(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

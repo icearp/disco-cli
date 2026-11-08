@@ -31,20 +31,20 @@ const (
 // streams. A failed cluster phase still lists the streams of the clusters it
 // stored, and one cluster's failed stream listing does not stop the others;
 // only a store write failure stops the scan.
-func scanDSQL(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDSQL(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := dsql.NewFromConfig(acct.cfg, func(o *dsql.Options) { o.Region = region })
 
 	var phases phaseTotals
-	t, i, clusters, cerr := scanDSQLClusters(ctx, client, acct, region, st, scanID)
+	t, clusters, cerr := scanDSQLClusters(ctx, client, acct, region, st, scanID)
 	// A failed cluster write returns no clusters, so the loop below does not run.
-	phases.addPhase(dsqlListClustersOp, t, i, cerr)
+	phases.addPhase(dsqlListClustersOp, t, cerr)
 	for n, c := range clusters {
 		if err := ctx.Err(); err != nil {
-			phases.addPhase(dsqlListStreamsOp, 0, 0, fmt.Errorf("%s: %d of %d clusters not read: %w", dsqlListStreamsOp, len(clusters)-n, len(clusters), err))
+			phases.addPhase(dsqlListStreamsOp, 0, fmt.Errorf("%s: %d of %d clusters not read: %w", dsqlListStreamsOp, len(clusters)-n, len(clusters), err))
 			break
 		}
-		t, i, serr := scanDSQLStreams(ctx, client, acct, region, st, scanID, c.id)
-		if phases.addPhase(dsqlListStreamsOp, t, i, serr) {
+		t, serr := scanDSQLStreams(ctx, client, acct, region, st, scanID, c.id)
+		if phases.addPhase(dsqlListStreamsOp, t, serr) {
 			break
 		}
 	}
@@ -82,9 +82,9 @@ type dsqlClusterReads struct {
 // element instead, a different shape that carries no tags: a denial is warned
 // about once, any other error, a transient one included, is returned after the
 // rows are stored.
-func scanDSQLClusters(ctx context.Context, client dsqlAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanDSQLClusters(ctx context.Context, client dsqlAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	var reads dsqlClusterReads
-	total, inserted, clusters, err := storeParentList(ctx, st, acct, region, dsqlListClustersOp, "clusters", "Identifier",
+	total, clusters, err := storeParentList(ctx, st, acct, region, dsqlListClustersOp, "clusters", "Identifier",
 		func(ctx context.Context, token *string) ([]dsqlListedCluster, *string, error) {
 			out, err := client.ListClusters(ctx, &dsql.ListClustersInput{NextToken: token, MaxResults: sdkaws.Int32(100)})
 			if err != nil {
@@ -97,10 +97,10 @@ func scanDSQLClusters(ctx context.Context, client dsqlAPI, acct *account, region
 		},
 		func(c dsqlListedCluster) string { return sv(c.summary.Identifier) })
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, clusters, err
+		return total, clusters, err
 	}
 	reads.denied.warnDeniedIn(st, dsqlGetClusterOp, acct, region, "cluster(s) stored as their ListClusters element, without details or tags, because GetCluster was")
-	return total, inserted, clusters, errors.Join(append([]error{err, reads.stopped}, reads.errs...)...)
+	return total, clusters, errors.Join(append([]error{err, reads.stopped}, reads.errs...)...)
 }
 
 // readDSQLClusters calls GetCluster for each cluster of one ListClusters page
@@ -159,16 +159,16 @@ func dsqlClusterRow(acct *account, region, scanID string, c dsqlListedCluster, r
 	}, "", ""
 }
 
-func scanDSQLStreams(ctx context.Context, client dsqlAPI, acct *account, region string, st *store.Store, scanID, clusterID string) (int, int, error) {
+func scanDSQLStreams(ctx context.Context, client dsqlAPI, acct *account, region string, st *store.Store, scanID, clusterID string) (int, error) {
 	var batch []*store.Resource
 	pager := dsql.NewListStreamsPaginator(client, &dsql.ListStreamsInput{ClusterIdentifier: &clusterID})
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dsql:ListStreams", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "dsql:ListStreams", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("dsql:ListStreams: %w", err)
+			return 0, fmt.Errorf("dsql:ListStreams: %w", err)
 		}
 		for _, s := range out.Streams {
 			arn := sv(s.Arn)

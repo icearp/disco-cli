@@ -109,8 +109,10 @@ func TestScanQuotaLimits_FakeTransport(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	counted, upserts := countUpserts(st)
+	total, err := scanQuotaLimitsWithClient(t.Context(), sub, counted, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus", "westus"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanQuotaLimitsWithClient: %v", err)
 	}
@@ -177,7 +179,7 @@ func TestScanQuotaLimits_IsQuotaApplicableMapsToAdjustable(t *testing.T) {
 			return r
 		},
 	}
-	if _, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	if _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -214,8 +216,10 @@ func TestScanQuotaLimits_EmptyRegion(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	counted, upserts := countUpserts(st)
+	total, err := scanQuotaLimitsWithClient(t.Context(), sub, counted, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"})
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanQuotaLimitsWithClient: %v", err)
 	}
@@ -248,7 +252,7 @@ func TestScanQuotaLimits_QuotaCodeIsProviderName(t *testing.T) {
 		},
 	}
 
-	total, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	total, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"})
 	if err != nil {
 		t.Fatalf("scanQuotaLimitsWithClient: %v", err)
@@ -287,7 +291,7 @@ func TestScanQuotaLimits_MissingLimitStaysNull(t *testing.T) {
 		},
 	}
 
-	if _, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	if _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -315,7 +319,7 @@ func TestScanQuotaLimits_GenuineErrorPropagates(t *testing.T) {
 		},
 	}
 
-	_, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+	_, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
 		quotaTestClient(t, server), []string{"Microsoft.Compute"}, []string{"eastus"})
 	if err == nil {
 		t.Fatal("expected a non-skippable 500 to propagate, got nil")
@@ -347,7 +351,7 @@ func TestScanQuotaLimits_LimitOnlyChurnFree(t *testing.T) {
 	client := quotaTestClient(t, server)
 	scan := func() {
 		t.Helper()
-		if _, _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
+		if _, err := scanQuotaLimitsWithClient(t.Context(), sub, st, testScanID,
 			client, []string{"Microsoft.Compute"}, []string{"eastus"}); err != nil {
 			t.Fatalf("scan: %v", err)
 		}

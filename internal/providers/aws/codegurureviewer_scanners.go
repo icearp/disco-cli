@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanCodeGuruReviewer discovers CodeGuru Reviewer repository associations.
-func scanCodeGuruReviewer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCodeGuruReviewer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := codegurureviewer.NewFromConfig(acct.cfg, func(o *codegurureviewer.Options) { o.Region = region })
 
 	var batch []*store.Resource
@@ -27,9 +27,9 @@ func scanCodeGuruReviewer(ctx context.Context, acct *account, region string, st 
 		out, err := client.ListRepositoryAssociations(ctx, &codegurureviewer.ListRepositoryAssociationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "codeguru-reviewer:ListRepositoryAssociations", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "codeguru-reviewer:ListRepositoryAssociations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("codeguru-reviewer:ListRepositoryAssociations: %w", err)
+			return 0, fmt.Errorf("codeguru-reviewer:ListRepositoryAssociations: %w", err)
 		}
 		for _, a := range out.RepositoryAssociationSummaries {
 			arn := sv(a.AssociationArn)

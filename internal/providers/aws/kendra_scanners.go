@@ -74,7 +74,7 @@ var kendraNotFound = []string{"ResourceNotFoundException"}
 // scanKendra discovers Kendra indices, their per-index children, and each
 // experience's entities and personas. List APIs return only IDs — synthesize
 // ARNs.
-func scanKendra(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKendra(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := kendra.NewFromConfig(acct.cfg, func(o *kendra.Options) { o.Region = region })
 	return scanKendraAll(ctx, client, acct, region, st, scanID)
 }
@@ -88,14 +88,14 @@ func scanKendra(ctx context.Context, acct *account, region string, st *store.Sto
 // tags read per row (kendraTags), and the tag denials of the whole scan are
 // one warning. An account Kendra is closed to has no index listed and is
 // reported not entitled.
-func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := kendraTags(client).sharingDenials()
 	var (
 		indices     []childParent
 		closed      error
 		experiences []kendraExperience
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "kendra", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "kendra", 0, []hostPhase{
 		{op: kendraListIndicesOp, run: func(p *phaseTotals) (failed bool) {
 			indices, failed, closed = scanKendraIndices(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -106,12 +106,12 @@ func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region 
 		{op: kendraListFaqsOp, run: func(p *phaseTotals) bool {
 			return scanKendraFaqs(ctx, client, acct, region, st, scanID, indices, tags, p)
 		}},
-		countedPhase(0, kendraListAccessControlConfigsOp, func() (int, int, error) {
+		countedPhase(0, kendraListAccessControlConfigsOp, func() (int, error) {
 			return scanKendraAccessControlConfigurations(ctx, client, acct, region, st, scanID, indices)
 		}),
-		countedPhase(0, kendraListExperiencesOp, func() (t, i int, err error) {
-			experiences, t, i, err = scanKendraExperiences(ctx, client, acct, region, st, scanID, indices)
-			return t, i, err
+		countedPhase(0, kendraListExperiencesOp, func() (t int, err error) {
+			experiences, t, err = scanKendraExperiences(ctx, client, acct, region, st, scanID, indices)
+			return t, err
 		}),
 		{op: kendraListFeaturedResultsSetsOp, run: func(p *phaseTotals) bool {
 			return scanKendraFeaturedResultsSets(ctx, client, acct, region, st, scanID, indices, tags, p)
@@ -122,20 +122,20 @@ func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region 
 		{op: kendraListThesauriOp, run: func(p *phaseTotals) bool {
 			return scanKendraThesauri(ctx, client, acct, region, st, scanID, indices, tags, p)
 		}},
-		countedPhase(0, kendraListExperienceEntitiesOp, func() (int, int, error) {
+		countedPhase(0, kendraListExperienceEntitiesOp, func() (int, error) {
 			return scanKendraExperienceEntities(ctx, client, acct, region, st, scanID, experiences)
 		}),
-		countedPhase(0, kendraListEntityPersonasOp, func() (int, int, error) {
+		countedPhase(0, kendraListEntityPersonasOp, func() (int, error) {
 			return scanKendraEntityPersonas(ctx, client, acct, region, st, scanID, experiences)
 		}),
 	})
 	// Closed, the index listing stored nothing, so no later phase had an
 	// index or experience to read.
 	if closed != nil {
-		return 0, 0, markServiceNotEntitled(closed)
+		return 0, markServiceNotEntitled(closed)
 	}
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // kendraTags reads a row's tags with ListTagsForResource, sent the row's
@@ -288,7 +288,7 @@ func scanKendraFaqs(ctx context.Context, client kendraAPI, acct *account, region
 // scanKendraAccessControlConfigurations stores the access control
 // configurations of each index, the indices read concurrently
 // (storeTokenEachParent). The type has no tags.
-func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) (int, int, error) {
+func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, kendraListAccessControlConfigsOp, kendraNotFound, childParentIDs(indices),
 		func(ctx context.Context, index string, token *string) ([]kendratypes.AccessControlConfigurationSummary, *string, error) {
 			out, err := client.ListAccessControlConfigurations(ctx, &kendra.ListAccessControlConfigurationsInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
@@ -313,9 +313,9 @@ type kendraExperience struct {
 // read concurrently (storeTokenEachParent), and returns every one built. A
 // failed write stops the scan (runHostPhases), so none is read from after
 // it. The type has no tags.
-func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) ([]kendraExperience, int, int, error) {
+func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) ([]kendraExperience, int, error) {
 	var exps []kendraExperience
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, kendraListExperiencesOp, kendraNotFound, childParentIDs(indices),
+	total, err := storeTokenEachParent(ctx, st, acct, region, kendraListExperiencesOp, kendraNotFound, childParentIDs(indices),
 		func(ctx context.Context, index string, token *string) ([]kendratypes.ExperiencesSummary, *string, error) {
 			out, err := client.ListExperiences(ctx, &kendra.ListExperiencesInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
 			if err != nil {
@@ -330,7 +330,7 @@ func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account,
 			}
 			return r, why, key
 		})
-	return exps, total, inserted, err
+	return exps, total, err
 }
 
 // scanKendraFeaturedResultsSets stores the featured results sets of each
@@ -411,7 +411,7 @@ const kendraEntityPersonaPageLimit = 100
 func kendraExperienceFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, experiences []kendraExperience,
 	list func(ctx context.Context, indexID string, exp childParent) ([]*store.Resource, error),
-) (int, int, error) {
+) (int, error) {
 	parents := make([]childParent, len(experiences))
 	indexOf := make(map[string]string, len(experiences))
 	for i, e := range experiences {
@@ -430,7 +430,7 @@ func kendraExperienceFanOut(
 // granted access to each experience. EntityId is an Identity Center user or
 // group id (by the model's pattern, an optional 10-hex-digit prefix plus a
 // UUID, with no "/"), so it alone keys the row under its experience.
-func scanKendraExperienceEntities(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, experiences []kendraExperience) (int, int, error) {
+func scanKendraExperienceEntities(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, experiences []kendraExperience) (int, error) {
 	return kendraExperienceFanOut(ctx, st, acct, region, kendraListExperienceEntitiesOp, experiences, func(ctx context.Context, indexID string, exp childParent) ([]*store.Resource, error) {
 		pager := kendra.NewListExperienceEntitiesPaginator(client, &kendra.ListExperienceEntitiesInput{IndexId: &indexID, Id: &exp.id})
 		var rows []*store.Resource
@@ -459,7 +459,7 @@ func scanKendraExperienceEntities(ctx context.Context, client kendraAPI, acct *a
 // experience grants its users and groups. EntityId keys the row: that an
 // entity holds at most one persona per experience is inferred from
 // DisassociatePersonasFromEntities taking only entity ids, not observed live.
-func scanKendraEntityPersonas(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, experiences []kendraExperience) (int, int, error) {
+func scanKendraEntityPersonas(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, experiences []kendraExperience) (int, error) {
 	return kendraExperienceFanOut(ctx, st, acct, region, kendraListEntityPersonasOp, experiences, func(ctx context.Context, indexID string, exp childParent) ([]*store.Resource, error) {
 		pager := kendra.NewListEntityPersonasPaginator(client,
 			&kendra.ListEntityPersonasInput{IndexId: &indexID, Id: &exp.id},

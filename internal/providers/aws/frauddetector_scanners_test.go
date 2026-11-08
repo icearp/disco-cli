@@ -218,7 +218,7 @@ func fdtHandlers(c *fdtCalls) map[string]func(any) (any, error) {
 
 // fdtScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func fdtScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func fdtScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, fdtDenied)
 	return scanFraudDetector(ctx, acct, testRegion, st, testScanID)
@@ -241,7 +241,9 @@ func TestScanFraudDetector_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newFDTCalls()
 
-	total, inserted, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := fdtScan(context.Background(), counted, fdtHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -299,17 +301,17 @@ func TestScanFraudDetector_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanFraudDetector_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newFDTCalls()
-	if _, _, err := fdtScan(context.Background(), st, fdtHandlers(calls)); err != nil {
+	if _, err := fdtScan(context.Background(), st, fdtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+	total, err := fdtScan(context.Background(), st, fdtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -350,7 +352,7 @@ func TestScanFraudDetector_TagReadFailures(t *testing.T) {
 					calls := newFDTCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+					_, err := fdtScan(context.Background(), st, fdtHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -402,7 +404,7 @@ func TestScanFraudDetector_TagPagesRepeatedToken(t *testing.T) {
 		return calls.listTags(in)
 	}
 
-	_, _, err := fdtScan(context.Background(), st, h)
+	_, err := fdtScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -422,7 +424,7 @@ func TestScanFraudDetector_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[fdtItemARN("label", "t")] = fdtThrottled
 	calls.errs[fdtModelVersion("b")] = fdtBadInput
 
-	_, _, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+	_, err := fdtScan(context.Background(), st, fdtHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -451,7 +453,7 @@ func TestScanFraudDetector_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := fdtHandlers(newFDTCalls())
 			h[op] = func(any) (any, error) { return nil, fdtDenied }
 
-			total, _, err := fdtScan(context.Background(), st, h)
+			total, err := fdtScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -502,7 +504,7 @@ func TestScanFraudDetector_ClosedToNewCustomers(t *testing.T) {
 			h := fdtHandlers(calls)
 			c.setup(h)
 
-			total, _, err := fdtScan(context.Background(), st, h)
+			total, err := fdtScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeNotEntitled)
 			if total != 0 || *warns != 0 {
 				t.Errorf("total = %d, warnings = %d; want 0, 0", total, *warns)
@@ -527,7 +529,7 @@ func TestScanFraudDetector_ClosedToNewCustomers(t *testing.T) {
 			h := fdtHandlers(calls)
 			h[c.op] = failOnCall(c.page, fdtClosed, h[c.op])
 
-			total, _, err := fdtScan(context.Background(), st, h)
+			total, err := fdtScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -567,7 +569,7 @@ func TestScanFraudDetector_ClosedAfterEarlierFailure(t *testing.T) {
 			h["GetDetectors"] = func(any) (any, error) { return nil, c.earlier }
 			h["GetEntityTypes"] = func(any) (any, error) { return nil, fdtClosed }
 
-			_, _, err := fdtScan(context.Background(), st, h)
+			_, err := fdtScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -595,7 +597,7 @@ func TestScanFraudDetector_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newFDTCalls()
 	calls.errs[fdtDetector("t")] = fdtDenied
 
-	_, _, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+	_, err := fdtScan(context.Background(), st, fdtHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -628,7 +630,7 @@ func TestScanFraudDetector_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 		return rules(in)
 	}
 
-	_, _, err := fdtScan(context.Background(), st, h)
+	_, err := fdtScan(context.Background(), st, h)
 	for _, code := range []string{"ConflictException", "ValidationException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -685,7 +687,7 @@ func TestScanFraudDetector_UnstorableItemsWarn(t *testing.T) {
 				}
 			}
 
-			if _, _, err := fdtScan(context.Background(), st, h); err != nil {
+			if _, err := fdtScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -704,7 +706,7 @@ func TestScanFraudDetector_RepeatedTokenKeepsPages(t *testing.T) {
 		return fdtPage("GetExternalModels", "external-model", "t", sdkaws.String("same")), nil
 	}
 
-	_, _, err := fdtScan(context.Background(), st, h)
+	_, err := fdtScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -731,7 +733,7 @@ func TestScanFraudDetector_ContextEndStopsOnce(t *testing.T) {
 		return labels(in)
 	}
 
-	_, _, err := fdtScan(ctx, st, h)
+	_, err := fdtScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -760,7 +762,7 @@ func TestScanFraudDetector_NXDOMAIN(t *testing.T) {
 		calls := newFDTCalls()
 		h := fdtHandlers(calls)
 		h["GetDetectors"] = func(any) (any, error) { return nil, nx }
-		total, _, err := fdtScan(context.Background(), st, h)
+		total, err := fdtScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 || calls.count("GetEntityTypes") != 0 {
 			t.Errorf("total = %d, GetEntityTypes calls = %d; want 0, 0", total, calls.count("GetEntityTypes"))
@@ -770,7 +772,7 @@ func TestScanFraudDetector_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		h := fdtHandlers(newFDTCalls())
 		h["GetDetectorVersion"] = func(any) (any, error) { return nil, nx }
-		total, _, err := fdtScan(context.Background(), st, h)
+		total, err := fdtScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 23 {
 			t.Errorf("total = %d; want 23 (the fixture less both detector versions)", total)

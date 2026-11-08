@@ -195,7 +195,7 @@ func cscHandlers(calls *cscCalls) map[string]func(in any) (any, error) {
 
 // cscScan runs the service scan entry point against handlers; an op without
 // a handler is denied.
-func cscScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func cscScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cscDenied)
 	return scanCodeStarConnections(ctx, acct, testRegion, st, testScanID)
@@ -257,7 +257,9 @@ func TestScanCodeStarConnections_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls cscCalls
-	total, inserted, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := cscScan(context.Background(), counted, cscHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -371,17 +373,17 @@ func TestScanCodeStarConnections_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCodeStarConnections_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls cscCalls
-	if _, _, err := cscScan(context.Background(), st, cscHandlers(&calls)); err != nil {
+	if _, err := cscScan(context.Background(), st, cscHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	total, err := cscScan(context.Background(), st, cscHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -401,7 +403,9 @@ func TestScanCodeStarConnections_Empty(t *testing.T) {
 	h["ListConnections"] = func(any) (any, error) { return &codestarconnections.ListConnectionsOutput{}, nil }
 	h["ListHosts"] = func(any) (any, error) { return &codestarconnections.ListHostsOutput{}, nil }
 	h["ListRepositoryLinks"] = func(any) (any, error) { return &codestarconnections.ListRepositoryLinksOutput{}, nil }
-	total, inserted, err := cscScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := cscScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -448,7 +452,7 @@ func TestScanCodeStarConnections_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := cscCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+			total, err := cscScan(context.Background(), st, cscHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -494,7 +498,7 @@ func TestScanCodeStarConnections_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := cscCalls{tagErrs: map[string]error{cscTestConnB: cscDenied, cscTestHostA: cscDenied, cscTestLinkC: cscDenied}}
-	total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	total, err := cscScan(context.Background(), st, cscHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -513,7 +517,7 @@ func TestScanCodeStarConnections_TagThrottleDemotedBesideHardError(t *testing.T)
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cscListTagsForResourceOp)
 	calls := cscCalls{tagErrs: map[string]error{cscTestConnA: cscThrottle, cscTestLinkC: cscBadInput}}
-	_, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	_, err := cscScan(context.Background(), st, cscHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if *warns != 1 {
@@ -531,7 +535,7 @@ func TestScanCodeStarConnections_SyncThrottleDemotedBesideHardError(t *testing.T
 		tagErrs:  map[string]error{cscTestConnB: cscBadInput},
 		syncErrs: map[string]error{cscTestLinkIDA: cscThrottle},
 	}
-	_, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	_, err := cscScan(context.Background(), st, cscHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidInputException")
 	if got, want := amWarnings(warns()), []string{cscListSyncConfigurationsOp}; !slices.Equal(got, want) {
@@ -564,7 +568,7 @@ func TestScanCodeStarConnections_ListFailureKeepsPagesAndLaterPhases(t *testing.
 				}
 				return list(in)
 			}
-			total, _, err := cscScan(context.Background(), st, h)
+			total, err := cscScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidInputException")
 			if want := len(tc.kept) + len(tc.wantSyncs); total != want {
@@ -606,7 +610,7 @@ func TestScanCodeStarConnections_ListDeniedWarnsAndContinues(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := cscScan(context.Background(), st, h); err != nil {
+			if _, err := cscScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := cscTaggedStored(t, st); !slices.Equal(got, tc.kept) {
@@ -648,7 +652,7 @@ func TestScanCodeStarConnections_SyncListingErrors(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := cscCalls{syncErrs: c.errs}
-			total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+			total, err := cscScan(context.Background(), st, cscHandlers(&calls))
 			if c.outcome == -1 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -683,7 +687,7 @@ func TestScanCodeStarConnections_SyncListingErrors(t *testing.T) {
 			}
 			return list(in)
 		}
-		_, _, err := cscScan(context.Background(), st, h)
+		_, err := cscScan(context.Background(), st, h)
 		assertAPICode(t, err, "InvalidInputException")
 		if got, want := cscSyncStored(t, st), cscSorted(cscTestSyncA, cscTestSyncB1); !slices.Equal(got, want) {
 			t.Errorf("sync configurations = %v; want %v", got, want)
@@ -713,7 +717,7 @@ func TestScanCodeStarConnections_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := cscCalls{tagErrs: c.tagErrs, syncErrs: c.syncErrs}
-			total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+			total, err := cscScan(context.Background(), st, cscHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -750,7 +754,7 @@ func TestScanCodeStarConnections_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := cscScan(context.Background(), st, h); err != nil {
+	if _, err := cscScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -794,7 +798,7 @@ func TestScanCodeStarConnections_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := cscScan(context.Background(), st, h)
+			total, err := cscScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -842,7 +846,7 @@ func TestScanCodeStarConnections_ElementWithoutIdentifier(t *testing.T) {
 		}
 		return out, err
 	}
-	if _, _, err := cscScan(context.Background(), st, h); err != nil {
+	if _, err := cscScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := cscSorted(cscTestConnA, cscTestHostA, cscTestLinkA, cscTestLinkB)
@@ -897,7 +901,7 @@ func TestScanCodeStarConnections_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, cscDenied)
-			if _, _, err := scanCodeStarConnections(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCodeStarConnections(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := cscSorted(arns["ListConnections"], arns["ListHosts"], arns["ListRepositoryLinks"])
@@ -936,7 +940,7 @@ func TestScanCodeStarConnections_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := cscScan(ctx, st, h)
+	_, err := cscScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -966,7 +970,7 @@ func TestScanCodeStarConnections_NXDOMAIN(t *testing.T) {
 		var calls cscCalls
 		h := cscHandlers(&calls)
 		h["ListHosts"] = func(any) (any, error) { return nil, nx }
-		total, _, err := cscScan(context.Background(), st, h)
+		total, err := cscScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := cscTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -975,7 +979,7 @@ func TestScanCodeStarConnections_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := cscCalls{tagErrs: map[string]error{cscTestLinkC: nx}}
-		_, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
+		_, err := cscScan(context.Background(), st, cscHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -983,7 +987,7 @@ func TestScanCodeStarConnections_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanCodeStarConnections(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanCodeStarConnections(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

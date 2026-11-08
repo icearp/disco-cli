@@ -83,11 +83,11 @@ func amParents(parents []amParent) ([]childParent, map[string]amParent) {
 // with, which the model documents as the account that shared the mesh when
 // it is not this one. The child listing inputs take no mesh ARN: they name
 // the mesh only by MeshName plus MeshOwner.
-func scanAppMesh(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppMesh(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := appmesh.NewFromConfig(acct.cfg, func(o *appmesh.Options) { o.Region = region })
 	tags := amTags(client, acct.ID).sharingDenials()
 	var meshes, routers, gateways []amParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "appmesh", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "appmesh", 0, []hostPhase{
 		{op: "appmesh:ListMeshes", run: func(p *phaseTotals) (failed bool) {
 			meshes, failed = scanAppMeshMeshes(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -114,7 +114,7 @@ func scanAppMesh(ctx context.Context, acct *account, region string, st *store.St
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // amTags reads a row's tags with ListTagsForResource, sent the row's

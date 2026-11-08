@@ -207,7 +207,7 @@ func b2biTestHandlers(c *b2biTestCalls) map[string]func(in any) (any, error) {
 
 // b2biTestScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func b2biTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func b2biTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, b2biTestDenied)
 	return scanB2BI(ctx, acct, testRegion, st, testScanID)
@@ -270,7 +270,9 @@ func TestScanB2BI_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newB2BITestCalls()
 
-	total, inserted, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := b2biTestScan(context.Background(), counted, b2biTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -370,7 +372,7 @@ func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := b2biTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := b2biTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range b2biTestKinds() {
@@ -380,16 +382,16 @@ func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanB2BI_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls())); err != nil {
+	if _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls()))
+	total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -419,7 +421,9 @@ func TestScanB2BI_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := b2biTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := b2biTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -472,7 +476,7 @@ func TestScanB2BI_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+			total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -523,7 +527,7 @@ func TestScanB2BI_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[b2biTestKindOf(t, "ListProfiles").arn("tagged")] = b2biTestDenied
 	calls.tagErrs[b2biTestKindOf(t, "ListTransformers").arn("bare")] = b2biTestDenied
 
-	total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+	total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -545,7 +549,7 @@ func TestScanB2BI_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[b2biTestKindOf(t, "ListPartnerships").arn("bare")] = b2biTestThrottle
 	calls.tagErrs[b2biTestKindOf(t, "ListTransformers").arn("tagged")] = b2biTestBad
 
-	_, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+	_, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -583,7 +587,7 @@ func TestScanB2BI_GetCapabilityFailures(t *testing.T) {
 			arn := caps.arn("tagged")
 			calls.getErrs[caps.id("tagged")] = c.err
 
-			total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+			total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -644,7 +648,7 @@ func TestScanB2BI_FailedWriteStopsScan(t *testing.T) {
 	calls := newB2BITestCalls()
 	calls.tagErrs[b2biTestKindOf(t, "ListPartnerships").arn("tagged")] = b2biTestDenied
 
-	total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+	total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -711,7 +715,7 @@ func TestScanB2BI_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := b2biTestScan(context.Background(), st, handlers)
+			total, err := b2biTestScan(context.Background(), st, handlers)
 			if c.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ValidationException")
@@ -760,7 +764,9 @@ func TestScanB2BI_GateClosedNotEntitled(t *testing.T) {
 		return nil, b2biTestClosed
 	}
 
-	total, inserted, err := b2biTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := b2biTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	assertGlueOutcome(t, err, outcomeNotEntitled)
 	if total != 0 || inserted != 0 {
 		t.Errorf("total, inserted = %d, %d; want 0, 0", total, inserted)
@@ -786,7 +792,7 @@ func TestScanB2BI_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := b2biTestScan(context.Background(), st, handlers)
+	total, err := b2biTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -819,7 +825,7 @@ func TestScanB2BI_ElementWithoutID(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := b2biTestScan(context.Background(), st, handlers)
+			total, err := b2biTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -862,7 +868,7 @@ func TestScanB2BI_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(b2biTestHandlers(calls), b2biTestDenied)
-			if _, _, err := scanB2BI(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanB2BI(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.sortedTagARNs(), arn) {
@@ -891,7 +897,7 @@ func TestScanB2BI_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := b2biTestScan(ctx, st, handlers)
+	_, err := b2biTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -919,7 +925,7 @@ func TestScanB2BI_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := b2biTestHandlers(newB2BITestCalls())
 		handlers["ListTransformers"] = func(any) (any, error) { return nil, nx }
-		total, _, err := b2biTestScan(context.Background(), st, handlers)
+		total, err := b2biTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := b2biTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -929,14 +935,14 @@ func TestScanB2BI_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newB2BITestCalls()
 		calls.tagErrs[b2biTestKindOf(t, "ListCapabilities").arn("tagged")] = nx
-		_, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+		_, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("a GetCapability after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := newB2BITestCalls()
 		calls.getErrs[b2biTestKindOf(t, "ListCapabilities").id("tagged")] = nx
-		_, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
+		_, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -952,7 +958,7 @@ func TestScanB2BI_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanB2BI(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanB2BI(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

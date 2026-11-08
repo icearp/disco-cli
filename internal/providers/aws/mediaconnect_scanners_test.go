@@ -63,7 +63,7 @@ func TestScanMCGatewayInstances_PaginatesAndContainsUnderListedGateway(t *testin
 		"p2": {Instances: []mctypes.ListedGatewayInstance{mcInstance("gw1", "mi-2"), noState, mcInstance("unlisted", "mi-4")}},
 	}}
 
-	total, _, err := scanMCGatewayInstances(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{mcGatewayARN("gw1")})
+	total, err := scanMCGatewayInstances(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{mcGatewayARN("gw1")})
 	if err != nil {
 		t.Fatalf("scanMCGatewayInstances: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestScanMCGatewayInstances_ErrorShapes(t *testing.T) {
 				instances: map[string]*mediaconnect.ListGatewayInstancesOutput{"": {Instances: []mctypes.ListedGatewayInstance{mcInstance("gw1", "mi-1")}, NextToken: sdkaws.String("p2")}},
 				pageErrs:  map[string]error{"p2": tc.err},
 			}
-			_, _, err := scanMCGatewayInstances(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+			_, err := scanMCGatewayInstances(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 			if tc.wantErr {
 				if !isAPIErrorCode(err, "InternalServerErrorException") {
 					t.Fatalf("err = %v; want the InternalServerErrorException propagated", err)
@@ -146,7 +146,7 @@ func TestScanMCGatewayInstances_ErrorShapes(t *testing.T) {
 func TestScanMCGatewayInstances_Empty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanMCGatewayInstances(context.Background(), fakeMC{}, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+	total, err := scanMCGatewayInstances(context.Background(), fakeMC{}, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
 		t.Errorf("total=%d err=%v; want 0, nil", total, err)
 	}
@@ -186,7 +186,7 @@ func TestScanMediaConnect_GatewayInstancesAfterExistingPhases(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = mcServiceStub(t, nil)
-	total, _, err := scanMediaConnect(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanMediaConnect(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanMediaConnect: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestScanMediaConnect_GatewayInstanceErrorPropagates(t *testing.T) {
 	acct.cfg = mcServiceStub(t, map[string][]stubCall{
 		"ListGatewayInstances": {{Err: apiErr("InternalServerErrorException", "boom")}},
 	})
-	_, _, err := scanMediaConnect(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanMediaConnect(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InternalServerErrorException") {
 		t.Fatalf("err = %v; want the ListGatewayInstances InternalServerErrorException", err)
 	}
@@ -552,7 +552,7 @@ func (f *mcFixture) handlers() map[string]func(in any) (any, error) {
 
 // mcScan runs the scan's real entry point against handlers in the fixture's
 // partition and region; every op they do not answer is denied.
-func mcScan(ctx context.Context, st *store.Store, f *mcFixture, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mcScan(ctx context.Context, st *store.Store, f *mcFixture, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = f.partition
 	acct.cfg = opStubConfig(handlers, mcTestDenied)
@@ -612,7 +612,9 @@ func TestScanMediaConnect_StoresTags(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	f := newMCFixture()
 
-	total, inserted, err := mcScan(context.Background(), st, f, f.handlers())
+	counted, upserts := countUpserts(st)
+	total, err := mcScan(context.Background(), counted, f, f.handlers())
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -664,17 +666,17 @@ func TestScanMediaConnect_StoresTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanMediaConnect_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newMCFixture()
-	if _, _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
+	if _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := mcScan(context.Background(), st, f, f.handlers())
+	total, err := mcScan(context.Background(), st, f, f.handlers())
 	if err != nil || total != mcTestTotal {
 		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, mcTestTotal)
 	}
@@ -689,7 +691,7 @@ func TestScanMediaConnect_Empty(t *testing.T) {
 	f := newMCFixture()
 	f.flows, f.inputs, f.nis, f.outputs = nil, nil, nil, nil
 
-	total, _, err := mcScan(context.Background(), st, f, f.handlers())
+	total, err := mcScan(context.Background(), st, f, f.handlers())
 	if err != nil || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -746,7 +748,7 @@ func TestScanMediaConnect_TagReadFailures(t *testing.T) {
 			f := newMCFixture()
 			f.errs[cmp.Or(c.tagARN, c.arn)] = c.err
 
-			total, _, err := mcScan(context.Background(), st, f, f.handlers())
+			total, err := mcScan(context.Background(), st, f, f.handlers())
 			switch {
 			case c.outcome < 0:
 				if err != nil {
@@ -809,7 +811,7 @@ func TestScanMediaConnect_TagDenialsWarnOncePerOp(t *testing.T) {
 		f.errs[arn] = mcTestDenied
 	}
 
-	total, _, err := mcScan(context.Background(), st, f, f.handlers())
+	total, err := mcScan(context.Background(), st, f, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -831,7 +833,7 @@ func TestScanMediaConnect_TagThrottleDemotedBesideHardError(t *testing.T) {
 	f.errs[f.flowARN("flow-bare")] = mcTestThrottled
 	f.errs[f.outARN("o-1")] = mcTestBad
 
-	_, _, err := mcScan(context.Background(), st, f, f.handlers())
+	_, err := mcScan(context.Background(), st, f, f.handlers())
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -870,7 +872,7 @@ func TestScanMediaConnect_DescribeFlowFailures(t *testing.T) {
 				delete(f.bodies, failing)
 			}
 
-			total, _, err := mcScan(context.Background(), st, f, f.handlers())
+			total, err := mcScan(context.Background(), st, f, f.handlers())
 			switch {
 			case c.outcome < 0:
 				if err != nil {
@@ -944,7 +946,7 @@ func TestScanMediaConnect_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				f.bridgeErrs[f.bridgeARN("b1")] = c.bridgeErr
 			}
 
-			total, _, err := mcScan(context.Background(), st, f, f.handlers())
+			total, err := mcScan(context.Background(), st, f, f.handlers())
 			if c.wantErrCode != "" {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, c.wantErrCode)
@@ -988,7 +990,7 @@ func TestScanMediaConnect_RepeatedTokenKeepsPages(t *testing.T) {
 		return &mediaconnect.ListRouterOutputsOutput{RouterOutputs: f.outputs[1], NextToken: sdkaws.String("p2")}, nil
 	}
 
-	total, _, err := mcScan(context.Background(), st, f, handlers)
+	total, err := mcScan(context.Background(), st, f, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1025,7 +1027,7 @@ func TestScanMediaConnect_ElementsWithoutIdentifier(t *testing.T) {
 	bare := f.bodies[f.flowARN("flow-bare")]
 	bare.VpcInterfaces = append(bare.VpcInterfaces, mctypes.VpcInterface{SubnetId: sdkaws.String("subnet-2")})
 
-	total, _, err := mcScan(context.Background(), st, f, f.handlers())
+	total, err := mcScan(context.Background(), st, f, f.handlers())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1066,7 +1068,7 @@ func TestScanMediaConnect_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
 			f := newMCFixtureIn(c.partition, c.region)
-			if _, _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
+			if _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			tagARNs, globalARNs := f.sentTagARNs()
@@ -1124,7 +1126,7 @@ func TestScanMediaConnect_FailedWriteStopsScan(t *testing.T) {
 				f.bridges = []mctypes.ListedBridge{{BridgeArn: sdkaws.String(f.bridgeARN("b1")), Name: sdkaws.String("b1")}}
 			}
 
-			total, _, err := mcScan(context.Background(), st, f, f.handlers())
+			total, err := mcScan(context.Background(), st, f, f.handlers())
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -1161,7 +1163,7 @@ func TestScanMediaConnect_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := mcScan(ctx, st, f, handlers)
+	_, err := mcScan(ctx, st, f, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1196,7 +1198,7 @@ func TestScanMediaConnect_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		f := newMCFixture()
 		f.listErrs["ListBridges"] = nx
-		_, _, err := mcScan(context.Background(), st, f, f.handlers())
+		_, err := mcScan(context.Background(), st, f, f.handlers())
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1209,7 +1211,7 @@ func TestScanMediaConnect_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		f := newMCFixture()
 		f.errs[f.routerARN("routerOutput", "ro-bare")] = nx
-		total, _, err := mcScan(context.Background(), st, f, f.handlers())
+		total, err := mcScan(context.Background(), st, f, f.handlers())
 		assertGlueOutcome(t, err, outcomeError)
 		if total != mcTestTotal {
 			t.Errorf("total = %d; want %d", total, mcTestTotal)

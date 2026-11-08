@@ -66,21 +66,21 @@ type mqAPI interface {
 // warning only beside a hard error, so it cannot hide another phase's hard
 // error. The association phase fails only on store writes, and the
 // shared-resource phase already skips transient brokers.
-func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := mq.NewFromConfig(acct.cfg, func(o *mq.Options) { o.Region = region })
-	bTotal, bInserted, brokers, assocs, bErr := scanMQBrokers(ctx, client, acct, region, st, scanID)
+	bTotal, brokers, assocs, bErr := scanMQBrokers(ctx, client, acct, region, st, scanID)
 	if errors.Is(bErr, store.ErrStoreWrite) {
-		return bTotal, bInserted, bErr
+		return bTotal, bErr
 	}
-	cTotal, cInserted, cErr := scanMQConfigurations(ctx, client, acct, region, st, scanID)
-	aTotal, aInserted, aErr := scanMQConfigurationAssociations(acct, region, st, scanID, assocs)
-	sTotal, sInserted, sErr := scanMQSharedResources(ctx, client, acct, region, st, scanID, brokers)
+	cTotal, cErr := scanMQConfigurations(ctx, client, acct, region, st, scanID)
+	aTotal, aErr := scanMQConfigurationAssociations(acct, region, st, scanID, assocs)
+	sTotal, sErr := scanMQSharedResources(ctx, client, acct, region, st, scanID, brokers)
 	var errs phaseErrs
 	errs.add("mq:ListBrokers", bErr)
 	errs.add("mq:ListConfigurations", cErr)
 	errs.add("mq configuration associations", aErr)
 	errs.add("mq shared resources", sErr)
-	return bTotal + cTotal + aTotal + sTotal, bInserted + cInserted + aInserted + sInserted, errs.join(st, acct, region)
+	return bTotal + cTotal + aTotal + sTotal, errs.join(st, acct, region)
 }
 
 // mqBrokerAssoc captures the (brokerARN, configId) pair surfaced by
@@ -133,7 +133,7 @@ func (r *mqBrokerReads) warn(st *store.Store, acct *account, region string) {
 // the pages read before it and warns. Any other listing error, transient
 // included, is returned after those pages are stored. The returned brokers
 // and associations are nil only when the store write fails.
-func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, []mqBrokerAssoc, error) {
+func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, []mqBrokerAssoc, error) {
 	var (
 		summaries []mqtypes.BrokerSummary
 		listErr   error
@@ -186,13 +186,13 @@ func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region stri
 	wg.Wait()
 
 	readErr := errors.Join(append([]error{listErr}, reads.errs...)...)
-	total, inserted, err := upsertBatch(st, rows, "mq brokers")
+	total, err := upsertBatch(st, rows, "mq brokers")
 	if err != nil {
-		return total, inserted, nil, nil, errors.Join(readErr, err)
+		return total, nil, nil, errors.Join(readErr, err)
 	}
 	reads.warn(st, acct, region)
 	warnNotStored(st, "mq:ListBrokers", acct, region, &reads.noID, "brokers have no BrokerArn or BrokerId")
-	return total, inserted, brokers, assocs, readErr
+	return total, brokers, assocs, readErr
 }
 
 // mqBrokerRow builds a listed broker's row from DescribeBroker, or from its
@@ -244,9 +244,9 @@ func mqBrokerRow(ctx context.Context, client mqAPI, acct *account, region, scanI
 // row carries no native ARN (CFN-only resource) — NativeID is synthesized via
 // mqConfigurationAssociationNativeID and the row is closure-wired under its
 // parent broker so graph walks reach it through the broker.
-func scanMQConfigurationAssociations(acct *account, region string, st *store.Store, scanID string, assocs []mqBrokerAssoc) (total, inserted int, err error) {
+func scanMQConfigurationAssociations(acct *account, region string, st *store.Store, scanID string, assocs []mqBrokerAssoc) (total int, err error) {
 	if len(assocs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	batch := make([]*store.Resource, 0, len(assocs))
 	for _, a := range assocs {
@@ -265,9 +265,9 @@ func scanMQConfigurationAssociations(acct *account, region string, st *store.Sto
 			DiscoveredBy:   scanID,
 		})
 	}
-	n, err := st.UpsertResources(batch)
+	_, err = st.UpsertResources(batch)
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert mq configuration-associations: %w", err)
+		return 0, fmt.Errorf("upsert mq configuration-associations: %w", err)
 	}
 	pairs := make([][2]string, len(batch))
 	for i, r := range batch {
@@ -275,24 +275,24 @@ func scanMQConfigurationAssociations(acct *account, region string, st *store.Sto
 		pairs[i] = [2]string{r.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure mq configuration-associations: %w", err)
+		return 0, fmt.Errorf("closure mq configuration-associations: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // scanMQConfigurations enumerates Amazon MQ broker configurations. The list
 // API ships full Configuration bodies (no DescribeConfiguration fan-out).
 // ListConfigurations is paginated via NextToken; SDK exposes no paginator
 // helper for this op (per AWS-CLAUDE.md "SDK paginator availability per-op").
-func scanMQConfigurations(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMQConfigurations(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.ListConfigurations(ctx, &mq.ListConfigurationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "mq:ListConfigurations", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "mq:ListConfigurations", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("mq:ListConfigurations: %w", err)
+			return total, fmt.Errorf("mq:ListConfigurations: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(out.Configurations))
 		for _, c := range out.Configurations {
@@ -316,19 +316,18 @@ func scanMQConfigurations(ctx context.Context, client mqAPI, acct *account, regi
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert mq configurations: %w", err)
+				return total, fmt.Errorf("upsert mq configurations: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // mqSharedResourceSkipCodes are the modeled DescribeSharedResources errors a
@@ -346,26 +345,26 @@ var mqSharedResourceSkipCodes = []skipCode{{
 // denial, a BadRequestException or a transient failure skips the broker with
 // one warning per kind; anything else fails the phase. Rows a broker stored
 // before its error stay and are counted.
-func scanMQSharedResources(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string, brokers []childParent) (int, int, error) {
+func scanMQSharedResources(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string, brokers []childParent) (int, error) {
 	var gone skipTally
-	total, inserted, err := childFanOutStoredSkipCodes(ctx, st, acct, region, mqDescribeSharedResourcesOp, brokers,
+	total, err := childFanOutStoredSkipCodes(ctx, st, acct, region, mqDescribeSharedResourcesOp, brokers,
 		func(error) bool { return false }, byParentID, "broker(s)", mqSharedResourceSkipCodes,
-		func(ctx context.Context, b childParent) (int, int, error) {
-			t, i, err := storeMQSharedResources(ctx, client, acct, region, st, scanID, b)
+		func(ctx context.Context, b childParent) (int, error) {
+			t, err := storeMQSharedResources(ctx, client, acct, region, st, scanID, b)
 			if gone.dropCode("NotFoundException", b.id, err) {
-				return t, i, nil
+				return t, nil
 			}
-			return t, i, err
+			return t, err
 		})
 	if gone.count == len(brokers) { // warnCode is a no-op for a zero count
 		gone.warnCode(st, mqDescribeSharedResourcesOp, acct, region, "NotFoundException", "broker(s)",
 			"every broker listed drew it, so the op may not be served in this region (unverified)")
 	}
-	return total, inserted, err
+	return total, err
 }
 
 // storeMQSharedResources stores one broker's shared resources a page at a time.
-func storeMQSharedResources(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string, broker childParent) (total, inserted int, err error) {
+func storeMQSharedResources(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string, broker childParent) (total int, err error) {
 	pager := mq.NewDescribeSharedResourcesPaginator(client,
 		&mq.DescribeSharedResourcesInput{BrokerId: &broker.id},
 		func(o *mq.DescribeSharedResourcesPaginatorOptions) {
@@ -376,7 +375,7 @@ func storeMQSharedResources(ctx context.Context, client mqAPI, acct *account, re
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		children := make([]containedChild, 0, len(out.SharedResources))
 		for _, r := range out.SharedResources {
@@ -391,12 +390,11 @@ func storeMQSharedResources(ctx context.Context, client mqAPI, acct *account, re
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			}, parentID: parentID})
 		}
-		t, i, err := upsertContained(st, mqDescribeSharedResourcesOp, children)
+		t, err := upsertContained(st, mqDescribeSharedResourcesOp, children)
 		total += t
-		inserted += i
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }

@@ -59,16 +59,16 @@ const (
 // page while the scan has stored no row reports the account not entitled,
 // and the actions listing does not run after it (notEntitledGate). An
 // earlier listing's denial is still warned about.
-func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("budgets")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := budgets.NewFromConfig(acct.cfg, func(o *budgets.Options) { o.Region = region })
 
 	linked := &notEntitledGate{is: isBudgetsLinkedAccount}
 	tags := budgetsTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "budgets", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "budgets", 0, []hostPhase{
 		linked.gatedPhase(budgetsDescribeBudgetsOp, func(p *phaseTotals) bool {
 			return scanBudgetsBudgets(ctx, client, acct, region, st, scanID, linked, tags, p)
 		}),
@@ -77,10 +77,10 @@ func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, 
 		}),
 	})
 	if notEntitled := linked.notEntitledErr(st, acct, region, err); notEntitled != nil {
-		return total, inserted, notEntitled
+		return total, notEntitled
 	}
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // budgetsTags reads a row's tags with ListTagsForResource, sent the row's

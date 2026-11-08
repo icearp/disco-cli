@@ -278,7 +278,7 @@ func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 			st := newTestStore(t)
 			seedSkipFanOutParents(t, st)
 			warns := recordWarnings(st)
-			total, _, err := childFanOutSkipTransient(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+			total, err := childFanOutSkipTransient(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 				skipFanOutParents, func(error) bool { return false }, tc.label,
 				func(_ context.Context, p childParent) ([]*store.Resource, error) {
 					if p.id == "env-ok" {
@@ -322,7 +322,7 @@ func TestChildFanOutSkipNotReady_Outcomes(t *testing.T) {
 			seedSkipFanOutParents(t, st)
 			warns := recordWarnings(st)
 			isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-			total, _, err := childFanOutSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+			total, err := childFanOutSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 				skipFanOutParents, isGone, tc.label, what, why,
 				func(_ context.Context, p childParent) ([]*store.Resource, error) {
 					if p.id == "env-ok" {
@@ -365,21 +365,21 @@ func TestChildFanOutStoredSkipTransient_KeepsRowsStoredBeforeTheError(t *testing
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	warns := recordWarnings(st)
-	total, inserted, err := childFanOutStoredSkipTransient(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+	total, err := childFanOutStoredSkipTransient(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 		skipFanOutParents, func(error) bool { return false }, byParentARN,
-		func(_ context.Context, p childParent) (int, int, error) {
+		func(_ context.Context, p childParent) (int, error) {
 			parentID := store.ResourceID("aws", testAccountID, p.arn)
-			n, i, err := upsertContained(st, "evs:ListX", []containedChild{{row: skipFanOutChild(p), parentID: parentID}})
+			n, err := upsertContained(st, "evs:ListX", []containedChild{{row: skipFanOutChild(p), parentID: parentID}})
 			if err != nil || p.id == "env-ok" {
-				return n, i, err
+				return n, err
 			}
-			return n, i, apiErr("ThrottlingException", "slow down")
+			return n, apiErr("ThrottlingException", "slow down")
 		})
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if total != 3 || inserted != 3 {
-		t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
+	if total != 3 {
+		t.Errorf("total = %d; want 3", total)
 	}
 	if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != 3 {
 		t.Errorf("stored %d rows, want 3", got)
@@ -405,15 +405,15 @@ func TestChildFanOutStoredSkipNotReady_Outcomes(t *testing.T) {
 			st := newTestStore(t)
 			seedSkipFanOutParents(t, st)
 			warns := recordWarnings(st)
-			total, inserted, err := childFanOutStoredSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+			total, err := childFanOutStoredSkipNotReady(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 				skipFanOutParents, func(error) bool { return false }, byParentARN, "parent(s)", "not ready", codes,
-				func(_ context.Context, p childParent) (int, int, error) {
+				func(_ context.Context, p childParent) (int, error) {
 					parentID := store.ResourceID("aws", testAccountID, p.arn)
-					n, i, err := upsertContained(st, "evs:ListX", []containedChild{{row: skipFanOutChild(p), parentID: parentID}})
+					n, err := upsertContained(st, "evs:ListX", []containedChild{{row: skipFanOutChild(p), parentID: parentID}})
 					if err != nil || p.id == "env-ok" {
-						return n, i, err
+						return n, err
 					}
-					return n, i, apiErr(tc.code, "refused")
+					return n, apiErr(tc.code, "refused")
 				})
 			if tc.wantErr {
 				if !isAPIErrorCode(err, tc.code) {
@@ -424,8 +424,8 @@ func TestChildFanOutStoredSkipNotReady_Outcomes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
-			if total != 3 || inserted != 3 {
-				t.Errorf("total, inserted = %d, %d; want 3, 3", total, inserted)
+			if total != 3 {
+				t.Errorf("total = %d; want 3", total)
 			}
 			if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != 3 {
 				t.Errorf("stored %d rows, want 3", got)
@@ -493,7 +493,7 @@ func TestChildFanOut_IncompleteListingKeepsRowsAndSiblings(t *testing.T) {
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	w := &siblingWatch{failed: make(chan struct{})}
-	total, _, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+	total, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 		skipFanOutParents, func(error) bool { return false },
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			if p.id == "env-ok" {
@@ -520,15 +520,15 @@ func TestChildFanOutStored_IncompleteListingKeepsSiblings(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	w := &siblingWatch{failed: make(chan struct{})}
-	total, _, err := childFanOutStored(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+	total, err := childFanOutStored(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 		skipFanOutParents, func(error) bool { return false },
-		func(ctx context.Context, p childParent) (int, int, error) {
+		func(ctx context.Context, p childParent) (int, error) {
 			if p.id == "env-ok" {
 				defer close(w.failed)
-				return 1, 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
+				return 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
 			}
 			w.await(ctx)
-			return 1, 1, nil
+			return 1, nil
 		})
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
@@ -566,14 +566,14 @@ func TestDemoteTransient_KeepsIncompleteListingJoin(t *testing.T) {
 func TestRunScanners_IncompleteListingKeepsSiblings(t *testing.T) {
 	t.Parallel()
 	w := &siblingWatch{failed: make(chan struct{})}
-	total, _, err := runScanners(context.Background(),
-		func(context.Context) (int, int, error) {
+	total, err := runScanners(context.Background(),
+		func(context.Context) (int, error) {
 			defer close(w.failed)
-			return 1, 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
+			return 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			w.await(ctx)
-			return 1, 1, nil
+			return 1, nil
 		})
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
@@ -594,7 +594,7 @@ func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	p := skipFanOutParents[0]
-	total, _, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+	total, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
 		[]childParent{p}, func(error) bool { return false },
 		func(context.Context, childParent) ([]*store.Resource, error) {
 			return []*store.Resource{skipFanOutChild(p)}, errors.Join(
@@ -672,7 +672,9 @@ func TestUpsertContained_ClosureFailureKeepsCounts(t *testing.T) {
 	refuseClosureWrites(t, st)
 	parent := skipFanOutParents[0]
 	child := skipFanOutChild(parent)
-	total, inserted, err := upsertContained(st, "op", []containedChild{{row: child, parentID: store.ResourceID("aws", testAccountID, parent.arn)}})
+	counted, upserts := countUpserts(st)
+	total, err := upsertContained(counted, "op", []containedChild{{row: child, parentID: store.ResourceID("aws", testAccountID, parent.arn)}})
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v; want the closure's store write failure", err)
 	}
@@ -834,7 +836,7 @@ func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
 		warned := false
-		total, _, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
+		total, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
 		if err != nil || total != 1 || !warned || *warns != 1 {
 			t.Errorf("err %v total %d warned %v warnings %d; want nil, 1, true, 1 (the denial)", err, total, warned, *warns)
 		}
@@ -844,7 +846,7 @@ func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
 		warns := countWarnings(st)
 		closeStore()
 		warned := false
-		_, _, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
+		_, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -1038,7 +1040,7 @@ func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
 			tagWarns := recordWarnings(st)
 			p, stop := storeTaggedThings(context.Background(), st, []string{"x1", "x2", "s"},
 				map[string]rowTagRead{"x1": c.read, "x2": c.read, "s": sibling})
-			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 			if stop {
 				t.Fatal("stop = true; want false (the write succeeded)")
 			}
@@ -1099,9 +1101,10 @@ func TestStoreTokenListTags_RescanKeepsTotal(t *testing.T) {
 	ids := []string{"x1", "x2", "s"}
 	reads := map[string]rowTagRead{"x1": {}, "x2": {}, "s": {}}
 	for _, want := range []struct{ total, inserted int }{{3, 3}, {3, 0}} {
-		p, stop := storeTaggedThings(context.Background(), st, ids, reads)
-		if stop || p.total != want.total || p.inserted != want.inserted {
-			t.Fatalf("stop, total, inserted = %v, %d, %d; want false, %d, %d", stop, p.total, p.inserted, want.total, want.inserted)
+		counted, upserts := countUpserts(st)
+		p, stop := storeTaggedThings(context.Background(), counted, ids, reads)
+		if inserted := upserts(); stop || p.total != want.total || inserted != want.inserted {
+			t.Fatalf("stop, total, inserted = %v, %d, %d; want false, %d, %d", stop, p.total, inserted, want.total, want.inserted)
 		}
 	}
 }
@@ -1113,8 +1116,8 @@ func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestOp)
 	p, _ := storeTaggedThings(context.Background(), st, []string{"x"}, map[string]rowTagRead{"x": {err: tagTestThrottle}})
-	p.addPhase("svc:ListOthers", 0, 0, tagTestInvalid)
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	p.addPhase("svc:ListOthers", 0, tagTestInvalid)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError", got)
 	}
@@ -1136,7 +1139,7 @@ func TestStoreTokenListTags_FailedWriteSendsNoWarning(t *testing.T) {
 	closeStore()
 	p, stop := storeTaggedThings(context.Background(), st, []string{"denied", "invalid", "throttled"},
 		map[string]rowTagRead{"denied": {err: tagTestDenied}, "invalid": {err: tagTestInvalid}, "throttled": {err: tagTestThrottle}})
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if !stop || !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("stop %v, err %v; want true, store.ErrStoreWrite", stop, err)
 	}
@@ -1165,7 +1168,7 @@ func TestStoreTokenListTags_ContextEndedKeepsRows(t *testing.T) {
 	storeTokenListTags(ctx, st, newTestAccount(testAccountID), testRegion, tagTestListOp,
 		func(context.Context, *string) ([]string, *string, error) { return []string{"a", "b"}, nil, nil },
 		tagTestRow, tags, &p)
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v; want context.Canceled", err)
 	}
@@ -1225,7 +1228,7 @@ func runTokenPagesTest(ctx context.Context, st *store.Store, pt *tokenPagesTest,
 	var p phaseTotals
 	acct := newTestAccount(testAccountID)
 	stop := storeTokenPagesTags(ctx, st, acct, testRegion, tagTestListOp, pt.page(st), tagTestRow, tags, &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	return &p, stop, err
 }
 
@@ -1290,9 +1293,10 @@ func TestStoreTokenPagesTags_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	for _, want := range []struct{ total, inserted int }{{6, 6}, {6, 0}} {
-		p, stop, err := runTokenPagesTest(context.Background(), st, &tokenPagesTest{}, pagesTestTags(nil))
-		if stop || err != nil || p.total != want.total || p.inserted != want.inserted {
-			t.Fatalf("stop, err, total, inserted = %v, %v, %d, %d; want false, nil, %d, %d", stop, err, p.total, p.inserted, want.total, want.inserted)
+		counted, upserts := countUpserts(st)
+		p, stop, err := runTokenPagesTest(context.Background(), counted, &tokenPagesTest{}, pagesTestTags(nil))
+		if inserted := upserts(); stop || err != nil || p.total != want.total || inserted != want.inserted {
+			t.Fatalf("stop, err, total, inserted = %v, %v, %d, %d; want false, nil, %d, %d", stop, err, p.total, inserted, want.total, want.inserted)
 		}
 	}
 }
@@ -1374,7 +1378,7 @@ func TestStoreTokenPagesTags_OneWarningPerKind(t *testing.T) {
 			}
 			return tagTestRow(id)
 		}, pagesTestTags(map[string]error{"1-a": tagTestDenied, "2-a": tagTestDenied}), &p)
-	if _, _, err := p.result(st, acct, testRegion); stop || err != nil {
+	if _, err := p.result(st, acct, testRegion); stop || err != nil {
 		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
 	}
 	if *listWarns != 2 || *tagWarns != 1 {
@@ -1508,7 +1512,7 @@ func TestStoreTokenPagesTagsWith_DetailTags(t *testing.T) {
 	if storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, tags, &p) {
 		t.Fatal("stop = true; want false")
 	}
-	if _, _, err := p.result(st, acct, testRegion); err != nil {
+	if _, err := p.result(st, acct, testRegion); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if slices.Sort(tagRead); !slices.Equal(tagRead, []string{"1-b", "2-b"}) {
@@ -1546,7 +1550,7 @@ func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {
 	steps := pagesDetailSteps(map[string]error{"1-a": tagTestInvalid, "1-b": tagTestDenied}, &stored)
 	acct := newTestAccount(testAccountID)
 	stop := storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, pagesTestTags(nil), &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	if !stop || !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, tagTestInvalid) {
 		t.Fatalf("stop, err = %v, %v; want true, store.ErrStoreWrite joined with the detail read's error", stop, err)
 	}
@@ -1572,7 +1576,7 @@ func TestStoreTokenPagesTagsWith_SharedDetailDenials(t *testing.T) {
 		if storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, pagesTestTags(nil), &p) {
 			t.Fatal("stop = true; want false")
 		}
-		if _, _, err := p.result(st, acct, testRegion); err != nil {
+		if _, err := p.result(st, acct, testRegion); err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
 	}
@@ -1603,7 +1607,7 @@ func TestStoreParentListTags_DroppedRowIsNoParent(t *testing.T) {
 		},
 		tagTestRow, func(id string) string { return keys[id] },
 		tagTestReader(map[string]rowTagRead{"gone": {err: tagTestNotFound}}), &p)
-	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
+	if _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
 		t.Fatalf("stop %v, err %v; want false, nil", stop, err)
 	}
 	if want := []childParent{{id: "k1", arn: "kept"}}; !slices.Equal(parents, want) {
@@ -1626,7 +1630,7 @@ func TestStoreTokenListTags_HardTagErrorDemotesSameOpThrottle(t *testing.T) {
 	warns := recordWarnings(st)
 	p, _ := storeTaggedThings(context.Background(), st, []string{"invalid", "throttled"},
 		map[string]rowTagRead{"invalid": {err: tagTestInvalid}, "throttled": {err: tagTestThrottle}})
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	assertAPICode(t, err, "ValidationException")
 	if errors.Is(err, tagTestThrottle) {
 		t.Errorf("err = %v; want the throttle demoted out of it", err)
@@ -1670,7 +1674,7 @@ func TestStoreTokenListTags_ContextEndedMidFanOut(t *testing.T) {
 			storeTokenListTags(ctx, st, newTestAccount(testAccountID), testRegion, tagTestListOp,
 				func(context.Context, *string) ([]string, *string, error) { return ids, nil, nil },
 				tagTestRow, tags, &p)
-			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("err = %v; want context.Canceled", err)
 			}
@@ -1694,7 +1698,7 @@ func TestStoreParentListTags_TagErrorReturned(t *testing.T) {
 		func(context.Context, *string) ([]string, *string, error) { return []string{"invalid"}, nil, nil },
 		tagTestRow, func(id string) string { return id },
 		tagTestReader(map[string]rowTagRead{"invalid": {err: tagTestInvalid}}), &p)
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	assertAPICode(t, err, "ValidationException")
 	if want := []childParent{{id: "invalid", arn: "invalid"}}; !slices.Equal(parents, want) {
 		t.Errorf("parents = %v; want %v", parents, want)
@@ -1718,7 +1722,7 @@ func TestStoreRowsTags(t *testing.T) {
 		if storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), nil, func() { warned++ }, tags, &p) {
 			t.Fatal("storeWriteFailed = true; want false")
 		}
-		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 		assertAPICode(t, err, "ValidationException")
 		got := rowsByNativeID(t, st, TypeNetworkFirewallProxy)
 		assertTagsMap(t, got["a"].TagsJSON, map[string]string{"k": "v"})
@@ -1734,7 +1738,7 @@ func TestStoreRowsTags(t *testing.T) {
 		if !storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), nil, func() { warned++ }, tags, &p) {
 			t.Fatal("storeWriteFailed = false; want true")
 		}
-		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 		if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, tagTestInvalid) || warned != 0 {
 			t.Errorf("err %v, warn ran %d; want store.ErrStoreWrite with the tag error, 0", err, warned)
 		}
@@ -1749,7 +1753,7 @@ func TestStoreTokenListTags_NXDOMAINIsHard(t *testing.T) {
 	st := newTestStore(t)
 	dns := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
 	p, _ := storeTaggedThings(context.Background(), st, []string{"a", "b"}, map[string]rowTagRead{"a": {err: dns}})
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if got := classifyServiceError(err); got != outcomeError {
 		t.Errorf("classifyServiceError = %v; want outcomeError", got)
 	}
@@ -1773,7 +1777,7 @@ func TestStoreRowsTags_ListErrAndDenial(t *testing.T) {
 		warns := countOpWarnings(st, tagTestOp)
 		var p phaseTotals
 		storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), listErr, nil, tags, &p)
-		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 		if !errors.Is(err, listErr) {
 			t.Errorf("err = %v; want the listing error", err)
 		}
@@ -1811,8 +1815,8 @@ func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
 		warns := countOpWarnings(st, tagTestOp)
 		var p phaseTotals
 		storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId", list, tagTestRow, key, tags, &p)
-		p.addPhase("svc:ListOthers", 0, 0, tagTestInvalid)
-		if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); errors.Is(err, tagTestThrottle) {
+		p.addPhase("svc:ListOthers", 0, tagTestInvalid)
+		if _, err := p.result(st, newTestAccount(testAccountID), testRegion); errors.Is(err, tagTestThrottle) {
 			t.Errorf("err = %v; want the throttle demoted", err)
 		}
 		if *warns != 1 {
@@ -1889,7 +1893,7 @@ func TestPhaseTotalsResultLateNXDOMAIN(t *testing.T) {
 			st := newTestStore(t)
 			p := phaseTotals{total: tc.total}
 			p.errs.add("svc:List", tc.err)
-			total, _, err := p.resultLateNXDOMAIN(st, acct, testRegion)
+			total, err := p.resultLateNXDOMAIN(st, acct, testRegion)
 			if total != tc.total {
 				t.Errorf("total = %d; want %d", total, tc.total)
 			}
@@ -1979,13 +1983,13 @@ func TestStoreTokenEachParentDeniedBy_CustomCodeIsDenial(t *testing.T) {
 
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestListOp)
-	total, _, err := storeTokenEachParentDeniedBy(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p2", "p3"}, isDeniedTestErr, page, row)
+	total, err := storeTokenEachParentDeniedBy(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p2", "p3"}, isDeniedTestErr, page, row)
 	if err != nil || total != 1 || *warns != 1 {
 		t.Errorf("total, err, warnings = %d, %v, %d; want 1, nil, 1", total, err, *warns)
 	}
 
 	st = newTestStore(t)
-	_, _, err = storeTokenEachParent(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p3"}, page, row)
+	_, err = storeTokenEachParent(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p3"}, page, row)
 	assertAPICode(t, err, "UnauthorizedClientException")
 }
 
@@ -2010,7 +2014,7 @@ func TestStoreEachParentTagsDeniedBy_CustomCodeIsDenial(t *testing.T) {
 		},
 		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) },
 		tagTestReader(map[string]rowTagRead{"p3-child": {tags: mapTagsJSON(map[string]string{"k": "v"})}}), &p)
-	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	_, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if stop || err != nil || len(stored) != 1 || *warns != 1 {
 		t.Fatalf("stop, err, stored, warnings = %v, %v, %d, %d; want false, nil, 1, 1", stop, err, len(stored), *warns)
 	}
@@ -2145,12 +2149,12 @@ func TestNotEntitledGate_Phases(t *testing.T) {
 						return false
 					}
 					if op == "svc:A" {
-						return p.addPhase(op, 0, 0, c.firstErr)
+						return p.addPhase(op, 0, c.firstErr)
 					}
 					return false
 				})
 			}
-			_, _, err := runHostPhases(context.Background(), st, acct, testRegion, "svc", 0, []hostPhase{phase("svc:A"), phase("svc:B"), phase("svc:C")})
+			_, err := runHostPhases(context.Background(), st, acct, testRegion, "svc", 0, []hostPhase{phase("svc:A"), phase("svc:B"), phase("svc:C")})
 			gateErr := g.notEntitledErr(st, acct, testRegion, err)
 
 			if !slices.Equal(ran, c.wantRan) {
@@ -2222,16 +2226,16 @@ func TestRunFamilies_FailureKeepsOtherFamilies(t *testing.T) {
 	t.Parallel()
 	hard, tagErr := errors.New("list failed"), errors.New("tag read failed")
 	p := runFamilies(context.Background(), "svc",
-		func(context.Context) (int, int, error) { return 2, 1, nil },
-		func(context.Context) (int, int, error) { return 1, 0, hard },
-		func(context.Context) (int, int, error) {
+		func(context.Context) (int, error) { return 2, nil },
+		func(context.Context) (int, error) { return 1, hard },
+		func(context.Context) (int, error) {
 			var q phaseTotals
-			q.addPhase("svc:ListTags", 3, 3, tagErr)
+			q.addPhase("svc:ListTags", 3, tagErr)
 			return opErrsResult(&q)
 		},
 	)
-	if p.total != 6 || p.inserted != 4 {
-		t.Errorf("total, inserted = %d, %d; want 6, 4", p.total, p.inserted)
+	if p.total != 6 {
+		t.Errorf("total = %d; want 6", p.total)
 	}
 	got := map[string]error{}
 	for _, e := range p.errs {
@@ -2249,14 +2253,14 @@ func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
 	listErr, tagErr, countedErr := errors.New("list failed"), errors.New("tag read failed"), errors.New("counted failed")
 	p := runFamilies(context.Background(), "svc",
 		phaseFamily(func(q *phaseTotals) {
-			q.addPhase("svc:List", 2, 1, listErr)
-			q.addPhase("svc:ListTags", 1, 1, tagErr)
+			q.addPhase("svc:List", 2, listErr)
+			q.addPhase("svc:ListTags", 1, tagErr)
 		}),
-		countedFamily("svc:Describe", func() (int, int, error) { return 3, 2, countedErr }),
-		countedFamily("svc:Get", func() (int, int, error) { return 1, 0, nil }),
+		countedFamily("svc:Describe", func() (int, error) { return 3, countedErr }),
+		countedFamily("svc:Get", func() (int, error) { return 1, nil }),
 	)
-	if p.total != 7 || p.inserted != 4 {
-		t.Errorf("total, inserted = %d, %d; want 7, 4", p.total, p.inserted)
+	if p.total != 7 {
+		t.Errorf("total = %d; want 7", p.total)
 	}
 	got := map[string]error{}
 	for _, e := range p.errs {
@@ -2267,34 +2271,19 @@ func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
 	}
 }
 
-// runHostPhases returns a countedPhase's total and inserted counts each as
-// its own count, as a rescan of unchanged rows reports them (total 3, none
-// inserted), never one in place of the other.
-func TestCountedPhase_KeepsTotalApartFromInserted(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	total, inserted, err := runHostPhases(context.Background(), st, newTestAccount(testAccountID), testRegion, "svc", 0, []hostPhase{
-		countedPhase(0, "svc:List", func() (int, int, error) { return 3, 0, nil }),
-		countedPhase(0, "svc:Get", func() (int, int, error) { return 2, 1, nil }),
-	})
-	if err != nil || total != 5 || inserted != 1 {
-		t.Errorf("total, inserted, err = %d, %d, %v; want 5, 1, nil", total, inserted, err)
-	}
-}
-
 // The families run at once: each waits for the other to start, which only
 // ends before the timeout when they overlap.
 func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {
 	t.Parallel()
 	a, b := make(chan struct{}), make(chan struct{})
-	meet := func(mine, theirs chan struct{}) func(context.Context) (int, int, error) {
-		return func(context.Context) (int, int, error) {
+	meet := func(mine, theirs chan struct{}) func(context.Context) (int, error) {
+		return func(context.Context) (int, error) {
 			close(mine)
 			select {
 			case <-theirs:
-				return 1, 1, nil
+				return 1, nil
 			case <-time.After(5 * time.Second):
-				return 0, 0, errors.New("the other family never started")
+				return 0, errors.New("the other family never started")
 			}
 		}
 	}
@@ -2411,7 +2400,9 @@ func TestParentOutcomes_ParentErrWriteWarn(t *testing.T) {
 		t.Errorf("errs = %v; want the failed parent's error only", o.errs)
 	}
 	r, _, _ := tagTestRow("x")
-	total, inserted, err := o.write(st, []*store.Resource{r})
+	counted, upserts := countUpserts(st)
+	total, err := o.write(counted, []*store.Resource{r})
+	inserted := upserts()
 	if err != nil || total != 1 || inserted != 1 {
 		t.Fatalf("write = %d, %d, %v; want 1, 1, nil", total, inserted, err)
 	}
@@ -2512,7 +2503,7 @@ func runPagesTest(ctx context.Context, st *store.Store, pt *pagesTest, parents [
 	acct := newTestAccount(testAccountID)
 	stop := storeEachParentPagesTags(ctx, st, acct, testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, parents, pt.page(st),
 		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }, tags, &p)
-	_, _, err := p.result(st, acct, testRegion)
+	_, err := p.result(st, acct, testRegion)
 	return stop, err
 }
 
@@ -2837,7 +2828,7 @@ func TestStoreEachParentPagesTagsSkip_DropsWhatSkipReports(t *testing.T) {
 					seen = append(seen, parent+":"+code)
 					return c.skipped
 				}, pagesTestTags(nil), &p)
-			_, _, err := p.result(st, acct, testRegion)
+			_, err := p.result(st, acct, testRegion)
 			if stop {
 				t.Fatal("stop = true; want false")
 			}
@@ -2930,12 +2921,12 @@ func TestStoreEachParentPages_PageByPage(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	stop := storeEachParentPages(context.Background(), st, acct, testRegion, tagTestListOp, nil, pagesTestParents(2), pt.page(st),
 		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }, &p)
-	total, inserted, err := p.result(st, acct, testRegion)
+	total, err := p.result(st, acct, testRegion)
 	if stop || err != nil {
 		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
 	}
-	if total != 4 || inserted != 4 {
-		t.Errorf("total, inserted = %d, %d; want 4, 4", total, inserted)
+	if total != 4 {
+		t.Errorf("total = %d; want 4", total)
 	}
 	if !storedBefore["p0"] || !storedBefore["p1"] {
 		t.Errorf("page 1 stored before page 2 was listed = %v; want true for p0 and p1", storedBefore)
@@ -3138,7 +3129,7 @@ func TestStoreParentPagesTags_ReturnsKeyedStoredParents(t *testing.T) {
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	parents, stop, p := storeParentPagesTest(st, nil)
-	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
+	if _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
 		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
 	}
 	if want := []childParent{{id: "ka", arn: "a"}, {id: "kb", arn: "b"}}; !slices.Equal(parents, want) {
@@ -3167,7 +3158,7 @@ func TestStoreParentPagesTags_FailedWriteWarnsNothing(t *testing.T) {
 		t.Fatalf("create trigger: %v", err)
 	}
 	parents, stop, p := storeParentPagesTest(st, nil)
-	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); !stop || !errors.Is(err, store.ErrStoreWrite) {
+	if _, err := p.result(st, newTestAccount(testAccountID), testRegion); !stop || !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("stop, err = %v, %v; want true, store.ErrStoreWrite", stop, err)
 	}
 	if parents != nil || len(*warns) != 0 {
@@ -3390,7 +3381,7 @@ func TestStoreEachParentTagsUnder(t *testing.T) {
 		if storeEachParentTagsUnder(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, parents[:2], page, row, tagTestReader(nil), &p) {
 			t.Fatal("reported a failed write")
 		}
-		if total, _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 2 {
+		if total, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 2 {
 			t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 		}
 		assertContainsNative(t, st, "parent-a", "child-1")
@@ -3407,7 +3398,7 @@ func TestStoreEachParentTagsUnder(t *testing.T) {
 		if storeEachParentTagsUnder(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, []childParent{parents[0], parents[2]}, page, row, tagTestReader(nil), &p) {
 			t.Fatal("reported a failed write")
 		}
-		if total, _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 1 {
+		if total, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 1 {
 			t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 		}
 		if w := warns(); len(w) != 0 {

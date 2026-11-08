@@ -197,7 +197,7 @@ func scanRHSystems(ctx context.Context, client resilienceHubV2API, acct *account
 
 // A test has no ARN; its NativeID is {serviceARN}/test/{testId}. The summary
 // has no name.
-func scanRHTests(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
+func scanRHTests(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, error) {
 	return childFanOut(ctx, st, acct, region, rhListTestsOp, rhParents(serviceARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			serviceARN := p.arn
@@ -222,7 +222,7 @@ func scanRHTests(ctx context.Context, client resilienceHubV2API, acct *account, 
 
 // A user journey has no ARN; its NativeID is
 // {systemARN}/user-journey/{userJourneyId}.
-func scanRHUserJourneys(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, systemARNs []string) (int, int, error) {
+func scanRHUserJourneys(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, systemARNs []string) (int, error) {
 	return childFanOut(ctx, st, acct, region, rhListUserJourneysOp, rhParents(systemARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			systemARN := p.arn
@@ -252,7 +252,7 @@ const rhListServiceFunctionsOp = "resiliencehub:ListServiceFunctions"
 // generated (Source AI_GENERATED) are stored like user-defined ones, not as
 // provider-managed: they hang off the customer's service and the model lets
 // the customer delete any function (DeleteServiceFunction).
-func scanRHServiceFunctions(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
+func scanRHServiceFunctions(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, error) {
 	return childFanOut(ctx, st, acct, region, rhListServiceFunctionsOp, rhParents(serviceARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			serviceARN := p.arn
@@ -282,7 +282,7 @@ const rhListInputSourcesOp = "resiliencehub:ListInputSources"
 // A v2 input source has no ARN; its NativeID is
 // {serviceARN}/input-source/{inputSourceId}. The id's model pattern (\S)
 // allows "/", so it goes last. The summary has no name.
-func scanRHInputSources(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
+func scanRHInputSources(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, error) {
 	return childFanOut(ctx, st, acct, region, rhListInputSourcesOp, rhParents(serviceARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			serviceARN := p.arn

@@ -224,7 +224,7 @@ var s3cListOps = []string{
 
 // s3cScan runs the scan's real entry point in region against handlers; every
 // op they do not answer is denied.
-func s3cScan(t *testing.T, st *store.Store, region string, handlers map[string]func(any) (any, error)) (int, int, error) {
+func s3cScan(t *testing.T, st *store.Store, region string, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, s3cDenied)
@@ -253,7 +253,7 @@ func TestScanS3Control_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newS3CCalls()
 
-	total, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+	total, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
 	if err != nil || total != 12 {
 		t.Fatalf("scan = %d, %v; want 12, nil", total, err)
 	}
@@ -345,7 +345,7 @@ func TestScanS3Control_GovCloudARNsReachTagOps(t *testing.T) {
 	acct := partitionAccount("aws-us-gov")
 	acct.cfg = opStubConfig(h, s3cDenied)
 
-	total, _, err := scanS3Control(context.Background(), acct, govRegion, st, testScanID)
+	total, err := scanS3Control(context.Background(), acct, govRegion, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("scan = %d, %v; want 2, nil", total, err)
 	}
@@ -392,7 +392,9 @@ func TestScanS3Control_EmptyListings(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newS3CCalls()
 
-	total, inserted, err := s3cScan(t, st, testRegion, s3cEmptyHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := s3cScan(t, counted, testRegion, s3cEmptyHandlers(calls))
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -401,17 +403,17 @@ func TestScanS3Control_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanS3Control_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3CCalls()
-	if _, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
+	if _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+	total, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
 	if err != nil || total != 12 {
 		t.Errorf("rescan = %d, %v; want 12, nil", total, err)
 	}
@@ -444,7 +446,7 @@ func TestScanS3Control_TagReadFailures(t *testing.T) {
 					calls := newS3CCalls()
 					calls.errs[target.key] = c.err
 
-					total, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+					total, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -483,7 +485,7 @@ func TestScanS3Control_TagDenialsWarnOnce(t *testing.T) {
 	calls.errs[s3cARN("access-grants/default/location/loc-t")] = s3cDenied
 	calls.errs[s3cARN("storage-lens-group/slg-b")] = s3cDenied
 
-	if _, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
+	if _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if *warns != 1 {
@@ -501,7 +503,7 @@ func TestScanS3Control_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[s3cARN("accesspoint/ap-t")] = s3cThrottled
 	calls.errs[s3cARN("access-grants/default/grant/grant-b")] = s3cBroken
 
-	_, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+	_, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequest")
 	if *warns != 1 {
@@ -522,7 +524,7 @@ func TestScanS3Control_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := s3cHandlers(calls)
 			h[op] = func(any) (any, error) { return nil, s3cDenied }
 
-			total, _, err := s3cScan(t, st, testRegion, h)
+			total, err := s3cScan(t, st, testRegion, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -546,7 +548,7 @@ func TestScanS3Control_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newS3CCalls()
 	calls.errs[s3cARN("access-grants/default/location/loc-t")] = s3cDenied
 
-	_, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+	_, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -577,7 +579,7 @@ func TestScanS3Control_ListFailureKeepsPagesAndRunsEveryListing(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := s3cScan(t, st, testRegion, h)
+	total, err := s3cScan(t, st, testRegion, h)
 	assertGlueOutcome(t, err, outcomeError)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Errorf("err = %v; want errRepeatedNextToken among its errors", err)
@@ -610,7 +612,7 @@ func TestScanS3Control_RegionGaps(t *testing.T) {
 	h["ListStorageLensConfigurations"] = func(any) (any, error) { return nil, homeGap }
 	h["ListStorageLensGroups"] = func(any) (any, error) { return nil, homeGap }
 
-	total, _, err := s3cScan(t, st, testRegion, h)
+	total, err := s3cScan(t, st, testRegion, h)
 	if err != nil || total != 4 || *warns != 0 {
 		t.Fatalf("scan = %d, %v, %d warnings; want 4 (instances, access points), nil, 0", total, err, *warns)
 	}
@@ -621,7 +623,7 @@ func TestScanS3Control_RegionGaps(t *testing.T) {
 	st = newTestStore(t)
 	lensWarns := countOpWarnings(st, "s3control:ListStorageLensConfigurations")
 	h["ListStorageLensConfigurations"] = func(any) (any, error) { return nil, s3Answer(http.StatusForbidden, http.Header{}, nil) }
-	total, _, err = s3cScan(t, st, testRegion, h)
+	total, err = s3cScan(t, st, testRegion, h)
 	if err != nil || total != 4 || *lensWarns != 1 {
 		t.Errorf("bare 403: scan = %d, %v, %d lens warnings; want 4, nil, 1", total, err, *lensWarns)
 	}
@@ -640,7 +642,7 @@ func TestScanS3Control_StorageLensHomeRegionGapAfterFirstPage(t *testing.T) {
 	h := s3cHandlers(calls)
 	h["ListStorageLensConfigurations"] = failOnCall(2, homeGap, h["ListStorageLensConfigurations"])
 
-	total, _, err := s3cScan(t, st, testRegion, h)
+	total, err := s3cScan(t, st, testRegion, h)
 	if err != nil || total != 11 {
 		t.Fatalf("scan = %d, %v; want 11 (sl-b on the second page unread), nil", total, err)
 	}
@@ -678,7 +680,7 @@ func TestScanS3Control_StorageLensGetFailureKeepsListEntry(t *testing.T) {
 				return get(in)
 			}
 
-			total, _, err := s3cScan(t, st, testRegion, h)
+			total, err := s3cScan(t, st, testRegion, h)
 			if c.wantWarns == 0 {
 				assertAPICode(t, err, "InvalidRequest")
 			} else if err != nil {
@@ -709,7 +711,7 @@ func TestScanS3Control_StorageLensGetWithoutBodyKeepsListEntry(t *testing.T) {
 	h := s3cHandlers(calls)
 	h["GetStorageLensConfiguration"] = func(any) (any, error) { return &s3control.GetStorageLensConfigurationOutput{}, nil }
 
-	if _, _, err := s3cScan(t, st, testRegion, h); err != nil {
+	if _, err := s3cScan(t, st, testRegion, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	r, ok := s3cRowOf(t, st, TypeS3StorageLens, s3cARN("storage-lens/sl-b"))
@@ -732,7 +734,7 @@ func TestScanS3Control_ItemWithoutARNWarnedNotStored(t *testing.T) {
 		return &s3control.ListAccessPointsOutput{AccessPointList: []s3ctypes.AccessPoint{{Name: sdkaws.String("ap-noarn")}}}, nil
 	}
 
-	total, _, err := s3cScan(t, st, testRegion, h)
+	total, err := s3cScan(t, st, testRegion, h)
 	if err != nil || total != 10 {
 		t.Fatalf("scan = %d, %v; want 10, nil", total, err)
 	}
@@ -774,7 +776,7 @@ func TestScanS3Control_PolicyThrottleWarnsUnderItsOp(t *testing.T) {
 			h["GetAccessPointPolicyForObjectLambda"] = func(any) (any, error) { return &s3control.GetAccessPointPolicyForObjectLambdaOutput{}, nil }
 			h[c.op] = func(any) (any, error) { return nil, s3cThrottled }
 
-			_, _, err := s3cScan(t, st, "us-west-2", h)
+			_, err := s3cScan(t, st, "us-west-2", h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidRequest")
 			if len(warnings) != 1 || warnings[0].Service != "s3control:"+c.op {
@@ -810,7 +812,7 @@ func TestScanS3Control_ObjectLambdaPolicyFailureKeepsOtherPolicies(t *testing.T)
 		return &s3control.GetAccessPointPolicyForObjectLambdaOutput{Policy: sdkaws.String("{}")}, nil
 	}
 
-	_, _, err := s3cScan(t, st, testRegion, h)
+	_, err := s3cScan(t, st, testRegion, h)
 	assertAPICode(t, err, "InvalidRequest")
 	aps := rowsByNativeID(t, st, TypeS3ObjectLambdaAccessPoint)
 	_, okA := aps[olapARN("olap-a")]
@@ -841,7 +843,7 @@ func TestScanS3Control_MultiRegionAccessPointsOnlyInUSWest2(t *testing.T) {
 	t.Parallel()
 	for region, want := range map[string]int{"us-west-2": 1, testRegion: 0} {
 		calls := newS3CCalls()
-		if _, _, err := s3cScan(t, newTestStore(t), region, s3cEmptyHandlers(calls)); err != nil {
+		if _, err := s3cScan(t, newTestStore(t), region, s3cEmptyHandlers(calls)); err != nil {
 			t.Fatalf("%s: %v", region, err)
 		}
 		if n := calls.count("ListMultiRegionAccessPoints"); n != want {

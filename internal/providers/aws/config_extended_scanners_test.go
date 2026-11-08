@@ -48,7 +48,7 @@ func TestScanConfigRetentionConfigurations_StoresEveryPage(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	client := configStubClient(map[string]func(any) (any, error){"DescribeRetentionConfigurations": configRetentionHandler})
-	total, _, err := scanConfigRetentionConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConfigRetentionConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -78,14 +78,14 @@ type singleListCase struct {
 	name string
 	op   string
 	typ  string
-	run  func(context.Context, configserviceAPI, *account, *store.Store) (int, int, error)
+	run  func(context.Context, configserviceAPI, *account, *store.Store) (int, error)
 }
 
 func configSingleListCases() []singleListCase {
 	return []singleListCase{
 		{
 			name: "retention configurations", op: "DescribeRetentionConfigurations", typ: TypeConfigRetentionConfiguration,
-			run: func(ctx context.Context, c configserviceAPI, a *account, st *store.Store) (int, int, error) {
+			run: func(ctx context.Context, c configserviceAPI, a *account, st *store.Store) (int, error) {
 				return scanConfigRetentionConfigurations(ctx, c, a, testRegion, st, testScanID)
 			},
 		},
@@ -101,7 +101,7 @@ func TestConfigListPhases_Errors(t *testing.T) {
 		t.Run(c.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
 			client := configStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return empty[c.op], nil }})
-			total, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), client, newTestAccount(testAccountID), st)
 			if err != nil || total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
 				t.Fatalf("total = %d, err = %v, want 0 rows and nil", total, err)
 			}
@@ -109,7 +109,7 @@ func TestConfigListPhases_Errors(t *testing.T) {
 		t.Run(c.name+"/denied warns", func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "config:"+c.op)
-			total, _, err := c.run(context.Background(), configStubClient(nil), newTestAccount(testAccountID), st)
+			total, err := c.run(context.Background(), configStubClient(nil), newTestAccount(testAccountID), st)
 			if err != nil || total != 0 {
 				t.Fatalf("total = %d, err = %v, want 0 and nil", total, err)
 			}
@@ -120,7 +120,7 @@ func TestConfigListPhases_Errors(t *testing.T) {
 		t.Run(c.name+"/other error propagates", func(t *testing.T) {
 			st := newTestStore(t)
 			client := configStubClient(map[string]func(any) (any, error){c.op: func(any) (any, error) { return nil, configBadParam }})
-			if _, _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterValueException") {
+			if _, err := c.run(context.Background(), client, newTestAccount(testAccountID), st); !isAPIErrorCode(err, "InvalidParameterValueException") {
 				t.Fatalf("err = %v, want InvalidParameterValueException", err)
 			}
 		})
@@ -186,7 +186,7 @@ func TestScanConfigRemediationConfigs_BatchesEveryListedRule(t *testing.T) {
 		},
 	})
 	acct := newTestAccount(testAccountID)
-	total, _, err := scanConfigRemediationConfigs(context.Background(), client, rules, acct, testRegion, st, testScanID)
+	total, err := scanConfigRemediationConfigs(context.Background(), client, rules, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestScanConfigRemediationExceptions_PagesEveryRule(t *testing.T) {
 	rules := configRules(t, st, "r1", "r2")
 	calls := &parentCalls{}
 	client := configStubClient(map[string]func(any) (any, error){"DescribeRemediationExceptions": configExceptionHandler(calls, nil)})
-	total, _, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestScanConfigRemediationExceptions_Errors(t *testing.T) {
 	t.Parallel()
 	t.Run("no rules", func(t *testing.T) {
 		st := newTestStore(t)
-		total, _, err := scanConfigRemediationExceptions(context.Background(), configStubClient(nil), nil, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConfigRemediationExceptions(context.Background(), configStubClient(nil), nil, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 0 {
 			t.Fatalf("total = %d, err = %v, want 0 and nil", total, err)
 		}
@@ -302,7 +302,7 @@ func TestScanConfigRemediationExceptions_Errors(t *testing.T) {
 		client := configStubClient(map[string]func(any) (any, error){
 			"DescribeRemediationExceptions": configExceptionHandler(calls, map[string]error{"r1": configDenied, "r2": configDenied}),
 		})
-		total, _, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID)
+		total, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID)
 		if err != nil || total != 2 {
 			t.Fatalf("total = %d, err = %v, want 2 (r3's) and nil", total, err)
 		}
@@ -316,7 +316,7 @@ func TestScanConfigRemediationExceptions_Errors(t *testing.T) {
 		client := configStubClient(map[string]func(any) (any, error){
 			"DescribeRemediationExceptions": configExceptionHandler(&parentCalls{}, map[string]error{"r1": configNotFound}),
 		})
-		if _, _, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "ResourceNotFoundException") {
+		if _, err := scanConfigRemediationExceptions(context.Background(), client, rules, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "ResourceNotFoundException") {
 			t.Fatalf("err = %v, want ResourceNotFoundException", err)
 		}
 	})
@@ -364,7 +364,7 @@ func TestScanConfig_NewPhasesStoreRows(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = configStubConfig(configServiceHandlers())
-	if _, _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanConfig: %v", err)
 	}
 	for typ, id := range map[string]string{
@@ -389,7 +389,7 @@ func TestScanConfig_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			h[failing] = func(any) (any, error) { return nil, configBadParam }
 			acct := newTestAccount(testAccountID)
 			acct.cfg = configStubConfig(h)
-			if _, _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterValueException") {
+			if _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterValueException") {
 				t.Fatalf("err = %v, want InvalidParameterValueException", err)
 			}
 			if _, ok := rowsByNativeID(t, st, TypeConfigStoredQuery)[configStoredQueryARN]; !ok {
@@ -409,7 +409,7 @@ func TestScanConfig_ConnectorErrorKeepsOtherNewPhases(t *testing.T) {
 	h["ListConnectors"] = func(any) (any, error) { return nil, configBadParam }
 	acct := newTestAccount(testAccountID)
 	acct.cfg = configStubConfig(h)
-	if _, _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterValueException") {
+	if _, err := scanConfig(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterValueException") {
 		t.Fatalf("err = %v, want InvalidParameterValueException", err)
 	}
 	for typ, id := range map[string]string{

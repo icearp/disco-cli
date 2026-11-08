@@ -197,7 +197,7 @@ func omtHandlers(c *omtCalls) map[string]func(any) (any, error) {
 
 // omtScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func omtScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func omtScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, omtDenied)
 	return scanOmics(ctx, acct, testRegion, st, testScanID)
@@ -229,7 +229,9 @@ func TestScanOmics_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newOMTCalls()
 
-	total, inserted, err := omtScan(context.Background(), st, omtHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := omtScan(context.Background(), counted, omtHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -289,17 +291,17 @@ func TestScanOmics_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanOmics_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newOMTCalls()
-	if _, _, err := omtScan(context.Background(), st, omtHandlers(calls)); err != nil {
+	if _, err := omtScan(context.Background(), st, omtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := omtScan(context.Background(), st, omtHandlers(calls))
+	total, err := omtScan(context.Background(), st, omtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -340,7 +342,7 @@ func TestScanOmics_TagReadFailures(t *testing.T) {
 					calls := newOMTCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := omtScan(context.Background(), st, omtHandlers(calls))
+					_, err := omtScan(context.Background(), st, omtHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -406,7 +408,7 @@ func TestScanOmics_OtherAccountRowTagRead(t *testing.T) {
 				return &omics.ListRunGroupsOutput{Items: []omicstypes.RunGroupListItem{{Arn: sdkaws.String(foreign), Id: sdkaws.String("foreign")}}}
 			})
 
-			_, _, err := omtScan(context.Background(), st, h)
+			_, err := omtScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -439,7 +441,7 @@ func TestScanOmics_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[omtItemARN("configuration", "t")] = omtThrottled
 	calls.errs[omtWorkflowVersion("b")] = omtBadInput
 
-	_, _, err := omtScan(context.Background(), st, omtHandlers(calls))
+	_, err := omtScan(context.Background(), st, omtHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -459,7 +461,7 @@ func TestScanOmics_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := omtHandlers(newOMTCalls())
 			h[op] = func(any) (any, error) { return nil, omtDenied }
 
-			total, _, err := omtScan(context.Background(), st, h)
+			total, err := omtScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -501,7 +503,7 @@ func TestScanOmics_RegionUnavailable(t *testing.T) {
 			}
 			h[c.op] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := omtScan(context.Background(), st, h)
+			total, err := omtScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeUnavailable)
 			if !errors.Is(err, errServiceUnavailable) {
 				t.Errorf("err = %v; want errServiceUnavailable", err)
@@ -528,7 +530,7 @@ func TestScanOmics_RegionUnavailable(t *testing.T) {
 			h := omtHandlers(newOMTCalls())
 			h["ListShares"] = func(any) (any, error) { return nil, c.err }
 
-			total, _, err := omtScan(context.Background(), st, h)
+			total, err := omtScan(context.Background(), st, h)
 			if c.code == "" && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -563,7 +565,7 @@ func TestScanOmics_RegionUnavailableOnLaterPage(t *testing.T) {
 		return nil, omtNoRegion
 	}
 
-	total, _, err := omtScan(context.Background(), st, h)
+	total, err := omtScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
@@ -596,7 +598,7 @@ func TestScanOmics_WorkflowVersionsOwnerContext(t *testing.T) {
 		return &omics.ListWorkflowVersionsOutput{}, nil
 	}
 
-	if _, _, err := omtScan(context.Background(), st, h); err != nil {
+	if _, err := omtScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	for id, want := range map[string]struct {
@@ -704,7 +706,7 @@ func TestScanOmics_OtherOwnerChildNotFoundWarns(t *testing.T) {
 				opWarns := countOpWarnings(st, "omics:"+c.op)
 				h, fcChild := omtOtherOwnerHandlers(c, partial)
 
-				if _, _, err := omtScan(context.Background(), st, h); err != nil {
+				if _, err := omtScan(context.Background(), st, h); err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
 				if *warns != 1 || *opWarns != 1 {
@@ -732,7 +734,7 @@ func TestScanOmics_OtherOwnerChildNotFoundFailedWrite(t *testing.T) {
 			refuseStoreWrites(t, st, c.childType)
 			h, _ := omtOtherOwnerHandlers(c, true)
 
-			_, _, err := omtScan(context.Background(), st, h)
+			_, err := omtScan(context.Background(), st, h)
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -753,7 +755,7 @@ func TestScanOmics_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newOMTCalls()
 	calls.errs[omtItemARN("configuration", "t")] = omtDenied
 
-	_, _, err := omtScan(context.Background(), st, omtHandlers(calls))
+	_, err := omtScan(context.Background(), st, omtHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -786,7 +788,7 @@ func TestScanOmics_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return refs(in)
 	}
 
-	_, _, err := omtScan(context.Background(), st, h)
+	_, err := omtScan(context.Background(), st, h)
 	for _, code := range []string{"ConflictException", "ValidationException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -856,7 +858,7 @@ func TestScanOmics_ChildListingParentGone(t *testing.T) {
 				return next(in)
 			}
 
-			if _, _, err := omtScan(context.Background(), st, h); err != nil {
+			if _, err := omtScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if *warns != 0 {
@@ -902,7 +904,7 @@ func TestScanOmics_UnstorableItemsWarn(t *testing.T) {
 				}
 			}
 
-			if _, _, err := omtScan(context.Background(), st, h); err != nil {
+			if _, err := omtScan(context.Background(), st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if *warns != 1 || *opWarns != 1 {
@@ -927,7 +929,7 @@ func TestScanOmics_SharesOwnLiveOnly(t *testing.T) {
 		return &omics.ListSharesOutput{Shares: []omicstypes.ShareDetails{omtShare("a", omtItemARN("workflow", "t")), revoked}}, nil
 	}
 
-	if _, _, err := omtScan(context.Background(), st, h); err != nil {
+	if _, err := omtScan(context.Background(), st, h); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	shares := rowsByNativeID(t, st, TypeOmicsShare)
@@ -955,7 +957,7 @@ func TestScanOmics_RepeatedTokenKeepsPages(t *testing.T) {
 		return omtPage("ListRunCaches", "runCache", "t", sdkaws.String("same")), nil
 	}
 
-	_, _, err := omtScan(context.Background(), st, h)
+	_, err := omtScan(context.Background(), st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -982,7 +984,7 @@ func TestScanOmics_ContextEndStopsOnce(t *testing.T) {
 		return variants(in)
 	}
 
-	_, _, err := omtScan(ctx, st, h)
+	_, err := omtScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1012,7 +1014,7 @@ func TestScanOmics_NXDOMAIN(t *testing.T) {
 		for _, op := range omtListOps() {
 			h[op] = func(any) (any, error) { return nil, nx }
 		}
-		total, _, err := omtScan(context.Background(), st, h)
+		total, err := omtScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if total != 0 {
 			t.Errorf("total = %d; want 0", total)
@@ -1032,7 +1034,7 @@ func TestScanOmics_NXDOMAIN(t *testing.T) {
 			calls := newOMTCalls()
 			h := omtHandlers(calls)
 			h[c.first] = func(any) (any, error) { return nil, nx }
-			total, _, err := omtScan(context.Background(), st, h)
+			total, err := omtScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}

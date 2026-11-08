@@ -77,11 +77,11 @@ func isIMIUnauthorized(err error) bool { return isAPIErrorCode(err, imiUnauthori
 // ListTagsForResource and TagResource models accept only the ARNs of the
 // five types above, those two have no ARN, and the Tags of their Create and
 // Get operations are marked deprecated in the model.
-func scanIoTManagedIntegrations(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIoTManagedIntegrations(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := iotmanagedintegrations.NewFromConfig(acct.cfg, func(o *iotmanagedintegrations.Options) { o.Region = region })
 	tags := imiTags(client).sharingDenials()
 	var assocs, things []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "iotmanagedintegrations", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "iotmanagedintegrations", 0, []hostPhase{
 		{op: "iotmanagedintegrations:ListAccountAssociations", run: func(p *phaseTotals) (failed bool) {
 			assocs, failed = scanIMIAccountAssociations(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -99,30 +99,30 @@ func scanIoTManagedIntegrations(ctx context.Context, acct *account, region strin
 		{op: "iotmanagedintegrations:ListProvisioningProfiles", run: func(p *phaseTotals) bool {
 			return scanIMIProvisioningProfiles(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "iotmanagedintegrations:ListCloudConnectors", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListCloudConnectors", func() (int, error) {
 			return scanIMICloudConnectors(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "iotmanagedintegrations:ListConnectorDestinations", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListConnectorDestinations", func() (int, error) {
 			return scanIMIConnectorDestinations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "iotmanagedintegrations:ListDestinations", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListDestinations", func() (int, error) {
 			return scanIMIDestinations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "iotmanagedintegrations:ListEventLogConfigurations", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListEventLogConfigurations", func() (int, error) {
 			return scanIMIEventLogConfigurations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "iotmanagedintegrations:ListNotificationConfigurations", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListNotificationConfigurations", func() (int, error) {
 			return scanIMINotificationConfigurations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "iotmanagedintegrations:ListOtaTaskConfigurations", func() (int, int, error) {
+		countedPhase(0, "iotmanagedintegrations:ListOtaTaskConfigurations", func() (int, error) {
 			return scanIMIOtaTaskConfigurations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, imiThingLinksOp, func() (int, int, error) {
+		countedPhase(0, imiThingLinksOp, func() (int, error) {
 			return scanIMIManagedThingAccountAssociations(ctx, client, acct, region, st, scanID, assocs, things)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // imiTags reads a row's tags with ListTagsForResource, sent the row's
@@ -301,9 +301,9 @@ type imiRow struct {
 func scanIMIList[P, S any](
 	ctx context.Context, acct *account, region string, st *store.Store, scanID, rtype, op string,
 	hasMore func() bool, next func(context.Context) (P, error), items func(P) []S, row func(S) imiRow,
-) (int, int, error) {
+) (int, error) {
 	var pairs [][2]string
-	total, inserted, err := pageScan(ctx, op, acct, region, st, hasMore, next, items, func(it S) *store.Resource {
+	total, err := pageScan(ctx, op, acct, region, st, hasMore, next, items, func(it S) *store.Resource {
 		r := row(it)
 		if r.nativeID == "" {
 			return nil
@@ -318,15 +318,15 @@ func scanIMIList[P, S any](
 		}
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return total, inserted, fmt.Errorf("closure %s: %w", op, err)
+		return total, fmt.Errorf("closure %s: %w", op, err)
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanIMICloudConnectors(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMICloudConnectors(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListCloudConnectorsPaginator(client, &iotmanagedintegrations.ListCloudConnectorsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsCloudConnector, "iotmanagedintegrations:ListCloudConnectors",
@@ -344,7 +344,7 @@ func scanIMICloudConnectors(ctx context.Context, client iotManagedIntegrationsAP
 		})
 }
 
-func scanIMIConnectorDestinations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMIConnectorDestinations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListConnectorDestinationsPaginator(client, &iotmanagedintegrations.ListConnectorDestinationsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsConnectorDestination, "iotmanagedintegrations:ListConnectorDestinations",
@@ -370,7 +370,7 @@ func scanIMIConnectorDestinations(ctx context.Context, client iotManagedIntegrat
 
 // Destinations are addressed by name; DeliveryDestinationArn is the delivery
 // target (e.g. a Kinesis stream), which several destinations may share.
-func scanIMIDestinations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMIDestinations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListDestinationsPaginator(client, &iotmanagedintegrations.ListDestinationsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsDestination, "iotmanagedintegrations:ListDestinations",
@@ -388,7 +388,7 @@ func scanIMIDestinations(ctx context.Context, client iotManagedIntegrationsAPI, 
 		})
 }
 
-func scanIMIEventLogConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMIEventLogConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListEventLogConfigurationsPaginator(client, &iotmanagedintegrations.ListEventLogConfigurationsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsEventLogConfiguration, "iotmanagedintegrations:ListEventLogConfigurations",
@@ -410,7 +410,7 @@ func scanIMIEventLogConfigurations(ctx context.Context, client iotManagedIntegra
 
 // A notification configuration has no id of its own: the API keys it by event
 // type, one per event type per account and region.
-func scanIMINotificationConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMINotificationConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListNotificationConfigurationsPaginator(client, &iotmanagedintegrations.ListNotificationConfigurationsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsNotificationConfiguration, "iotmanagedintegrations:ListNotificationConfigurations",
@@ -430,7 +430,7 @@ func scanIMINotificationConfigurations(ctx context.Context, client iotManagedInt
 		})
 }
 
-func scanIMIOtaTaskConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanIMIOtaTaskConfigurations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := iotmanagedintegrations.NewListOtaTaskConfigurationsPaginator(client, &iotmanagedintegrations.ListOtaTaskConfigurationsInput{})
 	return scanIMIList(ctx, acct, region, st, scanID,
 		TypeIoTManagedIntegrationsOtaTaskConfiguration, "iotmanagedintegrations:ListOtaTaskConfigurations",
@@ -476,9 +476,9 @@ const imiThingLinksOp = "iotmanagedintegrations:ListManagedThingAccountAssociati
 // deliberately not tolerated: if the service rejects the id of an account
 // association deleted mid-scan, that error is returned after the other
 // associations' links are stored.
-func scanIMIManagedThingAccountAssociations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string, assocs, things []childParent) (int, int, error) {
+func scanIMIManagedThingAccountAssociations(ctx context.Context, client iotManagedIntegrationsAPI, acct *account, region string, st *store.Store, scanID string, assocs, things []childParent) (int, error) {
 	if len(things) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	thingARN := make(map[string]string, len(things))
 	for _, t := range things {

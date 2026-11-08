@@ -22,10 +22,10 @@ func init() {
 // products, policies, subscriptions, named values, certificates, backends,
 // gateways, and identity providers deferred — sub-resources whose graph
 // value lives in the service's identity + KeyVault edges.
-func scanAPIManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armapimanagement.NewServiceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armapimanagement:NewServiceClient: %w", err)
+		return 0, fmt.Errorf("armapimanagement:NewServiceClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armapimanagement:Service.List", TypeAPIManagementService, sub, st, scanID,
 		client.NewListPager(nil),

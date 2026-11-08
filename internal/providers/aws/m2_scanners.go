@@ -53,7 +53,7 @@ var m2NotFound = []string{"ResourceNotFoundException"}
 // environments are keyed by their ARNs and carry their tags; deployments and
 // data sets have no ARN and are keyed by the parent application's ARN plus a
 // path.
-func scanM2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanM2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := m2.NewFromConfig(acct.cfg, func(o *m2.Options) { o.Region = region })
 	return scanM2All(ctx, client, acct, region, st, scanID)
 }
@@ -65,10 +65,10 @@ func scanM2(ctx context.Context, acct *account, region string, st *store.Store, 
 // stores nothing and fails only with NXDOMAIN, since the region does not
 // serve the service (runHostPhases). The tag reads' denials are one warning
 // for the whole scan.
-func scanM2All(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanM2All(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := m2Tags(client).sharingDenials()
 	var apps []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "m2", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "m2", 0, []hostPhase{
 		{op: m2ListApplicationsOp, run: func(p *phaseTotals) bool {
 			var failed bool
 			apps, failed = scanM2Applications(ctx, client, acct, region, st, scanID, tags, p)
@@ -77,15 +77,15 @@ func scanM2All(ctx context.Context, client m2API, acct *account, region string, 
 		{op: m2ListEnvironmentsOp, run: func(p *phaseTotals) bool {
 			return scanM2Environments(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, m2ListDeploymentsOp, func() (int, int, error) {
+		countedPhase(0, m2ListDeploymentsOp, func() (int, error) {
 			return scanM2Deployments(ctx, client, acct, region, st, scanID, apps)
 		}),
-		countedPhase(0, m2ListDataSetsOp, func() (int, int, error) {
+		countedPhase(0, m2ListDataSetsOp, func() (int, error) {
 			return scanM2Datasets(ctx, client, acct, region, st, scanID, apps)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // m2Tags reads a row's tags with ListTagsForResource, sent the row's
@@ -167,7 +167,7 @@ func scanM2Environments(ctx context.Context, client m2API, acct *account, region
 // (ResourceNotFoundException) is skipped silently, and one deleted
 // mid-listing keeps the deployments already read and is warned about; a
 // denial warns once; any other error is returned after the rows are stored.
-func scanM2Deployments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanM2Deployments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	arnOf := make(map[string]string, len(apps))
 	for _, a := range apps {
 		arnOf[a.id] = a.arn
@@ -219,11 +219,11 @@ func m2DatasetNativeID(appARN, name string) string {
 // application that is not deployed, or is creating, failed or deleting, has
 // not been observed; failing the phase would fail it on every scan, and
 // skipping silently would hide a real error.
-func scanM2Datasets(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+func scanM2Datasets(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	return childFanOutStoredSkipNotReady(ctx, st, acct, region, m2ListDataSetsOp, apps, isGone, byParentID,
 		"application(s)", "the application may not be deployed or ready", []string{"ValidationException", "ConflictException"},
-		func(ctx context.Context, app childParent) (int, int, error) {
+		func(ctx context.Context, app childParent) (int, error) {
 			return storeM2Datasets(ctx, client, acct, region, st, scanID, app)
 		})
 }
@@ -241,7 +241,7 @@ func isM2PageSizeRejected(err error) bool {
 }
 
 // storeM2Datasets stores one application's data sets a page at a time.
-func storeM2Datasets(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, app childParent) (total, inserted int, err error) {
+func storeM2Datasets(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, app childParent) (total int, err error) {
 	pager := m2.NewListDataSetsPaginator(client, &m2.ListDataSetsInput{ApplicationId: sdkaws.String(app.id)},
 		func(o *m2.ListDataSetsPaginatorOptions) { o.Limit = m2PageCap })
 	parentID := store.ResourceID("aws", acct.ID, app.arn)
@@ -250,10 +250,10 @@ func storeM2Datasets(ctx context.Context, client m2API, acct *account, region st
 		if isM2PageSizeRejected(err) {
 			// %v, not %w: through the chain, the not-ready skip would match
 			// the ValidationException and warn about an error disco caused.
-			return total, inserted, fmt.Errorf("%s rejected page size %d: %v", m2ListDataSetsOp, m2PageCap, err)
+			return total, fmt.Errorf("%s rejected page size %d: %v", m2ListDataSetsOp, m2PageCap, err)
 		}
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		var children []containedChild
 		for _, d := range out.DataSets {
@@ -268,12 +268,11 @@ func storeM2Datasets(ctx context.Context, client m2API, acct *account, region st
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}})
 		}
-		t, i, err := upsertContained(st, m2ListDataSetsOp, children)
+		t, err := upsertContained(st, m2ListDataSetsOp, children)
 		if err != nil {
-			return total, inserted, err
+			return total, err
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }

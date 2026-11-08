@@ -71,7 +71,7 @@ func dsqlTwoClusters() []dsqltypes.ClusterSummary {
 	}
 }
 
-func runDSQL(t *testing.T, st *store.Store, s *dsqlStub) (int, int, error) {
+func runDSQL(t *testing.T, st *store.Store, s *dsqlStub) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(s.handlers(t), errDSQLUnexpectedOp)
@@ -94,7 +94,9 @@ func TestScanDSQL_ClusterRowFromGetCluster(t *testing.T) {
 		}
 		return out, nil
 	}}
-	total, inserted, err := runDSQL(t, st, s)
+	counted, upserts := countUpserts(st)
+	total, err := runDSQL(t, counted, s)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDSQL: %v", err)
 	}
@@ -149,7 +151,9 @@ func TestScanDSQL_GetClusterFails(t *testing.T) {
 				}
 				return &dsql.GetClusterOutput{Arn: ptrStr(dsqlC1ARN), Identifier: ptrStr("c1"), Tags: map[string]string{"team": "db"}}, nil
 			}}
-			total, inserted, err := runDSQL(t, st, s)
+			counted, upserts := countUpserts(st)
+			total, err := runDSQL(t, counted, s)
+			inserted := upserts()
 			switch {
 			case c.wantErr == nil && err != nil:
 				t.Fatalf("err = %v, want nil", err)
@@ -202,7 +206,9 @@ func TestScanDSQL_EmptyArnWarns(t *testing.T) {
 			return &dsql.GetClusterOutput{Arn: ptrStr(dsqlC1ARN), Identifier: ptrStr(id)}, nil
 		},
 	}
-	total, inserted, err := runDSQL(t, st, s)
+	counted, upserts := countUpserts(st)
+	total, err := runDSQL(t, counted, s)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanDSQL: %v", err)
 	}
@@ -247,7 +253,9 @@ func TestScanDSQL_LaterListPageFails(t *testing.T) {
 			}
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, errDSQLUnexpectedOp)
-			total, inserted, err := scanDSQL(context.Background(), acct, testRegion, st, testScanID)
+			counted, upserts := countUpserts(st)
+			total, err := scanDSQL(context.Background(), acct, testRegion, counted, testScanID)
+			inserted := upserts()
 			if c.wantErr != isAPIErrorCode(err, "ValidationException") || (!c.wantErr && err != nil) {
 				t.Fatalf("err = %v, want error %v", err, c.wantErr)
 			}
@@ -284,7 +292,9 @@ func TestScanDSQL_StreamFailureDoesNotStopOthers(t *testing.T) {
 			return dsqlStreamPage(id), nil
 		},
 	}
-	total, inserted, err := runDSQL(t, st, s)
+	counted, upserts := countUpserts(st)
+	total, err := runDSQL(t, counted, s)
+	inserted := upserts()
 	if !isAPIErrorCode(err, "ValidationException") {
 		t.Fatalf("err = %v, want the ListStreams ValidationException", err)
 	}
@@ -306,7 +316,7 @@ func TestScanDSQL_ClusterWriteFailureStops(t *testing.T) {
 	s := &dsqlStub{clusters: dsqlTwoClusters(), getCluster: func(string) (any, error) {
 		return nil, apiErr("AccessDeniedException", "not authorized to perform: dsql:GetCluster")
 	}}
-	_, _, err := runDSQL(t, st, s)
+	_, err := runDSQL(t, st, s)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -323,7 +333,9 @@ func TestScanDSQL_StreamWriteFailureStops(t *testing.T) {
 	s := &dsqlStub{clusters: dsqlTwoClusters(), getCluster: func(id string) (any, error) {
 		return &dsql.GetClusterOutput{Arn: ptrStr("arn:aws:dsql:us-east-1:123456789012:cluster/" + id), Identifier: ptrStr(id)}, nil
 	}}
-	total, inserted, err := runDSQL(t, st, s)
+	counted, upserts := countUpserts(st)
+	total, err := runDSQL(t, counted, s)
+	inserted := upserts()
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v, want ErrStoreWrite", err)
 	}
@@ -354,7 +366,9 @@ func TestScanDSQL_ContextEndsAfterListing(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, errDSQLUnexpectedOp)
-	total, inserted, err := scanDSQL(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanDSQL(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -384,7 +398,9 @@ func TestScanDSQLClusters_ContextEndsAfterListing(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, errDSQLUnexpectedOp)
 	client := dsql.NewFromConfig(acct.cfg)
-	total, inserted, clusters, err := scanDSQLClusters(ctx, client, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, clusters, err := scanDSQLClusters(ctx, client, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -411,7 +427,9 @@ func TestScanDSQLClusters_ContextEndsOnFirstOfTwoPages(t *testing.T) {
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, errDSQLUnexpectedOp)
-	total, inserted, _, err := scanDSQLClusters(ctx, dsql.NewFromConfig(acct.cfg), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, _, err := scanDSQLClusters(ctx, dsql.NewFromConfig(acct.cfg), acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}

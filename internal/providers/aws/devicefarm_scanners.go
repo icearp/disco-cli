@@ -71,15 +71,15 @@ var dfGone = []string{"NotFoundException"}
 // The per-project phases read the projects stored this scan. Every type but
 // the upload, and curated device pools and network profiles, has its tags
 // read per row (dfTags), whose denials are one warning for the whole scan.
-func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("devicefarm")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := devicefarm.NewFromConfig(acct.cfg, func(o *devicefarm.Options) { o.Region = region })
 	tags := dfTags(client).sharingDenials()
 	var projects []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "devicefarm", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "devicefarm", 0, []hostPhase{
 		{op: "devicefarm:ListProjects", run: func(p *phaseTotals) (failed bool) {
 			projects, failed = scanDeviceFarmProjects(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -102,12 +102,12 @@ func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Stor
 		{op: "devicefarm:ListTestGridProjects", run: func(p *phaseTotals) bool {
 			return scanDeviceFarmTestGridProjects(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "devicefarm:ListUploads", func() (int, int, error) {
+		countedPhase(0, "devicefarm:ListUploads", func() (int, error) {
 			return scanDeviceFarmUploads(ctx, client, acct, region, st, scanID, childParentIDs(projects))
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // dfTags reads a row's tags with ListTagsForResource, sent the row's
@@ -310,7 +310,7 @@ func scanDeviceFarmTestGridProjects(ctx context.Context, client deviceFarmAPI, a
 
 // scanDeviceFarmUploads lists the app and test packages uploaded to each
 // project the projects phase returned.
-func scanDeviceFarmUploads(ctx context.Context, client deviceFarmAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
+func scanDeviceFarmUploads(ctx context.Context, client deviceFarmAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, error) {
 	var batch []*store.Resource
 	// An upload ARN listed under more than one project (e.g. an AWS-curated
 	// upload) must be upserted once per scan, or the second upsert version-splits it.
@@ -334,7 +334,7 @@ func scanDeviceFarmUploads(ctx context.Context, client deviceFarmAPI, acct *acco
 				if isAPIErrorCode(perr, "NotFoundException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("devicefarm:ListUploads %s: %w", projectARN, perr)
+				return 0, fmt.Errorf("devicefarm:ListUploads %s: %w", projectARN, perr)
 			}
 			for _, u := range out.Uploads {
 				arn := sv(u.Arn)

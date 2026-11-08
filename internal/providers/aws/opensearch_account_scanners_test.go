@@ -34,12 +34,12 @@ func osClient(handlers map[string]func(in any) (any, error)) *opensearch.Client 
 	return opensearch.NewFromConfig(opStubConfig(handlers, osDenied))
 }
 
-func osScanAccount(t *testing.T, scan func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, int, error),
+func osScanAccount(t *testing.T, scan func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, error),
 	handlers map[string]func(in any) (any, error),
 ) (*store.Store, int, error) {
 	t.Helper()
 	st := newTestStore(t)
-	total, _, err := scan(context.Background(), osClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scan(context.Background(), osClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return st, total, err
 }
 
@@ -135,7 +135,7 @@ func TestScanOpenSearchDirectQueryDataSources_Errors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "opensearch:ListDirectQueryDataSources")
-			total, _, err := scanOpenSearchDirectQueryDataSources(context.Background(), osClient(map[string]func(any) (any, error){"ListDirectQueryDataSources": osDQHandler(tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanOpenSearchDirectQueryDataSources(context.Background(), osClient(map[string]func(any) (any, error){"ListDirectQueryDataSources": osDQHandler(tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -201,7 +201,7 @@ func TestScanOpenSearchVpcEndpoints_DescribesEachListPage(t *testing.T) {
 		described [][]string
 		mu        sync.Mutex
 	)
-	total, _, err := scanOpenSearchVpcEndpoints(context.Background(), osClient(osVpcHandlers(&described, &mu, nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanOpenSearchVpcEndpoints(context.Background(), osClient(osVpcHandlers(&described, &mu, nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestScanOpenSearchVpcEndpoints_NotFoundIsSilent(t *testing.T) {
 			}}, nil
 		},
 	})
-	total, _, err := scanOpenSearchVpcEndpoints(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanOpenSearchVpcEndpoints(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 || *warns != 0 {
 		t.Errorf("total = %d, warnings = %d, err = %v; want 0, 0, nil", total, *warns, err)
 	}
@@ -301,7 +301,7 @@ func TestScanOpenSearchVpcEndpoints_Errors(t *testing.T) {
 				mu.Unlock()
 			}
 			var described [][]string
-			total, _, err := scanOpenSearchVpcEndpoints(context.Background(), osClient(tc.handlers(&described, &mu)), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanOpenSearchVpcEndpoints(context.Background(), osClient(tc.handlers(&described, &mu)), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -395,7 +395,7 @@ func TestScanOpenSearchPackages_Errors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "opensearch:DescribePackages")
 			var maxResults []int32
-			total, _, err := scanOpenSearchPackages(context.Background(), osClient(map[string]func(any) (any, error){"DescribePackages": osPackagesHandler(&maxResults, tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanOpenSearchPackages(context.Background(), osClient(map[string]func(any) (any, error){"DescribePackages": osPackagesHandler(&maxResults, tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -466,7 +466,7 @@ func TestScanOpenSearchReservedInstances_Errors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "opensearch:DescribeReservedInstances")
 			var maxResults []int32
-			total, _, err := scanOpenSearchReservedInstances(context.Background(), osClient(map[string]func(any) (any, error){"DescribeReservedInstances": osReservedHandler(&maxResults, tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanOpenSearchReservedInstances(context.Background(), osClient(map[string]func(any) (any, error){"DescribeReservedInstances": osReservedHandler(&maxResults, tc.fail)}), newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -580,10 +580,10 @@ func TestScanOpenSearchConnections_BothSidesInOneAccountStayDistinct(t *testing.
 		},
 	})
 	acct := newTestAccount(testAccountID)
-	if _, _, err := scanOpenSearchOutboundConnections(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanOpenSearchOutboundConnections(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("outbound: %v", err)
 	}
-	if _, _, err := scanOpenSearchInboundConnections(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanOpenSearchInboundConnections(context.Background(), client, acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("inbound: %v", err)
 	}
 	out := rowsByNativeID(t, st, TypeOpenSearchOutboundConnection)
@@ -601,7 +601,7 @@ func TestScanOpenSearchConnections_Errors(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		op       string
-		scan     func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, int, error)
+		scan     func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, error)
 		err      error
 		wantCode string
 		wantWarn int
@@ -615,7 +615,7 @@ func TestScanOpenSearchConnections_Errors(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "opensearch:"+tc.op)
 			client := osClient(map[string]func(any) (any, error){tc.op: func(any) (any, error) { return nil, tc.err }})
-			total, _, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
 				t.Errorf("err = %v; want code %q", err, tc.wantCode)
 			}
@@ -635,11 +635,11 @@ func TestScanOpenSearchConnections_Empty(t *testing.T) {
 		"DescribePackages":            func(any) (any, error) { return &opensearch.DescribePackagesOutput{}, nil },
 		"DescribeReservedInstances":   func(any) (any, error) { return &opensearch.DescribeReservedInstancesOutput{}, nil },
 	})
-	for name, scan := range map[string]func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, int, error){
+	for name, scan := range map[string]func(context.Context, opensearchAPI, *account, string, *store.Store, string) (int, error){
 		"outbound": scanOpenSearchOutboundConnections, "inbound": scanOpenSearchInboundConnections,
 		"packages": scanOpenSearchPackages, "reserved": scanOpenSearchReservedInstances,
 	} {
-		if total, _, err := scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); total != 0 || err != nil {
+		if total, err := scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); total != 0 || err != nil {
 			t.Errorf("%s: total = %d, err = %v; want 0, nil", name, total, err)
 		}
 	}

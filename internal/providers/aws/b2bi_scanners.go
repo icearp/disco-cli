@@ -65,15 +65,15 @@ var b2biNotFound = []string{"ResourceNotFoundException"}
 // closed to new customers (isClosedToNewCustomers) is still read as empty,
 // silently (firstPageGapPages), as base read every listing; whether closure
 // can differ per op on one account is unverified.
-func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := b2bi.NewFromConfig(acct.cfg, func(o *b2bi.Options) { o.Region = region })
 
 	if ferr := gateB2BI(ctx, client); ferr != nil {
-		return 0, 0, ferr
+		return 0, ferr
 	}
 
 	tags := b2biTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "b2bi", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "b2bi", 0, []hostPhase{
 		{op: b2biListCapabilitiesOp, run: func(p *phaseTotals) bool {
 			return scanB2BICapabilities(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -88,7 +88,7 @@ func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // gateB2BI probes the cheapest list op once. B2BI deploys to a region subset;

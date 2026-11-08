@@ -36,15 +36,15 @@ const (
 // scanSynthetics discovers CloudWatch Synthetics canaries and groups. Both
 // phases run whatever the other returned and their counts are summed; only a
 // store write failure stops the scan.
-func scanSynthetics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSynthetics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := synthetics.NewFromConfig(acct.cfg, func(o *synthetics.Options) { o.Region = region })
 	var phases phaseTotals
-	t, i, err := scanSyntheticsCanaries(ctx, client, acct, region, st, scanID)
-	if phases.addPhase(synDescribeCanariesOp, t, i, err) {
+	t, err := scanSyntheticsCanaries(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(synDescribeCanariesOp, t, err) {
 		return phases.result(st, acct, region)
 	}
-	t, i, err = scanSyntheticsGroups(ctx, client, acct, region, st, scanID)
-	phases.addPhase(synListGroupsOp, t, i, err)
+	t, err = scanSyntheticsGroups(ctx, client, acct, region, st, scanID)
+	phases.addPhase(synListGroupsOp, t, err)
 	return phases.result(st, acct, region)
 }
 
@@ -54,7 +54,7 @@ func scanSynthetics(ctx context.Context, acct *account, region string, st *store
 // arn:{p}:synthetics:{r}:{a}:canary:{name}; a canary listed without a name is
 // not stored and is warned about under its id. A denial is warned about once;
 // any other error is returned after the rows are stored.
-func scanSyntheticsCanaries(ctx context.Context, client syntheticsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSyntheticsCanaries(ctx context.Context, client syntheticsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, synDescribeCanariesOp,
 		func(ctx context.Context, token *string) ([]syntheticstypes.Canary, *string, error) {
 			out, err := client.DescribeCanaries(ctx, &synthetics.DescribeCanariesInput{
@@ -88,7 +88,7 @@ func scanSyntheticsCanaries(ctx context.Context, client syntheticsAPI, acct *acc
 // a failed page included. A group listed without an ARN is not stored and is
 // warned about under its id. A denial is warned about once; any other error is
 // returned after the rows are stored.
-func scanSyntheticsGroups(ctx context.Context, client syntheticsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSyntheticsGroups(ctx context.Context, client syntheticsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, synListGroupsOp,
 		func(ctx context.Context, token *string) ([]syntheticstypes.GroupSummary, *string, error) {
 			out, err := client.ListGroups(ctx, &synthetics.ListGroupsInput{

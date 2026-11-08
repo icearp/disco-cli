@@ -43,7 +43,9 @@ func TestScanCloudIdentityGroups_ReturnsGroupNames(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudIdentityService(t, srv)
 
-	groupNames, total, inserted, err := scanCloudIdentityGroups(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	groupNames, total, err := scanCloudIdentityGroups(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityGroups: %v", err)
 	}
@@ -81,7 +83,9 @@ func TestScanCloudIdentityDeviceTree_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudIdentityService(t, srv)
 
-	total, inserted, err := scanCloudIdentityDevices(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudIdentityDevices(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityDevices: %v", err)
 	}
@@ -89,7 +93,9 @@ func TestScanCloudIdentityDeviceTree_FullFanout(t *testing.T) {
 		t.Fatalf("devices counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanCloudIdentityDeviceUsers(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudIdentityDeviceUsers(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityDeviceUsers: %v", err)
 	}
@@ -97,7 +103,9 @@ func TestScanCloudIdentityDeviceTree_FullFanout(t *testing.T) {
 		t.Fatalf("device users counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanCloudIdentityClientStates(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudIdentityClientStates(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityClientStates: %v", err)
 	}
@@ -158,7 +166,9 @@ func TestScanCloudIdentityMemberships_PartialDenyContinues(t *testing.T) {
 	t.Cleanup(srv.Close)
 	svc := fakeCloudIdentityService(t, srv)
 
-	total, inserted, err := scanCloudIdentityMemberships(t.Context(), svc, testCustomerID, []string{"groups/g1", "groups/g2"}, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudIdentityMemberships(t.Context(), svc, testCustomerID, []string{"groups/g1", "groups/g2"}, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityMemberships: %v", err)
 	}
@@ -203,7 +213,9 @@ func TestScanCloudIdentitySSO_FullFanout(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudIdentityService(t, srv)
 
-	total, inserted, err := scanCloudIdentityInboundOidcSsoProfiles(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudIdentityInboundOidcSsoProfiles(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityInboundOidcSsoProfiles: %v", err)
 	}
@@ -211,7 +223,9 @@ func TestScanCloudIdentitySSO_FullFanout(t *testing.T) {
 		t.Fatalf("oidc counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	profileNames, total, inserted, err := scanCloudIdentityInboundSamlSsoProfiles(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	profileNames, total, err := scanCloudIdentityInboundSamlSsoProfiles(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityInboundSamlSsoProfiles: %v", err)
 	}
@@ -222,7 +236,9 @@ func TestScanCloudIdentitySSO_FullFanout(t *testing.T) {
 		t.Fatalf("profileNames = %v, want [inboundSamlSsoProfiles/p1]", profileNames)
 	}
 
-	total, inserted, err = scanCloudIdentityIdpCredentials(t.Context(), svc, testCustomerID, profileNames, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudIdentityIdpCredentials(t.Context(), svc, testCustomerID, profileNames, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityIdpCredentials: %v", err)
 	}
@@ -255,7 +271,9 @@ func TestScanCloudIdentityFlatPhases_Basic(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeCloudIdentityService(t, srv)
 
-	total, inserted, err := scanCloudIdentityInboundSsoAssignments(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudIdentityInboundSsoAssignments(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityInboundSsoAssignments: %v", err)
 	}
@@ -263,7 +281,9 @@ func TestScanCloudIdentityFlatPhases_Basic(t *testing.T) {
 		t.Fatalf("assignments counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanCloudIdentityPolicies(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudIdentityPolicies(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityPolicies: %v", err)
 	}
@@ -271,7 +291,9 @@ func TestScanCloudIdentityFlatPhases_Basic(t *testing.T) {
 		t.Fatalf("policies counts: got %d/%d, want 1/1", total, inserted)
 	}
 
-	total, inserted, err = scanCloudIdentityUserinvitations(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts = countUpserts(st)
+	total, err = scanCloudIdentityUserinvitations(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted = upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityUserinvitations: %v", err)
 	}
@@ -287,7 +309,9 @@ func TestScanCloudIdentityDevices_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeCloudIdentityService(t, srv)
 
-	total, inserted, err := scanCloudIdentityDevices(t.Context(), svc, testCustomerID, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudIdentityDevices(t.Context(), svc, testCustomerID, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudIdentityDevices (denied): expected nil error, got %v", err)
 	}

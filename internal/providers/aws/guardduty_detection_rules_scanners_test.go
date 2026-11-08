@@ -41,7 +41,7 @@ type gdRulePhase struct {
 	op     string // op name as the stub sees it
 	label  string // the op label warnings name
 	rtype  string
-	scan   func(context.Context, guardDutyExtAPI, *account, string, *store.Store, string) (int, int, error)
+	scan   func(context.Context, guardDutyExtAPI, *account, string, *store.Store, string) (int, error)
 	page   func(token string) any
 	empty  func() any
 	native func(item string) string
@@ -88,7 +88,7 @@ var (
 
 // gdScanAssocs runs the association phase alone and returns its counts and
 // errors as the service folds them.
-func gdScanAssocs(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func gdScanAssocs(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var p phaseTotals
 	scanGDCustomRuleAssociations(ctx, client, acct, region, st, scanID, &p)
 	return p.result(st, acct, region)
@@ -161,7 +161,7 @@ func runGDPhase(t *testing.T, st *store.Store, h *gdPhaseHandler) (int, error) {
 	client := guardduty.NewFromConfig(opStubConfig(map[string]func(any) (any, error){
 		h.p.op: h.serve, "GetCustomDetectionRuleAssociation": gdNoAssocTags,
 	}, apiErr("AccessDeniedException", "unstubbed op")))
-	total, _, err := h.p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := h.p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -234,7 +234,7 @@ func TestScanGDCustomRuleOrgConfigurations_KeysOnRuleAndMode(t *testing.T) {
 		},
 	}
 	client := guardduty.NewFromConfig(opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op")))
-	if _, _, err := scanGDCustomRuleOrgConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanGDCustomRuleOrgConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeGuardDutyCustomDetectionRuleOrgConfiguration)
@@ -277,7 +277,7 @@ func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, p.label)
 				client := guardduty.NewFromConfig(opStubConfig(map[string]func(any) (any, error){p.op: func(any) (any, error) { return tc.out, nil }}, apiErr("AccessDeniedException", "unstubbed op")))
-				total, _, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+				total, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if err != nil || total != 0 {
 					t.Errorf("got (%d, %v); want (0, nil)", total, err)
 				}
@@ -389,7 +389,7 @@ func scanGDTopLevel(t *testing.T, st *store.Store, h map[string]func(any) (any, 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	total, _, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanGuardDuty(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

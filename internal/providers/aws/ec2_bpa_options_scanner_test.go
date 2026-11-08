@@ -54,7 +54,7 @@ func TestScanVPCBlockPublicAccessOptions_PerRegion(t *testing.T) {
 	}
 	for region := range modes {
 		client := &bpaOptionsStub{byRegion: modes, region: region}
-		if _, _, err := scanVPCBlockPublicAccessOptions(
+		if _, err := scanVPCBlockPublicAccessOptions(
 			context.Background(), client, acct, region, st, scanID); err != nil {
 			t.Fatalf("scan %s: %v", region, err)
 		}

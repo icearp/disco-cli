@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanAppConfiguration discovers Azure App Configuration stores.
-func scanAppConfiguration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppConfiguration(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armappconfiguration.NewConfigurationStoresClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armappconfiguration:NewConfigurationStoresClient: %w", err)
+		return 0, fmt.Errorf("armappconfiguration:NewConfigurationStoresClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armappconfiguration:ConfigurationStores.List", TypeAppConfigurationStore, sub, st, scanID,
 		client.NewListPager(nil),

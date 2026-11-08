@@ -72,7 +72,7 @@ func emrARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "elasticmapreduce", region, acct, kind+"/"+id)
 }
 
-func scanEMR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEMR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := emr.NewFromConfig(acct.cfg, func(o *emr.Options) { o.Region = region })
 	return scanEMRAll(ctx, client, acct, region, st, scanID)
 }
@@ -88,37 +88,37 @@ const (
 // joined through phaseTotals, which demotes a transient error to a warning
 // only beside a hard one. The cluster phase is labelled "emr", not by one op,
 // because its error may come from ListClusters or DescribeCluster.
-func scanEMRAll(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRAll(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var p phaseTotals
-	clusters, t, i, err := scanEMRClusters(ctx, client, acct, region, st, scanID)
-	if p.addPhase("emr", t, i, err) {
+	clusters, t, err := scanEMRClusters(ctx, client, acct, region, st, scanID)
+	if p.addPhase("emr", t, err) {
 		return p.result(st, acct, region)
 	}
 	for _, cl := range clusters {
-		t, i, err := scanEMRInstanceFleets(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
-		if p.addPhase("emr:ListInstanceFleets", t, i, err) {
+		t, err := scanEMRInstanceFleets(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
+		if p.addPhase("emr:ListInstanceFleets", t, err) {
 			return p.result(st, acct, region)
 		}
-		t, i, err = scanEMRInstanceGroups(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
-		if p.addPhase("emr:ListInstanceGroups", t, i, err) {
+		t, err = scanEMRInstanceGroups(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
+		if p.addPhase("emr:ListInstanceGroups", t, err) {
 			return p.result(st, acct, region)
 		}
-		t, i, err = scanEMRSteps(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
-		if p.addPhase("emr:ListSteps", t, i, err) {
+		t, err = scanEMRSteps(ctx, client, acct, region, st, scanID, cl.id, cl.arn)
+		if p.addPhase("emr:ListSteps", t, err) {
 			return p.result(st, acct, region)
 		}
 	}
-	t, i, err = scanEMRSecurityConfigs(ctx, client, acct, region, st, scanID)
-	if p.addPhase("emr:ListSecurityConfigurations", t, i, err) {
+	t, err = scanEMRSecurityConfigs(ctx, client, acct, region, st, scanID)
+	if p.addPhase("emr:ListSecurityConfigurations", t, err) {
 		return p.result(st, acct, region)
 	}
-	studioIDs, t, i, err := scanEMRStudios(ctx, client, acct, region, st, scanID)
-	if p.addPhase("emr:ListStudios", t, i, err) {
+	studioIDs, t, err := scanEMRStudios(ctx, client, acct, region, st, scanID)
+	if p.addPhase("emr:ListStudios", t, err) {
 		return p.result(st, acct, region)
 	}
 	for _, sid := range studioIDs {
-		t, i, err := scanEMRStudioSessionMappings(ctx, client, acct, region, st, scanID, sid)
-		if p.addPhase("emr:ListStudioSessionMappings", t, i, err) {
+		t, err := scanEMRStudioSessionMappings(ctx, client, acct, region, st, scanID, sid)
+		if p.addPhase("emr:ListStudioSessionMappings", t, err) {
 			break
 		}
 	}
@@ -145,7 +145,7 @@ type emrClusterRead struct {
 // about. A listed cluster with no ClusterArn is not stored and is warned
 // about; one with no Id cannot be described or have its children listed, so
 // it is stored as its ListClusters element and warned about.
-func scanEMRClusters(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+func scanEMRClusters(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, error) {
 	listed, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]emrtypes.ClusterSummary, *string, error) {
 		out, err := client.ListClusters(ctx, &emr.ListClustersInput{Marker: token})
 		if err != nil {
@@ -196,7 +196,7 @@ func scanEMRClusters(ctx context.Context, client emrAPI, acct *account, region s
 		}
 	}
 	const kept = "cluster(s) stored as their ListClusters element, without tags"
-	total, inserted, err := storeReadRows(st, acct, region, emrListClustersOp, rows, listErr, func() {
+	total, err := storeReadRows(st, acct, region, emrListClustersOp, rows, listErr, func() {
 		described.warnDenied(st, acct, region, kept)
 		if noBody.count > 0 {
 			st.ReportWarning(store.ScanWarning{
@@ -208,12 +208,12 @@ func scanEMRClusters(ctx context.Context, client emrAPI, acct *account, region s
 		warnNoChildID(st, emrListClustersOp, acct, region, &noIDs, "cluster(s), as their ListClusters element without tags,", "Id")
 	}, errs...)
 	if errors.Is(err, store.ErrStoreWrite) {
-		return nil, total, inserted, err
+		return nil, total, err
 	}
 	var phase phaseErrs
 	phase.add(emrListClustersOp, err)
 	described.addFailed(&phase, kept)
-	return parents, total, inserted, phase.join(st, acct, region)
+	return parents, total, phase.join(st, acct, region)
 }
 
 // emrClusterRow builds a cluster's row from its DescribeCluster body, or from
@@ -235,7 +235,7 @@ func emrClusterRow(acct *account, region, scanID string, listed emrtypes.Cluster
 	return r
 }
 
-func scanEMRInstanceFleets(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, int, error) {
+func scanEMRInstanceFleets(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, error) {
 	cid := clusterID
 	pager := emr.NewListInstanceFleetsPaginator(client, &emr.ListInstanceFleetsInput{ClusterId: &cid})
 	var batch []*store.Resource
@@ -244,9 +244,9 @@ func scanEMRInstanceFleets(ctx context.Context, client emrAPI, acct *account, re
 		if perr != nil {
 			if isAccessDenied(perr) || isAPIErrorCode(perr, "InvalidRequestException") {
 				_ = skipIfAccessDenied(st, "emr:ListInstanceFleets", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("emr:ListInstanceFleets: %w", perr)
+			return 0, fmt.Errorf("emr:ListInstanceFleets: %w", perr)
 		}
 		for _, f := range out.InstanceFleets {
 			id := sv(f.Id)
@@ -268,7 +268,7 @@ func scanEMRInstanceFleets(ctx context.Context, client emrAPI, acct *account, re
 	return upsertBatch(st, batch, "emr instance-fleets")
 }
 
-func scanEMRInstanceGroups(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, int, error) {
+func scanEMRInstanceGroups(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, error) {
 	cid := clusterID
 	pager := emr.NewListInstanceGroupsPaginator(client, &emr.ListInstanceGroupsInput{ClusterId: &cid})
 	var batch []*store.Resource
@@ -277,9 +277,9 @@ func scanEMRInstanceGroups(ctx context.Context, client emrAPI, acct *account, re
 		if perr != nil {
 			if isAccessDenied(perr) || isAPIErrorCode(perr, "InvalidRequestException") {
 				_ = skipIfAccessDenied(st, "emr:ListInstanceGroups", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("emr:ListInstanceGroups: %w", perr)
+			return 0, fmt.Errorf("emr:ListInstanceGroups: %w", perr)
 		}
 		for _, g := range out.InstanceGroups {
 			id := sv(g.Id)
@@ -301,7 +301,7 @@ func scanEMRInstanceGroups(ctx context.Context, client emrAPI, acct *account, re
 	return upsertBatch(st, batch, "emr instance-groups")
 }
 
-func scanEMRSteps(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, int, error) {
+func scanEMRSteps(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, clusterID, clusterARN string) (int, error) {
 	cid := clusterID
 	pager := emr.NewListStepsPaginator(client, &emr.ListStepsInput{ClusterId: &cid})
 	var batch []*store.Resource
@@ -310,9 +310,9 @@ func scanEMRSteps(ctx context.Context, client emrAPI, acct *account, region stri
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "emr:ListSteps", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("emr:ListSteps: %w", perr)
+			return 0, fmt.Errorf("emr:ListSteps: %w", perr)
 		}
 		for _, s := range out.Steps {
 			id := sv(s.Id)
@@ -334,7 +334,7 @@ func scanEMRSteps(ctx context.Context, client emrAPI, acct *account, region stri
 	return upsertBatch(st, batch, "emr steps")
 }
 
-func scanEMRSecurityConfigs(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEMRSecurityConfigs(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := emr.NewListSecurityConfigurationsPaginator(client, &emr.ListSecurityConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -342,9 +342,9 @@ func scanEMRSecurityConfigs(ctx context.Context, client emrAPI, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "emr:ListSecurityConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("emr:ListSecurityConfigurations: %w", perr)
+			return 0, fmt.Errorf("emr:ListSecurityConfigurations: %w", perr)
 		}
 		for _, sc := range out.SecurityConfigurations {
 			name := sv(sc.Name)
@@ -363,7 +363,7 @@ func scanEMRSecurityConfigs(ctx context.Context, client emrAPI, acct *account, r
 	return upsertBatch(st, batch, "emr security-configurations")
 }
 
-func scanEMRStudios(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+func scanEMRStudios(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
 	pager := emr.NewListStudiosPaginator(client, &emr.ListStudiosInput{})
 	var batch []*store.Resource
 	var ids []string
@@ -372,9 +372,9 @@ func scanEMRStudios(ctx context.Context, client emrAPI, acct *account, region st
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "emr:ListStudios", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				return nil, 0, nil
 			}
-			return nil, 0, 0, fmt.Errorf("emr:ListStudios: %w", perr)
+			return nil, 0, fmt.Errorf("emr:ListStudios: %w", perr)
 		}
 		for _, s := range out.Studios {
 			id := sv(s.StudioId)
@@ -394,11 +394,11 @@ func scanEMRStudios(ctx context.Context, client emrAPI, acct *account, region st
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "emr studios")
-	return ids, t, i, err
+	t, err := upsertBatch(st, batch, "emr studios")
+	return ids, t, err
 }
 
-func scanEMRStudioSessionMappings(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, studioID string) (int, int, error) {
+func scanEMRStudioSessionMappings(ctx context.Context, client emrAPI, acct *account, region string, st *store.Store, scanID, studioID string) (int, error) {
 	sid := studioID
 	pager := emr.NewListStudioSessionMappingsPaginator(client, &emr.ListStudioSessionMappingsInput{StudioId: &sid})
 	var batch []*store.Resource
@@ -407,9 +407,9 @@ func scanEMRStudioSessionMappings(ctx context.Context, client emrAPI, acct *acco
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "emr:ListStudioSessionMappings", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("emr:ListStudioSessionMappings: %w", perr)
+			return 0, fmt.Errorf("emr:ListStudioSessionMappings: %w", perr)
 		}
 		for _, sm := range out.SessionMappings {
 			iid := sv(sm.IdentityId)

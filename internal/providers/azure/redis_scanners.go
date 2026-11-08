@@ -21,10 +21,10 @@ func init() {
 // scanRedis discovers Azure Cache for Redis instances. Firewall rules, patch
 // schedules, linked servers, private endpoint connections, and access keys
 // deferred — sub-resources with narrow cross-service edge value.
-func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armredis.NewClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armredis:NewClient: %w", err)
+		return 0, fmt.Errorf("armredis:NewClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armredis:Client.ListBySubscription", TypeRedisCache, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
@@ -37,9 +37,9 @@ func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 // scanCacheNamespace runs every Microsoft.cache scanner phase concurrently. The
 // cache ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name matches the namespace.
-func scanCacheNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCacheNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) { return scanRedis(ctx, sub, cred, st, scanID) },
-		func() (int, int, error) { return scanRedisEnterprise(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanRedis(ctx, sub, cred, st, scanID) },
+		func() (int, error) { return scanRedisEnterprise(ctx, sub, cred, st, scanID) },
 	)
 }

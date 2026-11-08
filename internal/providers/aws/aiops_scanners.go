@@ -25,12 +25,12 @@ type aiopsAPI interface {
 	GetInvestigationGroup(context.Context, *aiops.GetInvestigationGroupInput, ...func(*aiops.Options)) (*aiops.GetInvestigationGroupOutput, error)
 }
 
-func scanAIOps(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAIOps(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := aiops.NewFromConfig(acct.cfg, func(o *aiops.Options) { o.Region = region })
 	return scanAIOpsInvestigationGroups(ctx, client, acct, region, st, scanID)
 }
 
-func scanAIOpsInvestigationGroups(ctx context.Context, client aiopsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAIOpsInvestigationGroups(ctx context.Context, client aiopsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	p := aiops.NewListInvestigationGroupsPaginator(client, &aiops.ListInvestigationGroupsInput{})
 	return pageScanConcurrent(ctx, "aiops:ListInvestigationGroups", acct, region, st,
 		p.HasMorePages,

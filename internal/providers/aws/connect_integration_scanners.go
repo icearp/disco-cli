@@ -33,27 +33,27 @@ type connectIntegrationAPI interface {
 }
 
 // scanConnectIntegration runs Integration-family phases per instance.
-func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	if len(instances) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	return connectRunPhases(st, acct, region,
-		connectPhase{"connect approved origins", func() (int, int, error) {
+		connectPhase{"connect approved origins", func() (int, error) {
 			return scanConnectApprovedOrigins(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect security keys", func() (int, int, error) {
+		connectPhase{"connect security keys", func() (int, error) {
 			return scanConnectSecurityKeys(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect instance storage configs", func() (int, int, error) {
+		connectPhase{"connect instance storage configs", func() (int, error) {
 			return scanConnectInstanceStorageConfigs(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect integration associations", func() (int, int, error) {
+		connectPhase{"connect integration associations", func() (int, error) {
 			return scanConnectIntegrationAssociations(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect notifications", func() (int, int, error) {
+		connectPhase{"connect notifications", func() (int, error) {
 			return scanConnectNotifications(ctx, client, instances, acct, region, st, scanID)
 		}},
-		connectPhase{"connect rules", func() (int, int, error) {
+		connectPhase{"connect rules", func() (int, error) {
 			return scanConnectRules(ctx, client, instances, acct, region, st, scanID)
 		}},
 	)
@@ -62,7 +62,7 @@ func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, i
 // scanConnectApprovedOrigins emits one row per (instance, origin) pair. SDK
 // returns []string, so NativeID is synthesized:
 // arn:{p}:connect:{r}:{a}:instance/{instID}/approved-origin/{urlencoded}.
-func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -78,7 +78,7 @@ func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAP
 					_ = skipIfAccessDenied(st, "connect:ListApprovedOrigins", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListApprovedOrigins %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:ListApprovedOrigins %s: %w", instID, perr)
 			}
 			for _, origin := range out.Origins {
 				origin := origin
@@ -100,7 +100,7 @@ func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAP
 	return upsertConnectBatch(st, batch, "connect approved origins")
 }
 
-func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -116,7 +116,7 @@ func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, 
 					_ = skipIfAccessDenied(st, "connect:ListSecurityKeys", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListSecurityKeys %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:ListSecurityKeys %s: %w", instID, perr)
 			}
 			for _, k := range out.SecurityKeys {
 				if k.AssociationId == nil {
@@ -144,7 +144,7 @@ func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, 
 
 // scanConnectInstanceStorageConfigs iterates every InstanceStorageResourceType
 // per instance — the SDK requires ResourceType on each list call.
-func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -161,7 +161,7 @@ func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegr
 					if isAccessDenied(perr) {
 						break
 					}
-					return 0, 0, fmt.Errorf("connect:ListInstanceStorageConfigs %s/%s: %w", instID, rt, perr)
+					return 0, fmt.Errorf("connect:ListInstanceStorageConfigs %s/%s: %w", instID, rt, perr)
 				}
 				for _, c := range out.StorageConfigs {
 					if c.AssociationId == nil {
@@ -188,7 +188,7 @@ func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegr
 	return upsertConnectBatch(st, batch, "connect instance storage configs")
 }
 
-func scanConnectIntegrationAssociations(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectIntegrationAssociations(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -204,7 +204,7 @@ func scanConnectIntegrationAssociations(ctx context.Context, client connectInteg
 					_ = skipIfAccessDenied(st, "connect:ListIntegrationAssociations", acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("connect:ListIntegrationAssociations %s: %w", instID, perr)
+				return 0, fmt.Errorf("connect:ListIntegrationAssociations %s: %w", instID, perr)
 			}
 			for _, a := range out.IntegrationAssociationSummaryList {
 				arn := sv(a.IntegrationAssociationArn)
@@ -230,7 +230,7 @@ func scanConnectIntegrationAssociations(ctx context.Context, client connectInteg
 }
 
 // scanConnectNotifications stores each listed notification with its tags.
-func scanConnectNotifications(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectNotifications(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListNotifications", instances,
 		func(instID string) connectPager[*connect.ListNotificationsOutput] {
 			return &connectTokenPager[*connect.ListNotificationsOutput]{
@@ -253,7 +253,7 @@ func scanConnectNotifications(ctx context.Context, client connectIntegrationAPI,
 
 // scanConnectRules iterates every EventSourceName per instance — ListRules
 // is event-source-scoped.
-func scanConnectRules(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConnectRules(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed := &connectListing[cttypes.RuleSummary]{op: "connect:ListRules"}
 	for _, inst := range instances {
 		if inst.Id == nil {
@@ -296,13 +296,13 @@ func scanConnectRules(ctx context.Context, client connectIntegrationAPI, instanc
 	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func upsertConnectBatch(st *store.Store, batch []*store.Resource, label string) (int, int, error) {
+func upsertConnectBatch(st *store.Store, batch []*store.Resource, label string) (int, error) {
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
+		return 0, fmt.Errorf("upsert %s: %w", label, uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

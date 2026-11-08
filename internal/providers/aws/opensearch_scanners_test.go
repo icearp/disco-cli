@@ -69,7 +69,7 @@ func runScanOpenSearch(t *testing.T, st *store.Store, handlers map[string]func(a
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, osDenied)
-	total, _, err := scanOpenSearch(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanOpenSearch(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

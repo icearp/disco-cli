@@ -75,7 +75,7 @@ func (p *kinChannelPages) handler(pageTwoErr error) func(in any) (any, error) {
 
 func scanKinesisChannelsWith(st *store.Store, handler func(in any) (any, error)) (int, error) {
 	client := kinesis.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListChannels": handler}, kinDenied))
-	total, _, err := scanKinesisChannels(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanKinesisChannels(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -268,7 +268,7 @@ func TestScanKinesis_StoresChannels(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanKinesis(context.Background(), acct, "eu-west-1", st, testScanID)
+	total, err := scanKinesis(context.Background(), acct, "eu-west-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanKinesis: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestScanKinesis_ChannelErrorAfterEarlierPhases(t *testing.T) {
 		"ListChannels": channels.handler(kinValidation),
 	}), kinDenied)
 
-	total, _, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if total != 3 {
 		t.Errorf("total = %d, want 3 (1 stream, 1 consumer, 1 channel)", total)
@@ -324,7 +324,7 @@ func TestScanKinesis_ConsumerErrorStillScansChannels(t *testing.T) {
 		"ListStreamConsumers": func(any) (any, error) { return nil, kinValidation },
 	}), kinDenied)
 
-	total, _, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if total != 4 {
 		t.Errorf("total = %d, want 4 (1 stream, 3 channels)", total)
@@ -345,7 +345,7 @@ func TestScanKinesis_StreamErrorStillScansChannels(t *testing.T) {
 		"ListStreams": func(any) (any, error) { return nil, kinValidation },
 	}), kinDenied)
 
-	total, _, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
 	assertAPICode(t, err, "ValidationException")
 	if total != 3 || len(rowsByNativeID(t, st, TypeKinesisChannel)) != 3 {
 		t.Errorf("total = %d, want 3 channels", total)
@@ -362,7 +362,7 @@ func TestScanKinesis_StreamDenialStillScansChannels(t *testing.T) {
 		"ListStreams": func(any) (any, error) { return nil, kinDenied },
 	}), kinDenied)
 
-	total, _, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKinesis(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanKinesis: %v", err)
 	}

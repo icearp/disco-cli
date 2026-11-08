@@ -17,25 +17,25 @@ func init() {
 }
 
 // scanEC2TrafficMirror discovers all Traffic Mirror resources in parallel.
-func scanEC2TrafficMirror(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2TrafficMirror(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTrafficMirrorFilters(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTrafficMirrorFilterRules(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTrafficMirrorSessions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTrafficMirrorTargets(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanTrafficMirrorFilters(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrafficMirrorFilters(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTrafficMirrorFilters", acct, region, st,
 		ec2.NewDescribeTrafficMirrorFiltersPaginator(client, &ec2.DescribeTrafficMirrorFiltersInput{}),
@@ -60,13 +60,13 @@ func scanTrafficMirrorFilters(ctx context.Context, client ec2API, acct *account,
 }
 
 // scanTrafficMirrorFilterRules has no paginator in the SDK; use a direct call.
-func scanTrafficMirrorFilterRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrafficMirrorFilterRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.DescribeTrafficMirrorFilterRules(ctx, &ec2.DescribeTrafficMirrorFilterRulesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("ec2:DescribeTrafficMirrorFilterRules: %w", err)
+		return 0, fmt.Errorf("ec2:DescribeTrafficMirrorFilterRules: %w", err)
 	}
 	var batch []*store.Resource
 	for _, rule := range out.TrafficMirrorFilterRules {
@@ -83,17 +83,16 @@ func scanTrafficMirrorFilterRules(ctx context.Context, client ec2API, acct *acco
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert traffic-mirror-filter-rules: %w", err)
+			return 0, fmt.Errorf("upsert traffic-mirror-filter-rules: %w", err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
-func scanTrafficMirrorSessions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrafficMirrorSessions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTrafficMirrorSessions", acct, region, st,
 		ec2.NewDescribeTrafficMirrorSessionsPaginator(client, &ec2.DescribeTrafficMirrorSessionsInput{}),
@@ -117,7 +116,7 @@ func scanTrafficMirrorSessions(ctx context.Context, client ec2API, acct *account
 	)
 }
 
-func scanTrafficMirrorTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTrafficMirrorTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTrafficMirrorTargets", acct, region, st,
 		ec2.NewDescribeTrafficMirrorTargetsPaginator(client, &ec2.DescribeTrafficMirrorTargetsInput{}),

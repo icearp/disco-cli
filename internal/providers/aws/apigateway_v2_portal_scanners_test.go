@@ -205,7 +205,7 @@ func TestScanAPIGatewayV2PortalList_Scenarios(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countWarnings(st)
-			total, _, err := scanAPIGatewayV2PortalList(context.Background(), tc.stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanAPIGatewayV2PortalList(context.Background(), tc.stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if tc.wantErr {
 				if !isAPIErrorCode(err, "ConflictException") {
 					t.Fatalf("err = %v; want ConflictException", err)
@@ -229,7 +229,7 @@ func TestScanAPIGatewayV2PortalList_StoredRow(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubPortalAPI{portalPages: [][]apigwv2types.PortalSummary{{testPortal("a")}}}
-	if _, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatal(err)
 	}
 	r := assertPortalRow(t, st, portalRow{
@@ -261,7 +261,7 @@ func TestScanAPIGatewayV2PortalList_RepeatedTokenFails(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &repeatTokenPortalAPI{}
-	_, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -308,15 +308,15 @@ func TestScanAPIGatewayV2PortalChildren_RepeatedTokenFails(t *testing.T) {
 		storedAs string // the type whose listed row must be stored
 	}{
 		{"ListPortalProducts", func(c apigatewayv2PortalAPI, st *store.Store) error {
-			_, _, _, err := scanAPIGatewayV2PortalProducts(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, _, err := scanAPIGatewayV2PortalProducts(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
 			return err
 		}, TypeAPIGatewayV2PortalProduct},
 		{"ListProductPages", func(c apigatewayv2PortalAPI, st *store.Store) error {
-			_, _, err := scanAPIGatewayV2ProductPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
+			_, err := scanAPIGatewayV2ProductPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
 			return err
 		}, TypeAPIGatewayV2ProductPage},
 		{"ListProductRestEndpointPages", func(c apigatewayv2PortalAPI, st *store.Store) error {
-			_, _, err := scanAPIGatewayV2ProductRestEndpointPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
+			_, err := scanAPIGatewayV2ProductRestEndpointPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
 			return err
 		}, TypeAPIGatewayV2ProductRestEndpointPage},
 	} {
@@ -392,7 +392,7 @@ func TestScanAPIGatewayV2Portals_RepeatedTokenRunsLaterPhases(t *testing.T) {
 				pagePages:    map[string][][]apigwv2types.ProductPageSummaryNoBody{"p1": {{testProductPage("p1", "pg1")}}},
 				restPages:    map[string][][]apigwv2types.ProductRestEndpointPageSummaryNoBody{"p1": {{testRestPage("p1", "r1")}}},
 			}}
-			_, _, err := scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			_, err := scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v, want errRepeatedNextToken", err)
 			}
@@ -453,7 +453,7 @@ func TestScanAPIGatewayV2PortalProducts_Scenarios(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countWarnings(st)
-			total, _, products, err := scanAPIGatewayV2PortalProducts(context.Background(), tc.stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, products, err := scanAPIGatewayV2PortalProducts(context.Background(), tc.stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			switch tc.wantErr {
 			case "":
 				if err != nil {
@@ -494,7 +494,7 @@ func TestScanAPIGatewayV2PortalProducts_StoredRow(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubPortalAPI{productPages: [][]apigwv2types.PortalProductSummary{{testPortalProduct(testAccountID, "p1")}}}
-	if _, _, _, err := scanAPIGatewayV2PortalProducts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, _, err := scanAPIGatewayV2PortalProducts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatal(err)
 	}
 	assertPortalRow(t, st, portalRow{
@@ -518,7 +518,7 @@ func seedPortalProducts(t *testing.T, st *store.Store, ids ...string) []childPar
 // portalChildPhase runs one per-product page phase against the stub.
 type portalChildPhase struct {
 	name, rtype string
-	scan        func(context.Context, apigatewayv2PortalAPI, *account, string, *store.Store, string, []childParent) (int, int, error)
+	scan        func(context.Context, apigatewayv2PortalAPI, *account, string, *store.Store, string, []childParent) (int, error)
 	calls       func(*stubPortalAPI) []string
 	set         func(s *stubPortalAPI, productID string, pageIDs ...[]string)
 	arn         func(productID, pageID string) string
@@ -587,7 +587,7 @@ func TestScanAPIGatewayV2PortalChildren_FanOut(t *testing.T) {
 			ph.set(stub, "p1", []string{"x", ""}, []string{"y"})
 			ph.set(stub, "p2", []string{"z"})
 
-			total, _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			total, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -621,7 +621,7 @@ func TestScanAPIGatewayV2PortalChildren_Errors(t *testing.T) {
 		t.Run(ph.name+"/no products", func(t *testing.T) {
 			st := newTestStore(t)
 			stub := &stubPortalAPI{}
-			total, _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+			total, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 			if err != nil || total != 0 || len(ph.calls(stub)) != 0 {
 				t.Errorf("total=%d err=%v calls=%v; want 0, nil, none", total, err, ph.calls(stub))
 			}
@@ -632,7 +632,7 @@ func TestScanAPIGatewayV2PortalChildren_Errors(t *testing.T) {
 			parents := seedPortalProducts(t, st, "d1", "d2", "ok")
 			stub := &stubPortalAPI{childErr: map[string]error{"d1": deny, "d2": deny}}
 			ph.set(stub, "ok", []string{"x"})
-			total, _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
+			total, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -647,7 +647,7 @@ func TestScanAPIGatewayV2PortalChildren_Errors(t *testing.T) {
 			st := newTestStore(t)
 			parents := seedPortalProducts(t, st, "p1")
 			stub := &stubPortalAPI{childErr: map[string]error{"p1": apiErr("BadRequestException", "boom")}}
-			if _, _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents); !isAPIErrorCode(err, "BadRequestException") {
+			if _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, parents); !isAPIErrorCode(err, "BadRequestException") {
 				t.Errorf("err = %v; want BadRequestException", err)
 			}
 		})
@@ -679,7 +679,7 @@ func TestScanAPIGatewayV2_StoresPortalRows(t *testing.T) {
 	responses["ListProductRestEndpointPages"] = []stubCall{{Output: &apigatewayv2.ListProductRestEndpointPagesOutput{Items: []apigwv2types.ProductRestEndpointPageSummaryNoBody{testRestPage("p1", "y")}}}}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 
-	total, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanAPIGatewayV2: %v", err)
 	}
@@ -725,7 +725,7 @@ func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 				responses[op] = calls
 			}
 			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-			if _, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
+			if _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
 				t.Fatalf("err = %v; want the %s ConflictException", err, failing)
 			}
 			if n := countPortalRows(t, st, TypeAPIGatewayV2VpcLink); n != 1 {
@@ -745,7 +745,7 @@ func TestScanAPIGatewayV2_CoreErrorStillStoresPortals(t *testing.T) {
 	responses["ListPortals"] = []stubCall{{Output: &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}}}}
 	responses["ListPortalProducts"] = []stubCall{{Output: &apigatewayv2.ListPortalProductsOutput{}}}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-	total, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want the GetVpcLinks ConflictException", err)
 	}
@@ -771,7 +771,7 @@ func TestScanAPIGatewayV2Portals_RepeatedTokenWithStoreWriteStops(t *testing.T) 
 			t.Errorf("close: %v", err)
 		}
 	}}
-	_, _, err = scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	_, err = scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite joined with errRepeatedNextToken", err)
 	}

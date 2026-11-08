@@ -35,18 +35,18 @@ const maxConcurrentStorageBuckets = 10
 
 // scanStorage discovers Cloud Storage buckets plus per-project HMAC keys and
 // per-bucket secondary resources.
-func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := storage.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("storage client: %w", err)
+		return 0, fmt.Errorf("storage client: %w", err)
 	}
 	return scanStorageWithClient(ctx, svc, p, st, scanID)
 }
 
 // scanStorageWithClient is the test seam for scanStorage — takes the
 // pre-built client directly so tests can point it at a fake server.
-func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	// Phase 1: buckets — capture (name, resourceID) pairs for the per-bucket
 	// fan-out below; resourceID uses the same NativeID (SelfLink) as the
 	// upserted row so upsertWithParent's closure lookup finds it.
@@ -55,9 +55,9 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 		id   string
 	}
 	var bucketRefs []bucketRef
-	t, n, err := runPaginated(ctx, st, p, "storage:buckets.list",
+	t, err := runPaginated(ctx, st, p, "storage:buckets.list",
 		svc.Buckets.List(p.ID),
-		func(page *storage.Buckets) (int, int, error) {
+		func(page *storage.Buckets) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, b := range page.Items {
 				if b == nil || b.Name == "" || b.SelfLink == "" {
@@ -87,24 +87,23 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 				batch = append(batch, r)
 			}
 			if len(batch) == 0 {
-				return 0, 0, nil
+				return 0, nil
 			}
-			nn, e := st.UpsertResources(batch)
+			_, e := st.UpsertResources(batch)
 			if e != nil {
-				return 0, 0, fmt.Errorf("upsert GCS buckets: %w", e)
+				return 0, fmt.Errorf("upsert GCS buckets: %w", e)
 			}
-			return len(batch), nn, nil
+			return len(batch), nil
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 2: HMAC keys — per-project, independent of any bucket.
-	t, n, err = runPaginated(ctx, st, p, "storage:hmacKeys.list",
+	t, err = runPaginated(ctx, st, p, "storage:hmacKeys.list",
 		svc.Projects.HmacKeys.List(p.ID),
-		func(page *storage.HmacKeysMetadata) (int, int, error) {
+		func(page *storage.HmacKeysMetadata) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, k := range page.Items {
 				if k == nil || k.Id == "" {
@@ -127,9 +126,8 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 			return upsertWithProjClosure(p, st, batch)
 		})
 	total += t
-	inserted += n
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
 
 	// Phase 3: per-bucket secondary resources.
@@ -138,13 +136,12 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 		bucket := ref.name
 		bucketResID := ref.id
 
-		accumulate := func(t, n int, e error) error {
+		accumulate := func(t int, e error) error {
 			if e != nil {
 				return e
 			}
 			mu.Lock()
 			total += t
-			inserted += n
 			mu.Unlock()
 			return nil
 		}
@@ -166,22 +163,22 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 		return accumulate(scanDefaultObjectAccessControls(gctx, svc, st, p, scanID, bucket, bucketResID))
 	})
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBucketNotifications lists Pub/Sub notification configs on bucket. The
 // SDK exposes only a single Do() call (Notifications response carries no
 // NextPageToken — bucket notification counts are small, capped well below
 // one page by GCS itself).
-func scanBucketNotifications(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, int, error) {
+func scanBucketNotifications(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, error) {
 	resp, err := svc.Notifications.List(bucket).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "storage:notifications.list", p.ID, err)
+			return 0, skipIfDenied(st, "storage:notifications.list", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, notif := range resp.Items {
@@ -210,7 +207,7 @@ func scanBucketNotifications(ctx context.Context, svc *storage.Service, st *stor
 // hierarchical namespace enabled"). Treat any 4xx here as non-fatal: most
 // buckets in a real project won't have the feature on, and this must not
 // abort the whole storage scan over a single bucket's shape.
-func scanBucketManagedFolders(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total, inserted int, err error) {
+func scanBucketManagedFolders(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total int, err error) {
 	err = svc.ManagedFolders.List(bucket).Pages(ctx, func(page *storage.ManagedFolders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, mf := range page.Items {
@@ -234,23 +231,22 @@ func scanBucketManagedFolders(ctx context.Context, svc *storage.Service, st *sto
 				DiscoveredBy:   scanID,
 			})
 		}
-		t, n, e := upsertWithParent(st, batch, bucketResID)
+		t, e := upsertWithParent(st, batch, bucketResID)
 		total += t
-		inserted += n
 		return e
 	})
 	if err != nil {
 		if isPermissionDenied(err) || isBucketFeatureNotApplicable(err) {
-			return total, inserted, skipIfDenied(st, "storage:managedFolders.list", p.ID, err)
+			return total, skipIfDenied(st, "storage:managedFolders.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBucketAnywhereCaches lists Anywhere Cache instances on bucket — same
 // opt-in-feature tolerance as scanBucketManagedFolders.
-func scanBucketAnywhereCaches(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total, inserted int, err error) {
+func scanBucketAnywhereCaches(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total int, err error) {
 	err = svc.AnywhereCaches.List(bucket).Pages(ctx, func(page *storage.AnywhereCaches) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, ac := range page.Items {
@@ -271,23 +267,22 @@ func scanBucketAnywhereCaches(ctx context.Context, svc *storage.Service, st *sto
 				DiscoveredBy:   scanID,
 			})
 		}
-		t, n, e := upsertWithParent(st, batch, bucketResID)
+		t, e := upsertWithParent(st, batch, bucketResID)
 		total += t
-		inserted += n
 		return e
 	})
 	if err != nil {
 		if isPermissionDenied(err) || isBucketFeatureNotApplicable(err) {
-			return total, inserted, skipIfDenied(st, "storage:anywhereCaches.list", p.ID, err)
+			return total, skipIfDenied(st, "storage:anywhereCaches.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBucketFolders lists hierarchical-namespace folders on bucket — same
 // opt-in-feature tolerance as scanBucketManagedFolders.
-func scanBucketFolders(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total, inserted int, err error) {
+func scanBucketFolders(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (total int, err error) {
 	err = svc.Folders.List(bucket).Pages(ctx, func(page *storage.Folders) error {
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, f := range page.Items {
@@ -311,30 +306,29 @@ func scanBucketFolders(ctx context.Context, svc *storage.Service, st *store.Stor
 				DiscoveredBy:   scanID,
 			})
 		}
-		t, n, e := upsertWithParent(st, batch, bucketResID)
+		t, e := upsertWithParent(st, batch, bucketResID)
 		total += t
-		inserted += n
 		return e
 	})
 	if err != nil {
 		if isPermissionDenied(err) || isBucketFeatureNotApplicable(err) {
-			return total, inserted, skipIfDenied(st, "storage:folders.list", p.ID, err)
+			return total, skipIfDenied(st, "storage:folders.list", p.ID, err)
 		}
-		return total, inserted, err
+		return total, err
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanBucketAccessControls lists bucket-level ACL entries. Single Do() call —
 // BucketAccessControls carries no NextPageToken (ACL lists are small,
 // bounded by the small set of legacy ACL grantees GCS allows per bucket).
-func scanBucketAccessControls(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, int, error) {
+func scanBucketAccessControls(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, error) {
 	resp, err := svc.BucketAccessControls.List(bucket).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "storage:bucketAccessControls.list", p.ID, err)
+			return 0, skipIfDenied(st, "storage:bucketAccessControls.list", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {
@@ -362,13 +356,13 @@ func scanBucketAccessControls(ctx context.Context, svc *storage.Service, st *sto
 // scanDefaultObjectAccessControls lists the bucket's default object-ACL
 // template applied to newly written objects. Single Do() call — same
 // small-and-bounded rationale as scanBucketAccessControls.
-func scanDefaultObjectAccessControls(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, int, error) {
+func scanDefaultObjectAccessControls(ctx context.Context, svc *storage.Service, st *store.Store, p *project, scanID, bucket, bucketResID string) (int, error) {
 	resp, err := svc.DefaultObjectAccessControls.List(bucket).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "storage:defaultObjectAccessControls.list", p.ID, err)
+			return 0, skipIfDenied(st, "storage:defaultObjectAccessControls.list", p.ID, err)
 		}
-		return 0, 0, err
+		return 0, err
 	}
 	batch := make([]*store.Resource, 0, len(resp.Items))
 	for _, ac := range resp.Items {

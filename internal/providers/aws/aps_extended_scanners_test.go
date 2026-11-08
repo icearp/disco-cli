@@ -45,18 +45,20 @@ func TestScanAPSExtended_ReadsTags(t *testing.T) {
 
 	for _, c := range []struct {
 		typ              string
-		scan             func() (int, int, error)
+		scan             func(st *store.Store) (int, error)
 		tagged, untagged string
 	}{
-		{TypeAPSAnomalyDetector, func() (int, int, error) {
+		{TypeAPSAnomalyDetector, func(st *store.Store) (int, error) {
 			return scanAPSAnomalyDetectors(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
 		}, adTagged, adUntagged},
-		{TypeAPSRuleGroupsNamespace, func() (int, int, error) {
+		{TypeAPSRuleGroupsNamespace, func(st *store.Store) (int, error) {
 			return scanAPSRuleGroupsNamespaces(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
 		}, nsTagged, nsUntagged},
 	} {
 		t.Run(c.typ, func(t *testing.T) {
-			total, inserted, err := c.scan()
+			counted, upserts := countUpserts(st)
+			total, err := c.scan(counted)
+			inserted := upserts()
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -122,14 +124,14 @@ func TestScanAPSExtended_RepeatedTokenKeepsRowsAndPhases(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	for _, c := range []struct {
 		typ  string
-		scan func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, int, error)
+		scan func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, error)
 	}{
 		{TypeAPSAnomalyDetector, scanAPSAnomalyDetectors},
 		{TypeAPSRuleGroupsNamespace, scanAPSRuleGroupsNamespaces},
 	} {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.scan(context.Background(), apsRepeatingClient(), workspaces, acct, testRegion, st, testScanID)
+			total, err := c.scan(context.Background(), apsRepeatingClient(), workspaces, acct, testRegion, st, testScanID)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v, want errRepeatedNextToken", err)
 			}
@@ -141,7 +143,7 @@ func TestScanAPSExtended_RepeatedTokenKeepsRowsAndPhases(t *testing.T) {
 
 	t.Run("later phases run", func(t *testing.T) {
 		st := newTestStore(t)
-		total, _, err := scanAPSAll(context.Background(), apsRepeatingClient(), acct, testRegion, st, testScanID)
+		total, err := scanAPSAll(context.Background(), apsRepeatingClient(), acct, testRegion, st, testScanID)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v, want errRepeatedNextToken", err)
 		}
@@ -207,7 +209,7 @@ func TestScanAPSExtended_HardErrorKeepsRows(t *testing.T) {
 	}
 	for _, c := range []struct {
 		typ  string
-		scan func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, int, error)
+		scan func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, error)
 		want int // ws-bad page 1 plus ws-ok's two pages, or ws-ok's policy
 	}{
 		{TypeAPSAnomalyDetector, scanAPSAnomalyDetectors, 3},
@@ -216,7 +218,7 @@ func TestScanAPSExtended_HardErrorKeepsRows(t *testing.T) {
 	} {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
-			total, _, err := c.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
+			total, err := c.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
 			if !isBad(err) {
 				t.Fatalf("err = %v, want one carrying InternalServerException", err)
 			}
@@ -262,7 +264,7 @@ func TestScanAPSExtended_ListDeniedWarnsOnce(t *testing.T) {
 		}
 		for _, c := range []struct {
 			op, typ string
-			scan    func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, int, error)
+			scan    func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, error)
 		}{
 			{"amp:ListAnomalyDetectors", TypeAPSAnomalyDetector, scanAPSAnomalyDetectors},
 			{"amp:ListRuleGroupsNamespaces", TypeAPSRuleGroupsNamespace, scanAPSRuleGroupsNamespaces},
@@ -270,7 +272,7 @@ func TestScanAPSExtended_ListDeniedWarnsOnce(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%d denied", c.typ, len(denied)), func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, c.op)
-				total, _, err := c.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
+				total, err := c.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
@@ -312,7 +314,7 @@ func TestScanAPSResourcePolicies_DeniedWarnsOnce(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "amp:DescribeResourcePolicy")
 			client := amp.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
-			total, _, err := scanAPSResourcePolicies(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanAPSResourcePolicies(context.Background(), client, workspaces, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if err != nil {
 				t.Fatalf("scanAPSResourcePolicies: %v", err)
 			}
@@ -378,7 +380,7 @@ func TestScanAPSExtended_ListErrorByPage(t *testing.T) {
 		client := amp.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
 		for _, p := range []struct {
 			op, typ string
-			scan    func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, int, error)
+			scan    func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, error)
 		}{
 			{"amp:ListAnomalyDetectors", TypeAPSAnomalyDetector, scanAPSAnomalyDetectors},
 			{"amp:ListRuleGroupsNamespaces", TypeAPSRuleGroupsNamespace, scanAPSRuleGroupsNamespaces},
@@ -386,7 +388,7 @@ func TestScanAPSExtended_ListErrorByPage(t *testing.T) {
 			t.Run(p.typ+"/"+c.name, func(t *testing.T) {
 				st := newTestStore(t)
 				warns := countOpWarnings(st, p.op)
-				_, _, err := p.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
+				_, err := p.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
 				if got := isAPIErrorCode(err, c.code); got != c.wantErr {
 					t.Errorf("err = %v, want error %v", err, c.wantErr)
 				}

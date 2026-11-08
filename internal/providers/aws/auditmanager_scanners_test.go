@@ -200,7 +200,7 @@ func audmHandlers(calls *audmCalls) map[string]func(in any) (any, error) {
 
 // audmScan runs the service scan entry point against handlers; an op without
 // a handler is denied.
-func audmScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func audmScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, audmDenied)
 	return scanAuditManager(ctx, acct, testRegion, st, testScanID)
@@ -273,7 +273,9 @@ func TestScanAuditManager_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls audmCalls
-	total, inserted, err := audmScan(context.Background(), st, audmHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := audmScan(context.Background(), counted, audmHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -373,17 +375,17 @@ func TestScanAuditManager_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAuditManager_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls audmCalls
-	if _, _, err := audmScan(context.Background(), st, audmHandlers(&calls)); err != nil {
+	if _, err := audmScan(context.Background(), st, audmHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+	total, err := audmScan(context.Background(), st, audmHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -403,7 +405,9 @@ func TestScanAuditManager_Empty(t *testing.T) {
 	h["ListAssessments"] = func(any) (any, error) { return &auditmanager.ListAssessmentsOutput{}, nil }
 	h["ListAssessmentFrameworks"] = func(any) (any, error) { return &auditmanager.ListAssessmentFrameworksOutput{}, nil }
 	h["ListControls"] = func(any) (any, error) { return &auditmanager.ListControlsOutput{}, nil }
-	total, inserted, err := audmScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := audmScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -445,7 +449,7 @@ func TestScanAuditManager_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := audmCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+			total, err := audmScan(context.Background(), st, audmHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -491,7 +495,7 @@ func TestScanAuditManager_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := audmCalls{tagErrs: map[string]error{audmTestFwC2: audmDenied, audmTestCtlC1: audmDenied}}
-	total, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+	total, err := audmScan(context.Background(), st, audmHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -522,7 +526,7 @@ func TestScanAuditManager_ThrottleDemotedBesideHardError(t *testing.T) {
 			t.Parallel()
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
-			_, _, err := audmScan(context.Background(), st, audmHandlers(c.calls))
+			_, err := audmScan(context.Background(), st, audmHandlers(c.calls))
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			if got := amWarnings(warns()); !slices.Equal(got, []string{c.warn}) {
@@ -571,7 +575,7 @@ func TestScanAuditManager_GetAssessmentFailures(t *testing.T) {
 				}
 				return nil, c.err
 			}
-			total, _, err := audmScan(context.Background(), st, h)
+			total, err := audmScan(context.Background(), st, h)
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -604,7 +608,7 @@ func TestScanAuditManager_GetAssessmentThrottlesAreOneError(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := audmCalls{getErrs: map[string]error{audmTestA1: audmThrottle, audmTestA2: audmThrottle}}
-	total, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+	total, err := audmScan(context.Background(), st, audmHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeTransient)
 	if n := len(bacTopMembers(err)); n != 1 {
 		t.Errorf("error members = %d; want 1 (err %v)", n, err)
@@ -651,7 +655,7 @@ func TestScanAuditManager_ElementWithoutIdentifier(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := audmScan(context.Background(), st, h)
+			total, err := audmScan(context.Background(), st, h)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -687,7 +691,9 @@ func TestScanAuditManager_NotEnabled(t *testing.T) {
 		var calls audmCalls
 		h := audmHandlers(&calls)
 		audmFailPage(h, "ListAssessments", "", 1, audmNotSetUp)
-		total, inserted, err := audmScan(context.Background(), st, h)
+		counted, upserts := countUpserts(st)
+		total, err := audmScan(context.Background(), counted, h)
+		inserted := upserts()
 		if !errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want errServiceDisabled", err)
 		}
@@ -709,7 +715,7 @@ func TestScanAuditManager_NotEnabled(t *testing.T) {
 		h := audmHandlers(&calls)
 		audmFailPage(h, "ListAssessments", "", 1, audmDenied)
 		audmFailPage(h, "ListAssessmentFrameworks", "Custom", 1, audmNotSetUp)
-		_, _, err := audmScan(context.Background(), st, h)
+		_, err := audmScan(context.Background(), st, h)
 		if !errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want errServiceDisabled", err)
 		}
@@ -727,7 +733,7 @@ func TestScanAuditManager_NotEnabled(t *testing.T) {
 		var calls audmCalls
 		h := audmHandlers(&calls)
 		audmFailPage(h, "ListControls", "", 1, audmNotSetUp)
-		total, _, err := audmScan(context.Background(), st, h)
+		total, err := audmScan(context.Background(), st, h)
 		if err != nil {
 			t.Fatalf("err = %v; want nil", err)
 		}
@@ -753,7 +759,7 @@ func TestScanAuditManager_NotEnabled(t *testing.T) {
 			cancel()
 			return nil, audmNotSetUp
 		}
-		_, _, err := audmScan(ctx, st, h)
+		_, err := audmScan(ctx, st, h)
 		if !errors.Is(err, context.Canceled) || errors.Is(err, errServiceDisabled) {
 			t.Fatalf("err = %v; want context.Canceled, not errServiceDisabled", err)
 		}
@@ -778,7 +784,7 @@ func TestScanAuditManager_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			var calls audmCalls
 			h := audmHandlers(&calls)
 			audmFailPage(h, tc.op, tc.kind, 2, audmBadInput)
-			total, _, err := audmScan(context.Background(), st, h)
+			total, err := audmScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ValidationException")
 			want := audmWithout(tc.lost...)
@@ -813,7 +819,7 @@ func TestScanAuditManager_ListDeniedWarnsAndContinues(t *testing.T) {
 			var calls audmCalls
 			h := audmHandlers(&calls)
 			audmFailPage(h, tc.op, tc.kind, tc.page, audmDenied)
-			if _, _, err := audmScan(context.Background(), st, h); err != nil {
+			if _, err := audmScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := audmStored(t, st), audmWithout(tc.lost...); !slices.Equal(got, want) {
@@ -849,7 +855,7 @@ func TestScanAuditManager_ListDenialOfEachKindWarned(t *testing.T) {
 			h := audmHandlers(&calls)
 			audmFailPage(h, tc.op, "Custom", 2, laterPage)
 			audmFailPage(h, tc.op, "Standard", 1, firstPage)
-			if _, _, err := audmScan(context.Background(), st, h); err != nil {
+			if _, err := audmScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := audmStored(t, st), audmWithout(tc.lost...); !slices.Equal(got, want) {
@@ -898,7 +904,7 @@ func TestScanAuditManager_StopDuringReadsBesideFailedWrite(t *testing.T) {
 		id := sv(in.(*auditmanager.GetAssessmentInput).AssessmentId)
 		return &auditmanager.GetAssessmentOutput{Assessment: &amtypes.Assessment{Arn: sdkaws.String(audmTestARN("assessment/" + id))}}, nil
 	}
-	_, _, err := audmScan(ctx, st, h)
+	_, err := audmScan(ctx, st, h)
 	if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite and context.Canceled", err)
 	}
@@ -931,7 +937,7 @@ func TestScanAuditManager_FailedWriteStopsScan(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
-			total, _, err := audmScan(context.Background(), st, audmHandlers(c.calls))
+			total, err := audmScan(context.Background(), st, audmHandlers(c.calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -975,7 +981,7 @@ func TestScanAuditManager_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := audmScan(context.Background(), st, h); err != nil {
+	if _, err := audmScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -1018,7 +1024,7 @@ func TestScanAuditManager_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := audmScan(context.Background(), st, h)
+			total, err := audmScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1061,7 +1067,7 @@ func TestScanAuditManager_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, audmDenied)
-			if _, _, err := scanAuditManager(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanAuditManager(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := calls.tagARNs.distinct(), audmSorted(fw, ctl); !slices.Equal(got, want) {
@@ -1090,7 +1096,7 @@ func TestScanAuditManager_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := audmScan(ctx, st, h)
+	_, err := audmScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1118,7 +1124,7 @@ func TestScanAuditManager_NXDOMAIN(t *testing.T) {
 		t.Parallel()
 		st := newTestStore(t)
 		calls := audmCalls{getErrs: map[string]error{audmTestA1: nx, audmTestA2: nx}}
-		total, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+		total, err := audmScan(context.Background(), st, audmHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if want := audmTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1130,7 +1136,7 @@ func TestScanAuditManager_NXDOMAIN(t *testing.T) {
 		var calls audmCalls
 		h := audmHandlers(&calls)
 		h["ListControls"] = func(any) (any, error) { return nil, nx }
-		total, _, err := audmScan(context.Background(), st, h)
+		total, err := audmScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := audmTestTotal - 3; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1140,7 +1146,7 @@ func TestScanAuditManager_NXDOMAIN(t *testing.T) {
 		t.Parallel()
 		st := newTestStore(t)
 		calls := audmCalls{tagErrs: map[string]error{audmTestCtlC2: nx}}
-		_, _, err := audmScan(context.Background(), st, audmHandlers(&calls))
+		_, err := audmScan(context.Background(), st, audmHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1150,7 +1156,7 @@ func TestScanAuditManager_NXDOMAIN(t *testing.T) {
 		var calls audmCalls
 		h := audmHandlers(&calls)
 		h["ListAssessments"] = func(any) (any, error) { return nil, nx }
-		_, _, err := audmScan(context.Background(), st, h)
+		_, err := audmScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if got := calls.lists.distinct(); len(got) != 0 {
 			t.Errorf("listings = %v; want none after the NXDOMAIN", got)

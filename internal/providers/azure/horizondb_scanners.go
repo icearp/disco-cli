@@ -21,17 +21,17 @@ func init() {
 }
 
 // scanHorizonDB discovers Azure HorizonDB clusters and parameter groups.
-func scanHorizonDB(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHorizonDB(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	clusters, err := armhorizondb.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhorizondb:NewClustersClient: %w", err)
+		return 0, fmt.Errorf("armhorizondb:NewClustersClient: %w", err)
 	}
 	pgroups, err := armhorizondb.NewParameterGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armhorizondb:NewParameterGroupsClient: %w", err)
+		return 0, fmt.Errorf("armhorizondb:NewParameterGroupsClient: %w", err)
 	}
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhorizondb:Clusters.ListBySubscription", TypeHorizonDBCluster, sub, st, scanID,
 				clusters.NewListBySubscriptionPager(nil),
 				func(p armhorizondb.ClustersClientListBySubscriptionResponse) []*armhorizondb.Cluster { return p.Value },
@@ -39,7 +39,7 @@ func scanHorizonDB(ctx context.Context, sub *subscription, cred azcore.TokenCred
 					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			return azSimpleScan(ctx, "armhorizondb:ParameterGroups.ListBySubscription", TypeHorizonDBParameterGroup, sub, st, scanID,
 				pgroups.NewListBySubscriptionPager(nil),
 				func(p armhorizondb.ParameterGroupsClientListBySubscriptionResponse) []*armhorizondb.ParameterGroup {

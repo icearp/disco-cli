@@ -131,7 +131,7 @@ var ssmWindowNotFound = []string{"DoesNotExistException"}
 var errSSMNoTagID = errors.New("the resource's ARN holds no id to read its tags with")
 
 // scanSSM discovers the SSM resources of one region.
-func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
 	return scanSSMAll(ctx, client, acct, region, st, scanID)
 }
@@ -159,10 +159,10 @@ func scanSSM(ctx context.Context, acct *account, region string, st *store.Store,
 // their tags from the listed element. Maintenance-window targets and tasks
 // take none: the Service Reference names neither as a resource
 // ListTagsForResource reads, and their Register ops take no Tags.
-func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	tags := rowTagReader{op: ssmTagsOp}.sharingDenials()
 	var docs, windows []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "ssm", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "ssm", 0, []hostPhase{
 		{op: ssmDescribeParametersOp, run: func(p *phaseTotals) bool {
 			return scanSSMParameters(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -180,13 +180,13 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			windows, failed = scanSSMMaintenanceWindows(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, ssmDescribeMaintenanceWindowTargetsOp, func() (int, int, error) {
+		countedPhase(0, ssmDescribeMaintenanceWindowTargetsOp, func() (int, error) {
 			return scanSSMMaintenanceWindowTargets(ctx, client, acct, region, st, scanID, windows)
 		}),
-		countedPhase(0, ssmDescribeMaintenanceWindowTasksOp, func() (int, int, error) {
+		countedPhase(0, ssmDescribeMaintenanceWindowTasksOp, func() (int, error) {
 			return scanSSMMaintenanceWindowTasks(ctx, client, acct, region, st, scanID, windows)
 		}),
-		countedPhase(0, ssmListResourceDataSyncOp, func() (int, int, error) {
+		countedPhase(0, ssmListResourceDataSyncOp, func() (int, error) {
 			return scanSSMResourceDataSync(ctx, client, acct, region, st, scanID)
 		}),
 		{op: ssmDescribeInstanceInformationOp, run: func(p *phaseTotals) bool {
@@ -195,18 +195,18 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 		{op: ssmListOpsMetadataOp, run: func(p *phaseTotals) bool {
 			return scanSSMOpsMetadata(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, ssmDescribeActivationsOp, func() (int, int, error) {
+		countedPhase(0, ssmDescribeActivationsOp, func() (int, error) {
 			return scanSSMActivations(ctx, client, acct, region, st, scanID)
 		}),
 		{op: ssmListCloudConnectorsOp, run: func(p *phaseTotals) bool {
 			return scanSSMCloudConnectors(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, ssmDescribeDocumentPermissionOp, func() (int, int, error) {
+		countedPhase(0, ssmDescribeDocumentPermissionOp, func() (int, error) {
 			return scanSSMDocumentPermissions(ctx, client, acct, region, st, scanID, docs)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // ssmTagsOf is tags reading each row's tags with ListTagsForResource as a
@@ -282,7 +282,7 @@ func scanSSMParameters(ctx context.Context, client ssmAPI, acct *account, region
 // or storeWriteFailed (and none).
 func scanSSMDocuments(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (docs []childParent, storeWriteFailed bool) {
 	var hard, transient error
-	total, inserted, docs, err := storeParentListWith(ctx, st, acct, region, ssmListDocumentsOp, "documents", "Name",
+	total, docs, err := storeParentListWith(ctx, st, acct, region, ssmListDocumentsOp, "documents", "Name",
 		func(ctx context.Context, token *string) ([]types.DocumentIdentifier, *string, error) {
 			out, err := client.ListDocuments(ctx, &ssm.ListDocumentsInput{
 				Filters:    []types.DocumentKeyValuesFilter{{Key: sp("Owner"), Values: []string{"Self"}}},
@@ -321,11 +321,11 @@ func scanSSMDocuments(ctx context.Context, client ssmAPI, acct *account, region 
 			return kept, warn
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return nil, p.addPhase(ssmListDocumentsOp, total, inserted, errors.Join(err, hard, transient))
+		return nil, p.addPhase(ssmListDocumentsOp, total, errors.Join(err, hard, transient))
 	}
 	p.errs.add(ssmDescribeDocumentOp, hard)
 	p.errs.add(ssmDescribeDocumentOp, transient)
-	return docs, p.addPhase(ssmListDocumentsOp, total, inserted, err)
+	return docs, p.addPhase(ssmListDocumentsOp, total, err)
 }
 
 // scanSSMPatchBaselines stores the patch baselines the account owns

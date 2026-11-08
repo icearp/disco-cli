@@ -22,12 +22,12 @@ func init() {
 // scanSaaS discovers Microsoft.SaaS applications (RG-scoped, fanned out per RG)
 // and subscription-level SaaS resources. SaaS Resource items carry tags but no
 // location.
-func scanSaaS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSaaS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	return azRunPhases(
-		func() (int, int, error) {
+		func() (int, error) {
 			appClient, err := armsaas.NewApplicationsClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armsaas:NewApplicationsClient: %w", err)
+				return 0, fmt.Errorf("armsaas:NewApplicationsClient: %w", err)
 			}
 			return azRGFanoutScan(ctx, "armsaas:Applications.List", TypeSaaSApplication, sub, cred, st, scanID,
 				func(rg string) azPager[armsaas.ApplicationsClientListResponse] {
@@ -38,10 +38,10 @@ func scanSaaS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 				})
 		},
-		func() (int, int, error) {
+		func() (int, error) {
 			subClient, err := armsaas.NewSubscriptionLevelClient(sub.ID, cred, azClientOptions)
 			if err != nil {
-				return 0, 0, fmt.Errorf("armsaas:NewSubscriptionLevelClient: %w", err)
+				return 0, fmt.Errorf("armsaas:NewSubscriptionLevelClient: %w", err)
 			}
 			return azSimpleScan(ctx, "armsaas:SubscriptionLevel.ListByAzureSubscription", TypeSaaSResource, sub, st, scanID,
 				subClient.NewListByAzureSubscriptionPager(nil),

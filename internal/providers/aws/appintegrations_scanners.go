@@ -60,11 +60,11 @@ var appIntegrationsGone = []string{"ResourceNotFoundException"}
 // (runHostPhases). Every type but the event integration, whose listed
 // element carries its tags, has its tags read per row (appIntegrationsTags),
 // whose denials are one warning for the whole scan.
-func scanAppIntegrations(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanAppIntegrations(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := appintegrations.NewFromConfig(acct.cfg, func(o *appintegrations.Options) { o.Region = region })
 	tags := appIntegrationsTags(client).sharingDenials()
 	var apps, dataIntegrations, eventIntegrations []childParent
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "appintegrations", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "appintegrations", 0, []hostPhase{
 		{op: appIntegrationsListApplicationsOp, run: func(p *phaseTotals) (failed bool) {
 			apps, failed = scanAppIntegrationsApplications(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -73,10 +73,10 @@ func scanAppIntegrations(ctx context.Context, acct *account, region string, st *
 			dataIntegrations, failed = scanAppIntegrationsDataIntegrations(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
 		}},
-		countedPhase(0, appIntegrationsListEventIntegrationsOp, func() (int, int, error) {
-			total, inserted, parents, err := scanAppIntegrationsEventIntegrations(ctx, client, acct, region, st, scanID)
+		countedPhase(0, appIntegrationsListEventIntegrationsOp, func() (int, error) {
+			total, parents, err := scanAppIntegrationsEventIntegrations(ctx, client, acct, region, st, scanID)
 			eventIntegrations = parents
-			return total, inserted, err
+			return total, err
 		}),
 		{op: appIntegrationsListApplicationAssociationsOp, run: func(p *phaseTotals) bool {
 			return scanAppIntegrationsApplicationAssociations(ctx, client, acct, region, st, scanID, apps, tags, p)
@@ -89,7 +89,7 @@ func scanAppIntegrations(ctx context.Context, acct *account, region string, st *
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // appIntegrationsTags reads a row's tags with ListTagsForResource, sent the
@@ -184,7 +184,7 @@ func dataIntegrationIDFromARN(arn string) string {
 // association parents, keyed by name, the only identifier
 // ListEventIntegrationAssociations takes. One without a name is stored
 // without its associations, and warned about.
-func scanAppIntegrationsEventIntegrations(ctx context.Context, client appintegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
+func scanAppIntegrationsEventIntegrations(ctx context.Context, client appintegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, []childParent, error) {
 	return storeParentList(ctx, st, acct, region, appIntegrationsListEventIntegrationsOp, "event integrations", "Name",
 		func(ctx context.Context, token *string) ([]aitypes.EventIntegration, *string, error) {
 			out, err := client.ListEventIntegrations(ctx, &appintegrations.ListEventIntegrationsInput{MaxResults: sdkaws.Int32(appIntegrationsPageLimit), NextToken: token})

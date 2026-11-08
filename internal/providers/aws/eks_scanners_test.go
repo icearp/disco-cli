@@ -17,7 +17,7 @@ func TestScanEKSClusters_StoresDescribedClusters(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
-	if _, _, err := eksxScan(context.Background(), st, calls.handlers()); err != nil {
+	if _, err := eksxScan(context.Background(), st, calls.handlers()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	rows := rowsByNativeID(t, st, TypeEKSCluster)
@@ -77,7 +77,7 @@ func TestScanEKSClusters_DescribeFailures(t *testing.T) {
 				return &eks.ListCertificateAuthoritiesOutput{}, nil
 			}
 
-			total, _, err := eksxScan(context.Background(), st, h)
+			total, err := eksxScan(context.Background(), st, h)
 			if c.outcome == 0 && err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -142,7 +142,7 @@ func TestScanEKSClusters_DescribeThrottleDemotedBesideHardError(t *testing.T) {
 				h[c.listing] = func(any) (any, error) { return nil, eksBadInput }
 			}
 
-			_, _, err := eksxScan(context.Background(), st, h)
+			_, err := eksxScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterException")
 			if *warns != 1 {
@@ -161,7 +161,7 @@ func TestScanEKSClusters_ListFailureKeepsPage(t *testing.T) {
 	h := calls.handlers()
 	h["ListClusters"] = failOnCall(2, eksBadInput, h["ListClusters"])
 
-	total, _, err := eksxScan(context.Background(), st, h)
+	total, err := eksxScan(context.Background(), st, h)
 	assertAPICode(t, err, "InvalidParameterException")
 	if got := nativeIDs(rowsByNativeID(t, st, TypeEKSCluster)); !slices.Equal(got, []string{eksClusterC1}) {
 		t.Errorf("cluster rows = %v; want [%s]", got, eksClusterC1)
@@ -182,7 +182,7 @@ func TestScanEKSClusters_DeniedListing(t *testing.T) {
 	h := calls.handlers()
 	h["ListClusters"] = func(any) (any, error) { return nil, eksDenied }
 
-	total, _, err := eksxScan(context.Background(), st, h)
+	total, err := eksxScan(context.Background(), st, h)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = %d, %v; want 0, nil", total, err)
 	}
@@ -220,7 +220,7 @@ func TestScanEKSClusters_FailedWriteStops(t *testing.T) {
 		return describe(in)
 	}
 
-	_, _, err := eksxScan(context.Background(), st, h)
+	_, err := eksxScan(context.Background(), st, h)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want a store write failure", err)
 	}

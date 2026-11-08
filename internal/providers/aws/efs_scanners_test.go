@@ -103,7 +103,7 @@ func scanEFSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, efsDenied)
-	total, _, err := scanEFS(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanEFS(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -199,7 +199,7 @@ func TestScanEFSReplicationConfigurations_Errors(t *testing.T) {
 			}
 			client := efs.NewFromConfig(opStubConfig(h, efsDenied))
 			acct := newTestAccount(testAccountID)
-			_, _, err := scanEFSReplicationConfigurations(context.Background(), client, acct, testRegion, st, testScanID, nil)
+			_, err := scanEFSReplicationConfigurations(context.Background(), client, acct, testRegion, st, testScanID, nil)
 			if tc.wantCode == "" && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}

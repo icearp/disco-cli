@@ -44,10 +44,10 @@ type r53rrAPI interface {
 // The service is account-wide; for aws accounts its only endpoint is in
 // us-west-2, so it is registered global and the client is pinned to its home
 // region (homeRegion).
-func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("route53recoveryreadiness")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := route53recoveryreadiness.NewFromConfig(acct.cfg, func(o *route53recoveryreadiness.Options) { o.Region = region })
 	return scanR53RRAll(ctx, client, acct, region, st, scanID)
@@ -55,19 +55,19 @@ func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *
 
 // scanR53RRAll runs every listing and joins their errors; the listings are
 // independent, so only a store write failure stops the rest.
-func scanR53RRAll(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RRAll(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var p phaseTotals
 	for _, ph := range []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{r53rrListCellsOp, func() (int, int, error) { return scanR53RRCells(ctx, client, acct, region, st, scanID) }},
-		{r53rrListReadinessChecksOp, func() (int, int, error) { return scanR53RRReadinessChecks(ctx, client, acct, region, st, scanID) }},
-		{r53rrListRecoveryGroupsOp, func() (int, int, error) { return scanR53RRRecoveryGroups(ctx, client, acct, region, st, scanID) }},
-		{r53rrListResourceSetsOp, func() (int, int, error) { return scanR53RRResourceSets(ctx, client, acct, region, st, scanID) }},
+		{r53rrListCellsOp, func() (int, error) { return scanR53RRCells(ctx, client, acct, region, st, scanID) }},
+		{r53rrListReadinessChecksOp, func() (int, error) { return scanR53RRReadinessChecks(ctx, client, acct, region, st, scanID) }},
+		{r53rrListRecoveryGroupsOp, func() (int, error) { return scanR53RRRecoveryGroups(ctx, client, acct, region, st, scanID) }},
+		{r53rrListResourceSetsOp, func() (int, error) { return scanR53RRResourceSets(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -88,7 +88,7 @@ func r53rrRow(acct *account, scanID, rtype, what, field string, arn, name *strin
 	}, "", ""
 }
 
-func scanR53RRCells(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RRCells(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, r53rrListCellsOp,
 		func(ctx context.Context, token *string) ([]r53rrtypes.CellOutput, *string, error) {
 			out, err := client.ListCells(ctx, &route53recoveryreadiness.ListCellsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
@@ -102,7 +102,7 @@ func scanR53RRCells(ctx context.Context, client r53rrAPI, acct *account, region 
 		})
 }
 
-func scanR53RRReadinessChecks(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RRReadinessChecks(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, r53rrListReadinessChecksOp,
 		func(ctx context.Context, token *string) ([]r53rrtypes.ReadinessCheckOutput, *string, error) {
 			out, err := client.ListReadinessChecks(ctx, &route53recoveryreadiness.ListReadinessChecksInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
@@ -116,7 +116,7 @@ func scanR53RRReadinessChecks(ctx context.Context, client r53rrAPI, acct *accoun
 		})
 }
 
-func scanR53RRRecoveryGroups(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RRRecoveryGroups(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, r53rrListRecoveryGroupsOp,
 		func(ctx context.Context, token *string) ([]r53rrtypes.RecoveryGroupOutput, *string, error) {
 			out, err := client.ListRecoveryGroups(ctx, &route53recoveryreadiness.ListRecoveryGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
@@ -130,7 +130,7 @@ func scanR53RRRecoveryGroups(ctx context.Context, client r53rrAPI, acct *account
 		})
 }
 
-func scanR53RRResourceSets(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanR53RRResourceSets(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, r53rrListResourceSetsOp,
 		func(ctx context.Context, token *string) ([]r53rrtypes.ResourceSetOutput, *string, error) {
 			out, err := client.ListResourceSets(ctx, &route53recoveryreadiness.ListResourceSetsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})

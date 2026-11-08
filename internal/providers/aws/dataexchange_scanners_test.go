@@ -278,7 +278,7 @@ func adxtHandlers(c *adxtCalls) map[string]func(in any) (any, error) {
 
 // adxtScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func adxtScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func adxtScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, adxtDenied)
 	return scanDataExchange(ctx, acct, testRegion, st, testScanID)
@@ -334,7 +334,9 @@ func TestScanDataExchange_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newADXTCalls()
 
-	total, inserted, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := adxtScan(context.Background(), counted, adxtHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -410,16 +412,16 @@ func TestScanDataExchange_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsNative(t, st, adxtRevisionARN("ds1", "r2"), adxtAssetARN("ds1", "r2", "a1"))
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanDataExchange_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls())); err != nil {
+	if _, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls()))
+	total, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -446,7 +448,9 @@ func TestScanDataExchange_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := adxtScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := adxtScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -490,7 +494,7 @@ func TestScanDataExchange_TagReadFailures(t *testing.T) {
 			calls := newADXTCalls()
 			calls.errs[adxtDataSetARN("ds1")] = c.err
 
-			total, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+			total, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -540,7 +544,7 @@ func TestScanDataExchange_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[arn] = adxtDenied
 	}
 
-	total, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+	total, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -562,7 +566,7 @@ func TestScanDataExchange_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[adxtEventActionARN("ea2")] = adxtThrottle
 	calls.errs[adxtRevisionARN("ds2", "r1")] = adxtBad
 
-	_, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+	_, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -600,7 +604,7 @@ func TestScanDataExchange_ReceivedGrantTagReads(t *testing.T) {
 				}}, nil
 			}
 
-			if _, _, err := adxtScan(context.Background(), st, handlers); err != nil {
+			if _, err := adxtScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, arn := range []string{adxtGrantARN(adxtSender, "rg1"), adxtGrantARN(testAccountID, "rself")} {
@@ -653,7 +657,7 @@ func TestScanDataExchange_FailedWriteStopsScan(t *testing.T) {
 			calls := newADXTCalls()
 			calls.errs[c.denied] = adxtDenied
 
-			total, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+			total, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -675,7 +679,7 @@ func TestScanDataExchange_FailedWriteStopsScan(t *testing.T) {
 		refuseClosureWrites(t, st)
 		calls := newADXTCalls()
 
-		_, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+		_, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -707,7 +711,7 @@ func TestScanDataExchange_LaterPageWriteFailureKeepsEdges(t *testing.T) {
 				t.Fatalf("create trigger: %v", err)
 			}
 
-			_, _, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls()))
+			_, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls()))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -750,7 +754,7 @@ func TestScanDataExchange_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := adxtScan(context.Background(), st, handlers)
+			total, err := adxtScan(context.Background(), st, handlers)
 			if c.err == adxtDenied {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -793,7 +797,7 @@ func TestScanDataExchange_RepeatedTokenKeepsPages(t *testing.T) {
 		return &dataexchange.ListEventActionsOutput{EventActions: []dxtypes.EventActionEntry{adxtEventAction(id)}, NextToken: ptrStr("same")}, nil
 	}
 
-	total, _, err := adxtScan(context.Background(), st, handlers)
+	total, err := adxtScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -848,7 +852,7 @@ func TestScanDataExchange_PerParentListingFailures(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := adxtScan(context.Background(), st, handlers)
+			total, err := adxtScan(context.Background(), st, handlers)
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -905,7 +909,7 @@ func TestScanDataExchange_ElementWithoutARNOrID(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := adxtScan(context.Background(), st, handlers)
+	total, err := adxtScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -953,7 +957,7 @@ func TestScanDataExchange_SnapshotRevisionWithoutIDNotWarned(t *testing.T) {
 		return got, err
 	}
 
-	total, _, err := adxtScan(context.Background(), st, handlers)
+	total, err := adxtScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1008,7 +1012,7 @@ func TestScanDataExchange_AssetPhaseReadsRevisionsInARNOrder(t *testing.T) {
 		return nil, errB
 	}
 
-	_, _, err := adxtScan(context.Background(), st, handlers)
+	_, err := adxtScan(context.Background(), st, handlers)
 	if got, want := adxtLeafOrder(err, errA, errB), []error{errA, errB}; !slices.Equal(got, want) {
 		t.Errorf("asset listing errors in order %v; want %v (err %v)", got, want, err)
 	}
@@ -1051,7 +1055,7 @@ func TestScanDataExchange_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(handlers, adxtDenied)
 
-			if _, _, err := scanDataExchange(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanDataExchange(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.sortedTagARNs(), arn) {
@@ -1081,7 +1085,7 @@ func TestScanDataExchange_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := adxtScan(ctx, st, handlers)
+	_, err := adxtScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1110,7 +1114,7 @@ func TestScanDataExchange_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := adxtHandlers(newADXTCalls())
 		handlers["ListReceivedDataGrants"] = func(any) (any, error) { return nil, nx }
-		total, _, err := adxtScan(context.Background(), st, handlers)
+		total, err := adxtScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := adxtTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1120,7 +1124,7 @@ func TestScanDataExchange_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newADXTCalls()
 		calls.errs[adxtAssetARN("ds1", "r2", "a1")] = nx
-		_, _, err := adxtScan(context.Background(), st, adxtHandlers(calls))
+		_, err := adxtScan(context.Background(), st, adxtHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1128,7 +1132,7 @@ func TestScanDataExchange_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanDataExchange(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanDataExchange(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1146,7 +1150,7 @@ func TestScanDataExchange_CallsGoToScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanDataExchange(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanDataExchange(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanDataExchange: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -1172,7 +1176,7 @@ func TestScanDataExchange_RedactsAPIAssetSecrets(t *testing.T) {
 		}}
 		return &dataexchange.ListRevisionAssetsOutput{Assets: []dxtypes.AssetEntry{a}}, nil
 	}
-	if _, _, err := adxtScan(context.Background(), st, handlers); err != nil {
+	if _, err := adxtScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	attrs := rowsByNativeID(t, st, TypeDataExchangeRevisionAsset)[adxtAssetARN("ds1", "r1", "api")].AttributesJSON
@@ -1199,7 +1203,7 @@ func TestScanDataExchange_ReceivedGrantKeptApartFromSentGrant(t *testing.T) {
 	handlers["ListReceivedDataGrants"] = func(any) (any, error) {
 		return &dataexchange.ListReceivedDataGrantsOutput{DataGrantSummaries: []dxtypes.ReceivedDataGrantSummariesEntry{adxtReceived(testAccountID, "g1")}}, nil
 	}
-	if _, _, err := adxtScan(context.Background(), st, handlers); err != nil {
+	if _, err := adxtScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	sent := rowsByNativeID(t, st, TypeDataExchangeDataGrants)[adxtGrantARN(testAccountID, "g1")]

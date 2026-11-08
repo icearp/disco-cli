@@ -22,9 +22,9 @@ func isInspector2FeatureNotEnabled(err error) bool {
 // included. A first page refused with the not-enabled denial returns the
 // service-disabled sentinel; on a later page the same denial is warned about
 // like any other, keeping the pages read before it.
-func scanInspector2CisConfigs(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2CisConfigs(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var notEnabled error
-	total, inserted, err := storeTokenList(ctx, st, acct, region, inspector2CisConfigsOp,
+	total, err := storeTokenList(ctx, st, acct, region, inspector2CisConfigsOp,
 		func(ctx context.Context, token *string) ([]i2types.CisScanConfiguration, *string, error) {
 			out, err := client.ListCisScanConfigurations(ctx, &inspector2.ListCisScanConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(inspector2PageLimit)})
 			if token == nil && isInspector2FeatureNotEnabled(err) {
@@ -48,21 +48,21 @@ func scanInspector2CisConfigs(ctx context.Context, client inspector2API, acct *a
 			}, "", ""
 		})
 	if notEnabled != nil {
-		return total, inserted, markServiceDisabled(notEnabled)
+		return total, markServiceDisabled(notEnabled)
 	}
-	return total, inserted, err
+	return total, err
 }
 
-func scanInspector2CodeSecurityIntegrations(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2CodeSecurityIntegrations(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListCodeSecurityIntegrations(ctx, &inspector2.ListCodeSecurityIntegrationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, inspector2CodeSecurityIntegrationsOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, inspector2CodeSecurityIntegrationsOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListCodeSecurityIntegrations: %w", err)
+			return 0, fmt.Errorf("inspector2:ListCodeSecurityIntegrations: %w", err)
 		}
 		for _, c := range out.Integrations {
 			arn := sv(c.IntegrationArn)
@@ -85,16 +85,16 @@ func scanInspector2CodeSecurityIntegrations(ctx context.Context, client inspecto
 	return upsertBatch(st, batch, "inspector2 code-security-integrations")
 }
 
-func scanInspector2CodeSecurityScanConfigs(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2CodeSecurityScanConfigs(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListCodeSecurityScanConfigurations(ctx, &inspector2.ListCodeSecurityScanConfigurationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, inspector2CodeSecurityScanConfigsOp, acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, inspector2CodeSecurityScanConfigsOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListCodeSecurityScanConfigurations: %w", err)
+			return 0, fmt.Errorf("inspector2:ListCodeSecurityScanConfigurations: %w", err)
 		}
 		for _, c := range out.Configurations {
 			arn := sv(c.ScanConfigurationArn)
@@ -119,7 +119,7 @@ func scanInspector2CodeSecurityScanConfigs(ctx context.Context, client inspector
 // scanInspector2Connectors lists Inspector v2 multicloud connectors (e.g. the
 // Azure tenant/subscription connectors Inspector scans through). A connector
 // carries scope and health, no credential material, so no Redact rule.
-func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := inspector2.NewListConnectorsPaginator(client, &inspector2.ListConnectorsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -129,7 +129,7 @@ func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *a
 				_ = skipIfAccessDenied(st, inspector2ConnectorsOp, acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListConnectors: %w", err)
+			return 0, fmt.Errorf("inspector2:ListConnectors: %w", err)
 		}
 		for _, c := range out.Items {
 			arn := sv(c.ConnectorArn)
@@ -164,7 +164,7 @@ func inspector2DelegatedAdminNativeID(partition, region, listingAccountID, admin
 // too, so every scanned member would store the same administrator under its
 // own NativeID. Which error ListDelegatedAdminAccounts returns to an account
 // that may not call it is unverified live, so a denial warns like any other.
-func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := inspector2.NewListDelegatedAdminAccountsPaginator(client, &inspector2.ListDelegatedAdminAccountsInput{},
 		func(o *inspector2.ListDelegatedAdminAccountsPaginatorOptions) { o.Limit = 5 })
 	var batch []*store.Resource
@@ -181,7 +181,7 @@ func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, ac
 				_ = skipIfAccessDenied(st, inspector2DelegatedAdminsOp, acct.ID, region, err)
 				break
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListDelegatedAdminAccounts: %w", err)
+			return 0, fmt.Errorf("inspector2:ListDelegatedAdminAccounts: %w", err)
 		}
 		for _, a := range out.DelegatedAdminAccounts {
 			adminID := sv(a.AccountId)

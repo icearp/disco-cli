@@ -38,7 +38,9 @@ func TestScanForwardingRules_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanForwardingRules(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanForwardingRules(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanForwardingRules: %v", err)
 	}
@@ -71,7 +73,9 @@ func TestScanForwardingRules_PermissionDenied(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanForwardingRules(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanForwardingRules(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanForwardingRules (denied): expected nil error, got %v", err)
 	}
@@ -92,7 +96,7 @@ func TestScanForwardingRules_APINotEnabled(t *testing.T) {
 	srv := fakeGCPServerStatus(t, http.StatusForbidden, body)
 	svc := fakeComputeService(t, srv)
 
-	_, _, err := scanForwardingRules(t.Context(), svc, p, st, testScanID)
+	_, err := scanForwardingRules(t.Context(), svc, p, st, testScanID)
 	if err == nil {
 		t.Fatalf("scanForwardingRules: expected errServiceDisabled sentinel, got nil")
 	}
@@ -122,7 +126,9 @@ func TestScanBackendServices_Fake(t *testing.T) {
 	})
 	svc := fakeComputeService(t, srv)
 
-	total, inserted, err := scanBackendServices(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanBackendServices(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanBackendServices: %v", err)
 	}

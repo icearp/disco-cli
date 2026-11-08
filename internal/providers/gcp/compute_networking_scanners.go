@@ -38,10 +38,10 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeComputeWireGroup, Service: "compute"})
 }
 
-func scanComputeRoutes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRoutes(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:routes.list",
 		svc.Routes.List(p.ID),
-		func(page *compute.RouteList) (int, int, error) {
+		func(page *compute.RouteList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, r := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -55,10 +55,10 @@ func scanComputeRoutes(ctx context.Context, svc *compute.Service, p *project, st
 		})
 }
 
-func scanComputeRouters(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRouters(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:routers.aggregatedList",
 		svc.Routers.AggregatedList(p.ID),
-		func(page *compute.RouterAggregatedList) (int, int, error) {
+		func(page *compute.RouterAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -80,10 +80,10 @@ func scanComputeRouters(ctx context.Context, svc *compute.Service, p *project, s
 		})
 }
 
-func scanComputeVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:vpnGateways.aggregatedList",
 		svc.VpnGateways.AggregatedList(p.ID),
-		func(page *compute.VpnGatewayAggregatedList) (int, int, error) {
+		func(page *compute.VpnGatewayAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -105,10 +105,10 @@ func scanComputeVpnGateways(ctx context.Context, svc *compute.Service, p *projec
 		})
 }
 
-func scanComputeExternalVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeExternalVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:externalVpnGateways.list",
 		svc.ExternalVpnGateways.List(p.ID),
-		func(page *compute.ExternalVpnGatewayList) (int, int, error) {
+		func(page *compute.ExternalVpnGatewayList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, g := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -122,10 +122,10 @@ func scanComputeExternalVpnGateways(ctx context.Context, svc *compute.Service, p
 		})
 }
 
-func scanComputeTargetVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeTargetVpnGateways(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:targetVpnGateways.aggregatedList",
 		svc.TargetVpnGateways.AggregatedList(p.ID),
-		func(page *compute.TargetVpnGatewayAggregatedList) (int, int, error) {
+		func(page *compute.TargetVpnGatewayAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -147,10 +147,10 @@ func scanComputeTargetVpnGateways(ctx context.Context, svc *compute.Service, p *
 		})
 }
 
-func scanComputeVpnTunnels(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeVpnTunnels(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:vpnTunnels.aggregatedList",
 		svc.VpnTunnels.AggregatedList(p.ID),
-		func(page *compute.VpnTunnelAggregatedList) (int, int, error) {
+		func(page *compute.VpnTunnelAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -176,10 +176,10 @@ func scanComputeVpnTunnels(ctx context.Context, svc *compute.Service, p *project
 // returning both regional and global scopes, but the ledger only tracks one
 // disco type (no NetworkAttachments are global in practice) — Region is set
 // when the scope key resolves to one, left nil otherwise.
-func scanComputeNetworkAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworkAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networkAttachments.aggregatedList",
 		svc.NetworkAttachments.AggregatedList(p.ID),
-		func(page *compute.NetworkAttachmentAggregatedList) (int, int, error) {
+		func(page *compute.NetworkAttachmentAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				var region *string
@@ -201,10 +201,10 @@ func scanComputeNetworkAttachments(ctx context.Context, svc *compute.Service, p 
 		})
 }
 
-func scanComputeNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networkEndpointGroups.aggregatedList",
 		svc.NetworkEndpointGroups.AggregatedList(p.ID),
-		func(page *compute.NetworkEndpointGroupAggregatedList) (int, int, error) {
+		func(page *compute.NetworkEndpointGroupAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, neg := range items.NetworkEndpointGroups {
@@ -215,7 +215,7 @@ func scanComputeNetworkEndpointGroups(ctx context.Context, svc *compute.Service,
 		})
 }
 
-func scanComputeRegionNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeRegionNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return gcpRegionFanoutScan(ctx, p, st, fanoutMed, "compute:regionNetworkEndpointGroups.list",
 		func(region string) pager[compute.NetworkEndpointGroupList] {
 			return svc.RegionNetworkEndpointGroups.List(p.ID, region)
@@ -229,10 +229,10 @@ func scanComputeRegionNetworkEndpointGroups(ctx context.Context, svc *compute.Se
 		})
 }
 
-func scanComputeGlobalNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeGlobalNetworkEndpointGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:globalNetworkEndpointGroups.list",
 		svc.GlobalNetworkEndpointGroups.List(p.ID),
-		func(page *compute.NetworkEndpointGroupList) (int, int, error) {
+		func(page *compute.NetworkEndpointGroupList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, neg := range page.Items {
 				batch = append(batch, negToResource(p, scanID, TypeComputeGlobalNetworkEndpointGroup, neg))
@@ -263,10 +263,10 @@ func negToResource(p *project, scanID, discoType string, neg *compute.NetworkEnd
 // InstanceTemplate/PublicDelegatedPrefix. Item type is compute.FirewallPolicy
 // (the SDK drops the "Network" prefix on the item struct even though the
 // service/scoped-list names keep it).
-func scanComputeNetworkFirewallPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworkFirewallPolicies(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networkFirewallPolicies.aggregatedList",
 		svc.NetworkFirewallPolicies.AggregatedList(p.ID),
-		func(page *compute.NetworkFirewallPolicyAggregatedList) (int, int, error) {
+		func(page *compute.NetworkFirewallPolicyAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				discoType := TypeComputeNetworkFirewallPolicy
@@ -290,10 +290,10 @@ func scanComputeNetworkFirewallPolicies(ctx context.Context, svc *compute.Servic
 		})
 }
 
-func scanComputeNetworkProfiles(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworkProfiles(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networkProfiles.list",
 		svc.NetworkProfiles.List(p.ID),
-		func(page *compute.NetworkProfilesListResponse) (int, int, error) {
+		func(page *compute.NetworkProfilesListResponse) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, np := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -307,10 +307,10 @@ func scanComputeNetworkProfiles(ctx context.Context, svc *compute.Service, p *pr
 		})
 }
 
-func scanComputeNodeGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNodeGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:nodeGroups.aggregatedList",
 		svc.NodeGroups.AggregatedList(p.ID),
-		func(page *compute.NodeGroupAggregatedList) (int, int, error) {
+		func(page *compute.NodeGroupAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for _, items := range page.Items {
 				for _, ng := range items.NodeGroups {
@@ -333,10 +333,10 @@ func scanComputeNodeGroups(ctx context.Context, svc *compute.Service, p *project
 		})
 }
 
-func scanComputeNodeTemplates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNodeTemplates(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:nodeTemplates.aggregatedList",
 		svc.NodeTemplates.AggregatedList(p.ID),
-		func(page *compute.NodeTemplateAggregatedList) (int, int, error) {
+		func(page *compute.NodeTemplateAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -358,10 +358,10 @@ func scanComputeNodeTemplates(ctx context.Context, svc *compute.Service, p *proj
 		})
 }
 
-func scanComputePacketMirrorings(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputePacketMirrorings(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:packetMirrorings.aggregatedList",
 		svc.PacketMirrorings.AggregatedList(p.ID),
-		func(page *compute.PacketMirroringAggregatedList) (int, int, error) {
+		func(page *compute.PacketMirroringAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -386,10 +386,10 @@ func scanComputePacketMirrorings(ctx context.Context, svc *compute.Service, p *p
 // scanComputeServiceAttachments — same combined-scope caveat as
 // scanComputeNetworkAttachments: AggregatedList spans regional+global but the
 // ledger tracks one disco type.
-func scanComputeServiceAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeServiceAttachments(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:serviceAttachments.aggregatedList",
 		svc.ServiceAttachments.AggregatedList(p.ID),
-		func(page *compute.ServiceAttachmentAggregatedList) (int, int, error) {
+		func(page *compute.ServiceAttachmentAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				var region *string
@@ -411,10 +411,10 @@ func scanComputeServiceAttachments(ctx context.Context, svc *compute.Service, p 
 		})
 }
 
-func scanComputeNetworkEdgeSecurityServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
+func scanComputeNetworkEdgeSecurityServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, error) {
 	return runPaginated(ctx, st, p, "compute:networkEdgeSecurityServices.aggregatedList",
 		svc.NetworkEdgeSecurityServices.AggregatedList(p.ID),
-		func(page *compute.NetworkEdgeSecurityServiceAggregatedList) (int, int, error) {
+		func(page *compute.NetworkEdgeSecurityServiceAggregatedList) (int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
 				region := scopedListRegion(scope)
@@ -440,11 +440,11 @@ func scanComputeNetworkEdgeSecurityServices(ctx context.Context, svc *compute.Se
 // its own List phase so scanComputeWireGroups can fan out the nested
 // wireGroups.list call per network — same two-phase list-then-fan-out shape
 // as Wave 2's IGM ResizeRequests.
-func scanComputeCrossSiteNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeCrossSiteNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total int, err error) {
 	var names []string
-	t, n, err := runPaginated(ctx, st, p, "compute:crossSiteNetworks.list",
+	t, err := runPaginated(ctx, st, p, "compute:crossSiteNetworks.list",
 		svc.CrossSiteNetworks.List(p.ID),
-		func(page *compute.CrossSiteNetworkList) (int, int, error) {
+		func(page *compute.CrossSiteNetworkList) (int, error) {
 			batch := make([]*store.Resource, 0, len(page.Items))
 			for _, xsn := range page.Items {
 				batch = append(batch, &store.Resource{
@@ -458,15 +458,15 @@ func scanComputeCrossSiteNetworks(ctx context.Context, svc *compute.Service, p *
 			return upsertWithProjClosure(p, st, batch)
 		})
 	if err != nil {
-		return t, n, err
+		return t, err
 	}
-	t2, n2, err := scanComputeWireGroups(ctx, svc, p, st, scanID, names)
-	return t + t2, n + n2, err
+	t2, err := scanComputeWireGroups(ctx, svc, p, st, scanID, names)
+	return t + t2, err
 }
 
-func scanComputeWireGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, crossSiteNetworkNames []string) (total, inserted int, err error) {
+func scanComputeWireGroups(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string, crossSiteNetworkNames []string) (total int, err error) {
 	if len(crossSiteNetworkNames) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var (
 		mu    sync.Mutex
@@ -498,7 +498,7 @@ func scanComputeWireGroups(ctx context.Context, svc *compute.Service, p *project
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertWithProjClosure(p, st, batch)
 }

@@ -245,7 +245,9 @@ func scanCBTopLevel(t *testing.T, st *store.Store, f cbldFixture, fail map[strin
 	}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(cbldHandlers(f, fail, res.calls, res.batches), cbldDenied)
-	res.total, res.inserted, res.err = scanCodeBuild(context.Background(), acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	res.total, res.err = scanCodeBuild(context.Background(), acct, testRegion, counted, testScanID)
+	res.inserted = upserts()
 	return res
 }
 
@@ -629,7 +631,7 @@ func TestStoreCBBatchPhase_StoppedContextIsReturned(t *testing.T) {
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, _, err := storeCBBatchPhase(ctx, st, newTestAccount(testAccountID), testRegion, cbBatchPhase[cbtypes.Fleet]{
+	_, err := storeCBBatchPhase(ctx, st, newTestAccount(testAccountID), testRegion, cbBatchPhase[cbtypes.Fleet]{
 		listOp: "codebuild:ListFleets", getOp: "codebuild:BatchGetFleets", what: "fleets",
 		page: func(context.Context, *string) ([]string, *string, error) {
 			cancel()

@@ -82,14 +82,14 @@ func shClient(handlers map[string]func(in any) (any, error)) *securityhub.Client
 func scanShActionTargets(t *testing.T, st *store.Store, handler func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := shClient(map[string]func(any) (any, error){"DescribeActionTargets": handler})
-	total, _, err := scanSecurityHubActionTargets(context.Background(), client, newTestAccount(testAccountID), testRegion, shHubARN(testRegion), st, testScanID)
+	total, err := scanSecurityHubActionTargets(context.Background(), client, newTestAccount(testAccountID), testRegion, shHubARN(testRegion), st, testScanID)
 	return total, err
 }
 
 func scanShMembers(t *testing.T, st *store.Store, handler func(in any) (any, error)) (int, error) {
 	t.Helper()
 	client := shClient(map[string]func(any) (any, error){"ListMembers": handler})
-	total, _, err := scanSecurityHubMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, shHubARN(testRegion), st, testScanID)
+	total, err := scanSecurityHubMembers(context.Background(), client, newTestAccount(testAccountID), testRegion, shHubARN(testRegion), st, testScanID)
 	return total, err
 }
 
@@ -297,7 +297,7 @@ func TestScanSecurityHub_StoresNewChildrenInScannedRegion(t *testing.T) {
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	if _, _, err := scanSecurityHub(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
+	if _, err := scanSecurityHub(context.Background(), acct, "eu-west-1", st, testScanID); err != nil {
 		t.Fatalf("scanSecurityHub: %v", err)
 	}
 	if got := regions.distinct(); !slices.Equal(got, []string{"eu-west-1"}) {
@@ -354,22 +354,22 @@ func TestScanSecurityHubChildren_StoredUnderHub(t *testing.T) {
 	})
 	acct := newTestAccount(testAccountID)
 	ctx := context.Background()
-	for name, scan := range map[string]func() (int, int, error){
-		"insights": func() (int, int, error) {
+	for name, scan := range map[string]func() (int, error){
+		"insights": func() (int, error) {
 			return scanSecurityHubInsights(ctx, client, acct, testRegion, hub, st, testScanID)
 		},
-		"standards": func() (int, int, error) {
-			n, ins, standards, err := scanSecurityHubStandards(ctx, client, acct, testRegion, hub, st, testScanID)
+		"standards": func() (int, error) {
+			n, standards, err := scanSecurityHubStandards(ctx, client, acct, testRegion, hub, st, testScanID)
 			if len(standards) != 0 {
 				t.Errorf("standards = %v, want none: the subscription carries no StandardsArn", standards)
 			}
-			return n, ins, err
+			return n, err
 		},
-		"products": func() (int, int, error) {
+		"products": func() (int, error) {
 			return scanSecurityHubProducts(ctx, client, acct, testRegion, hub, st, testScanID)
 		},
 	} {
-		if total, _, err := scan(); err != nil || total != 1 {
+		if total, err := scan(); err != nil || total != 1 {
 			t.Fatalf("%s: total = %d, err = %v; want 1 row", name, total, err)
 		}
 	}
@@ -391,7 +391,7 @@ func TestScanSecurityHub_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 			handlers[op] = func(any) (any, error) { return nil, shBadInput }
 			acct.cfg = opStubConfig(handlers, shDenied)
 
-			_, _, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID)
 			assertAPICode(t, err, "InvalidInputException")
 			if n := len(rowsByNativeID(t, st, TypeSecurityHubStandard)); n != 1 {
 				t.Errorf("standard rows = %d, want 1: %s ran before the last pre-existing phase", n, op)
@@ -534,7 +534,7 @@ type shAssocCalls struct {
 	defsFail, assocsFail map[string]error
 }
 
-func scanShControlAssocs(t *testing.T, st *store.Store, standards []string, controls []childParent, c *shAssocCalls) (int, int, error) {
+func scanShControlAssocs(t *testing.T, st *store.Store, standards []string, controls []childParent, c *shAssocCalls) (int, error) {
 	t.Helper()
 	client := shClient(map[string]func(any) (any, error){
 		"ListSecurityControlDefinitions":   shControlDefsHandler(testRegion, &c.defs, &c.defsMax, c.defsFail),
@@ -548,7 +548,9 @@ func TestScanSecurityHubControlAssociations_StoresEveryPageUnderControl(t *testi
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
-	total, inserted, err := scanShControlAssocs(t, st, []string{shStdFSBP(testRegion), shStdCIS}, controls, &c)
+	counted, upserts := countUpserts(st)
+	total, err := scanShControlAssocs(t, counted, []string{shStdFSBP(testRegion), shStdCIS}, controls, &c)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -594,7 +596,7 @@ func TestScanSecurityHubControlAssociations_NoSubscriptionNoCalls(t *testing.T) 
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
-	total, _, err := scanShControlAssocs(t, st, nil, controls, &c)
+	total, err := scanShControlAssocs(t, st, nil, controls, &c)
 	if err != nil || total != 0 || len(c.defs.ids) != 0 || len(c.assocs.ids) != 0 {
 		t.Errorf("total = %d, err = %v, calls = %v / %v; want 0 rows, nil, no calls", total, err, c.defs.ids, c.assocs.ids)
 	}
@@ -607,7 +609,7 @@ func TestScanSecurityHubControlAssociations_OnlySubscribedStandardsControlsAsked
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
-	if _, _, err := scanShControlAssocs(t, st, []string{shStdCIS}, controls, &c); err != nil {
+	if _, err := scanShControlAssocs(t, st, []string{shStdCIS}, controls, &c); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := c.defs.distinct(); !slices.Equal(got, []string{shStdCIS}) {
@@ -626,7 +628,7 @@ func TestScanSecurityHubControlAssociations_UnstoredControlWarnsOnce(t *testing.
 	controls := shSeedControls(t, st)
 	warns := countOpWarnings(st, shListControlAssociationsOp)
 	var c shAssocCalls
-	if _, _, err := scanShControlAssocs(t, st, []string{shStdPCI, shStdCIS}, controls, &c); err != nil {
+	if _, err := scanShControlAssocs(t, st, []string{shStdPCI, shStdCIS}, controls, &c); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := c.assocs.distinct(); !slices.Equal(got, []string{shCtlS3}) {
@@ -666,7 +668,7 @@ func TestScanSecurityHubControlAssociations_FailedStandard(t *testing.T) {
 			controls := shSeedControls(t, st)
 			warns := countOpWarnings(st, shListSubscribedControlsOp)
 			c := shAssocCalls{defsFail: tc.fail}
-			_, _, err := scanShControlAssocs(t, st, tc.standards, controls, &c)
+			_, err := scanShControlAssocs(t, st, tc.standards, controls, &c)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
@@ -697,7 +699,7 @@ func TestScanSecurityHubControlAssociations_RegionlessStandardStaysPerRegion(t *
 			"ListSecurityControlDefinitions":   shControlDefsHandler(region, &parentCalls{}, nil, nil),
 			"ListStandardsControlAssociations": shControlAssocHandler(region, &parentCalls{}, nil, nil),
 		})
-		if _, _, err := scanSecurityHubControlAssociations(context.Background(), client, acct, region, []string{shStdCIS}, []childParent{{id: shCtlS3, arn: arn}}, st, testScanID); err != nil {
+		if _, err := scanSecurityHubControlAssociations(context.Background(), client, acct, region, []string{shStdCIS}, []childParent{{id: shCtlS3, arn: arn}}, st, testScanID); err != nil {
 			t.Fatalf("%s: %v", region, err)
 		}
 	}
@@ -719,7 +721,7 @@ func TestScanSecurityHubControlAssociations_NoAssociations(t *testing.T) {
 			return &securityhub.ListStandardsControlAssociationsOutput{}, nil
 		},
 	})
-	total, _, err := scanSecurityHubControlAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, []string{shStdFSBP(testRegion)}, controls, st, testScanID)
+	total, err := scanSecurityHubControlAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, []string{shStdFSBP(testRegion)}, controls, st, testScanID)
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeSecurityHubStandardsControlAssociation)) != 0 {
 		t.Errorf("total = %d, err = %v; want 0 rows, nil", total, err)
 	}
@@ -755,7 +757,7 @@ func TestScanSecurityHubControlAssociations_FailedControl(t *testing.T) {
 			controls := shSeedControls(t, st)
 			warns := countOpWarnings(st, shListControlAssociationsOp)
 			c := shAssocCalls{assocsFail: tc.fail}
-			_, _, err := scanShControlAssocs(t, st, []string{shStdFSBP(testRegion)}, controls, &c)
+			_, err := scanShControlAssocs(t, st, []string{shStdFSBP(testRegion)}, controls, &c)
 			if tc.wantCode == "" {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
@@ -785,7 +787,7 @@ func TestScanSecurityHub_ControlAssociationsOverStoredControls(t *testing.T) {
 	handlers["ListStandardsControlAssociations"] = shControlAssocHandler(testRegion, &assocs, nil, nil)
 	acct.cfg = opStubConfig(handlers, shDenied)
 
-	if _, _, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanSecurityHub(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanSecurityHub: %v", err)
 	}
 	if got := defs.distinct(); !slices.Equal(got, []string{"", shStdCIS}) {

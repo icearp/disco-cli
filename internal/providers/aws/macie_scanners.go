@@ -54,83 +54,77 @@ type macie2API interface {
 // have not enabled Macie in the region surface AccessDeniedException at every
 // phase — tolerated via skipIfAccessDenied alongside the standard skip. Each
 // describe phase fans out per-item Get calls under fanoutMed.
-func scanMacie(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacie(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := macie2.NewFromConfig(acct.cfg, func(o *macie2.Options) { o.Region = region })
 
 	// Phase 1: session singleton. If Macie is not enabled here every phase
 	// will fail the same way, so a denied session bails the whole region.
 	sessionPresent := false
 	{
-		t, i, present, ferr := scanMacieSession(ctx, client, acct, region, st, scanID)
+		t, present, ferr := scanMacieSession(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return 0, 0, ferr
+			return 0, ferr
 		}
 		total += t
-		inserted += i
 		sessionPresent = present
 	}
 	if !sessionPresent {
-		return total, inserted, nil
+		return total, nil
 	}
 
 	// Phase 2: classification jobs.
 	{
-		t, i, ferr := scanMacieClassificationJobs(ctx, client, acct, region, st, scanID)
+		t, ferr := scanMacieClassificationJobs(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 3: custom data identifiers.
 	{
-		t, i, ferr := scanMacieCustomDataIdentifiers(ctx, client, acct, region, st, scanID)
+		t, ferr := scanMacieCustomDataIdentifiers(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 4: allow lists.
 	{
-		t, i, ferr := scanMacieAllowLists(ctx, client, acct, region, st, scanID)
+		t, ferr := scanMacieAllowLists(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 5: findings filters.
 	{
-		t, i, ferr := scanMacieFindingsFilters(ctx, client, acct, region, st, scanID)
+		t, ferr := scanMacieFindingsFilters(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
 	// Phase 6: member accounts (admin account only).
 	{
-		t, i, ferr := scanMacieMembers(ctx, client, acct, region, st, scanID)
+		t, ferr := scanMacieMembers(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
 
-	return total, inserted, nil
+	return total, nil
 }
 
 // scanMacieMembers lists the member accounts associated with a Macie
 // administrator account in this region. Member rows resolve to their org
 // account (macie_resolvers.go). Member.Arn is preferred; when absent the
 // NativeID is synthesized from the member account id.
-func scanMacieMembers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMacieMembers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := macie2.NewListMembersPaginator(client, &macie2.ListMembersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -138,9 +132,9 @@ func scanMacieMembers(ctx context.Context, client macie2API, acct *account, regi
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "macie2:ListMembers", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("macie2:ListMembers: %w", perr)
+			return 0, fmt.Errorf("macie2:ListMembers: %w", perr)
 		}
 		for _, m := range out.Members {
 			memberAcct := sv(m.AccountId)
@@ -167,20 +161,20 @@ func scanMacieMembers(ctx context.Context, client macie2API, acct *account, regi
 	return upsertBatch(st, batch, "macie members")
 }
 
-func scanMacieSession(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {
+func scanMacieSession(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total int, present bool, err error) {
 	out, derr := client.GetMacieSession(ctx, &macie2.GetMacieSessionInput{})
 	if derr != nil {
 		if isMacieNotEnabled(derr) {
-			return 0, 0, false, markServiceDisabled(derr)
+			return 0, false, markServiceDisabled(derr)
 		}
 		if isAccessDenied(derr) {
 			_ = skipIfAccessDenied(st, "macie2:GetMacieSession", acct.ID, region, derr)
-			return 0, 0, false, nil
+			return 0, false, nil
 		}
-		return 0, 0, false, fmt.Errorf("macie2:GetMacieSession: %w", derr)
+		return 0, false, fmt.Errorf("macie2:GetMacieSession: %w", derr)
 	}
 	if out == nil {
-		return 0, 0, false, nil
+		return 0, false, nil
 	}
 	status := string(out.Status)
 	r := &store.Resource{
@@ -194,14 +188,14 @@ func scanMacieSession(ctx context.Context, client macie2API, acct *account, regi
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
+	_, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
-		return 0, 0, false, fmt.Errorf("upsert macie session: %w", uerr)
+		return 0, false, fmt.Errorf("upsert macie session: %w", uerr)
 	}
-	return 1, n, true, nil
+	return 1, true, nil
 }
 
-func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := macie2.NewListClassificationJobsPaginator(client, &macie2.ListClassificationJobsInput{})
 	var jobIDs []string
 	for pager.HasMorePages() {
@@ -209,9 +203,9 @@ func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *ac
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "macie2:ListClassificationJobs", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("macie2:ListClassificationJobs: %w", perr)
+			return 0, fmt.Errorf("macie2:ListClassificationJobs: %w", perr)
 		}
 		for _, j := range out.Items {
 			if j.JobId != nil {
@@ -220,7 +214,7 @@ func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *ac
 		}
 	}
 	if len(jobIDs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -231,7 +225,7 @@ func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *ac
 	g, gctx := errgroup.WithContext(ctx)
 	for _, id := range jobIDs {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -269,19 +263,19 @@ func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *ac
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertMacieChildren(st, acct, region, batch, "classification jobs")
+	uerr := upsertMacieChildren(st, acct, region, batch, "classification jobs")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := macie2.NewListCustomDataIdentifiersPaginator(client, &macie2.ListCustomDataIdentifiersInput{})
 	var ids []string
 	for pager.HasMorePages() {
@@ -289,9 +283,9 @@ func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct 
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "macie2:ListCustomDataIdentifiers", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("macie2:ListCustomDataIdentifiers: %w", perr)
+			return 0, fmt.Errorf("macie2:ListCustomDataIdentifiers: %w", perr)
 		}
 		for _, c := range out.Items {
 			if c.Id != nil {
@@ -300,7 +294,7 @@ func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct 
 		}
 	}
 	if len(ids) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -311,7 +305,7 @@ func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, id := range ids {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -347,19 +341,19 @@ func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct 
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertMacieChildren(st, acct, region, batch, "custom data identifiers")
+	uerr := upsertMacieChildren(st, acct, region, batch, "custom data identifiers")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
-func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	pager := macie2.NewListAllowListsPaginator(client, &macie2.ListAllowListsInput{})
 	var ids []string
 	for pager.HasMorePages() {
@@ -367,9 +361,9 @@ func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, r
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "macie2:ListAllowLists", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("macie2:ListAllowLists: %w", perr)
+			return 0, fmt.Errorf("macie2:ListAllowLists: %w", perr)
 		}
 		for _, a := range out.AllowLists {
 			if a.Id != nil {
@@ -378,7 +372,7 @@ func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, r
 		}
 	}
 	if len(ids) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -389,7 +383,7 @@ func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, r
 	g, gctx := errgroup.WithContext(ctx)
 	for _, id := range ids {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -425,26 +419,25 @@ func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, r
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := upsertMacieChildren(st, acct, region, batch, "allow lists")
+	uerr := upsertMacieChildren(st, acct, region, batch, "allow lists")
 	if uerr != nil {
-		return 0, 0, uerr
+		return 0, uerr
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // upsertMacieChildren persists a batch of session-child resources and links
 // each to its parent session via the contains closure. Each child belongs to
-// the singleton session in (acct, region). Returns the inserted count from
-// UpsertResources.
-func upsertMacieChildren(st *store.Store, acct *account, region string, batch []*store.Resource, kind string) (int, error) {
-	n, err := st.UpsertResources(batch)
+// the singleton session in (acct, region).
+func upsertMacieChildren(st *store.Store, acct *account, region string, batch []*store.Resource, kind string) error {
+	_, err := st.UpsertResources(batch)
 	if err != nil {
-		return 0, fmt.Errorf("upsert macie %s: %w", kind, err)
+		return fmt.Errorf("upsert macie %s: %w", kind, err)
 	}
 	parentID := store.ResourceID("aws", acct.ID, macieSessionNativeIDIn(acct.partition(), acct.ID, region))
 	pairs := make([][2]string, len(batch))
@@ -452,7 +445,7 @@ func upsertMacieChildren(st *store.Store, acct *account, region string, batch []
 		pairs[i] = [2]string{c.ID, parentID}
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, fmt.Errorf("closure macie %s: %w", kind, err)
+		return fmt.Errorf("closure macie %s: %w", kind, err)
 	}
-	return n, nil
+	return nil
 }

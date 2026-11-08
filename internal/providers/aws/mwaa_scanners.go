@@ -42,7 +42,7 @@ func (r *mwaaReads) warn(st *store.Store, acct *account, region string) {
 // error, a throttle that outlasted the SDK's retries included, is returned
 // after the other environments are stored, so the scan is reported partial
 // rather than the environment looking deleted.
-func scanMWAA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMWAA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := mwaa.NewFromConfig(acct.cfg, func(o *mwaa.Options) { o.Region = region })
 
 	var names []string
@@ -51,9 +51,9 @@ func scanMWAA(ctx context.Context, acct *account, region string, st *store.Store
 		out, err := client.ListEnvironments(ctx, &mwaa.ListEnvironmentsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mwaa:ListEnvironments", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "mwaa:ListEnvironments", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("mwaa:ListEnvironments: %w", err)
+			return 0, fmt.Errorf("mwaa:ListEnvironments: %w", err)
 		}
 		names = append(names, out.Environments...)
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -92,10 +92,10 @@ func scanMWAA(ctx context.Context, acct *account, region string, st *store.Store
 			AttributesJSON: mustJSON(env), DiscoveredBy: scanID,
 		})
 	}
-	total, inserted, err = upsertBatch(st, batch, "mwaa environments")
+	total, err = upsertBatch(st, batch, "mwaa environments")
 	if err != nil {
-		return total, inserted, errors.Join(errors.Join(errs...), err)
+		return total, errors.Join(errors.Join(errs...), err)
 	}
 	reads.warn(st, acct, region)
-	return total, inserted, errors.Join(errs...)
+	return total, errors.Join(errs...)
 }

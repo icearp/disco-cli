@@ -42,7 +42,9 @@ func TestScanComposer_EnvironmentConfigMapChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeComposerService(t, srv)
 
-	total, inserted, err := scanComposerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComposerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComposerWithClient: %v", err)
 	}
@@ -86,7 +88,9 @@ func TestScanComposer_ConfigMapsAPINotEnabledShapeDoesNotDisableWholeService(t *
 	t.Cleanup(srv.Close)
 	svc := fakeComposerService(t, srv)
 
-	total, inserted, err := scanComposerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComposerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComposerWithClient: %v (ConfigMaps' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -105,7 +109,9 @@ func TestScanComposer_EmptyProjectNoEnvironments(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc := fakeComposerService(t, srv)
 
-	total, inserted, err := scanComposerWithClient(t.Context(), svc, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanComposerWithClient(t.Context(), svc, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanComposerWithClient: %v", err)
 	}

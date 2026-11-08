@@ -183,7 +183,7 @@ var ivsAccountWideTypes = []struct {
 func ivsScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
 	cfg := opStubConfig(h, apiErr("AccessDeniedException", "not authorized to perform this action"))
-	total, _, err := scanIVSAll(context.Background(), ivs.NewFromConfig(cfg), ivsrealtime.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanIVSAll(context.Background(), ivs.NewFromConfig(cfg), ivsrealtime.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
 
@@ -326,7 +326,7 @@ func TestScanIVSStages_ListOutcomes(t *testing.T) {
 				},
 			}
 			client := ivsrealtime.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			total, _, err := scanIVSStages(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			total, err := scanIVSStages(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -384,7 +384,7 @@ func TestScanIVSStreamKeys_ChannelOutcomes(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, ivsListStreamKeysOp)
 			client := ivs.NewFromConfig(opStubConfig(h, errors.New("unexpected op")))
-			total, _, err := scanIVSStreamKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{failed, ok})
+			total, err := scanIVSStreamKeys(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, []string{failed, ok})
 			if c.wantErr == nil && err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}

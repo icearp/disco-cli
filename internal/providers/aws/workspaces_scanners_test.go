@@ -106,7 +106,7 @@ func TestScanWSWorkspacesPools_SkipsAvailabilityGapsAndWarnsOnDenial(t *testing.
 			if scanWSWorkspacesPools(context.Background(), client, acct, "us-east-1", st, "scan-1", wsTags(client), &p) {
 				t.Fatal("scanWSWorkspacesPools reported a failed write")
 			}
-			if _, _, err := p.result(st, acct, "us-east-1"); err != nil {
+			if _, err := p.result(st, acct, "us-east-1"); err != nil {
 				t.Fatalf("scanWSWorkspacesPools returned %v; want nil — an access denial must never abort the scan", err)
 			}
 			if got := len(warnings) > 0; got != tc.wantWarn {
@@ -221,7 +221,7 @@ func scanWorkSpacesTopLevel(t *testing.T, st *store.Store, handlers map[string]f
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, wsDenied)
-	total, _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

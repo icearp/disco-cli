@@ -29,26 +29,26 @@ const maxConcurrentSAKeyFetches = 10
 // a gcp:iam:key resource whose NativeID is the API's full key resource name.
 // The phase-2 resolver derives a key -[attached-to]-> service-account edge by
 // stripping the "/keys/{id}" suffix.
-func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store, scanID string) (total int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := iam.NewService(ctx, opts...)
 	if err != nil {
-		return 0, 0, fmt.Errorf("iam client: %w", err)
+		return 0, fmt.Errorf("iam client: %w", err)
 	}
 
 	// Phase A: list every SA name in the project. Reuse the same paginated
 	// API as the SA scanner so this scanner doesn't depend on scan order.
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var saNames []string
-	if _, _, err := runPaginated(ctx, st, p, "iam:serviceAccounts.list",
+	if _, err := runPaginated(ctx, st, p, "iam:serviceAccounts.list",
 		svc.Projects.ServiceAccounts.List(parent),
-		func(page *iam.ListServiceAccountsResponse) (int, int, error) {
+		func(page *iam.ListServiceAccountsResponse) (int, error) {
 			for _, sa := range page.Accounts {
 				saNames = append(saNames, sa.Name)
 			}
-			return 0, 0, nil
+			return 0, nil
 		}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	// Phase B: fan-out Keys.List per SA, bounded by maxConcurrentSAKeyFetches.
@@ -80,14 +80,14 @@ func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store,
 		}
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, e := st.UpsertResources(batch)
+	_, e := st.UpsertResources(batch)
 	if e != nil {
-		return 0, 0, fmt.Errorf("upsert IAM SA keys: %w", e)
+		return 0, fmt.Errorf("upsert IAM SA keys: %w", e)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

@@ -72,7 +72,7 @@ func TestScanASUsersAsksUserpoolOnly(t *testing.T) {
 		{asUser(testAccountID, "two@example.com")},
 	}}
 
-	total, _, err := scanASUsers(context.Background(), stub, acct, testRegion, st, testScanID)
+	total, err := scanASUsers(context.Background(), stub, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestScanASUsersEmpty(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	total, _, err := scanASUsers(context.Background(), &stubAppStreamUsers{}, acct, testRegion, st, testScanID)
+	total, err := scanASUsers(context.Background(), &stubAppStreamUsers{}, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -225,7 +225,7 @@ func scanAppStreamTopLevel(t *testing.T, st *store.Store, handlers map[string]fu
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, asDenied)
-	total, _, err := scanAppStream(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanAppStream(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -738,7 +738,7 @@ func asTagHandlers(c *asCalls) map[string]func(in any) (any, error) {
 
 // asTagScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func asTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func asTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, asDenied)
 	return scanAppStream(ctx, acct, testRegion, st, testScanID)
@@ -767,7 +767,9 @@ func TestScanAppStream_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newASCalls()
 
-	total, inserted, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := asTagScan(context.Background(), counted, asTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -863,7 +865,9 @@ func TestScanAppStream_EmptyListings(t *testing.T) {
 	} {
 		h[op] = func(any) (any, error) { return out, nil }
 	}
-	total, inserted, err := asTagScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := asTagScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -880,16 +884,16 @@ func TestScanAppStream_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanAppStream_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := asTagScan(context.Background(), st, asTagHandlers(newASCalls())); err != nil {
+	if _, err := asTagScan(context.Background(), st, asTagHandlers(newASCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := asTagScan(context.Background(), st, asTagHandlers(newASCalls()))
+	total, err := asTagScan(context.Background(), st, asTagHandlers(newASCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -937,7 +941,7 @@ func TestScanAppStream_TagReadFailures(t *testing.T) {
 			calls := newASCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+			total, err := asTagScan(context.Background(), st, asTagHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -992,7 +996,7 @@ func TestScanAppStream_ParentGoneHasNoChildReads(t *testing.T) {
 			calls := newASCalls()
 			k := asKindOf(t, c.op)
 			calls.errs[k.arn("tagged")] = asGone
-			if _, _, err := asTagScan(context.Background(), st, asTagHandlers(calls)); err != nil {
+			if _, err := asTagScan(context.Background(), st, asTagHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			for _, op := range c.childOps {
@@ -1021,7 +1025,7 @@ func TestScanAppStream_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = asDenied
 	}
 
-	total, _, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+	total, err := asTagScan(context.Background(), st, asTagHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1052,7 +1056,7 @@ func TestScanAppStream_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[asKindOf(t, "DescribeFleets").arn("tagged")] = asThrottled
 	calls.errs[asKindOf(t, "DescribeImages").arn("bare")] = asInvalid
 
-	_, _, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+	_, err := asTagScan(context.Background(), st, asTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, asTestInvalid)
 	if *warns != 1 {
@@ -1071,7 +1075,7 @@ func TestScanAppStream_FailedWriteStopsScan(t *testing.T) {
 	k := asKindOf(t, "DescribeApplications")
 	calls.errs[k.arn("tagged")] = asDenied
 
-	total, _, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+	total, err := asTagScan(context.Background(), st, asTagHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -1105,7 +1109,7 @@ func TestScanAppStream_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := asKindOf(t, op)
 			handlers[k.op] = failOnCall(2, asInvalid, handlers[k.op])
 
-			total, _, err := asTagScan(context.Background(), st, handlers)
+			total, err := asTagScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, asTestInvalid)
 			if total != asTestListed-1 {
@@ -1138,7 +1142,7 @@ func TestScanAppStream_RepeatedTokenKeepsPages(t *testing.T) {
 		arn, name := k.arn(suffix), k.name(suffix)
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
-	total, _, err := asTagScan(context.Background(), st, handlers)
+	total, err := asTagScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -1173,7 +1177,7 @@ func TestScanAppStream_ElementWithoutARNWarns(t *testing.T) {
 			handlers := asTagHandlers(calls)
 			handlers[c.op] = c.answer
 
-			total, _, err := asTagScan(context.Background(), st, handlers)
+			total, err := asTagScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1206,7 +1210,7 @@ func TestScanAppStream_NamelessRowNamedByARN(t *testing.T) {
 	handlers["DescribeApplications"] = func(any) (any, error) {
 		return &appstream.DescribeApplicationsOutput{Applications: []astypes.Application{{Arn: &arn}}}, nil
 	}
-	if _, _, err := asTagScan(context.Background(), st, handlers); err != nil {
+	if _, err := asTagScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeAppStreamApplication)[arn]
@@ -1236,7 +1240,7 @@ func TestScanAppStream_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(handlers, asDenied)
-			if _, _, err := scanAppStream(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanAppStream(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if !slices.Contains(calls.tagARNs, stackARN) {
@@ -1259,7 +1263,7 @@ func TestScanAppStream_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			k := asKindOf(t, "DescribeFleets")
 			handlers[k.op] = failOnCall(call, asDenied, handlers[k.op])
 
-			total, _, err := asTagScan(context.Background(), st, handlers)
+			total, err := asTagScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -1296,7 +1300,7 @@ func TestScanAppStream_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := asTagScan(ctx, st, handlers)
+	_, err := asTagScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1323,7 +1327,7 @@ func TestScanAppStream_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := asTagHandlers(newASCalls())
 		handlers["DescribeImageBuilders"] = func(any) (any, error) { return nil, nx }
-		total, _, err := asTagScan(context.Background(), st, handlers)
+		total, err := asTagScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != asTestListed-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, asTestListed-2)
@@ -1333,7 +1337,7 @@ func TestScanAppStream_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newASCalls()
 		calls.errs[asKindOf(t, "DescribeAppBlocks").arn("bare")] = nx
-		_, _, err := asTagScan(context.Background(), st, asTagHandlers(calls))
+		_, err := asTagScan(context.Background(), st, asTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1341,7 +1345,7 @@ func TestScanAppStream_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanAppStream(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanAppStream(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -1439,7 +1443,7 @@ func TestScanAppStream_AppFleetAssociations(t *testing.T) {
 				}
 				return out, nil
 			}
-			_, _, err := asTagScan(context.Background(), st, handlers)
+			_, err := asTagScan(context.Background(), st, handlers)
 			if c.wantErr == nil {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1482,7 +1486,7 @@ func TestScanAppStream_NamelessParentWarns(t *testing.T) {
 		calls.record("DescribeStacks", in)
 		return &appstream.DescribeStacksOutput{Stacks: []astypes.Stack{{Arn: &arn}}}, nil
 	}
-	if _, _, err := asTagScan(context.Background(), st, handlers); err != nil {
+	if _, err := asTagScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	r, ok := rowsByNativeID(t, st, TypeAppStreamStack)[arn]
@@ -1523,7 +1527,7 @@ func TestScanAppStream_NamelessParentFailedWriteWarnsNothing(t *testing.T) {
 		name := k.name("refused")
 		return &appstream.DescribeStacksOutput{Stacks: []astypes.Stack{{Arn: &refused, Name: &name}}}, nil
 	}
-	if _, _, err := asTagScan(context.Background(), st, handlers); !errors.Is(err, store.ErrStoreWrite) {
+	if _, err := asTagScan(context.Background(), st, handlers); !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
 	if w := warns(); len(w) != 0 {

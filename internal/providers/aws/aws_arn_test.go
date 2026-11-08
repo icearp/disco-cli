@@ -551,7 +551,7 @@ func TestEC2ARNIn_ScannerUsesAccountPartition(t *testing.T) {
 			client := ec2.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{
 				"DescribeVpcs": {{Output: &ec2.DescribeVpcsOutput{Vpcs: []ec2types.Vpc{{VpcId: ptrStr("vpc-1")}}}}},
 			}), pf.region))
-			if _, _, err := scanVPCs(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID); err != nil {
+			if _, err := scanVPCs(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanVPCs: %v", err)
 			}
 			if got, want := onlyRow(t, st, TypeEC2VPC).NativeID, partitionARN(pf.partition, "ec2", pf.region, "vpc/vpc-1"); got != want {
@@ -730,7 +730,7 @@ func TestMacieSessionNativeIDIn_ScannerUsesAccountPartition(t *testing.T) {
 			client := macie2.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{
 				"GetMacieSession": {{Output: &macie2.GetMacieSessionOutput{Status: macie2types.MacieStatusEnabled}}},
 			}), pf.region))
-			if _, _, _, err := scanMacieSession(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID); err != nil {
+			if _, _, err := scanMacieSession(context.Background(), client, partitionAccount(pf.partition), pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanMacieSession: %v", err)
 			}
 			if got, want := onlyRow(t, st, TypeMacieSession).NativeID, partitionARN(pf.partition, "macie2", pf.region, "session"); got != want {
@@ -766,7 +766,7 @@ func TestIdentityStoreNativeIDIn_MembershipEdgesUseAccountPartition(t *testing.T
 				InstanceArn:     sdkaws.String("arn:" + pf.partition + ":sso:::instance/ssoins-1"),
 				IdentityStoreId: ptrStr("d-1"), OwnerAccountId: ptrStr(testAccountID),
 			}}
-			if _, _, err := scanIdentityStoreUsersGroups(context.Background(), client, acct, pf.region, instances, st, testScanID); err != nil {
+			if _, err := scanIdentityStoreUsersGroups(context.Background(), client, acct, pf.region, instances, st, testScanID); err != nil {
 				t.Fatalf("scanIdentityStoreUsersGroups: %v", err)
 			}
 			user := onlyRow(t, st, TypeIdentityStoreUser)
@@ -800,7 +800,7 @@ func TestCloudHSMClusterARNIn_KMSKeyStoreReachesScannedCluster(t *testing.T) {
 					return &cloudhsmv2.DescribeClustersOutput{Clusters: []cloudhsmv2types.Cluster{{ClusterId: ptrStr("cluster-1")}}}, nil
 				},
 			}, errUnstubbedOpDenied))
-			if _, _, err := scanCloudHSMClusters(context.Background(), hsm, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanCloudHSMClusters(context.Background(), hsm, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanCloudHSMClusters: %v", err)
 			}
 			cluster := onlyRow(t, st, TypeCloudHSMCluster)
@@ -814,7 +814,7 @@ func TestCloudHSMClusterARNIn_KMSKeyStoreReachesScannedCluster(t *testing.T) {
 					}}}, nil
 				},
 			})
-			if _, _, err := scanKMSCustomKeyStores(context.Background(), kmsClient, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanKMSCustomKeyStores(context.Background(), kmsClient, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanKMSCustomKeyStores: %v", err)
 			}
 			if err := resolveKMSCustomKeyStoreBackends(acct, st); err != nil {
@@ -836,7 +836,7 @@ func TestEC2ARNIn_ClassicELBReachesScannedVPC(t *testing.T) {
 			ec2Client := ec2.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{
 				"DescribeVpcs": {{Output: &ec2.DescribeVpcsOutput{Vpcs: []ec2types.Vpc{{VpcId: ptrStr("vpc-1")}}}}},
 			}), pf.region))
-			if _, _, err := scanVPCs(context.Background(), ec2Client, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanVPCs(context.Background(), ec2Client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanVPCs: %v", err)
 			}
 			elbClient := elasticloadbalancing.NewFromConfig(cfgWithStub(stubResponses(t, map[string][]stubCall{
@@ -847,7 +847,7 @@ func TestEC2ARNIn_ClassicELBReachesScannedVPC(t *testing.T) {
 					TagDescriptions: []elbtypes.TagDescription{{LoadBalancerName: ptrStr("lb-1")}},
 				}}},
 			}), pf.region))
-			if _, _, err := scanELBClassicLoadBalancers(context.Background(), elbClient, acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanELBClassicLoadBalancers(context.Background(), elbClient, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanELBClassicLoadBalancers: %v", err)
 			}
 			if err := resolveELBClassicRelationships(acct, st); err != nil {

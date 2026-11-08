@@ -85,28 +85,28 @@ func init() {
 
 // scanAPIGateway is the orchestrator for all API Gateway v1 (REST) resource types.
 // It runs all sub-scanners concurrently and aggregates their counts.
-func scanAPIGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayREST(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayAccount(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayAPIKeys(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayClientCertificates(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayDomainNames(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayUsagePlans(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayVPCLinks(ctx, acct, region, st, scanID)
 		},
 	)
@@ -119,7 +119,7 @@ type restAPISummary struct {
 
 // scanAPIGatewayREST discovers REST APIs (API Gateway v1) then fans out to scan
 // all per-API child resources concurrently.
-func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 
 	// 1. Page through all REST APIs, collect IDs and upsert resources.
@@ -130,9 +130,9 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetRestApis", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetRestApis", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetRestApis: %w", err)
+			return total, fmt.Errorf("apigateway:GetRestApis: %w", err)
 		}
 		for _, api := range page.Items {
 			nativeID := apigatewayARNIn(acct.partition(), region, "restapis", sv(api.Id))
@@ -153,62 +153,59 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert REST APIs (%s): %w", region, err)
+			return total, fmt.Errorf("upsert REST APIs (%s): %w", region, err)
 		}
 		total += len(batch)
-		inserted += n
 	}
 
 	// 2. Fan out child resource scans for each REST API concurrently.
-	var t, ni atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); ni.Add(int64(nn)) }
+	var t atomic.Int64
 	eg, egCtx := errgroup.WithContext(ctx)
 	for _, a := range apis {
 		eg.Go(func() error {
-			tt, nn, e := scanAPIGatewayPerAPI(egCtx, client, acct, region, a.id, st, scanID)
-			add(tt, nn)
+			tt, e := scanAPIGatewayPerAPI(egCtx, client, acct, region, a.id, st, scanID)
+			t.Add(int64(tt))
 			return e
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		return total, inserted, err
+		return total, err
 	}
 	total += int(t.Load())
-	inserted += int(ni.Load())
 	return
 }
 
 // scanAPIGatewayPerAPI scans all child resources of a single REST API concurrently.
-func scanAPIGatewayPerAPI(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayPerAPI(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayAuthorizers(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayDeployments(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayStages(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayResources(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayModels(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayRequestValidators(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayGatewayResponses(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayDocumentationParts(ctx, client, acct, region, apiID, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanAPIGatewayDocumentationVersions(ctx, client, acct, region, apiID, st, scanID)
 		},
 	)
@@ -216,13 +213,13 @@ func scanAPIGatewayPerAPI(ctx context.Context, client apigatewayAPI, acct *accou
 
 // scanAPIGatewayAuthorizers discovers authorizers for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/authorizers/{authorizerId}
-func scanAPIGatewayAuthorizers(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayAuthorizers(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.GetAuthorizers(ctx, &apigateway.GetAuthorizersInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "apigateway:GetAuthorizers", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "apigateway:GetAuthorizers", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("apigateway:GetAuthorizers(%s): %w", apiID, err)
+		return 0, fmt.Errorf("apigateway:GetAuthorizers(%s): %w", apiID, err)
 	}
 	var batch []*store.Resource
 	for _, item := range out.Items {
@@ -241,28 +238,27 @@ func scanAPIGatewayAuthorizers(ctx context.Context, client apigatewayAPI, acct *
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert authorizers (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert authorizers (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayDeployments discovers deployments for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/deployments/{deploymentId}
-func scanAPIGatewayDeployments(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDeployments(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	pager := apigateway.NewGetDeploymentsPaginator(client, &apigateway.GetDeploymentsInput{RestApiId: &apiID})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDeployments", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetDeployments", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetDeployments(%s): %w", apiID, err)
+			return total, fmt.Errorf("apigateway:GetDeployments(%s): %w", apiID, err)
 		}
 		for _, item := range page.Items {
 			nativeID := apigatewayARNIn(acct.partition(), region, "restapis", apiID, "deployments", sv(item.Id))
@@ -281,25 +277,24 @@ func scanAPIGatewayDeployments(ctx context.Context, client apigatewayAPI, acct *
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert deployments (%s/%s): %w", region, apiID, err)
+			return total, fmt.Errorf("upsert deployments (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayStages discovers stages for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
-func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.GetStages(ctx, &apigateway.GetStagesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "apigateway:GetStages", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "apigateway:GetStages", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("apigateway:GetStages(%s): %w", apiID, err)
+		return 0, fmt.Errorf("apigateway:GetStages(%s): %w", apiID, err)
 	}
 	var batch []*store.Resource
 	for _, item := range out.Item {
@@ -319,12 +314,11 @@ func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *accou
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert stages (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert stages (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
@@ -332,7 +326,7 @@ func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *accou
 // scanAPIGatewayResources discovers resources and their methods for a single REST API.
 // Resources: arn:{partition}:apigateway:{region}::/restapis/{apiId}/resources/{resourceId}
 // Methods:   arn:{partition}:apigateway:{region}::/restapis/{apiId}/resources/{resourceId}/methods/{httpMethod}
-func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	// embed=methods includes the ResourceMethods map in each Resource, avoiding N+1.
 	pager := apigateway.NewGetResourcesPaginator(client, &apigateway.GetResourcesInput{
 		RestApiId: &apiID,
@@ -344,9 +338,9 @@ func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *ac
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetResources", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetResources", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetResources(%s): %w", apiID, err)
+			return total, fmt.Errorf("apigateway:GetResources(%s): %w", apiID, err)
 		}
 		for _, item := range page.Items {
 			resourceID := sv(item.Id)
@@ -382,36 +376,34 @@ func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *ac
 		}
 	}
 	if len(resources) > 0 {
-		n, err := st.UpsertResources(resources)
+		_, err := st.UpsertResources(resources)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert resources (%s/%s): %w", region, apiID, err)
+			return total, fmt.Errorf("upsert resources (%s/%s): %w", region, apiID, err)
 		}
 		total += len(resources)
-		inserted += n
 	}
 	if len(methods) > 0 {
-		n, err := st.UpsertResources(methods)
+		_, err := st.UpsertResources(methods)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert methods (%s/%s): %w", region, apiID, err)
+			return total, fmt.Errorf("upsert methods (%s/%s): %w", region, apiID, err)
 		}
 		total += len(methods)
-		inserted += n
 	}
 	return
 }
 
 // scanAPIGatewayModels discovers models for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/models/{modelName}
-func scanAPIGatewayModels(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayModels(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	pager := apigateway.NewGetModelsPaginator(client, &apigateway.GetModelsInput{RestApiId: &apiID})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetModels", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetModels", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetModels(%s): %w", apiID, err)
+			return total, fmt.Errorf("apigateway:GetModels(%s): %w", apiID, err)
 		}
 		for _, item := range page.Items {
 			name := sv(item.Name)
@@ -430,25 +422,24 @@ func scanAPIGatewayModels(ctx context.Context, client apigatewayAPI, acct *accou
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert models (%s/%s): %w", region, apiID, err)
+			return total, fmt.Errorf("upsert models (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayRequestValidators discovers request validators for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/requestvalidators/{validatorId}
-func scanAPIGatewayRequestValidators(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayRequestValidators(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.GetRequestValidators(ctx, &apigateway.GetRequestValidatorsInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "apigateway:GetRequestValidators", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "apigateway:GetRequestValidators", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("apigateway:GetRequestValidators(%s): %w", apiID, err)
+		return 0, fmt.Errorf("apigateway:GetRequestValidators(%s): %w", apiID, err)
 	}
 	var batch []*store.Resource
 	for _, item := range out.Items {
@@ -467,25 +458,24 @@ func scanAPIGatewayRequestValidators(ctx context.Context, client apigatewayAPI, 
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert request validators (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert request validators (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayGatewayResponses discovers gateway responses for a single REST API.
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/gatewayresponses/{responseType}
-func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	out, err := client.GetGatewayResponses(ctx, &apigateway.GetGatewayResponsesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "apigateway:GetGatewayResponses", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "apigateway:GetGatewayResponses", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("apigateway:GetGatewayResponses(%s): %w", apiID, err)
+		return 0, fmt.Errorf("apigateway:GetGatewayResponses(%s): %w", apiID, err)
 	}
 	var batch []*store.Resource
 	for _, item := range out.Items {
@@ -504,12 +494,11 @@ func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, a
 		})
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert gateway responses (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert gateway responses (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
@@ -517,16 +506,16 @@ func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, a
 // scanAPIGatewayDocumentationParts discovers documentation parts for a single REST API.
 // Uses manual Position-based pagination (no built-in paginator).
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/documentation/parts/{partId}
-func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	input := &apigateway.GetDocumentationPartsInput{RestApiId: &apiID}
 	var batch []*store.Resource
 	for {
 		out, apiErr := client.GetDocumentationParts(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "apigateway:GetDocumentationParts", acct.ID, region, apiErr)
+				return 0, skipIfAccessDenied(st, "apigateway:GetDocumentationParts", acct.ID, region, apiErr)
 			}
-			return 0, 0, fmt.Errorf("apigateway:GetDocumentationParts(%s): %w", apiID, apiErr)
+			return 0, fmt.Errorf("apigateway:GetDocumentationParts(%s): %w", apiID, apiErr)
 		}
 		for _, item := range out.Items {
 			nativeID := apigatewayARNIn(acct.partition(), region, "restapis", apiID, "documentation", "parts", sv(item.Id))
@@ -549,12 +538,11 @@ func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI,
 		input.Position = out.Position
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert documentation parts (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert documentation parts (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
@@ -562,16 +550,16 @@ func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI,
 // scanAPIGatewayDocumentationVersions discovers documentation versions for a single REST API.
 // Uses manual Position-based pagination (no built-in paginator).
 // ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/documentation/versions/{version}
-func scanAPIGatewayDocumentationVersions(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDocumentationVersions(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total int, err error) {
 	input := &apigateway.GetDocumentationVersionsInput{RestApiId: &apiID}
 	var batch []*store.Resource
 	for {
 		out, apiErr := client.GetDocumentationVersions(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "apigateway:GetDocumentationVersions", acct.ID, region, apiErr)
+				return 0, skipIfAccessDenied(st, "apigateway:GetDocumentationVersions", acct.ID, region, apiErr)
 			}
-			return 0, 0, fmt.Errorf("apigateway:GetDocumentationVersions(%s): %w", apiID, apiErr)
+			return 0, fmt.Errorf("apigateway:GetDocumentationVersions(%s): %w", apiID, apiErr)
 		}
 		for _, item := range out.Items {
 			version := sv(item.Version)
@@ -594,30 +582,29 @@ func scanAPIGatewayDocumentationVersions(ctx context.Context, client apigatewayA
 		input.Position = out.Position
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert documentation versions (%s/%s): %w", region, apiID, err)
+			return 0, fmt.Errorf("upsert documentation versions (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayAccount discovers the account-level API Gateway settings (singleton per region).
 // ARN format: arn:{partition}:apigateway:{region}::/account
-func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 	out, err := client.GetAccount(ctx, &apigateway.GetAccountInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "apigateway:GetAccount", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "apigateway:GetAccount", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("apigateway:GetAccount: %w", err)
+		return 0, fmt.Errorf("apigateway:GetAccount: %w", err)
 	}
 	nativeID := apigatewayARNIn(acct.partition(), region, "account")
 	name := "account"
-	n, err := st.UpsertResource(&store.Resource{
+	_, err = st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
 		AccountName: &acct.Name,
@@ -631,14 +618,14 @@ func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st
 		DiscoveredBy:   scanID,
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // scanAPIGatewayAPIKeys discovers API keys.
 // ARN format: arn:{partition}:apigateway:{region}::/apikeys/{keyId}
-func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 	pager := apigateway.NewGetApiKeysPaginator(client, &apigateway.GetApiKeysInput{})
 	var batch []*store.Resource
@@ -646,9 +633,9 @@ func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetApiKeys", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetApiKeys", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetApiKeys: %w", err)
+			return total, fmt.Errorf("apigateway:GetApiKeys: %w", err)
 		}
 		for _, item := range page.Items {
 			nativeID := apigatewayARNIn(acct.partition(), region, "apikeys", sv(item.Id))
@@ -668,19 +655,18 @@ func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert API keys (%s): %w", region, err)
+			return total, fmt.Errorf("upsert API keys (%s): %w", region, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
 
 // scanAPIGatewayClientCertificates discovers client certificates.
 // ARN format: arn:{partition}:apigateway:{region}::/clientcertificates/{certId}
-func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 	pager := apigateway.NewGetClientCertificatesPaginator(client, &apigateway.GetClientCertificatesInput{})
 	var batch []*store.Resource
@@ -688,9 +674,9 @@ func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetClientCertificates", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetClientCertificates", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetClientCertificates: %w", err)
+			return total, fmt.Errorf("apigateway:GetClientCertificates: %w", err)
 		}
 		for _, item := range page.Items {
 			certID := sv(item.ClientCertificateId)
@@ -711,12 +697,11 @@ func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert client certificates (%s): %w", region, err)
+			return total, fmt.Errorf("upsert client certificates (%s): %w", region, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }
@@ -736,7 +721,7 @@ func apigatewayDomainIsPrivate(ec *apigatewaytypes.EndpointConfiguration) bool {
 	return slices.Contains(ec.Types, apigatewaytypes.EndpointTypePrivate)
 }
 
-func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 
 	// 1. Page through domain names and their base-path mappings.
@@ -747,9 +732,9 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDomainNames", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetDomainNames", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetDomainNames: %w", err)
+			return total, fmt.Errorf("apigateway:GetDomainNames: %w", err)
 		}
 		for _, item := range page.Items {
 			domainName := sv(item.DomainName)
@@ -786,7 +771,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 					_ = skipIfAccessDenied(st, "apigateway:GetBasePathMappings", acct.ID, region, err)
 					continue
 				}
-				return total, inserted, fmt.Errorf("apigateway:GetBasePathMappings(%s): %w", domainName, err)
+				return total, fmt.Errorf("apigateway:GetBasePathMappings(%s): %w", domainName, err)
 			}
 			for _, bpm := range bpmOut.Items {
 				basePath := sv(bpm.BasePath)
@@ -807,20 +792,18 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		}
 	}
 	if len(domains) > 0 {
-		n, err := st.UpsertResources(domains)
+		_, err := st.UpsertResources(domains)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert domain names (%s): %w", region, err)
+			return total, fmt.Errorf("upsert domain names (%s): %w", region, err)
 		}
 		total += len(domains)
-		inserted += n
 	}
 	if len(mappings) > 0 {
-		n, err := st.UpsertResources(mappings)
+		_, err := st.UpsertResources(mappings)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert base-path mappings (%s): %w", region, err)
+			return total, fmt.Errorf("upsert base-path mappings (%s): %w", region, err)
 		}
 		total += len(mappings)
-		inserted += n
 	}
 
 	// 2. Domain name access associations (uses Position-based pagination).
@@ -830,9 +813,9 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		out, apiErr := client.GetDomainNameAccessAssociations(ctx, assocInput)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDomainNameAccessAssociations", acct.ID, region, apiErr)
+				return total, skipIfAccessDenied(st, "apigateway:GetDomainNameAccessAssociations", acct.ID, region, apiErr)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetDomainNameAccessAssociations: %w", apiErr)
+			return total, fmt.Errorf("apigateway:GetDomainNameAccessAssociations: %w", apiErr)
 		}
 		for _, item := range out.Items {
 			nativeID := sv(item.DomainNameAccessAssociationArn)
@@ -856,12 +839,11 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		assocInput.Position = out.Position
 	}
 	if len(assocs) > 0 {
-		n, err := st.UpsertResources(assocs)
+		_, err := st.UpsertResources(assocs)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert domain name access associations (%s): %w", region, err)
+			return total, fmt.Errorf("upsert domain name access associations (%s): %w", region, err)
 		}
 		total += len(assocs)
-		inserted += n
 	}
 	return
 }
@@ -869,7 +851,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 // scanAPIGatewayUsagePlans discovers usage plans and their keys.
 // Usage plan ARN: arn:{partition}:apigateway:{region}::/usageplans/{planId}
 // Usage plan key ARN: arn:{partition}:apigateway:{region}::/usageplans/{planId}/keys/{keyId}
-func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 	pager := apigateway.NewGetUsagePlansPaginator(client, &apigateway.GetUsagePlansInput{})
 	var plans []*store.Resource
@@ -878,9 +860,9 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetUsagePlans", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetUsagePlans", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetUsagePlans: %w", err)
+			return total, fmt.Errorf("apigateway:GetUsagePlans: %w", err)
 		}
 		for _, item := range page.Items {
 			planID := sv(item.Id)
@@ -908,7 +890,7 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 						_ = skipIfAccessDenied(st, "apigateway:GetUsagePlanKeys", acct.ID, region, err)
 						break
 					}
-					return total, inserted, fmt.Errorf("apigateway:GetUsagePlanKeys(%s): %w", planID, err)
+					return total, fmt.Errorf("apigateway:GetUsagePlanKeys(%s): %w", planID, err)
 				}
 				for _, key := range keyOut.Items {
 					keyID := sv(key.Id)
@@ -934,27 +916,25 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 		}
 	}
 	if len(plans) > 0 {
-		n, err := st.UpsertResources(plans)
+		_, err := st.UpsertResources(plans)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert usage plans (%s): %w", region, err)
+			return total, fmt.Errorf("upsert usage plans (%s): %w", region, err)
 		}
 		total += len(plans)
-		inserted += n
 	}
 	if len(keys) > 0 {
-		n, err := st.UpsertResources(keys)
+		_, err := st.UpsertResources(keys)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert usage plan keys (%s): %w", region, err)
+			return total, fmt.Errorf("upsert usage plan keys (%s): %w", region, err)
 		}
 		total += len(keys)
-		inserted += n
 	}
 	return
 }
 
 // scanAPIGatewayVPCLinks discovers VPC links for REST APIs (v1).
 // ARN format: arn:{partition}:apigateway:{region}::/vpclinks/{linkId}
-func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 	pager := apigateway.NewGetVpcLinksPaginator(client, &apigateway.GetVpcLinksInput{})
 	var batch []*store.Resource
@@ -962,9 +942,9 @@ func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "apigateway:GetVpcLinks", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "apigateway:GetVpcLinks", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("apigateway:GetVpcLinks: %w", err)
+			return total, fmt.Errorf("apigateway:GetVpcLinks: %w", err)
 		}
 		for _, item := range page.Items {
 			nativeID := apigatewayARNIn(acct.partition(), region, "vpclinks", sv(item.Id))
@@ -984,12 +964,11 @@ func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, s
 		}
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
+		_, err := st.UpsertResources(batch)
 		if err != nil {
-			return total, inserted, fmt.Errorf("upsert VPC links (%s): %w", region, err)
+			return total, fmt.Errorf("upsert VPC links (%s): %w", region, err)
 		}
 		total = len(batch)
-		inserted = n
 	}
 	return
 }

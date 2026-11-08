@@ -28,37 +28,34 @@ type neptuneGraphAPI interface {
 // scanNeptuneGraph discovers Neptune Analytics graphs, snapshots, and
 // per-graph private endpoints. Graph and Snapshot ARNs native; private
 // endpoints synthesized as parent graph ARN + path.
-func scanNeptuneGraph(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptuneGraph(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := neptunegraph.NewFromConfig(acct.cfg, func(o *neptunegraph.Options) { o.Region = region })
 
-	graphs, t, i, ferr := scanNGGraphs(ctx, client, acct, region, st, scanID)
+	graphs, t, ferr := scanNGGraphs(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanNGGraphSnapshots(ctx, client, acct, region, st, scanID)
+	t, ferr = scanNGGraphSnapshots(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
 	for _, g := range graphs {
-		t, i, ferr = scanNGPrivateGraphEndpoints(ctx, client, acct, region, st, scanID, g.id, g.arn)
+		t, ferr = scanNGPrivateGraphEndpoints(ctx, client, acct, region, st, scanID, g.id, g.arn)
 		if ferr != nil {
-			return total, inserted, ferr
+			return total, ferr
 		}
 		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return total, nil
 }
 
 type ngGraph struct{ id, arn string }
 
-func scanNGGraphs(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string) ([]ngGraph, int, int, error) {
+func scanNGGraphs(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string) ([]ngGraph, int, error) {
 	pager := neptunegraph.NewListGraphsPaginator(client, &neptunegraph.ListGraphsInput{})
 	var batch []*store.Resource
 	var graphs []ngGraph
@@ -66,9 +63,9 @@ func scanNGGraphs(ctx context.Context, client neptuneGraphAPI, acct *account, re
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "neptunegraph:ListGraphs", acct.ID, region, err)
+				return nil, 0, skipIfAccessDenied(st, "neptunegraph:ListGraphs", acct.ID, region, err)
 			}
-			return nil, 0, 0, fmt.Errorf("neptunegraph:ListGraphs: %w", err)
+			return nil, 0, fmt.Errorf("neptunegraph:ListGraphs: %w", err)
 		}
 		for _, g := range out.Graphs {
 			arn := sv(g.Arn)
@@ -86,20 +83,20 @@ func scanNGGraphs(ctx context.Context, client neptuneGraphAPI, acct *account, re
 			})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "neptune-graph graphs")
-	return graphs, t, i, err
+	t, err := upsertBatch(st, batch, "neptune-graph graphs")
+	return graphs, t, err
 }
 
-func scanNGGraphSnapshots(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanNGGraphSnapshots(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := neptunegraph.NewListGraphSnapshotsPaginator(client, &neptunegraph.ListGraphSnapshotsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "neptunegraph:ListGraphSnapshots", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "neptunegraph:ListGraphSnapshots", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("neptunegraph:ListGraphSnapshots: %w", err)
+			return 0, fmt.Errorf("neptunegraph:ListGraphSnapshots: %w", err)
 		}
 		for _, s := range out.GraphSnapshots {
 			arn := sv(s.Arn)
@@ -118,7 +115,7 @@ func scanNGGraphSnapshots(ctx context.Context, client neptuneGraphAPI, acct *acc
 	return upsertBatch(st, batch, "neptune-graph graph-snapshots")
 }
 
-func scanNGPrivateGraphEndpoints(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string, graphID, graphARN string) (int, int, error) {
+func scanNGPrivateGraphEndpoints(ctx context.Context, client neptuneGraphAPI, acct *account, region string, st *store.Store, scanID string, graphID, graphARN string) (int, error) {
 	gid := graphID
 	pager := neptunegraph.NewListPrivateGraphEndpointsPaginator(client, &neptunegraph.ListPrivateGraphEndpointsInput{GraphIdentifier: &gid})
 	var batch []*store.Resource
@@ -126,9 +123,9 @@ func scanNGPrivateGraphEndpoints(ctx context.Context, client neptuneGraphAPI, ac
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "neptunegraph:ListPrivateGraphEndpoints", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "neptunegraph:ListPrivateGraphEndpoints", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("neptunegraph:ListPrivateGraphEndpoints: %w", err)
+			return 0, fmt.Errorf("neptunegraph:ListPrivateGraphEndpoints: %w", err)
 		}
 		for _, p := range out.PrivateGraphEndpoints {
 			vid := sv(p.VpcEndpointId)

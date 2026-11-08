@@ -59,10 +59,10 @@ var (
 // only with NXDOMAIN, since the region does not serve the service
 // (runHostPhases). Each listing is written a page at a time, and the tag
 // reads' denials are one warning for the whole scan.
-func scanDocDBElastic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDocDBElastic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := docdbelastic.NewFromConfig(acct.cfg, func(o *docdbelastic.Options) { o.Region = region })
 	tags := docDBElasticTags(client).sharingDenials()
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "docdb-elastic", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "docdb-elastic", 0, []hostPhase{
 		{op: docDBElasticListClustersOp, run: func(p *phaseTotals) bool {
 			return scanDocDBElasticClusters(ctx, client, acct, region, st, scanID, tags, p)
 		}},
@@ -71,7 +71,7 @@ func scanDocDBElastic(ctx context.Context, acct *account, region string, st *sto
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // docDBElasticTags reads a row's tags with ListTagsForResource, sent the row's

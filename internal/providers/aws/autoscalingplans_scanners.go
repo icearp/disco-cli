@@ -31,20 +31,20 @@ func autoScalingPlanARN(partition, region, accountID, name string, version int64
 
 // scanAutoScalingPlans paginates DescribeScalingPlans via manual NextToken
 // loop (no SDK paginator helper available for this op).
-func scanAutoScalingPlans(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAutoScalingPlans(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := autoscalingplans.NewFromConfig(acct.cfg, func(o *autoscalingplans.Options) { o.Region = region })
 	return scanAutoScalingPlansEntities(ctx, client, acct, region, st, scanID)
 }
 
-func scanAutoScalingPlansEntities(ctx context.Context, client autoScalingPlansAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAutoScalingPlansEntities(ctx context.Context, client autoScalingPlansAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	var nextToken *string
 	for {
 		out, oerr := client.DescribeScalingPlans(ctx, &autoscalingplans.DescribeScalingPlansInput{NextToken: nextToken})
 		if oerr != nil {
 			if isAccessDenied(oerr) {
-				return total, inserted, skipIfAccessDenied(st, "autoscaling-plans:DescribeScalingPlans", acct.ID, region, oerr)
+				return total, skipIfAccessDenied(st, "autoscaling-plans:DescribeScalingPlans", acct.ID, region, oerr)
 			}
-			return total, inserted, fmt.Errorf("autoscaling-plans:DescribeScalingPlans: %w", oerr)
+			return total, fmt.Errorf("autoscaling-plans:DescribeScalingPlans: %w", oerr)
 		}
 		batch := make([]*store.Resource, 0, len(out.ScalingPlans))
 		for _, p := range out.ScalingPlans {
@@ -73,17 +73,16 @@ func scanAutoScalingPlansEntities(ctx context.Context, client autoScalingPlansAP
 			})
 		}
 		if len(batch) > 0 {
-			n, uerr := st.UpsertResources(batch)
+			_, uerr := st.UpsertResources(batch)
 			if uerr != nil {
-				return total, inserted, fmt.Errorf("upsert autoscaling-plans: %w", uerr)
+				return total, fmt.Errorf("upsert autoscaling-plans: %w", uerr)
 			}
 			total += len(batch)
-			inserted += n
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	return total, inserted, nil
+	return total, nil
 }

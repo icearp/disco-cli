@@ -112,7 +112,7 @@ func scanCFNWith(t *testing.T, st *store.Store, handlers map[string]func(in any)
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cfnTestDenied)
-	total, _, err := scanCloudFormation(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanCloudFormation(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -806,7 +806,7 @@ func TestScanCloudFormationStacks_StopsWhenContextDone(t *testing.T) {
 		return list(in)
 	}
 	client := cloudformation.NewFromConfig(opStubConfig(h, cfnTestDenied))
-	total, _, err := scanCloudFormationStacks(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCloudFormationStacks(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}
@@ -836,7 +836,7 @@ func TestScanCloudFormationStackSets_StopsWhenContextDone(t *testing.T) {
 		return out, err
 	}
 	client := cloudformation.NewFromConfig(opStubConfig(h, cfnTestDenied))
-	total, _, err := scanCloudFormationStackSets(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanCloudFormationStackSets(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, context.Canceled", total, err)
 	}

@@ -116,7 +116,7 @@ func runAccountAccessAcct(t *testing.T, st *store.Store, acct *account) (int, er
 	if idx < 0 {
 		t.Fatal("aws:account-access is not registered")
 	}
-	total, _, err := registeredServices[idx].fn(context.Background(), acct, aaRegion, st, testScanID)
+	total, err := registeredServices[idx].fn(context.Background(), acct, aaRegion, st, testScanID)
 	return total, err
 }
 

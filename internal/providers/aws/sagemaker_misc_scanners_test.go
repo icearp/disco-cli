@@ -81,7 +81,9 @@ func testScanSageMakerMisc(t *testing.T, mode smTagMode) {
 	}
 
 	stub.smTags = newSMTags(mode, cARN, wARN)
-	total, inserted, err := scanSageMakerMisc(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerMisc(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	checkSMScanErr(t, err, mode)
 	if total != 4 || inserted != 4 {
 		t.Fatalf("total=%d inserted=%d want 4/4", total, inserted)
@@ -104,7 +106,9 @@ func TestScanSageMakerMiscEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerMisc{}
-	total, inserted, err := scanSageMakerMisc(context.Background(), stub, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanSageMakerMisc(context.Background(), stub, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -172,7 +176,7 @@ func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
 		},
 		errs: map[string]error{gone: apiErr("ResourceNotFound", "cluster not found")},
 	}
-	total, _, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -193,7 +197,7 @@ func TestScanSageMakerClusterNodes_NoNodes(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, smClusterARN("c1"), testRegion, "{}", "c1")
-	total, _, err := scanSageMakerClusterNodes(context.Background(), &stubSMClusterNodes{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerClusterNodes(context.Background(), &stubSMClusterNodes{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -216,7 +220,7 @@ func TestScanSageMakerClusterNodes_DeniedClustersKeepSiblings(t *testing.T) {
 			denied2: apiErr("AccessDeniedException", "denied"),
 		},
 	}
-	if _, _, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+	if _, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	assertSMIDs(t, st, TypeSageMakerClusterNode, open+"/node/i-1")
@@ -231,7 +235,7 @@ func TestScanSageMakerClusterNodes_OtherErrorFails(t *testing.T) {
 	c1 := smClusterARN("c1")
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, c1, testRegion, "{}", "c1")
 	stub := &stubSMClusterNodes{errs: map[string]error{c1: apiErr("ValidationException", "bad")}}
-	if _, _, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err == nil {
+	if _, err := scanSageMakerClusterNodes(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err == nil {
 		t.Fatal("ValidationException was swallowed; want error")
 	}
 }
@@ -264,7 +268,7 @@ func TestScanSageMakerSubscribedWorkteams_Paginates(t *testing.T) {
 		{{WorkteamArn: sdkaws.String(w1), MarketplaceTitle: sdkaws.String("Vendor one")}},
 		{{WorkteamArn: sdkaws.String(w2)}, {MarketplaceTitle: sdkaws.String("no arn")}},
 	}}
-	total, _, err := scanSageMakerSubscribedWorkteams(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerSubscribedWorkteams(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -277,7 +281,7 @@ func TestScanSageMakerSubscribedWorkteams_Paginates(t *testing.T) {
 func TestScanSageMakerSubscribedWorkteams_NoWorkteams(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, _, err := scanSageMakerSubscribedWorkteams(context.Background(), &stubSMSubscribedWorkteams{}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerSubscribedWorkteams(context.Background(), &stubSMSubscribedWorkteams{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}
@@ -288,7 +292,7 @@ func TestScanSageMakerSubscribedWorkteams_AccessDeniedWarns(t *testing.T) {
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	stub := &stubSMSubscribedWorkteams{err: apiErr("AccessDeniedException", "denied")}
-	total, _, err := scanSageMakerSubscribedWorkteams(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	total, err := scanSageMakerSubscribedWorkteams(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
 		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
 	}

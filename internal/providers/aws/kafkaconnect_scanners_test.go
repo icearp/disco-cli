@@ -190,7 +190,7 @@ func kcTestHandlers(c *kcTestCalls) map[string]func(in any) (any, error) {
 
 // kcTestScan runs the scan's real entry point against handlers; every op
 // they do not answer is denied.
-func kcTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func kcTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, kcTestDenied)
 	return scanKafkaConnect(ctx, acct, testRegion, st, testScanID)
@@ -241,7 +241,9 @@ func TestScanKafkaConnect_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newKCTestCalls()
 
-	total, inserted, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := kcTestScan(context.Background(), counted, kcTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -321,7 +323,7 @@ func TestScanKafkaConnect_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := kcTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := kcTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range kcTestKinds() {
@@ -331,16 +333,16 @@ func TestScanKafkaConnect_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanKafkaConnect_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls())); err != nil {
+	if _, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls()))
+	total, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -369,7 +371,9 @@ func TestScanKafkaConnect_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := kcTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := kcTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -420,7 +424,7 @@ func TestScanKafkaConnect_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+			total, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -471,7 +475,7 @@ func TestScanKafkaConnect_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[kcTestKindOf(t, "ListCustomPlugins").arn("tagged")] = kcTestDenied
 	calls.tagErrs[kcTestKindOf(t, "ListWorkerConfigurations").arn("bare")] = kcTestDenied
 
-	total, _, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+	total, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -493,7 +497,7 @@ func TestScanKafkaConnect_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[kcTestKindOf(t, "ListConnectors").arn("bare")] = kcTestThrottle
 	calls.tagErrs[kcTestKindOf(t, "ListWorkerConfigurations").arn("tagged")] = kcTestBad
 
-	_, _, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+	_, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -512,7 +516,7 @@ func TestScanKafkaConnect_FailedWriteStopsScan(t *testing.T) {
 	calls := newKCTestCalls()
 	calls.tagErrs[kcTestKindOf(t, "ListCustomPlugins").arn("tagged")] = kcTestDenied
 
-	total, _, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+	total, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -575,7 +579,7 @@ func TestScanKafkaConnect_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := kcTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := kcTestScan(context.Background(), st, handlers)
+			_, err := kcTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := kcWarnOps(w); !slices.Equal(got, []string{"kafkaconnect:ListTagsForResource"}) {
@@ -629,7 +633,7 @@ func TestScanKafkaConnect_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := kcTestScan(context.Background(), st, handlers)
+			total, err := kcTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -681,7 +685,7 @@ func TestScanKafkaConnect_RepeatedTokenKeepsPages(t *testing.T) {
 		return out, err
 	}
 
-	total, _, err := kcTestScan(context.Background(), st, handlers)
+	total, err := kcTestScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -717,7 +721,7 @@ func TestScanKafkaConnect_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := kcTestScan(context.Background(), st, handlers)
+			total, err := kcTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -757,7 +761,7 @@ func TestScanKafkaConnect_TagReadsKeepPartitionARNs(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.Partition = c.partition
 			acct.cfg = opStubConfig(kcTestHandlers(calls), kcTestDenied)
-			if _, _, err := scanKafkaConnect(context.Background(), acct, c.region, st, testScanID); err != nil {
+			if _, err := scanKafkaConnect(context.Background(), acct, c.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -794,7 +798,7 @@ func TestScanKafkaConnect_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := kcTestScan(ctx, st, handlers)
+	_, err := kcTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -828,7 +832,7 @@ func TestScanKafkaConnect_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := kcTestHandlers(newKCTestCalls())
 		handlers["ListWorkerConfigurations"] = func(any) (any, error) { return nil, nx }
-		total, _, err := kcTestScan(context.Background(), st, handlers)
+		total, err := kcTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := kcTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -838,7 +842,7 @@ func TestScanKafkaConnect_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newKCTestCalls()
 		calls.tagErrs[kcTestKindOf(t, "ListConnectors").arn("tagged")] = nx
-		_, _, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
+		_, err := kcTestScan(context.Background(), st, kcTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -854,7 +858,7 @@ func TestScanKafkaConnect_NXDOMAIN(t *testing.T) {
 		}
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(handlers, nx)
-		_, _, err := scanKafkaConnect(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanKafkaConnect(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

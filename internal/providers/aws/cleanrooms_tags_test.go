@@ -186,7 +186,7 @@ func crtHandlers(c *crtCalls) map[string]func(any) (any, error) {
 
 // crtScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func crtScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func crtScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, crDenied)
@@ -211,7 +211,9 @@ func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCRTCalls()
 
-	total, inserted, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := crtScan(context.Background(), t, counted, crtHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -291,17 +293,17 @@ func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsNative(t, st, crtForeignCollab(), crtMember(crtForeignCollab()))
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanCleanRooms_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRTCalls()
-	if _, _, err := crtScan(context.Background(), t, st, crtHandlers(calls)); err != nil {
+	if _, err := crtScan(context.Background(), t, st, crtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+	total, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -340,7 +342,7 @@ func TestScanCleanRooms_TagReadFailures(t *testing.T) {
 					calls := newCRTCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+					_, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -388,7 +390,7 @@ func TestScanCleanRooms_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[crtARN("configuredtable/ct-t")] = crThrottled
 	calls.errs[crtChild("m-b", "idmappingtable")] = crtBadInput
 
-	_, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+	_, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -412,7 +414,7 @@ func TestScanCleanRooms_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			h := crtHandlers(newCRTCalls())
 			h[op] = func(any) (any, error) { return nil, crDenied }
 
-			total, _, err := crtScan(context.Background(), t, st, h)
+			total, err := crtScan(context.Background(), t, st, h)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -436,7 +438,7 @@ func TestScanCleanRooms_FailedWriteStopsWithoutWarning(t *testing.T) {
 	calls := newCRTCalls()
 	calls.errs[crtARN("membership/m-t")] = crDenied
 
-	_, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+	_, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -469,7 +471,7 @@ func TestScanCleanRooms_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return templates(in)
 	}
 
-	_, _, err := crtScan(context.Background(), t, st, h)
+	_, err := crtScan(context.Background(), t, st, h)
 	for _, code := range []string{"ConflictException", "ValidationException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -523,7 +525,7 @@ func TestScanCleanRooms_UnstorableItemsWarn(t *testing.T) {
 				}
 			}
 
-			if _, _, err := crtScan(context.Background(), t, st, h); err != nil {
+			if _, err := crtScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if len(*warnings) != 1 || !strings.Contains((*warnings)[0].Message, c.key) {
@@ -542,7 +544,7 @@ func TestScanCleanRooms_RepeatedTokenKeepsPages(t *testing.T) {
 		return &cleanrooms.ListConfiguredTablesOutput{ConfiguredTableSummaries: []crtypes.ConfiguredTableSummary{{Arn: sdkaws.String(crtARN("configuredtable/ct-t"))}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := crtScan(context.Background(), t, st, h)
+	_, err := crtScan(context.Background(), t, st, h)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -570,7 +572,7 @@ func TestScanCleanRooms_ContextEndStopsOnce(t *testing.T) {
 		return memberships(in)
 	}
 
-	_, _, err := crtScan(ctx, t, st, h)
+	_, err := crtScan(ctx, t, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -604,7 +606,7 @@ func TestScanCleanRooms_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCRTCalls()
 		calls.errs[crtARN("configuredtable/ct-t")] = nx
-		total, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+		total, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 		if total != 25 {
 			t.Errorf("total = %d; want 25", total)
@@ -614,7 +616,7 @@ func TestScanCleanRooms_Unreachable(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCRTCalls()
 		calls.errs[crtARN("collaboration/c-t")] = refused
-		total, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+		total, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 		if err == nil {
 			t.Fatal("err = nil; want the refused tag read")
 		}
@@ -627,7 +629,7 @@ func TestScanCleanRooms_Unreachable(t *testing.T) {
 		calls := newCRTCalls()
 		h := crtHandlers(calls)
 		h["ListCollaborations"] = failOnCall(2, refused, h["ListCollaborations"])
-		total, _, err := crtScan(context.Background(), t, st, h)
+		total, err := crtScan(context.Background(), t, st, h)
 		if !errors.Is(err, refused) {
 			t.Errorf("err = %v; want the refused dial", err)
 		}
@@ -649,7 +651,7 @@ func TestScanCleanRooms_Unreachable(t *testing.T) {
 		calls := newCRTCalls()
 		h := crtHandlers(calls)
 		h["ListCollaborations"] = func(any) (any, error) { return nil, refused }
-		total, _, err := crtScan(context.Background(), t, st, h)
+		total, err := crtScan(context.Background(), t, st, h)
 		if !errors.Is(err, refused) {
 			t.Errorf("err = %v; want the refused dial", err)
 		}
@@ -718,7 +720,7 @@ func TestScanCleanRooms_OtherAccountsCollaboration(t *testing.T) {
 			h := crtHandlers(calls)
 			c.fail(calls, h)
 
-			if _, _, err := crtScan(context.Background(), t, st, h); err != nil {
+			if _, err := crtScan(context.Background(), t, st, h); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if *warns != c.warns || *opWarns != c.warns {

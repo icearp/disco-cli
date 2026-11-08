@@ -46,7 +46,7 @@ const batchPageLimit = 100
 // definitions, scheduling policies, consumable resources, service
 // environments and quota shares in one region. Job runs (ListJobs) are event
 // data, deferred per the Macie/Detective/SecurityHub event-data precedent.
-func scanBatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := batch.NewFromConfig(acct.cfg, func(o *batch.Options) { o.Region = region })
 	return scanBatchAll(ctx, client, acct, region, st, scanID)
 }
@@ -55,40 +55,40 @@ func scanBatch(ctx context.Context, acct *account, region string, st *store.Stor
 // store write failure stops it, since every later write would fail too. The
 // quota shares are read for the job queues the job-queue phase stored, so a
 // failed queue listing leaves them fewer queues rather than none.
-func scanBatchAll(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchAll(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var (
 		phases phaseTotals
 		queues []string
 	)
 	for _, phase := range []struct {
 		op string
-		fn func() (int, int, error)
+		fn func() (int, error)
 	}{
-		{"batch:DescribeComputeEnvironments", func() (int, int, error) {
+		{"batch:DescribeComputeEnvironments", func() (int, error) {
 			return scanBatchComputeEnvironments(ctx, client, acct, region, st, scanID)
 		}},
-		{"batch:DescribeJobQueues", func() (t, i int, err error) {
-			queues, t, i, err = scanBatchJobQueues(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{"batch:DescribeJobQueues", func() (t int, err error) {
+			queues, t, err = scanBatchJobQueues(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{"batch:DescribeJobDefinitions", func() (int, int, error) {
+		{"batch:DescribeJobDefinitions", func() (int, error) {
 			return scanBatchJobDefinitions(ctx, client, acct, region, st, scanID)
 		}},
-		{"batch:ListSchedulingPolicies", func() (int, int, error) {
+		{"batch:ListSchedulingPolicies", func() (int, error) {
 			return scanBatchSchedulingPolicies(ctx, client, acct, region, st, scanID)
 		}},
-		{"batch:ListConsumableResources", func() (int, int, error) {
+		{"batch:ListConsumableResources", func() (int, error) {
 			return scanBatchConsumableResources(ctx, client, acct, region, st, scanID)
 		}},
-		{"batch:DescribeServiceEnvironments", func() (int, int, error) {
+		{"batch:DescribeServiceEnvironments", func() (int, error) {
 			return scanBatchServiceEnvironments(ctx, client, acct, region, st, scanID)
 		}},
-		{"batch:ListQuotaShares", func() (int, int, error) {
+		{"batch:ListQuotaShares", func() (int, error) {
 			return scanBatchQuotaShares(ctx, client, acct, region, st, scanID, queues)
 		}},
 	} {
-		t, i, err := phase.fn()
-		if phases.addPhase(phase.op, t, i, err) {
+		t, err := phase.fn()
+		if phases.addPhase(phase.op, t, err) {
 			break
 		}
 	}
@@ -100,7 +100,7 @@ func scanBatchAll(ctx context.Context, client batchAPI, acct *account, region st
 // per DescribeSchedulingPolicies call. The policies read before a failed
 // listing page are still described, and a failed describe call costs only its
 // own ARNs: every row read is stored before the errors are returned.
-func scanBatchSchedulingPolicies(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchSchedulingPolicies(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	listed, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]batchtypes.SchedulingPolicyListingDetail, *string, error) {
 		out, err := client.ListSchedulingPolicies(ctx, &batch.ListSchedulingPoliciesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
 		if err != nil {
@@ -158,7 +158,7 @@ func scanBatchSchedulingPolicies(ctx context.Context, client batchAPI, acct *acc
 
 // scanBatchConsumableResources stores the account's consumable resource pools,
 // which gate per-job concurrency, from their list summaries.
-func scanBatchConsumableResources(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchConsumableResources(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "batch:ListConsumableResources",
 		func(ctx context.Context, token *string) ([]batchtypes.ConsumableResourceSummary, *string, error) {
 			out, err := client.ListConsumableResources(ctx, &batch.ListConsumableResourcesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
@@ -182,7 +182,7 @@ func scanBatchConsumableResources(ctx context.Context, client batchAPI, acct *ac
 
 // scanBatchServiceEnvironments stores the service environments (SageMaker
 // Training and similar managed capacity pools job queues can attach).
-func scanBatchServiceEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchServiceEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "batch:DescribeServiceEnvironments",
 		func(ctx context.Context, token *string) ([]batchtypes.ServiceEnvironmentDetail, *string, error) {
 			out, err := client.DescribeServiceEnvironments(ctx, &batch.DescribeServiceEnvironmentsInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
@@ -208,7 +208,7 @@ func scanBatchServiceEnvironments(ctx context.Context, client batchAPI, acct *ac
 // phase stored this scan, the queues read concurrently. ListQuotaShares models
 // no not-found code, so a queue deleted since it was listed fails the phase
 // after the other queues' shares are stored.
-func scanBatchQuotaShares(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string, queueARNs []string) (int, int, error) {
+func scanBatchQuotaShares(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string, queueARNs []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, "batch:ListQuotaShares", nil, queueARNs,
 		func(ctx context.Context, queue string, token *string) ([]batchtypes.QuotaShareDetail, *string, error) {
 			out, err := client.ListQuotaShares(ctx, &batch.ListQuotaSharesInput{JobQueue: &queue, MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
@@ -230,7 +230,7 @@ func scanBatchQuotaShares(ctx context.Context, client batchAPI, acct *account, r
 		})
 }
 
-func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "batch:DescribeComputeEnvironments",
 		func(ctx context.Context, token *string) ([]batchtypes.ComputeEnvironmentDetail, *string, error) {
 			out, err := client.DescribeComputeEnvironments(ctx, &batch.DescribeComputeEnvironmentsInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
@@ -254,8 +254,8 @@ func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *ac
 
 // scanBatchJobQueues stores the job queues and returns the ARNs of those
 // stored, the parents of the quota-share phase.
-func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, "batch:DescribeJobQueues", "job queues", "JobQueueArn",
+func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, error) {
+	total, parents, err := storeParentList(ctx, st, acct, region, "batch:DescribeJobQueues", "job queues", "JobQueueArn",
 		func(ctx context.Context, token *string) ([]batchtypes.JobQueueDetail, *string, error) {
 			out, err := client.DescribeJobQueues(ctx, &batch.DescribeJobQueuesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
 			if err != nil {
@@ -279,13 +279,13 @@ func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, reg
 	for i, p := range parents {
 		arns[i] = p.id
 	}
-	return arns, total, inserted, err
+	return arns, total, err
 }
 
 // scanBatchJobDefinitions stores every ACTIVE job definition revision.
 // Deregistered (INACTIVE) revisions are not listed; the model says Batch
 // deletes them 180 days after deregistration.
-func scanBatchJobDefinitions(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBatchJobDefinitions(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, "batch:DescribeJobDefinitions",
 		func(ctx context.Context, token *string) ([]batchtypes.JobDefinition, *string, error) {
 			out, err := client.DescribeJobDefinitions(ctx, &batch.DescribeJobDefinitionsInput{

@@ -238,7 +238,7 @@ func scanKafkaTopLevel(t *testing.T, st *store.Store, handlers map[string]func(i
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, kafkaDenied)
-	total, _, err := scanKafka(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanKafka(context.Background(), acct, testRegion, st, testScanID)
 	return total, err
 }
 

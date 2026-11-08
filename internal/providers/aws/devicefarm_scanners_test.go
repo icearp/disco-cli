@@ -88,7 +88,7 @@ func TestScanDeviceFarmUploads_PaginatesEveryProject(t *testing.T) {
 		projB: {"": {Uploads: []dftypes.Upload{testDFUpload("PB", "U3")}}},
 	}}
 
-	total, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{projA, projB})
+	total, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{projA, projB})
 	if err != nil {
 		t.Fatalf("scanDeviceFarmUploads: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestScanDeviceFarmUploads_Empty(t *testing.T) {
 	st := newTestStore(t)
 	fake := &fakeDeviceFarmUploads{}
 
-	total, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{testDFProjectARN("PA")})
+	total, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{testDFProjectARN("PA")})
 	if err != nil {
 		t.Fatalf("scanDeviceFarmUploads: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestScanDeviceFarmUploads_VanishedProjectSkipped(t *testing.T) {
 		pages: map[string]map[string]*devicefarm.ListUploadsOutput{live: {"": {Uploads: []dftypes.Upload{testDFUpload("LIVE", "U1")}}}},
 	}
 
-	total, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{gone, live})
+	total, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{gone, live})
 	if err != nil {
 		t.Fatalf("a vanished project must not fail the phase, got %v", err)
 	}
@@ -191,7 +191,7 @@ func TestScanDeviceFarmUploads_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
 		pages: map[string]map[string]*devicefarm.ListUploadsOutput{permitted: {"": {Uploads: []dftypes.Upload{testDFUpload("OK", "U1")}}}},
 	}
 
-	total, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{d1, d2, permitted})
+	total, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{d1, d2, permitted})
 	if err != nil {
 		t.Fatalf("access denied must not fail the phase, got %v", err)
 	}
@@ -210,7 +210,7 @@ func TestScanDeviceFarmUploads_UnexpectedErrorPropagates(t *testing.T) {
 	proj := testDFProjectARN("PA")
 	fake := &fakeDeviceFarmUploads{errs: map[string]error{proj: boom}}
 
-	_, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{proj})
+	_, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{proj})
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v; want it to wrap %v", err, boom)
 	}
@@ -235,7 +235,7 @@ func TestScanDeviceFarm_ListsUploadsOfListedProjects(t *testing.T) {
 	})
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stub, testDFRegion)}
 
-	total, _, err := scanDeviceFarm(context.Background(), acct, "", st, testScanID)
+	total, err := scanDeviceFarm(context.Background(), acct, "", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanDeviceFarm: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestScanDeviceFarmUploads_CuratedIsManagedByProvider(t *testing.T) {
 		proj: {"": {Uploads: []dftypes.Upload{curated, testDFUpload("PA", "PRIV")}}},
 	}}
 
-	if _, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{proj}); err != nil {
+	if _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{proj}); err != nil {
 		t.Fatalf("scanDeviceFarmUploads: %v", err)
 	}
 	rows, err := st.ListResources(store.ResourceFilter{Types: []string{TypeDeviceFarmUpload}, IncludeManaged: true, Limit: util.AllResources})
@@ -300,7 +300,7 @@ func TestScanDeviceFarmUploads_DuplicateARNAcrossProjectsStoredOnce(t *testing.T
 		projB: {"": {Uploads: []dftypes.Upload{shared}}},
 	}}
 
-	total, _, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{projA, projB})
+	total, err := scanDeviceFarmUploads(context.Background(), fake, newTestAccount(testAccountID), testDFRegion, st, testScanID, []string{projA, projB})
 	if err != nil {
 		t.Fatalf("scanDeviceFarmUploads: %v", err)
 	}
@@ -615,7 +615,7 @@ func dfHandlers(c *dfCalls) map[string]func(in any) (any, error) {
 
 // dfScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func dfScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func dfScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, dfTestDenied)
 	return scanDeviceFarm(ctx, acct, "", st, testScanID)
@@ -649,7 +649,9 @@ func TestScanDeviceFarm_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newDFCalls()
 
-	total, inserted, err := dfScan(context.Background(), st, dfHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := dfScan(context.Background(), counted, dfHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -734,16 +736,16 @@ func TestScanDeviceFarm_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanDeviceFarm_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := dfScan(context.Background(), st, dfHandlers(newDFCalls())); err != nil {
+	if _, err := dfScan(context.Background(), st, dfHandlers(newDFCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := dfScan(context.Background(), st, dfHandlers(newDFCalls()))
+	total, err := dfScan(context.Background(), st, dfHandlers(newDFCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -767,7 +769,9 @@ func TestScanDeviceFarm_EmptyListings(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := dfScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := dfScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -818,7 +822,7 @@ func TestScanDeviceFarm_TagReadFailures(t *testing.T) {
 			calls := newDFCalls()
 			calls.errs[c.arn] = c.err
 
-			total, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+			total, err := dfScan(context.Background(), st, dfHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -872,7 +876,7 @@ func TestScanDeviceFarm_TagDenialsWarnOncePerScan(t *testing.T) {
 		}
 	}
 
-	total, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+	total, err := dfScan(context.Background(), st, dfHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -894,7 +898,7 @@ func TestScanDeviceFarm_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[dfKindOf(t, "ListInstanceProfiles").arn("", "tagged")] = dfTestThrottle
 	calls.errs[dfKindOf(t, "ListTestGridProjects").arn("", "bare")] = dfTestBad
 
-	_, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+	_, err := dfScan(context.Background(), st, dfHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ArgumentException")
 	if *warns != 1 {
@@ -914,7 +918,7 @@ func TestScanDeviceFarm_FailedWriteStopsScan(t *testing.T) {
 		calls := newDFCalls()
 		calls.errs[dfKindOf(t, "ListInstanceProfiles").arn("", "tagged")] = dfTestDenied
 
-		total, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+		total, err := dfScan(context.Background(), st, dfHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -936,7 +940,7 @@ func TestScanDeviceFarm_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeDeviceFarmProject)
 		calls := newDFCalls()
 
-		_, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+		_, err := dfScan(context.Background(), st, dfHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -989,7 +993,7 @@ func TestScanDeviceFarm_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := dfScan(context.Background(), st, handlers)
+			total, err := dfScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "ArgumentException")
 			if total != c.wantTotal {
@@ -1029,7 +1033,7 @@ func TestScanDeviceFarm_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := dfScan(context.Background(), st, handlers)
+			total, err := dfScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1080,7 +1084,7 @@ func TestScanDeviceFarm_PerProjectListingFailures(t *testing.T) {
 					return list(in)
 				}
 
-				total, _, err := dfScan(context.Background(), st, handlers)
+				total, err := dfScan(context.Background(), st, handlers)
 				if e.code == "" {
 					if err != nil {
 						t.Fatalf("err = %v; want nil", err)
@@ -1144,7 +1148,7 @@ func TestScanDeviceFarm_ElementWithoutARN(t *testing.T) {
 				return k.pageOf([]dfEl{el}, nil), nil
 			}
 
-			total, _, err := dfScan(context.Background(), st, handlers)
+			total, err := dfScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -1196,7 +1200,7 @@ func TestScanDeviceFarm_VPCENotAllowlisted(t *testing.T) {
 				return list(in)
 			}
 
-			total, _, err := dfScan(context.Background(), st, handlers)
+			total, err := dfScan(context.Background(), st, handlers)
 			if c.wantError {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "ServiceAccountException")
@@ -1226,7 +1230,7 @@ func TestScanDeviceFarm_ProjectsDeniedLaterPhasesRun(t *testing.T) {
 	handlers := dfHandlers(calls)
 	delete(handlers, "ListProjects")
 
-	total, _, err := dfScan(context.Background(), st, handlers)
+	total, err := dfScan(context.Background(), st, handlers)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1260,7 +1264,7 @@ func TestScanDeviceFarm_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := dfScan(ctx, st, handlers)
+	_, err := dfScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1287,7 +1291,7 @@ func TestScanDeviceFarm_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := dfHandlers(newDFCalls())
 		handlers["ListTestGridProjects"] = func(any) (any, error) { return nil, nx }
-		total, _, err := dfScan(context.Background(), st, handlers)
+		total, err := dfScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := dfTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -1297,7 +1301,7 @@ func TestScanDeviceFarm_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newDFCalls()
 		calls.errs[dfKindOf(t, "ListVPCEConfigurations").arn("", "bare")] = nx
-		_, _, err := dfScan(context.Background(), st, dfHandlers(calls))
+		_, err := dfScan(context.Background(), st, dfHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1311,7 +1315,7 @@ func TestScanDeviceFarm_NXDOMAIN(t *testing.T) {
 				return nil, nx
 			},
 		}, nx)
-		_, _, err := scanDeviceFarm(context.Background(), acct, "", st, testScanID)
+		_, err := scanDeviceFarm(context.Background(), acct, "", st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

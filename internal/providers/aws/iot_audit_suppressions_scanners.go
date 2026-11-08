@@ -85,7 +85,7 @@ func iotResourceIdentifierKey(ri *iottypes.ResourceIdentifier) string {
 // region lists. The list element carries every field DescribeAuditSuppression
 // returns, so there is no per-item describe. Expired suppressions are stored
 // as listed; ExpirationDate and SuppressIndefinitely stay in attributes.
-func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	const op = "iot:ListAuditSuppressions"
 	pager := iot.NewListAuditSuppressionsPaginator(client, &iot.ListAuditSuppressionsInput{}, func(o *iot.ListAuditSuppressionsPaginatorOptions) {
 		o.Limit = iotAuditSuppressionPageCap
@@ -101,7 +101,7 @@ func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI
 			// Device Defender is not routed in every region; the sibling Defender
 			// phases see a bare 404 "No method found matching route" there.
 			if firstPage && isHTTP404(perr) {
-				return 0, 0, nil
+				return 0, nil
 			}
 			err = fmt.Errorf("%s: %w", op, perr)
 			break
@@ -125,12 +125,11 @@ func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI
 				DiscoveredBy:   scanID,
 			})
 		}
-		n, uerr := st.UpsertResources(batch)
+		_, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			return total, inserted, fmt.Errorf("upsert iot audit suppressions: %w", uerr)
+			return total, fmt.Errorf("upsert iot audit suppressions: %w", uerr)
 		}
 		total += len(batch)
-		inserted += n
 	}
 	if unkeyed > 0 {
 		st.ReportWarning(store.ScanWarning{
@@ -141,5 +140,5 @@ func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI
 				"or resourceIdentifier set none of the members disco encodes", unkeyed),
 		})
 	}
-	return total, inserted, err
+	return total, err
 }

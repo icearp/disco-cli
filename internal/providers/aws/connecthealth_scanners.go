@@ -16,7 +16,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeHealthAgentSubscription, Service: "health-agent"})
 	registerService(serviceEntry{
 		name: "aws:health-agent",
-		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 			client := connecthealth.NewFromConfig(acct.cfg, func(o *connecthealth.Options) { o.Region = region })
 			return scanHealthAgent(ctx, client, acct, region, st, scanID)
 		},
@@ -39,13 +39,13 @@ const healthAgentPageCap = 100
 // listening sessions (run records, readable only by id). The subscription
 // phase fans out over the domains the first phase stored; a domain phase error
 // leaves it no parents, so it is returned before that phase runs.
-func scanHealthAgent(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	domains, total, inserted, err := scanHealthAgentDomains(ctx, client, acct, region, st, scanID)
+func scanHealthAgent(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	domains, total, err := scanHealthAgentDomains(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err := scanHealthAgentSubscriptions(ctx, client, acct, region, st, scanID, domains)
-	return total + t, inserted + i, err
+	t, err := scanHealthAgentSubscriptions(ctx, client, acct, region, st, scanID, domains)
+	return total + t, err
 }
 
 // scanHealthAgentDomains lists the region's domains, then reads each with
@@ -53,7 +53,7 @@ func scanHealthAgent(ctx context.Context, client healthAgentAPI, acct *account, 
 // and tags. DELETED domains are not read, and a domain gone between the list
 // and its Get is skipped. A denial mid-listing warns and keeps the domains
 // listed so far.
-func scanHealthAgentDomains(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string) (healthAgentDomains, int, int, error) {
+func scanHealthAgentDomains(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string) (healthAgentDomains, int, error) {
 	var ids []string
 	pager := connecthealth.NewListDomainsPaginator(client, &connecthealth.ListDomainsInput{},
 		func(o *connecthealth.ListDomainsPaginatorOptions) {
@@ -67,7 +67,7 @@ func scanHealthAgentDomains(ctx context.Context, client healthAgentAPI, acct *ac
 				_ = skipIfAccessDenied(st, "health-agent:ListDomains", acct.ID, region, err)
 				break
 			}
-			return healthAgentDomains{}, 0, 0, fmt.Errorf("health-agent:ListDomains: %w", err)
+			return healthAgentDomains{}, 0, fmt.Errorf("health-agent:ListDomains: %w", err)
 		}
 		for _, d := range out.Domains {
 			if id := sv(d.DomainId); id != "" && d.Status != chtypes.DomainStatusDeleted {
@@ -101,11 +101,11 @@ func scanHealthAgentDomains(ctx context.Context, client healthAgentAPI, acct *ac
 			}, nil
 		})
 	if err != nil {
-		return healthAgentDomains{}, 0, 0, err
+		return healthAgentDomains{}, 0, err
 	}
-	total, inserted, err := upsertBatch(st, rows, "health-agent domains")
+	total, err := upsertBatch(st, rows, "health-agent domains")
 	if err != nil {
-		return healthAgentDomains{}, 0, 0, err
+		return healthAgentDomains{}, 0, err
 	}
 	domains := healthAgentDomains{notActive: map[string]bool{}}
 	for _, r := range rows {
@@ -115,7 +115,7 @@ func scanHealthAgentDomains(ctx context.Context, client healthAgentAPI, acct *ac
 			domains.notActive[id] = true
 		}
 	}
-	return domains, total, inserted, nil
+	return domains, total, nil
 }
 
 // healthAgentDomains is what the subscription phase needs from the domain
@@ -142,10 +142,10 @@ func isHealthAgentNotFound(err error) bool {
 // ValidationException (not observed live), so that code skips it with one
 // warning; from an ACTIVE domain the code is returned, since the only inputs
 // are the listed domain id and a fixed page size.
-func scanHealthAgentSubscriptions(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string, domains healthAgentDomains) (int, int, error) {
+func scanHealthAgentSubscriptions(ctx context.Context, client healthAgentAPI, acct *account, region string, st *store.Store, scanID string, domains healthAgentDomains) (int, error) {
 	const op = "health-agent:ListSubscriptions"
 	var notReady skipTally
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, op, domains.parents, isHealthAgentNotFound, byParentID,
+	total, err := childFanOutSkipTransient(ctx, st, acct, region, op, domains.parents, isHealthAgentNotFound, byParentID,
 		func(ctx context.Context, domain childParent) ([]*store.Resource, error) {
 			rows, err := listHealthAgentSubscriptions(ctx, client, acct, region, scanID, domain)
 			if domains.notActive[domain.id] && notReady.dropCode("ValidationException", domain.id, err) {
@@ -155,7 +155,7 @@ func scanHealthAgentSubscriptions(ctx context.Context, client healthAgentAPI, ac
 		})
 	notReady.warnCode(st, op, acct, region, "ValidationException", "domain(s)",
 		"a domain that is not ACTIVE may refuse its subscription listing")
-	return total, inserted, err
+	return total, err
 }
 
 // listHealthAgentSubscriptions returns the subscriptions of one domain.

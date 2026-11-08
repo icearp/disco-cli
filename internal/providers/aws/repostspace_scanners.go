@@ -32,7 +32,7 @@ const repostspaceListChannelsOp = "repostspace:ListChannels"
 const repostspacePageLimit = 100
 
 // scanRepostspace discovers AWS re:Post Private spaces and their channels.
-func scanRepostspace(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRepostspace(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := repostspace.NewFromConfig(acct.cfg, func(o *repostspace.Options) { o.Region = region })
 	return scanRepostspaceAll(ctx, client, acct, region, st, scanID)
 }
@@ -41,19 +41,19 @@ func scanRepostspace(ctx context.Context, acct *account, region string, st *stor
 // spaces it stored. A failed space phase stores nothing and lists no parents,
 // so it returns alone. The channel phase tallies its transient errors per
 // space, so its error is never transient and needs no demotion.
-func scanRepostspaceAll(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, spaces, err := scanRepostspaceSpaces(ctx, client, acct, region, st, scanID)
+func scanRepostspaceAll(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
+	total, spaces, err := scanRepostspaceSpaces(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return total, inserted, err
+		return total, err
 	}
-	t, i, err := scanRepostspaceChannels(ctx, client, acct, region, st, scanID, spaces)
-	return total + t, inserted + i, err
+	t, err := scanRepostspaceChannels(ctx, client, acct, region, st, scanID, spaces)
+	return total + t, err
 }
 
 // scanRepostspaceSpaces stores the region's spaces, NativeID = the space ARN
 // (SpaceData.Arn), and returns the stored spaces that carry a SpaceId as the
 // parents of the channel phase.
-func scanRepostspaceSpaces(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, spaces []childParent, err error) {
+func scanRepostspaceSpaces(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string) (total int, spaces []childParent, err error) {
 	pager := repostspace.NewListSpacesPaginator(client, &repostspace.ListSpacesInput{},
 		func(o *repostspace.ListSpacesPaginatorOptions) { o.Limit = repostspacePageLimit })
 	var batch []*store.Resource
@@ -61,9 +61,9 @@ func scanRepostspaceSpaces(ctx context.Context, client repostspaceAPI, acct *acc
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "repostspace:ListSpaces", acct.ID, region, err)
+				return 0, nil, skipIfAccessDenied(st, "repostspace:ListSpaces", acct.ID, region, err)
 			}
-			return 0, 0, nil, fmt.Errorf("repostspace:ListSpaces: %w", err)
+			return 0, nil, fmt.Errorf("repostspace:ListSpaces: %w", err)
 		}
 		for _, s := range out.Spaces {
 			arn := sv(s.Arn)
@@ -81,11 +81,11 @@ func scanRepostspaceSpaces(ctx context.Context, client repostspaceAPI, acct *acc
 			}
 		}
 	}
-	total, inserted, err = upsertBatch(st, batch, "repostspace spaces")
+	total, err = upsertBatch(st, batch, "repostspace spaces")
 	if err != nil {
-		return 0, 0, nil, err
+		return 0, nil, err
 	}
-	return total, inserted, spaces, nil
+	return total, spaces, nil
 }
 
 // repostspaceChannelNativeID keys a channel under its space: the API returns
@@ -112,7 +112,7 @@ func repostspaceChannelNativeID(spaceARN, channelID string) string {
 // deleted has not been observed; if it is ValidationException, failing the
 // phase would fail it on every scan, and skipping silently would hide a real
 // input error, so it warns and keeps the siblings.
-func scanRepostspaceChannels(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, int, error) {
+func scanRepostspaceChannels(ctx context.Context, client repostspaceAPI, acct *account, region string, st *store.Store, scanID string, spaces []childParent) (int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
 	return childFanOutSkipNotReady(ctx, st, acct, region, repostspaceListChannelsOp, spaces, isGone, byParentARN,
 		"space(s)", "the space may not be ready (creating or deleting; unverified)",

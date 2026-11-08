@@ -70,7 +70,9 @@ func TestScanCloudRun_FullChain(t *testing.T) {
 	srv := fakeGCPServer(t, routes)
 	svc, svc1 := fakeCloudRunServices(t, srv)
 
-	total, inserted, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunWithClient: %v", err)
 	}
@@ -143,7 +145,9 @@ func TestScanCloudRun_RevisionsPermissionDeniedContinuesToWorkerPools(t *testing
 	t.Cleanup(srv.Close)
 	svc, svc1 := fakeCloudRunServices(t, srv)
 
-	total, inserted, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunWithClient: %v", err)
 	}
@@ -186,7 +190,9 @@ func TestScanCloudRun_WorkerPoolsAPINotEnabledShapeDoesNotDisableWholeService(t 
 	t.Cleanup(srv.Close)
 	svc, svc1 := fakeCloudRunServices(t, srv)
 
-	total, inserted, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunWithClient: %v (WorkerPools' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -231,7 +237,9 @@ func TestScanCloudRun_AuthorizedDomainsAPINotEnabledShapeDoesNotDisableWholeServ
 	t.Cleanup(srv.Close)
 	svc, svc1 := fakeCloudRunServices(t, srv)
 
-	total, inserted, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunWithClient(t.Context(), svc, svc1, []string{"us-central1"}, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunWithClient: %v (AuthorizedDomains' isAPINotEnabled-shaped 403 must not escalate to the whole-service disabled sentinel)", err)
 	}
@@ -260,7 +268,9 @@ func TestScanCloudRun_EmptyProjectNoServices(t *testing.T) {
 	// No regions injected — no fake project has enabled compute regions, and
 	// this also proves the WorkerPool/Instance fan-out phase is a no-op on an
 	// empty region list rather than panicking.
-	total, inserted, err := scanCloudRunWithClient(t.Context(), svc, svc1, nil, p, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanCloudRunWithClient(t.Context(), svc, svc1, nil, p, counted, testScanID)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scanCloudRunWithClient: %v", err)
 	}

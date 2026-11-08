@@ -53,7 +53,7 @@ func ecsAccountSettingNativeID(partition, region, accountID string, name ecstype
 // PrincipalArn: an effective listing holds one value per name, and keying by
 // principal would rename every row whenever the scan runs under a different
 // identity. PrincipalArn stays in the attributes.
-func scanECSAccountSettings(ctx context.Context, client ecsAccountSettingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanECSAccountSettings(ctx context.Context, client ecsAccountSettingsAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := ecs.NewListAccountSettingsPaginator(client, &ecs.ListAccountSettingsInput{EffectiveSettings: true},
 		func(o *ecs.ListAccountSettingsPaginatorOptions) { o.Limit = ecsAccountSettingsPageLimit })
 	var batch []*store.Resource
@@ -81,6 +81,6 @@ func scanECSAccountSettings(ctx context.Context, client ecsAccountSettingsAPI, a
 			})
 		}
 	}
-	total, inserted, err := upsertBatch(st, batch, "ecs account-settings")
-	return total, inserted, errors.Join(listErr, err)
+	total, err := upsertBatch(st, batch, "ecs account-settings")
+	return total, errors.Join(listErr, err)
 }

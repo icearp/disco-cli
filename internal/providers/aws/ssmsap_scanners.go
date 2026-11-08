@@ -45,28 +45,28 @@ var ssmSAPNotFound = []string{"ResourceNotFoundException"}
 // application, the registered components and databases. Every phase runs;
 // the component and database phases read only the applications the
 // application phase stored, and only a store write failure stops the scan.
-func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := ssmsap.NewFromConfig(acct.cfg, func(o *ssmsap.Options) { o.Region = region })
 	var apps []string
 	phases := []struct {
 		op  string
-		run func() (int, int, error)
+		run func() (int, error)
 	}{
-		{ssmSAPApplicationsOp, func() (t, i int, err error) {
-			t, i, apps, err = scanSSMSAPApplications(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		{ssmSAPApplicationsOp, func() (t int, err error) {
+			t, apps, err = scanSSMSAPApplications(ctx, client, acct, region, st, scanID)
+			return t, err
 		}},
-		{ssmSAPComponentsOp, func() (int, int, error) {
+		{ssmSAPComponentsOp, func() (int, error) {
 			return scanSSMSAPComponents(ctx, client, acct, region, st, scanID, apps)
 		}},
-		{ssmSAPDatabasesOp, func() (int, int, error) {
+		{ssmSAPDatabasesOp, func() (int, error) {
 			return scanSSMSAPDatabases(ctx, client, acct, region, st, scanID, apps)
 		}},
 	}
 	var p phaseTotals
 	for _, ph := range phases {
-		t, i, err := ph.run()
-		if p.addPhase(ph.op, t, i, err) {
+		t, err := ph.run()
+		if p.addPhase(ph.op, t, err) {
 			break
 		}
 	}
@@ -75,8 +75,8 @@ func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Sto
 
 // scanSSMSAPApplications lists every application (no Filters) and also
 // returns the Ids of the stored ones, for the component and database phases.
-func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []string, error) {
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, ssmSAPApplicationsOp, "applications", "Id",
+func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string) (int, []string, error) {
+	total, parents, err := storeParentList(ctx, st, acct, region, ssmSAPApplicationsOp, "applications", "Id",
 		func(ctx context.Context, token *string) ([]ssmsaptypes.ApplicationSummary, *string, error) {
 			out, err := client.ListApplications(ctx, &ssmsap.ListApplicationsInput{NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})
 			if err != nil {
@@ -100,7 +100,7 @@ func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account
 	for i, p := range parents {
 		ids[i] = p.id
 	}
-	return total, inserted, ids, err
+	return total, ids, err
 }
 
 // scanSSMSAPComponents lists each application's components concurrently.
@@ -109,9 +109,9 @@ func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account
 // denial: the application's rows read before it are kept and one warning
 // names the first denied application in parent order, after the write
 // succeeded. Component rows carry no Status: the summary has no status field.
-func scanSSMSAPComponents(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, int, error) {
+func scanSSMSAPComponents(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, error) {
 	var denied skipTally
-	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, ssmSAPComponentsOp, ssmSAPNotFound, apps,
+	total, err := storeTokenEachParentSkip(ctx, st, acct, region, ssmSAPComponentsOp, ssmSAPNotFound, apps,
 		func(ctx context.Context, app string, token *string) ([]ssmsaptypes.ComponentSummary, *string, error) {
 			out, err := client.ListComponents(ctx, &ssmsap.ListComponentsInput{ApplicationId: &app, NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})
 			if err != nil {
@@ -139,15 +139,15 @@ func scanSSMSAPComponents(ctx context.Context, client ssmSAPAPI, acct *account, 
 			return true
 		})
 	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
+		return total, err
 	}
 	denied.warnDeniedIn(st, ssmSAPComponentsOp, acct, region, "application(s) whose components were not read were")
-	return total, inserted, err
+	return total, err
 }
 
 // scanSSMSAPDatabases lists each application's databases concurrently.
 // Database rows carry no Status: the summary has no status field.
-func scanSSMSAPDatabases(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, int, error) {
+func scanSSMSAPDatabases(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, ssmSAPDatabasesOp, ssmSAPNotFound, apps,
 		func(ctx context.Context, app string, token *string) ([]ssmsaptypes.DatabaseSummary, *string, error) {
 			out, err := client.ListDatabases(ctx, &ssmsap.ListDatabasesInput{ApplicationId: &app, NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})

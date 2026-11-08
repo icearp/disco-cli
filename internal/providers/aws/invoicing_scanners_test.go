@@ -203,12 +203,12 @@ func invTestHandlers(c *invTestCalls) map[string]func(in any) (any, error) {
 
 // invTestScanAs runs the scan for acct against handlers through the real
 // client, calling us-east-1; every op they do not answer is denied.
-func invTestScanAs(ctx context.Context, acct *account, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func invTestScanAs(ctx context.Context, acct *account, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	client := invoicing.NewFromConfig(opStubConfig(handlers, invTestDenied))
 	return scanInvoicingIn(ctx, client, acct, "us-east-1", st, testScanID)
 }
 
-func invTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func invTestScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	return invTestScanAs(ctx, newTestAccount(testAccountID), st, handlers)
 }
 
@@ -243,7 +243,9 @@ func TestScanInvoicing_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newInvTestCalls()
 
-	total, inserted, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := invTestScan(context.Background(), counted, invTestHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -312,7 +314,7 @@ func TestScanInvoicing_CallsGoToHomeRegion(t *testing.T) {
 	cfg.Region = "eu-west-1"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
-	total, _, err := scanInvoicing(context.Background(), acct, "", st, testScanID)
+	total, err := scanInvoicing(context.Background(), acct, "", st, testScanID)
 	if err != nil {
 		t.Fatalf("scanInvoicing: %v", err)
 	}
@@ -349,7 +351,7 @@ func TestScanInvoicing_PagesWrittenAsRead(t *testing.T) {
 		}
 	}
 
-	if _, _, err := invTestScan(context.Background(), st, handlers); err != nil {
+	if _, err := invTestScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for _, k := range invTestKinds() {
@@ -359,16 +361,16 @@ func TestScanInvoicing_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanInvoicing_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := invTestScan(context.Background(), st, invTestHandlers(newInvTestCalls())); err != nil {
+	if _, err := invTestScan(context.Background(), st, invTestHandlers(newInvTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := invTestScan(context.Background(), st, invTestHandlers(newInvTestCalls()))
+	total, err := invTestScan(context.Background(), st, invTestHandlers(newInvTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -396,7 +398,9 @@ func TestScanInvoicing_Empty(t *testing.T) {
 		}
 	}
 
-	total, inserted, err := invTestScan(context.Background(), st, handlers)
+	counted, upserts := countUpserts(st)
+	total, err := invTestScan(context.Background(), counted, handlers)
+	inserted := upserts()
 	if err != nil || total != 0 || inserted != 0 {
 		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
 	}
@@ -447,7 +451,7 @@ func TestScanInvoicing_TagReadFailures(t *testing.T) {
 			arn := k.arn("tagged")
 			calls.tagErrs[arn] = c.err
 
-			total, _, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+			total, err := invTestScan(context.Background(), st, invTestHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -497,7 +501,7 @@ func TestScanInvoicing_TagDenialsWarnOncePerScan(t *testing.T) {
 	calls.tagErrs[invTestKindOf(t, "ListInvoiceUnits").arn("bare")] = invTestDenied
 	calls.tagErrs[invTestKindOf(t, "ListProcurementPortalPreferences").arn("tagged")] = invTestDenied
 
-	total, _, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+	total, err := invTestScan(context.Background(), st, invTestHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -519,7 +523,7 @@ func TestScanInvoicing_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.tagErrs[invTestKindOf(t, "ListInvoiceUnits").arn("bare")] = invTestThrottle
 	calls.tagErrs[invTestKindOf(t, "ListProcurementPortalPreferences").arn("tagged")] = invTestBad
 
-	_, _, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+	_, err := invTestScan(context.Background(), st, invTestHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "ValidationException")
 	if *warns != 1 {
@@ -537,7 +541,7 @@ func TestScanInvoicing_FailedWriteStopsScan(t *testing.T) {
 	calls := newInvTestCalls()
 	calls.tagErrs[invTestKindOf(t, "ListInvoiceUnits").arn("tagged")] = invTestDenied
 
-	total, _, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+	total, err := invTestScan(context.Background(), st, invTestHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -591,7 +595,7 @@ func TestScanInvoicing_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 			handlers := invTestHandlers(calls)
 			c.fail(t, st, calls, handlers)
 
-			_, _, err := invTestScan(context.Background(), st, handlers)
+			_, err := invTestScan(context.Background(), st, handlers)
 			c.want(t, err)
 			w := warns()
 			if got := afWarnOps(w); !slices.Equal(got, []string{invoicingTagsOp}) {
@@ -647,7 +651,7 @@ func TestScanInvoicing_ListFailureKeepsPagesAndOtherPhase(t *testing.T) {
 				handlers[c.op] = calls.failingFirst(k, c.err)
 			}
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if c.wantWarn {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -701,7 +705,7 @@ func TestScanInvoicing_RepeatedTokenKeepsPages(t *testing.T) {
 				return out, err
 			}
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -741,7 +745,7 @@ func TestScanInvoicing_ElementWithoutARN(t *testing.T) {
 				return twoPages(in)
 			}
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
@@ -777,7 +781,7 @@ func TestScanInvoicing_TagReadsKeepPartitionARNs(t *testing.T) {
 		t.Run(partition, func(t *testing.T) {
 			st := newTestStore(t)
 			calls := newInvTestCallsIn(partition)
-			if _, _, err := invTestScanAs(context.Background(), partitionAccount(partition), st, invTestHandlers(calls)); err != nil {
+			if _, err := invTestScanAs(context.Background(), partitionAccount(partition), st, invTestHandlers(calls)); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			var want []string
@@ -799,7 +803,9 @@ func TestScanInvoicing_TagReadsKeepPartitionARNs(t *testing.T) {
 			calls := newInvTestCalls()
 			acct := partitionAccount(partition)
 			acct.cfg = opStubConfig(invTestHandlers(calls), invTestDenied)
-			total, inserted, err := scanInvoicing(context.Background(), acct, "", newTestStore(t), testScanID)
+			counted, upserts := countUpserts(newTestStore(t))
+			total, err := scanInvoicing(context.Background(), acct, "", counted, testScanID)
+			inserted := upserts()
 			var nr *noRegionError
 			if !errors.As(err, &nr) || nr.Package != "invoicing" || nr.Partition != partition {
 				t.Fatalf("err = %#v; want *noRegionError for invoicing in %s", err, partition)
@@ -835,7 +841,7 @@ func TestScanInvoicing_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := invTestScan(ctx, st, handlers)
+	_, err := invTestScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -867,7 +873,7 @@ func TestScanInvoicing_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := invTestHandlers(newInvTestCalls())
 		handlers["ListProcurementPortalPreferences"] = func(any) (any, error) { return nil, nx }
-		total, _, err := invTestScan(context.Background(), st, handlers)
+		total, err := invTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := invTestTotal - 2; total != want {
 			t.Errorf("total = %d; want the %d invoice units counted", total, want)
@@ -877,7 +883,7 @@ func TestScanInvoicing_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newInvTestCalls()
 		calls.tagErrs[invTestKindOf(t, "ListInvoiceUnits").arn("tagged")] = nx
-		_, _, err := invTestScan(context.Background(), st, invTestHandlers(calls))
+		_, err := invTestScan(context.Background(), st, invTestHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -888,7 +894,7 @@ func TestScanInvoicing_NXDOMAIN(t *testing.T) {
 		for _, k := range invTestKinds() {
 			handlers[k.op] = calls.failingFirst(k, nx)
 		}
-		_, _, err := invTestScan(context.Background(), st, handlers)
+		_, err := invTestScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)
@@ -923,7 +929,7 @@ func TestScanInvoicing_PreferencesNotDeployed(t *testing.T) {
 			handlers := invTestHandlers(calls)
 			handlers[prefs.op] = calls.failingFirst(prefs, gap.err)
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -943,7 +949,7 @@ func TestScanInvoicing_PreferencesNotDeployed(t *testing.T) {
 			handlers := invTestHandlers(calls)
 			handlers[units.op] = calls.failingFirst(units, gap.err)
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if !errors.Is(err, gap.err) {
 				t.Fatalf("err = %v; want %v", err, gap.err)
 			}
@@ -963,7 +969,7 @@ func TestScanInvoicing_PreferencesNotDeployed(t *testing.T) {
 			handlers := invTestHandlers(calls)
 			handlers[prefs.op] = calls.failingLater(prefs, gap.err)
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if !errors.Is(err, gap.err) {
 				t.Fatalf("err = %v; want %v", err, gap.err)
 			}
@@ -1003,7 +1009,7 @@ func TestScanInvoicing_PayerOnlyPerPhase(t *testing.T) {
 				handlers[op] = calls.failingFirst(invTestKindOf(t, op), invTestPayerOnly)
 			}
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if tc.wantNotEntitled {
 				if !errors.Is(err, errServiceNotEntitled) {
 					t.Fatalf("err = %v; want errServiceNotEntitled", err)
@@ -1051,7 +1057,7 @@ func TestScanInvoicing_PayerOnlyLaterPageIsError(t *testing.T) {
 				}
 			}
 
-			total, _, err := invTestScan(context.Background(), st, handlers)
+			total, err := invTestScan(context.Background(), st, handlers)
 			if errors.Is(err, errServiceNotEntitled) {
 				t.Fatalf("err = %v; want no errServiceNotEntitled", err)
 			}

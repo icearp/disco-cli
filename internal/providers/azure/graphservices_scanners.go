@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanGraphServices discovers graphservices resources.
-func scanGraphServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGraphServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armgraphservices.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armgraphservices:NewAccountsClient: %w", err)
+		return 0, fmt.Errorf("armgraphservices:NewAccountsClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armgraphservices:Accounts.ListBySubscription", TypeGraphServicesAccount, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

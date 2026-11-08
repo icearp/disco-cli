@@ -25,26 +25,24 @@ type snowDeviceManagementAPI interface {
 
 // scanSnowDeviceManagement discovers Snow Device Management managed devices
 // and remote-management tasks.
-func scanSnowDeviceManagement(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSnowDeviceManagement(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := snowdevicemanagement.NewFromConfig(acct.cfg, func(o *snowdevicemanagement.Options) { o.Region = region })
 
-	t, i, ferr := scanSnowDevices(ctx, client, acct, region, st, scanID)
+	t, ferr := scanSnowDevices(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
 
-	t, i, ferr = scanSnowTasks(ctx, client, acct, region, st, scanID)
+	t, ferr = scanSnowTasks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
-		return total, inserted, ferr
+		return total, ferr
 	}
 	total += t
-	inserted += i
-	return total, inserted, nil
+	return total, nil
 }
 
-func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := snowdevicemanagement.NewListDevicesPaginator(client, &snowdevicemanagement.ListDevicesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -53,12 +51,12 @@ func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *
 			// "No devices found in this region" is an empty-state 403, not a real
 			// deny — the service works, just with zero devices.
 			if isAPIErrorWithMessage(err, "AccessDeniedException", "No devices found") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "snow-device-management:ListDevices", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "snow-device-management:ListDevices", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("snow-device-management:ListDevices: %w", err)
+			return 0, fmt.Errorf("snow-device-management:ListDevices: %w", err)
 		}
 		for _, d := range out.Devices {
 			arn := sv(d.ManagedDeviceArn)
@@ -77,7 +75,7 @@ func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *
 	return upsertBatch(st, batch, "snow-device-management managed-devices")
 }
 
-func scanSnowTasks(ctx context.Context, client snowDeviceManagementAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSnowTasks(ctx context.Context, client snowDeviceManagementAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := snowdevicemanagement.NewListTasksPaginator(client, &snowdevicemanagement.ListTasksInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -86,12 +84,12 @@ func scanSnowTasks(ctx context.Context, client snowDeviceManagementAPI, acct *ac
 			// "No devices found in this region" is an empty-state 403, not a real
 			// deny — the service works, just with zero devices/tasks.
 			if isAPIErrorWithMessage(err, "AccessDeniedException", "No devices found") {
-				return 0, 0, nil
+				return 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "snow-device-management:ListTasks", acct.ID, region, err)
+				return 0, skipIfAccessDenied(st, "snow-device-management:ListTasks", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("snow-device-management:ListTasks: %w", err)
+			return 0, fmt.Errorf("snow-device-management:ListTasks: %w", err)
 		}
 		for _, t := range out.Tasks {
 			arn := sv(t.TaskArn)

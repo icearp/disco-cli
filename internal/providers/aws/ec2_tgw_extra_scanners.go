@@ -15,19 +15,19 @@ func init() {
 
 // scanEC2TGWExtra discovers Transit Gateway policy tables and route-table
 // announcements (the cross-region peering route advertisements).
-func scanEC2TGWExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2TGWExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return runScanners(
 		ctx,
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWPolicyTables(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) {
+		func(ctx context.Context) (int, error) {
 			return scanTGWRouteTableAnnouncements(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
-func scanTGWPolicyTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWPolicyTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayPolicyTables", acct, region, st,
 		ec2.NewDescribeTransitGatewayPolicyTablesPaginator(client, &ec2.DescribeTransitGatewayPolicyTablesInput{}),
@@ -57,7 +57,7 @@ func scanTGWPolicyTables(ctx context.Context, client ec2API, acct *account, regi
 	)
 }
 
-func scanTGWRouteTableAnnouncements(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanTGWRouteTableAnnouncements(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeTransitGatewayRouteTableAnnouncements", acct, region, st,
 		ec2.NewDescribeTransitGatewayRouteTableAnnouncementsPaginator(client, &ec2.DescribeTransitGatewayRouteTableAnnouncementsInput{}),

@@ -39,7 +39,7 @@ func TestScanNetworkMonitor_ReadsTags(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
-	total, _, err := scanNetworkMonitor(context.Background(), acct, testRegion, st, testScanID)
+	total, err := scanNetworkMonitor(context.Background(), acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanNetworkMonitor: %v", err)
 	}

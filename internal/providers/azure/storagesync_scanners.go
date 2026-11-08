@@ -19,10 +19,10 @@ func init() {
 }
 
 // scanStorageSync discovers Azure File Sync (Storage Sync) services.
-func scanStorageSync(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageSync(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total int, err error) {
 	client, err := armstoragesync.NewServicesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return 0, 0, fmt.Errorf("armstoragesync:NewServicesClient: %w", err)
+		return 0, fmt.Errorf("armstoragesync:NewServicesClient: %w", err)
 	}
 	return azSimpleScan(ctx, "armstoragesync:Services.ListBySubscription", TypeStorageSyncService, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),

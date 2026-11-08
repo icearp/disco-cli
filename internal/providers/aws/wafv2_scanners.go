@@ -84,7 +84,7 @@ var errWAFv2NoTagInfo = errors.New("ListTagsForResource response has no TagInfoF
 // the later ones; a failed write and ctx's end do (runHostPhases). Each error
 // is kept under the op that failed, and denied tag reads and denied GetWebACL
 // reads are one warning each for the scan.
-func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := wafv2.NewFromConfig(acct.cfg, func(o *wafv2.Options) { o.Region = region })
 
 	scopes := []types.Scope{types.ScopeRegional}
@@ -104,14 +104,14 @@ func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Stor
 		phases = append(phases, wafv2ScopePhases(ctx, client, acct, region, scope, st, scanID, aclDetails, tags)...)
 	}
 	for _, scope := range scopes {
-		phases = append(phases, countedPhase(0, wafv2ListAPIKeysOp, func() (int, int, error) {
+		phases = append(phases, countedPhase(0, wafv2ListAPIKeysOp, func() (int, error) {
 			return scanWAFv2APIKeys(ctx, client, acct, region, scope, st, scanID)
 		}))
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "wafv2", 0, phases)
+	total, err := runHostPhases(ctx, st, acct, region, "wafv2", 0, phases)
 	aclDetails.warnDetailDenials(st, acct, region)
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // wafv2ScopePhases is the phases of one scope, in the order they run: web
@@ -335,7 +335,7 @@ func wafv2APIKeyNativeID(partition, region, accountID string, scope types.Scope,
 // before an error are stored; a denial warns and is dropped. The output's
 // ApplicationIntegrationURL is not stored: it belongs to the scope and region,
 // not to any one key, and the row's attributes are the key's SDK element.
-func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (int, int, error) {
+func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (int, error) {
 	var (
 		keys    []containedChild
 		keyless skipTally
@@ -390,7 +390,7 @@ type wafv2Listed struct {
 // stored and is warned about once.
 func scanWAFv2Summaries(st *store.Store, acct *account, region, scanID string, scope types.Scope, op, kind, rtype string,
 	list func(marker *string) ([]wafv2Listed, *string, error),
-) (int, int, error) {
+) (int, error) {
 	var (
 		batch   []*store.Resource
 		arnless skipTally

@@ -107,7 +107,7 @@ func configTags(client configserviceAPI) rowTagReader {
 // runs as its own phase, one at a time: a phase's error does not stop the
 // later ones; a failed write and ctx's end do (runHostPhases). The
 // remediation phases take the rules the rule phase stored.
-func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := configservice.NewFromConfig(acct.cfg, func(o *configservice.Options) { o.Region = region })
 	tags := configTags(client)
 	var rules []childParent
@@ -115,7 +115,7 @@ func scanConfig(ctx context.Context, acct *account, region string, st *store.Sto
 		{op: "config:DescribeConfigurationRecorders", run: func(p *phaseTotals) bool {
 			return scanConfigRecorders(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "config:DescribeDeliveryChannels", func() (int, int, error) {
+		countedPhase(0, "config:DescribeDeliveryChannels", func() (int, error) {
 			return scanConfigDeliveryChannels(ctx, client, acct, region, st, scanID)
 		}),
 		{op: "config:DescribeConfigRules", run: func(p *phaseTotals) (failed bool) {
@@ -137,16 +137,16 @@ func scanConfig(ctx context.Context, acct *account, region string, st *store.Sto
 		{op: "config:DescribeOrganizationConformancePacks", run: func(p *phaseTotals) bool {
 			return scanConfigOrgConformancePacks(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "config:DescribeRemediationConfigurations", func() (int, int, error) {
+		countedPhase(0, "config:DescribeRemediationConfigurations", func() (int, error) {
 			return scanConfigRemediationConfigs(ctx, client, rules, acct, region, st, scanID)
 		}),
 		{op: "config:ListStoredQueries", run: func(p *phaseTotals) bool {
 			return scanConfigStoredQueries(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, "config:DescribeRetentionConfigurations", func() (int, int, error) {
+		countedPhase(0, "config:DescribeRetentionConfigurations", func() (int, error) {
 			return scanConfigRetentionConfigurations(ctx, client, acct, region, st, scanID)
 		}),
-		countedPhase(0, "config:DescribeRemediationExceptions", func() (int, int, error) {
+		countedPhase(0, "config:DescribeRemediationExceptions", func() (int, error) {
 			return scanConfigRemediationExceptions(ctx, client, rules, acct, region, st, scanID)
 		}),
 		// Connectors go last on an assumption not verified live: as the newest
@@ -224,7 +224,7 @@ func scanConfigRecorders(ctx context.Context, client configserviceAPI, acct *acc
 // scanConfigDeliveryChannels stores the region's delivery channels, which
 // are not taggable (neither ListTagsForResource nor TagResource accepts
 // them). The API returns no ARN, so the id is built from the name.
-func scanConfigDeliveryChannels(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanConfigDeliveryChannels(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	const op = "config:DescribeDeliveryChannels"
 	var (
 		skips notStoredSkips

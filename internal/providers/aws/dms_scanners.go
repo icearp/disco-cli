@@ -80,7 +80,7 @@ func dmsTags(client dmsAPI) rowTagReader {
 // as its own phase: a phase's error does not stop the later ones; a failed
 // write and ctx's end do (runHostPhases). The phases run one at a time, so
 // readEachKey's own bound is the bound on the tag reads in flight.
-func scanDMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := databasemigrationservice.NewFromConfig(acct.cfg, func(o *databasemigrationservice.Options) { o.Region = region })
 	tags := dmsTags(client)
 	// Event subscriptions and replication subnet groups carry no ARN, so

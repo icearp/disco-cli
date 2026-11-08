@@ -19,7 +19,7 @@ type kafkaExtAPI interface {
 	GetClusterPolicy(context.Context, *kafka.GetClusterPolicyInput, ...func(*kafka.Options)) (*kafka.GetClusterPolicyOutput, error)
 }
 
-func scanKafkaConfigurations(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafkaConfigurations(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := kafka.NewListConfigurationsPaginator(client, &kafka.ListConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -27,9 +27,9 @@ func scanKafkaConfigurations(ctx context.Context, client kafkaExtAPI, acct *acco
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "kafka:ListConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("kafka:ListConfigurations: %w", perr)
+			return 0, fmt.Errorf("kafka:ListConfigurations: %w", perr)
 		}
 		for _, c := range out.Configurations {
 			arn := sv(c.Arn)
@@ -50,7 +50,7 @@ func scanKafkaConfigurations(ctx context.Context, client kafkaExtAPI, acct *acco
 	return upsertBatch(st, batch, "kafka configurations")
 }
 
-func scanKafkaReplicators(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafkaReplicators(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := kafka.NewListReplicatorsPaginator(client, &kafka.ListReplicatorsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -58,9 +58,9 @@ func scanKafkaReplicators(ctx context.Context, client kafkaExtAPI, acct *account
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "kafka:ListReplicators", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("kafka:ListReplicators: %w", perr)
+			return 0, fmt.Errorf("kafka:ListReplicators: %w", perr)
 		}
 		for _, r := range out.Replicators {
 			arn := sv(r.ReplicatorArn)
@@ -81,7 +81,7 @@ func scanKafkaReplicators(ctx context.Context, client kafkaExtAPI, acct *account
 	return upsertBatch(st, batch, "kafka replicators")
 }
 
-func scanKafkaVpcConnections(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafkaVpcConnections(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	pager := kafka.NewListVpcConnectionsPaginator(client, &kafka.ListVpcConnectionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -89,9 +89,9 @@ func scanKafkaVpcConnections(ctx context.Context, client kafkaExtAPI, acct *acco
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "kafka:ListVpcConnections", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, nil
 			}
-			return 0, 0, fmt.Errorf("kafka:ListVpcConnections: %w", perr)
+			return 0, fmt.Errorf("kafka:ListVpcConnections: %w", perr)
 		}
 		for _, v := range out.VpcConnections {
 			arn := sv(v.VpcConnectionArn)
@@ -126,7 +126,7 @@ func kafkaClusterARNs(clusters []kafkaCluster) []string {
 // not verified. Otherwise a cluster's error is handled per the kafkaChildErrs
 // policy: a denial, a transient error or a rejection skips only that cluster,
 // with one warning for the region.
-func scanKafkaClusterPolicies(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaClusterPolicies(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	errs := &kafkaChildErrs{op: "kafka:GetClusterPolicy", gone: isKafkaGone}
 	batch, err := describeFanOut(ctx, st, acct, region, errs.op, kafkaClusterARNs(clusters), errs.gone,
 		func(ctx context.Context, clusterARN string) (*store.Resource, error) {
@@ -149,7 +149,7 @@ func scanKafkaClusterPolicies(ctx context.Context, client kafkaExtAPI, acct *acc
 		})
 	errs.warn(st, acct, region)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return upsertBatch(st, batch, "kafka cluster-policy")
 }
@@ -161,7 +161,7 @@ func scanKafkaClusterPolicies(ctx context.Context, client kafkaExtAPI, acct *acc
 // fit: it would link the rows under the cluster in the contains closure, which
 // these rows have never had (the resolver links them by attached-to). The
 // fan-out keeps its error policy through fanOutErrs instead.
-func scanKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
+func scanKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, error) {
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -187,9 +187,9 @@ func scanKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *accoun
 		})
 	}
 	err := g.Wait()
-	total, inserted, uerr := upsertBatch(st, batch, "kafka batch-scram-secrets")
+	total, uerr := upsertBatch(st, batch, "kafka batch-scram-secrets")
 	errs.warn(st, acct, region)
-	return total, inserted, errors.Join(err, uerr)
+	return total, errors.Join(err, uerr)
 }
 
 // listKafkaScramSecrets builds one cluster's SCRAM secret rows. On an error

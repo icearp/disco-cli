@@ -151,7 +151,7 @@ func mcvHandlers(calls *mcvCalls) map[string]func(in any) (any, error) {
 
 // mcvScan runs the service scan entry point against handlers; an op without
 // a handler is denied.
-func mcvScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func mcvScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, mcvDenied)
 	return scanMediaConvert(ctx, acct, testRegion, st, testScanID)
@@ -203,7 +203,9 @@ func TestScanMediaConvert_StoresEveryRow(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls mcvCalls
-	total, inserted, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+	counted, upserts := countUpserts(st)
+	total, err := mcvScan(context.Background(), counted, mcvHandlers(&calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -309,7 +311,7 @@ func TestScanMediaConvert_TagResponseWithoutResourceTags(t *testing.T) {
 		calls.tagARNs.add(sv(in.(*mediaconvert.ListTagsForResourceInput).Arn))
 		return &mediaconvert.ListTagsForResourceOutput{}, nil
 	}
-	total, _, err := mcvScan(context.Background(), st, h)
+	total, err := mcvScan(context.Background(), st, h)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -321,17 +323,17 @@ func TestScanMediaConvert_TagResponseWithoutResourceTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanMediaConvert_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls mcvCalls
-	if _, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls)); err != nil {
+	if _, err := mcvScan(context.Background(), st, mcvHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+	total, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -351,7 +353,9 @@ func TestScanMediaConvert_Empty(t *testing.T) {
 	h["ListJobTemplates"] = func(any) (any, error) { return &mediaconvert.ListJobTemplatesOutput{}, nil }
 	h["ListPresets"] = func(any) (any, error) { return &mediaconvert.ListPresetsOutput{}, nil }
 	h["ListQueues"] = func(any) (any, error) { return &mediaconvert.ListQueuesOutput{}, nil }
-	total, inserted, err := mcvScan(context.Background(), st, h)
+	counted, upserts := countUpserts(st)
+	total, err := mcvScan(context.Background(), counted, h)
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -394,7 +398,7 @@ func TestScanMediaConvert_TagReadFailures(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			calls := mcvCalls{tagErrs: map[string]error{c.arn: c.err}}
-			total, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+			total, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -440,7 +444,7 @@ func TestScanMediaConvert_TagDenialsWarnOncePerScan(t *testing.T) {
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := mcvCalls{tagErrs: map[string]error{mcvTestTemplateB: mcvDenied, mcvTestPresetA: mcvDenied, mcvTestQueueB: mcvDenied}}
-	total, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+	total, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -459,7 +463,7 @@ func TestScanMediaConvert_TagThrottleDemotedBesideHardError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, mcvListTagsForResourceOp)
 	calls := mcvCalls{tagErrs: map[string]error{mcvTestTemplateA: mcvThrottle, mcvTestQueueB: mcvBadInput}}
-	_, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+	_, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "BadRequestException")
 	if *warns != 1 {
@@ -490,7 +494,7 @@ func TestScanMediaConvert_ListFailureKeepsPagesAndLaterListings(t *testing.T) {
 				}
 				return list(in)
 			}
-			total, _, err := mcvScan(context.Background(), st, h)
+			total, err := mcvScan(context.Background(), st, h)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "BadRequestException")
 			want := mcvWithout(mcvAllIDs(), tc.lost...)
@@ -529,7 +533,7 @@ func TestScanMediaConvert_ListDeniedWarnsAndContinues(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := mcvScan(context.Background(), st, h); err != nil {
+			if _, err := mcvScan(context.Background(), st, h); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got, want := mcvStored(t, st), mcvWithout(mcvAllIDs(), tc.lost...); !slices.Equal(got, want) {
@@ -562,7 +566,7 @@ func TestScanMediaConvert_FailedWriteStopsScan(t *testing.T) {
 			warns := rhWarnRecorder(st)
 			refuseStoreWrites(t, st, c.typ)
 			calls := mcvCalls{tagErrs: map[string]error{c.deniedTag: mcvDenied}}
-			total, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+			total, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 			if !errors.Is(err, store.ErrStoreWrite) {
 				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 			}
@@ -603,7 +607,7 @@ func TestScanMediaConvert_WritesEachPageBeforeTheNext(t *testing.T) {
 			return list(in)
 		}
 	}
-	if _, _, err := mcvScan(context.Background(), st, h); err != nil {
+	if _, err := mcvScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	for op, arn := range pageOne {
@@ -640,7 +644,7 @@ func TestScanMediaConvert_RepeatedTokenKeepsPages(t *testing.T) {
 				}
 				return out, err
 			}
-			total, _, err := mcvScan(context.Background(), st, h)
+			total, err := mcvScan(context.Background(), st, h)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -671,7 +675,7 @@ func TestScanMediaConvert_ElementWithoutARN(t *testing.T) {
 	h["ListQueues"] = func(any) (any, error) {
 		return &mediaconvert.ListQueuesOutput{Queues: []mctypes.Queue{{Name: sdkaws.String("no-arn")}, {Arn: &mcvTestQueueA}}}, nil
 	}
-	if _, _, err := mcvScan(context.Background(), st, h); err != nil {
+	if _, err := mcvScan(context.Background(), st, h); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	want := mcvSorted(mcvTestTemplateA, mcvTestPresetA, mcvTestQueueA)
@@ -714,7 +718,7 @@ func TestScanMediaConvert_PartitionARNs(t *testing.T) {
 			st := newTestStore(t)
 			acct := partitionAccount(pf.partition)
 			acct.cfg = opStubConfig(h, mcvDenied)
-			if _, _, err := scanMediaConvert(context.Background(), acct, pf.region, st, testScanID); err != nil {
+			if _, err := scanMediaConvert(context.Background(), acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			want := mcvSorted(arns[TypeMediaConvertJobTemplate], arns[TypeMediaConvertPreset], arns[TypeMediaConvertQueue])
@@ -749,7 +753,7 @@ func TestScanMediaConvert_ContextEndReportedOnce(t *testing.T) {
 		}
 		return list(in)
 	}
-	_, _, err := mcvScan(ctx, st, h)
+	_, err := mcvScan(ctx, st, h)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -779,7 +783,7 @@ func TestScanMediaConvert_NXDOMAIN(t *testing.T) {
 		var calls mcvCalls
 		h := mcvHandlers(&calls)
 		h["ListPresets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := mcvScan(context.Background(), st, h)
+		total, err := mcvScan(context.Background(), st, h)
 		assertGlueOutcome(t, err, outcomeError)
 		if want := mcvTestTotal - 3; total != want {
 			t.Errorf("total = %d; want the %d other rows counted", total, want)
@@ -788,7 +792,7 @@ func TestScanMediaConvert_NXDOMAIN(t *testing.T) {
 	t.Run("tag read after the listing", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := mcvCalls{tagErrs: map[string]error{mcvTestQueueB: nx}}
-		_, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+		_, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -796,7 +800,7 @@ func TestScanMediaConvert_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanMediaConvert(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanMediaConvert(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

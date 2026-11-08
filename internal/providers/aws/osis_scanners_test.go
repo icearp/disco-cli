@@ -101,7 +101,9 @@ func scanOSISCtx(ctx context.Context, t *testing.T, st *store.Store, handlers ma
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfigCtx(handlers, osisTestDenied)
-	total, inserted, err := scanOSIS(ctx, acct, testRegion, st, testScanID)
+	counted, upserts := countUpserts(st)
+	total, err := scanOSIS(ctx, acct, testRegion, counted, testScanID)
+	inserted := upserts()
 	if inserted != total {
 		t.Errorf("inserted = %d, want total %d", inserted, total)
 	}

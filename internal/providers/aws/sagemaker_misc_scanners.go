@@ -36,18 +36,18 @@ type sagemakerMiscAPI interface {
 // scanSageMakerMisc runs the misc-family phases: HyperPod clusters, their
 // nodes, and ground-truth workteams. The node phase fans out per scanned
 // cluster, so it runs after clusters.
-func scanSageMakerMisc(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerMisc(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return runSageMakerPhases(
-		sagemakerPhase{"sagemaker:ListClusters", func() (int, int, error) { return scanSageMakerClusters(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListWorkteams", func() (int, int, error) { return scanSageMakerWorkteams(ctx, client, acct, region, st, scanID) }},
-		sagemakerPhase{"sagemaker:ListSubscribedWorkteams", func() (int, int, error) {
+		sagemakerPhase{"sagemaker:ListClusters", func() (int, error) { return scanSageMakerClusters(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListWorkteams", func() (int, error) { return scanSageMakerWorkteams(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListSubscribedWorkteams", func() (int, error) {
 			return scanSageMakerSubscribedWorkteams(ctx, client, acct, region, st, scanID)
 		}},
-		sagemakerPhase{"sagemaker:ListClusterNodes", func() (int, int, error) { return scanSageMakerClusterNodes(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListClusterNodes", func() (int, error) { return scanSageMakerClusterNodes(ctx, client, acct, region, st, scanID) }},
 	)
 }
 
-func scanSageMakerClusters(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerClusters(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.ClusterSummary]{
 		listOp: "sagemaker:ListClusters", describeOp: "sagemaker:DescribeCluster", notFound: []string{"ResourceNotFound"},
 		list: func(ctx context.Context, token *string) ([]smtypes.ClusterSummary, *string, error) {
@@ -93,7 +93,7 @@ func scanSageMakerClusters(ctx context.Context, client sagemakerMiscAPI, acct *a
 // scanSageMakerWorkteams lists ground-truth workteams then fans out
 // DescribeWorkteam for the full body, matching every other SageMaker
 // family's per-Describe rule.
-func scanSageMakerWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return sagemakerDescribe[smtypes.Workteam]{
 		listOp: "sagemaker:ListWorkteams", describeOp: "sagemaker:DescribeWorkteam",
 		list: func(ctx context.Context, token *string) ([]smtypes.Workteam, *string, error) {
@@ -140,7 +140,7 @@ func scanSageMakerWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *
 // scanSageMakerClusterNodes lists the instances of every scanned HyperPod
 // cluster. Only nodes with an assigned InstanceId are listed (the API default):
 // a node still provisioning has no stable id yet.
-func scanSageMakerClusterNodes(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerClusterNodes(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerCluster, "sagemaker:ListClusterNodes", []string{"ResourceNotFound"},
 		sagemakerChildSkips{emptyWhy: "cluster nodes have an empty InstanceId"},
 		func(ctx context.Context, cluster store.Resource) []sagemakerChildList[*store.Resource] {
@@ -185,7 +185,7 @@ func scanSageMakerClusterNodes(ctx context.Context, client sagemakerMiscAPI, acc
 // scanSageMakerSubscribedWorkteams lists the vendor workteams this account
 // subscribed to through AWS Marketplace. Their ARNs name the vendor's account,
 // so they never collide with the private workteams ListWorkteams returns.
-func scanSageMakerSubscribedWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSageMakerSubscribedWorkteams(ctx context.Context, client sagemakerMiscAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return scanSagemakerSummaryList(ctx, acct, region, st, scanID,
 		TypeSageMakerSubscribedWorkteam, "sagemaker:ListSubscribedWorkteams",
 		func(ctx context.Context, token *string) ([]smtypes.SubscribedWorkteam, *string, error) {

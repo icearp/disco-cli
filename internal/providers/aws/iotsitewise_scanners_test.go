@@ -203,7 +203,7 @@ func iswHandlers(c *iswCalls) map[string]func(any) (any, error) {
 
 // iswScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func iswScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func iswScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, iswDenied)
@@ -227,7 +227,9 @@ func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newISWCalls()
 
-	total, inserted, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := iswScan(context.Background(), t, counted, iswHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -303,17 +305,17 @@ func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the newly inserted
-// ones. The dispatcher reports total for the service, and a first scan into an
-// empty store has total == inserted, so only a rescan catches the two swapped.
+// A rescan reports every stored row in its total, not only the rows the store
+// newly wrote. On a first scan into an empty store every row is new, so only a
+// rescan catches a total taken from the store's written count.
 func TestScanIoTSiteWise_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newISWCalls()
-	if _, _, err := iswScan(context.Background(), t, st, iswHandlers(calls)); err != nil {
+	if _, err := iswScan(context.Background(), t, st, iswHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	total, err := iswScan(context.Background(), t, st, iswHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -353,7 +355,7 @@ func TestScanIoTSiteWise_TagReadFailures(t *testing.T) {
 					calls := newISWCalls()
 					calls.errs[target.arn] = c.err
 
-					_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+					_, err := iswScan(context.Background(), t, st, iswHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -399,7 +401,7 @@ func TestScanIoTSiteWise_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[iswARN("dashboard", "tagged-tagged-tagged")] = iswThrottle
 	calls.errs[iswARN("dashboard", "bare-bare-bare")] = iswBadInput
 
-	_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	_, err := iswScan(context.Background(), t, st, iswHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidRequestException")
 	if *warns != 1 {
@@ -440,7 +442,7 @@ func TestScanIoTSiteWise_DescribeFailures(t *testing.T) {
 					calls := newISWCalls()
 					calls.describeErrs[target.id] = c.err
 
-					_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+					_, err := iswScan(context.Background(), t, st, iswHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -483,7 +485,7 @@ func TestScanIoTSiteWise_FailedWriteStopsWithoutWarning(t *testing.T) {
 	handlers := iswHandlers(calls)
 	handlers["ListAssets"] = failOnCall(2, iswDenied, handlers["ListAssets"])
 
-	_, _, err := iswScan(context.Background(), t, st, handlers)
+	_, err := iswScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -514,7 +516,7 @@ func TestScanIoTSiteWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 		return listAssets(in)
 	}
 
-	_, _, err := iswScan(context.Background(), t, st, handlers)
+	_, err := iswScan(context.Background(), t, st, handlers)
 	for _, code := range []string{"ConflictingOperationException", "InvalidRequestException"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -575,7 +577,7 @@ func TestScanIoTSiteWise_FeatureGap(t *testing.T) {
 			}
 			handlers[tc.op] = failOnCall(tc.failCall, iswGap, handlers[tc.op])
 
-			_, _, err := iswScan(context.Background(), t, st, handlers)
+			_, err := iswScan(context.Background(), t, st, handlers)
 			if tc.wantErr {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, "InvalidRequestException")
@@ -603,7 +605,7 @@ func TestScanIoTSiteWise_UnstorableItemsWarn(t *testing.T) {
 		return &iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{{GatewayId: sdkaws.String("tagged")}, {GatewayName: sdkaws.String("unnamed")}}}, nil
 	}
 
-	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := iswScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := len(rowsByNativeID(t, st, TypeIoTSWGateway)); got != 1 {
@@ -626,7 +628,7 @@ func TestScanIoTSiteWise_ApplicationOfUnlistedWorkspaceUnlinked(t *testing.T) {
 		}}}, nil
 	}
 
-	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := iswScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	app, ok := iswRowOf(t, st, TypeIoTSWApplication, iswARN("workspace", "gone/application/orphan"))
@@ -651,7 +653,7 @@ func TestScanIoTSiteWise_RepeatedTokenKeepsPages(t *testing.T) {
 		return &iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{{GatewayId: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
 	}
 
-	_, _, err := iswScan(context.Background(), t, st, handlers)
+	_, err := iswScan(context.Background(), t, st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -679,7 +681,7 @@ func TestScanIoTSiteWise_ContextEndStopsOnce(t *testing.T) {
 		return gateways(in)
 	}
 
-	_, _, err := iswScan(ctx, t, st, handlers)
+	_, err := iswScan(ctx, t, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -712,7 +714,7 @@ func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := iswHandlers(newISWCalls())
 		handlers["ListDatasets"] = func(any) (any, error) { return nil, nx }
-		total, _, err := iswScan(context.Background(), t, st, handlers)
+		total, err := iswScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		var unresolved *iotSWMonitorUnresolvedError
 		if errors.As(err, &unresolved) {
@@ -728,7 +730,7 @@ func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
 		calls := newISWCalls()
 		handlers := iswHandlers(calls)
 		handlers["ListPortals"] = func(any) (any, error) { return nil, nx }
-		total, _, err := iswScan(context.Background(), t, st, handlers)
+		total, err := iswScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		var unresolved *iotSWMonitorUnresolvedError
 		if !errors.As(err, &unresolved) {
@@ -748,7 +750,7 @@ func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := iswHandlers(newISWCalls())
 		handlers["ListPortals"] = failOnCall(2, nx, handlers["ListPortals"])
-		_, _, err := iswScan(context.Background(), t, st, handlers)
+		_, err := iswScan(context.Background(), t, st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if _, ok := iswRowOf(t, st, TypeIoTSWPortal, iswARN("portal", "tagged")); !ok {
 			t.Error("portal from the page before the NXDOMAIN missing")
@@ -759,7 +761,7 @@ func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanIoTSiteWise(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanIoTSiteWise(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)
@@ -786,7 +788,7 @@ func TestScanIoTSiteWise_DeletedWorkspaceSkipped(t *testing.T) {
 				}
 				return list(in)
 			}
-			if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+			if _, err := iswScan(context.Background(), t, st, handlers); err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
 			if *warns != 0 {
@@ -812,7 +814,7 @@ func TestScanIoTSiteWise_ElementWithoutIDStoredUndescribed(t *testing.T) {
 		return &iotsitewise.ListAssetModelsOutput{AssetModelSummaries: []iswtypes.AssetModelSummary{{Arn: sdkaws.String(arn), Name: sdkaws.String("no id")}}}, nil
 	}
 
-	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := iswScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	r, ok := iswRowOf(t, st, TypeIoTSWAssetModel, arn)
@@ -845,7 +847,7 @@ func TestScanIoTSiteWise_ElementWithoutIDDroppedByTagRead(t *testing.T) {
 		return &iotsitewise.ListAssetModelsOutput{AssetModelSummaries: []iswtypes.AssetModelSummary{{Arn: sdkaws.String(arn)}}}, nil
 	}
 
-	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+	if _, err := iswScan(context.Background(), t, st, handlers); err != nil {
 		t.Fatalf("err = %v; want nil", err)
 	}
 	if _, ok := iswRowOf(t, st, TypeIoTSWAssetModel, arn); ok {

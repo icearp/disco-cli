@@ -87,28 +87,28 @@ func applicationSignalsGroupingConfigurationNativeID(partition, region, acct str
 // (runHostPhases). The SLOs and the instrumentation configurations have their
 // tags read per row (appSignalsTags), and the tag denials of the whole scan
 // are one warning.
-func scanApplicationSignals(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanApplicationSignals(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	client := applicationsignals.NewFromConfig(acct.cfg, func(o *applicationsignals.Options) { o.Region = region })
 	tags := appSignalsTags(client).sharingDenials()
 	var services []applicationSignalsService
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "applicationsignals", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "applicationsignals", 0, []hostPhase{
 		{op: appSignalsListSLOsOp, run: func(p *phaseTotals) bool {
 			return scanApplicationSignalsSLOs(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		countedPhase(0, appSignalsListGroupingOp, func() (int, int, error) {
+		countedPhase(0, appSignalsListGroupingOp, func() (int, error) {
 			return scanApplicationSignalsGroupingConfiguration(ctx, client, acct, region, st, scanID)
 		}),
 		{op: appSignalsListServicesOp, run: func(p *phaseTotals) bool {
-			t, i, stored, err := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
+			t, stored, err := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
 			services = stored
-			return p.addPhase(appSignalsListServicesOp, t, i, err)
+			return p.addPhase(appSignalsListServicesOp, t, err)
 		}},
 		{op: appSignalsListInstrumentationConfigurationsOp, run: func(p *phaseTotals) bool {
 			return scanApplicationSignalsInstrumentationConfigurations(ctx, client, acct, region, st, scanID, services, tags, p)
 		}},
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // appSignalsTags reads a row's tags with ListTagsForResource, sent the row's
@@ -141,7 +141,7 @@ func appSignalsTags(client applicationSignalsAPI) rowTagReader {
 // repeated NextToken keeps the pages written before it; a denial is warned
 // about. It returns the instrumented services (KeyAttributes Type "Service")
 // stored before any failure.
-func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total, inserted int, services []applicationSignalsService, err error) {
+func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total int, services []applicationSignalsService, err error) {
 	start := now.Add(-24 * time.Hour)
 	var skips notStoredSkips
 	listErr := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]applicationsignalstypes.ServiceSummary, *string, error) {
@@ -182,19 +182,18 @@ func scanApplicationSignalsServices(ctx context.Context, client applicationSigna
 				instrumented = append(instrumented, applicationSignalsService{name: name, environment: env, nativeID: nativeID})
 			}
 		}
-		t, i, err := upsertBatch(st, batch, "applicationsignals services")
+		t, err := upsertBatch(st, batch, "applicationsignals services")
 		total += t
-		inserted += i
 		if err == nil {
 			services = append(services, instrumented...)
 		}
 		return err
 	})
 	// A failed write is listErr, which storeReadRows returns before warning.
-	_, _, err = storeReadRows(st, acct, region, appSignalsListServicesOp, nil, listErr, func() {
+	_, err = storeReadRows(st, acct, region, appSignalsListServicesOp, nil, listErr, func() {
 		skips.warn(st, appSignalsListServicesOp, acct, region)
 	})
-	return total, inserted, services, err
+	return total, services, err
 }
 
 // scanApplicationSignalsInstrumentationConfigurations stores the probe
@@ -333,7 +332,7 @@ func flattenAppSignalsInstrumentationConfiguration(c applicationsignalstypes.Ins
 // definition or a non-zero UpdatedAt; empty means no configuration exists in
 // this region. A failed page or a repeated NextToken stores nothing: a
 // partial body would read as the whole configuration.
-func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	type aggregate struct {
 		GroupingAttributeDefinitions []applicationsignalsListGroupingAttributeDefinitionsItem `json:"GroupingAttributeDefinitions"`
 		UpdatedAt                    *time.Time                                               `json:"UpdatedAt,omitempty"`
@@ -344,9 +343,9 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 		out, lerr := client.ListGroupingAttributeDefinitions(ctx, &applicationsignals.ListGroupingAttributeDefinitionsInput{NextToken: nextToken})
 		if lerr != nil {
 			if isAccessDenied(lerr) {
-				return total, inserted, skipIfAccessDenied(st, appSignalsListGroupingOp, acct.ID, region, lerr)
+				return total, skipIfAccessDenied(st, appSignalsListGroupingOp, acct.ID, region, lerr)
 			}
-			return total, inserted, fmt.Errorf("%s: %w", appSignalsListGroupingOp, lerr)
+			return total, fmt.Errorf("%s: %w", appSignalsListGroupingOp, lerr)
 		}
 		for _, d := range out.GroupingAttributeDefinitions {
 			agg.GroupingAttributeDefinitions = append(agg.GroupingAttributeDefinitions, applicationsignalsListGroupingAttributeDefinitionsItem{
@@ -360,7 +359,7 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 		}
 		done, terr := lastPage(nextToken, out.NextToken)
 		if terr != nil {
-			return total, inserted, fmt.Errorf("%s: %w", appSignalsListGroupingOp, terr)
+			return total, fmt.Errorf("%s: %w", appSignalsListGroupingOp, terr)
 		}
 		if done {
 			break
@@ -369,7 +368,7 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 	}
 	// No configuration created in this region — skip the singleton row.
 	if len(agg.GroupingAttributeDefinitions) == 0 && agg.UpdatedAt == nil {
-		return 0, 0, nil
+		return 0, nil
 	}
 	nativeID := applicationSignalsGroupingConfigurationNativeID(acct.partition(), region, acct.ID)
 	name := "grouping-configuration"
@@ -385,11 +384,11 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 		AttributesJSON: mustJSON(agg),
 		DiscoveredBy:   scanID,
 	}
-	n, err := st.UpsertResources([]*store.Resource{r})
+	_, err = st.UpsertResources([]*store.Resource{r})
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert applicationsignals grouping-configuration: %w", err)
+		return 0, fmt.Errorf("upsert applicationsignals grouping-configuration: %w", err)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
 // applicationsignalsListGroupingAttributeDefinitionsItem is a JSON-friendly

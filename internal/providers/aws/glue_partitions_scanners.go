@@ -36,7 +36,7 @@ func glueTableOptimizerARN(partition, region, acct, db, table, optType string) s
 // explode on Hive-partitioned tables (millions of partitions); fanoutLow
 // bounds concurrency, and per-table AccessDenied/EntityNotFoundException/
 // ValidationException are tolerated without aborting siblings.
-func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total, inserted int, err error) {
+func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total int, err error) {
 	sem := semaphore.NewWeighted(fanoutLow)
 	var (
 		mu    sync.Mutex
@@ -47,7 +47,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 	for _, ref := range refs {
 		ref := ref
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -91,19 +91,19 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue partitions: %w", uerr)
+		return 0, fmt.Errorf("upsert glue partitions: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure glue partitions: %w", err)
+		return 0, fmt.Errorf("closure glue partitions: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }
 
 // glueOptimizerTypes lists the SDK's TableOptimizerType values. Iceberg-only
@@ -118,7 +118,7 @@ var glueOptimizerTypes = []gluetypes.TableOptimizerType{
 // Only Iceberg tables are eligible; non-Iceberg tables skip the call to avoid
 // wasted RPCs. EntityNotFoundException is expected when an optimizer type
 // isn't configured for a given Iceberg table — skip silently.
-func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total, inserted int, err error) {
+func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, refs []glueTableRef) (total int, err error) {
 	// Filter to Iceberg tables.
 	icebergRefs := refs[:0:0]
 	for _, r := range refs {
@@ -127,7 +127,7 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 		}
 	}
 	if len(icebergRefs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -142,7 +142,7 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 		for _, optType := range glueOptimizerTypes {
 			optType := optType
 			if err := sem.Acquire(gctx, 1); err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			g.Go(func() error {
 				defer sem.Release(1)
@@ -191,17 +191,17 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 		}
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
-	n, uerr := st.UpsertResources(batch)
+	_, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue table-optimizers: %w", uerr)
+		return 0, fmt.Errorf("upsert glue table-optimizers: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure glue table-optimizers: %w", err)
+		return 0, fmt.Errorf("closure glue table-optimizers: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), nil
 }

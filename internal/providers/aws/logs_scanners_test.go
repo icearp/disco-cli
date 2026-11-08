@@ -119,7 +119,7 @@ func TestScanLogsIndexPolicies_StoresOnlyGroupLevelPolicies(t *testing.T) {
 			}
 		},
 	})
-	total, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	total, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -152,7 +152,7 @@ func TestScanLogsIndexPolicies_NoPoliciesStoresNothing(t *testing.T) {
 	client := logsTestClient(map[string]func(any) (any, error){
 		"DescribeIndexPolicies": func(any) (any, error) { return &cwlogs.DescribeIndexPoliciesOutput{}, nil },
 	})
-	total, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	total, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeLogsIndexPolicy)) != 0 {
 		t.Errorf("total, err = %d, %v; want 0 rows, nil", total, err)
 	}
@@ -172,7 +172,7 @@ func TestScanLogsIndexPolicies_DeniedWarnsOnceAndKeepsSiblings(t *testing.T) {
 			return nil, logsDenied
 		},
 	})
-	total, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	total, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -188,7 +188,7 @@ func TestScanLogsIndexPolicies_OtherErrorPropagates(t *testing.T) {
 	client := logsTestClient(map[string]func(any) (any, error){
 		"DescribeIndexPolicies": func(any) (any, error) { return nil, logsBadArg },
 	})
-	_, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	_, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("err = %v; want the InvalidParameterException", err)
 	}
@@ -210,7 +210,7 @@ func TestScanLogsIndexPolicies_RepeatedTokenFails(t *testing.T) {
 			}, nil
 		},
 	})
-	_, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	_, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
@@ -236,7 +236,7 @@ func TestScanLogsIndexPolicies_QueriesOnlyStandardGroups(t *testing.T) {
 			return &cwlogs.DescribeIndexPoliciesOutput{}, nil
 		},
 	})
-	if _, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID); err != nil {
+	if _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if got, want := calls.distinct(), []string{lgTestARN("legacy"), lgTestARN("std")}; !slices.Equal(got, want) {
@@ -258,7 +258,7 @@ func TestScanLogsIndexPolicies_ThrottledGroupWarnsAndKeepsOthers(t *testing.T) {
 			return &cwlogs.DescribeIndexPoliciesOutput{IndexPolicies: []logsTypes.IndexPolicy{logGroupIndexPolicy(arn)}}, nil
 		},
 	})
-	total, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	total, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if err != nil || total != 2 || len(rowsByNativeID(t, st, TypeLogsIndexPolicy)) != 2 {
 		t.Errorf("total, err = %d, %v; want 2 stored, nil", total, err)
 	}
@@ -278,7 +278,7 @@ func TestScanLogsIndexPolicies_UndecodableGroupFails(t *testing.T) {
 		},
 	})
 	groups := []store.Resource{{NativeID: lgTestARN("bad"), AttributesJSON: "{"}}
-	_, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	_, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	var syntaxErr *json.SyntaxError
 	if !errors.As(err, &syntaxErr) || len(calls.ids) != 0 {
 		t.Errorf("err, calls = %v, %v; want a JSON syntax error and no call", err, calls.ids)
@@ -323,7 +323,7 @@ func TestScanLogsSyslogConfigurations_StoresEveryPage(t *testing.T) {
 	})
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
-	total, _, err := scanLogsSyslogConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	total, err := scanLogsSyslogConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
 	if err != nil || total != 2 {
 		t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
 	}
@@ -401,7 +401,7 @@ func TestScanLogsSyslogConfigurations_Errors(t *testing.T) {
 			st := newTestStore(t)
 			warnings := countOpWarnings(st, "logs:ListSyslogConfigurations")
 			client := logsTestClient(map[string]func(any) (any, error){"ListSyslogConfigurations": tc.list})
-			total, _, err := scanLogsSyslogConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, nil, st, testScanID)
+			total, err := scanLogsSyslogConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, nil, st, testScanID)
 			switch {
 			case tc.wantIs != nil:
 				if !errors.Is(err, tc.wantIs) {
@@ -464,7 +464,7 @@ func s3tHandlers(calls *parentCalls, override map[string]func(any) (any, error))
 
 func runS3TSources(t *testing.T, st *store.Store, acct *account, handlers map[string]func(any) (any, error)) (int, error) {
 	t.Helper()
-	total, _, err := scanLogsS3TableSources(context.Background(), logsTestClient(handlers), obsTestClient(handlers), acct, testRegion, st, testScanID)
+	total, err := scanLogsS3TableSources(context.Background(), logsTestClient(handlers), obsTestClient(handlers), acct, testRegion, st, testScanID)
 	return total, err
 }
 
@@ -645,7 +645,7 @@ func TestScanLogsS3TableSources_SkipsRegionWithoutObservabilityAdmin(t *testing.
 				obsCalls.add("call")
 				return list(in)
 			}
-			_, _, err := scanLogsS3TableSources(context.Background(), logsTestClient(handlers), obsTestClient(handlers), acct, region, st, testScanID)
+			_, err := scanLogsS3TableSources(context.Background(), logsTestClient(handlers), obsTestClient(handlers), acct, region, st, testScanID)
 			if err != nil || len(obsCalls.ids) != tc.wantObsCalls {
 				t.Errorf("err, ListS3TableIntegrations calls = %v, %d; want nil, %d", err, len(obsCalls.ids), tc.wantObsCalls)
 			}
@@ -684,7 +684,7 @@ func TestScanLogs_StoresNewChildTypes(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(logsTopLevelHandlers(nil), logsDenied)
-	if _, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID); err != nil {
+	if _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanLogs: %v", err)
 	}
 	for typ, id := range map[string]string{
@@ -715,7 +715,7 @@ func TestScanLogs_NewPhaseErrorsDoNotStopOtherScans(t *testing.T) {
 		"ListSyslogConfigurations":         fail("SyslogBoom"),
 		"ListSourcesForS3TableIntegration": fail("SourceBoom"),
 	}), logsDenied)
-	_, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+	_, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
 	for _, code := range []string{"IndexBoom", "SyslogBoom", "SourceBoom"} {
 		if !joinCarriesAPIErrorCode(err, code) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
@@ -758,7 +758,7 @@ func TestScanLogs_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
 				tc.throttledOp: throttled,
 				tc.hardOp:      hard,
 			}), logsDenied)
-			_, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+			_, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeError || !joinCarriesAPIErrorCode(err, "InvalidParameterException") {
 				t.Errorf("classifyServiceError(%v) = %d; want outcomeError (%d) carrying InvalidParameterException", err, got, outcomeError)
 			}
@@ -782,7 +782,7 @@ func TestScanLogs_LoneTransientPhaseMarksPartial(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			warnings := countOpWarnings(st, "logs:"+op)
 			acct.cfg = opStubConfig(logsTopLevelHandlers(map[string]func(any) (any, error){op: throttled}), logsDenied)
-			total, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+			total, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
 			if got := classifyServiceError(err); got != outcomeTransient {
 				t.Errorf("classifyServiceError(%v) = %d; want outcomeTransient (%d)", err, got, outcomeTransient)
 			}
@@ -1020,7 +1020,7 @@ func logsTagHandlers(c *logsCalls) map[string]func(in any) (any, error) {
 
 // logsScan runs the scan's real entry point against handlers; every op they
 // do not answer is denied.
-func logsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+func logsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, logsDenied)
 	return scanLogs(ctx, acct, testRegion, st, testScanID)
@@ -1053,7 +1053,9 @@ func TestScanLogs_StoresTagsOfEveryType(t *testing.T) {
 	warns := rhWarnRecorder(st)
 	calls := newLogsCalls("aws", testRegion)
 
-	total, inserted, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := logsScan(context.Background(), counted, logsTagHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1118,10 +1120,12 @@ func TestScanLogs_StoresTagsOfEveryType(t *testing.T) {
 func TestScanLogs_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	if _, _, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion))); err != nil {
+	if _, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion)))
+	counted, upserts := countUpserts(st)
+	total, err := logsScan(context.Background(), counted, logsTagHandlers(newLogsCalls("aws", testRegion)))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -1171,7 +1175,7 @@ func TestScanLogs_TagReadFailures(t *testing.T) {
 			arn := c.k.arn("tagged")
 			calls.errs[arn] = c.err
 
-			total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+			total, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 			if c.outcome < 0 {
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
@@ -1214,7 +1218,7 @@ func TestScanLogs_PerGroupPhaseReadsGroupsStoredThisScan(t *testing.T) {
 	k := logsKindOf(t, "DescribeLogGroups")
 	calls.errs[k.arn("tagged")] = logsGone
 
-	if _, _, err := logsScan(context.Background(), st, logsTagHandlers(calls)); err != nil {
+	if _, err := logsScan(context.Background(), st, logsTagHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := calls.streamGroups, []string{k.name("bare")}; !slices.Equal(got, want) {
@@ -1252,7 +1256,7 @@ func TestScanLogs_DeniedLogGroupsReadsStoredGroups(t *testing.T) {
 			handlers := logsTagHandlers(calls)
 			handlers[k.op] = failOnCall(call, logsDenied, handlers[k.op])
 
-			if _, _, err := logsScan(context.Background(), st, handlers); err != nil {
+			if _, err := logsScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			got := slices.Sorted(slices.Values(calls.streamGroups))
@@ -1280,7 +1284,7 @@ func TestScanLogs_FailedLogGroupsReadsGroupsStoredThisScan(t *testing.T) {
 			handlers := logsTagHandlers(calls)
 			handlers[k.op] = failOnCall(call, logsBadArg, handlers[k.op])
 
-			_, _, err := logsScan(context.Background(), st, handlers)
+			_, err := logsScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterException")
 			if got := calls.streamGroups; !slices.Equal(got, want) {
@@ -1309,7 +1313,7 @@ func TestScanLogs_LogGroupLoadFailureStopsScan(t *testing.T) {
 		return &cwlogs.DescribeLookupTablesOutput{}, nil
 	}
 
-	_, _, err := logsScan(context.Background(), st, handlers)
+	_, err := logsScan(context.Background(), st, handlers)
 	if !errors.Is(err, errStoreRead) {
 		t.Fatalf("err = %v; want errStoreRead", err)
 	}
@@ -1332,7 +1336,7 @@ func TestScanLogs_DeliveryWithoutARNWarnsByID(t *testing.T) {
 		return &cwlogs.DescribeDeliveriesOutput{Deliveries: []logsTypes.Delivery{{Id: sdkaws.String("d-1"), DeliverySourceName: sdkaws.String("src")}}}, nil
 	}
 
-	if _, _, err := logsScan(context.Background(), st, handlers); err != nil {
+	if _, err := logsScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	w := warns()
@@ -1355,7 +1359,7 @@ func TestScanLogs_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[k.arn("bare")] = logsDenied
 	}
 
-	total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	total, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -1386,7 +1390,7 @@ func TestScanLogs_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[logsKindOf(t, "DescribeDestinations").arn("tagged")] = logsThrottle
 	calls.errs[logsKindOf(t, "DescribeLookupTables").arn("bare")] = logsBadArg
 
-	_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	_, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidParameterException")
 	if *warns != 1 {
@@ -1407,7 +1411,7 @@ func TestScanLogs_FailedWriteStopsScan(t *testing.T) {
 		k := logsKindOf(t, "DescribeDestinations")
 		calls.errs[k.arn("tagged")] = logsDenied
 
-		total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		total, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -1432,7 +1436,7 @@ func TestScanLogs_FailedWriteStopsScan(t *testing.T) {
 		refuseStoreWrites(t, st, TypeLogsLogStream)
 		calls := newLogsCalls("aws", testRegion)
 
-		_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		_, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 		if !errors.Is(err, store.ErrStoreWrite) {
 			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 		}
@@ -1457,7 +1461,7 @@ func TestScanLogs_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 			k := logsKindOf(t, op)
 			handlers[k.op] = failOnCall(2, logsBadArg, handlers[k.op])
 
-			total, _, err := logsScan(context.Background(), st, handlers)
+			total, err := logsScan(context.Background(), st, handlers)
 			assertGlueOutcome(t, err, outcomeError)
 			assertAPICode(t, err, "InvalidParameterException")
 			lost := 1
@@ -1493,7 +1497,7 @@ func TestScanLogs_DeniedListingWarnsUnderItsOp(t *testing.T) {
 				k := logsKindOf(t, op)
 				handlers[k.op] = failOnCall(call, logsDenied, handlers[k.op])
 
-				total, _, err := logsScan(context.Background(), st, handlers)
+				total, err := logsScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
@@ -1527,7 +1531,7 @@ func TestScanLogs_RepeatedTokenKeepsPages(t *testing.T) {
 				arn, name := k.arn(suffix), k.name(suffix)
 				return k.page(&arn, &name, nil, sdkaws.String("same")), nil
 			}
-			total, _, err := logsScan(context.Background(), st, handlers)
+			total, err := logsScan(context.Background(), st, handlers)
 			if !errors.Is(err, errRepeatedNextToken) {
 				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
@@ -1555,7 +1559,7 @@ func TestScanLogs_ElementWithoutARNWarns(t *testing.T) {
 				handlers := logsTagHandlers(calls)
 				handlers[k.op] = func(any) (any, error) { return k.page(nil, &name, nil, nil), nil }
 
-				total, _, err := logsScan(context.Background(), st, handlers)
+				total, err := logsScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -1593,7 +1597,7 @@ func TestScanLogs_TagReadsKeepPartitionARNs(t *testing.T) {
 			region := acct.Regions[0]
 			calls := newLogsCalls(partition, region)
 			acct.cfg = opStubConfig(logsTagHandlers(calls), logsDenied)
-			if _, _, err := scanLogs(context.Background(), acct, region, st, testScanID); err != nil {
+			if _, err := scanLogs(context.Background(), acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := slices.Sorted(slices.Values(calls.tagARNs)); !slices.Equal(got, logsTagReadARNs(calls)) {
@@ -1624,7 +1628,7 @@ func TestScanLogs_ContextEndReportedOnce(t *testing.T) {
 		return list(in)
 	}
 
-	_, _, err := logsScan(ctx, st, handlers)
+	_, err := logsScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1653,7 +1657,7 @@ func TestScanLogs_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := logsTagHandlers(newLogsCalls("aws", testRegion))
 		handlers["DescribeLookupTables"] = func(any) (any, error) { return nil, nx }
-		total, _, err := logsScan(context.Background(), st, handlers)
+		total, err := logsScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != logsTestTotal-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, logsTestTotal-2)
@@ -1663,7 +1667,7 @@ func TestScanLogs_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newLogsCalls("aws", testRegion)
 		calls.errs[logsKindOf(t, "DescribeLogGroups").arn("bare")] = nx
-		_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		_, err := logsScan(context.Background(), st, logsTagHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1671,7 +1675,7 @@ func TestScanLogs_NXDOMAIN(t *testing.T) {
 		warns := rhWarnRecorder(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+		_, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if w := warns(); len(w) != 0 {
 			t.Errorf("warnings = %v; want none", w)

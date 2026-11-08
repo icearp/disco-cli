@@ -74,16 +74,16 @@ var (
 // parents concurrently. The accelerators of both kinds and the cross-account
 // attachments have their tags read per row (gaTags), and the tag denials of
 // the whole scan are one warning.
-func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 	region, err := acct.homeRegion("globalaccelerator")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
 	tags := gaTags(client).sharingDenials()
 	var accelerators, crAccelerators, crListeners []childParent
 	var listeners []string
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "globalaccelerator", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "globalaccelerator", 0, []hostPhase{
 		{op: gaAcceleratorsOp, run: func(p *phaseTotals) (failed bool) {
 			accelerators, failed = scanGAAccelerators(ctx, client, acct, region, st, scanID, tags, p)
 			return failed
@@ -95,7 +95,7 @@ func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *sto
 			listeners, failed = scanGAListeners(ctx, client, acct, region, st, scanID, accelerators, p)
 			return failed
 		}},
-		countedPhase(0, gaEndpointGroupsOp, func() (int, int, error) {
+		countedPhase(0, gaEndpointGroupsOp, func() (int, error) {
 			return scanGAEndpointGroups(ctx, client, acct, region, st, scanID, listeners)
 		}),
 		{op: gaCustomRoutingAcceleratorsOp, run: func(p *phaseTotals) (failed bool) {
@@ -106,15 +106,15 @@ func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *sto
 			crListeners, failed = scanGACustomRoutingListeners(ctx, client, acct, region, st, scanID, crAccelerators, p)
 			return failed
 		}},
-		countedPhase(0, gaCustomRoutingEndpointGroupsOp, func() (int, int, error) {
+		countedPhase(0, gaCustomRoutingEndpointGroupsOp, func() (int, error) {
 			return scanGACustomRoutingEndpointGroups(ctx, client, acct, region, st, scanID, crListeners)
 		}),
-		countedPhase(0, gaByoipCidrsOp, func() (int, int, error) {
+		countedPhase(0, gaByoipCidrsOp, func() (int, error) {
 			return scanGAByoipCidrs(ctx, client, acct, region, st, scanID)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // gaTags reads a row's tags with ListTagsForResource, sent the row's
@@ -198,7 +198,7 @@ func scanGACrossAccountAttachments(ctx context.Context, client globalAccelerator
 // whether the write failed, after which the scan must stop.
 func scanGAListeners(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, accelerators []childParent, p *phaseTotals) ([]string, bool) {
 	var listeners []string
-	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, gaListenersOp, gaAcceleratorGone, childParentIDs(accelerators),
+	total, err := storeTokenEachParent(ctx, st, acct, region, gaListenersOp, gaAcceleratorGone, childParentIDs(accelerators),
 		func(ctx context.Context, accelerator string, token *string) ([]gatypes.Listener, *string, error) {
 			out, err := client.ListListeners(ctx, &globalaccelerator.ListListenersInput{AcceleratorArn: &accelerator, MaxResults: aws.Int32(gaPageLimit), NextToken: token})
 			if err != nil {
@@ -219,12 +219,12 @@ func scanGAListeners(ctx context.Context, client globalAcceleratorAPI, acct *acc
 			}
 			return r, why, key
 		})
-	return listeners, p.addPhase(gaListenersOp, total, inserted, err)
+	return listeners, p.addPhase(gaListenersOp, total, err)
 }
 
 // scanGAEndpointGroups stores each listener's endpoint groups. One listener's
 // failure costs the others none of theirs (storeTokenEachParent).
-func scanGAEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, listeners []string) (int, int, error) {
+func scanGAEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, listeners []string) (int, error) {
 	return storeTokenEachParent(ctx, st, acct, region, gaEndpointGroupsOp, gaListenerGone, listeners,
 		func(ctx context.Context, listener string, token *string) ([]gatypes.EndpointGroup, *string, error) {
 			out, err := client.ListEndpointGroups(ctx, &globalaccelerator.ListEndpointGroupsInput{ListenerArn: &listener, MaxResults: aws.Int32(gaPageLimit), NextToken: token})
@@ -280,7 +280,7 @@ func scanGACustomRoutingAccelerators(ctx context.Context, client globalAccelerat
 // write failed, after which the scan must stop.
 func scanGACustomRoutingListeners(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, accelerators []childParent, p *phaseTotals) ([]childParent, bool) {
 	var listeners []childParent
-	total, inserted, err := storeChildrenEachParent(ctx, st, acct, region, gaCustomRoutingListenersOp, gaAcceleratorGone, accelerators, nil, nil,
+	total, err := storeChildrenEachParent(ctx, st, acct, region, gaCustomRoutingListenersOp, gaAcceleratorGone, accelerators, nil, nil,
 		func(ctx context.Context, accelerator childParent, token *string) ([]gatypes.CustomRoutingListener, *string, error) {
 			out, err := client.ListCustomRoutingListeners(ctx, &globalaccelerator.ListCustomRoutingListenersInput{AcceleratorArn: &accelerator.arn, MaxResults: aws.Int32(gaPageLimit), NextToken: token})
 			if err != nil {
@@ -301,13 +301,13 @@ func scanGACustomRoutingListeners(ctx context.Context, client globalAcceleratorA
 			}
 			return r, why, key
 		})
-	return listeners, p.addPhase(gaCustomRoutingListenersOp, total, inserted, err)
+	return listeners, p.addPhase(gaCustomRoutingListenersOp, total, err)
 }
 
 // scanGACustomRoutingEndpointGroups stores each custom routing listener's
 // endpoint groups, each contained by its listener. One listener's failure
 // costs the others none of theirs (storeChildrenEachParent).
-func scanGACustomRoutingEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, listeners []childParent) (int, int, error) {
+func scanGACustomRoutingEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string, listeners []childParent) (int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, gaCustomRoutingEndpointGroupsOp, gaListenerGone, listeners, nil, nil,
 		func(ctx context.Context, listener childParent, token *string) ([]gatypes.CustomRoutingEndpointGroup, *string, error) {
 			out, err := client.ListCustomRoutingEndpointGroups(ctx, &globalaccelerator.ListCustomRoutingEndpointGroupsInput{ListenerArn: &listener.arn, MaxResults: aws.Int32(gaPageLimit), NextToken: token})
@@ -339,7 +339,7 @@ func gaByoipCidrNativeID(partition, accountID, cidr string) string {
 // Accelerator. The listing keeps a DEPROVISIONED range, which no longer
 // exists in Global Accelerator, so it is not stored. A failed page keeps the
 // pages read before it (storeTokenList).
-func scanGAByoipCidrs(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanGAByoipCidrs(ctx context.Context, client globalAcceleratorAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	return storeTokenList(ctx, st, acct, region, gaByoipCidrsOp,
 		func(ctx context.Context, token *string) ([]gatypes.ByoipCidr, *string, error) {
 			out, err := client.ListByoipCidrs(ctx, &globalaccelerator.ListByoipCidrsInput{MaxResults: aws.Int32(gaPageLimit), NextToken: token})

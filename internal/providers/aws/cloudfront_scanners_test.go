@@ -274,7 +274,7 @@ func cfHandlers(c *cfCalls) map[string]func(any) (any, error) {
 
 // cfScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
-func cfScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+func cfScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(handlers, cfDenied)
 	return scanCloudFront(ctx, acct, st, testScanID)
@@ -303,7 +303,9 @@ func TestScanCloudFront_StoresTagsOfEveryType(t *testing.T) {
 	warns := countWarnings(st)
 	calls := newCFCalls()
 
-	total, inserted, err := cfScan(context.Background(), st, cfHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := cfScan(context.Background(), counted, cfHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -381,10 +383,12 @@ func TestScanCloudFront_RescanInsertsNone(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCFCalls()
-	if _, _, err := cfScan(context.Background(), st, cfHandlers(calls)); err != nil {
+	if _, err := cfScan(context.Background(), st, cfHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := cfScan(context.Background(), st, cfHandlers(calls))
+	counted, upserts := countUpserts(st)
+	total, err := cfScan(context.Background(), counted, cfHandlers(calls))
+	inserted := upserts()
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
@@ -429,7 +433,7 @@ func TestScanCloudFront_TagReadFailures(t *testing.T) {
 					calls := newCFCalls()
 					calls.errs[arn] = c.err
 
-					total, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+					total, err := cfScan(context.Background(), st, cfHandlers(calls))
 					if c.outcome == 0 && err != nil {
 						t.Fatalf("err = %v; want nil", err)
 					}
@@ -476,7 +480,7 @@ func TestScanCloudFront_TagDenialsWarnOncePerScan(t *testing.T) {
 		calls.errs[cfARN(k, "bare")] = cfDenied
 	}
 
-	total, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+	total, err := cfScan(context.Background(), st, cfHandlers(calls))
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -534,7 +538,7 @@ func TestScanCloudFront_TagReadsShareOneBound(t *testing.T) {
 	handlers := cfHandlers(newCFCalls())
 	handlers["ListTagsForResource"] = gate.listTags
 
-	if _, _, err := cfScan(context.Background(), st, handlers); err != nil {
+	if _, err := cfScan(context.Background(), st, handlers); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := gate.calls.Load(); got != 2*9 {
@@ -577,7 +581,7 @@ func TestScanCloudFront_OtherAccountVpcOriginKeptUntagged(t *testing.T) {
 				}}}, nil
 			}
 
-			if _, _, err := cfScan(context.Background(), st, handlers); err != nil {
+			if _, err := cfScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := cfRowOf(t, st, TypeCloudFrontVpcOrigin, shared)
@@ -607,7 +611,7 @@ func TestScanCloudFront_TagThrottleDemotedBesideHardError(t *testing.T) {
 	calls.errs[cfARN(cfKindOf(t, "ListFunctions"), "tagged")] = cfThrottle
 	calls.errs[cfARN(cfKindOf(t, "ListConnectionGroups"), "bare")] = cfInvalid
 
-	_, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+	_, err := cfScan(context.Background(), st, cfHandlers(calls))
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArgument")
 	if *warns != 1 {
@@ -629,7 +633,7 @@ func TestScanCloudFront_DeniedListingWarnsUnderItsOp(t *testing.T) {
 			handlers := cfHandlers(calls)
 			delete(handlers, k.op)
 
-			total, _, err := cfScan(context.Background(), st, handlers)
+			total, err := cfScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -682,7 +686,7 @@ func TestScanCloudFront_MonitoringSubscriptionFailures(t *testing.T) {
 			calls.monitoring[cfDistID("bare")] = nil
 			calls.monitoring[cfDistID("tagged")] = c.err
 
-			total, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+			total, err := cfScan(context.Background(), st, cfHandlers(calls))
 			if c.code != "" {
 				assertGlueOutcome(t, err, outcomeError)
 				assertAPICode(t, err, c.code)
@@ -713,7 +717,7 @@ func TestScanCloudFront_DroppedDistributionHasNoMonitoringRead(t *testing.T) {
 	calls := newCFCalls()
 	calls.errs[cfDistARN("tagged")] = cfNotFound
 
-	if _, _, err := cfScan(context.Background(), st, cfHandlers(calls)); err != nil {
+	if _, err := cfScan(context.Background(), st, cfHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got, want := calls.sortedMonitorIDs(), []string{cfDistID("bare")}; !slices.Equal(got, want) {
@@ -732,7 +736,7 @@ func TestScanCloudFront_FailedWriteKeepsOtherFamilies(t *testing.T) {
 	calls := newCFCalls()
 	calls.errs[cfDistARN("tagged")] = cfDenied
 
-	total, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+	total, err := cfScan(context.Background(), st, cfHandlers(calls))
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
 	}
@@ -759,7 +763,7 @@ func TestScanCloudFront_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
 	k := cfKindOf(t, "ListDistributionTenants")
 	handlers[k.op] = failOnCall(2, cfInvalid, handlers[k.op])
 
-	total, _, err := cfScan(context.Background(), st, handlers)
+	total, err := cfScan(context.Background(), st, handlers)
 	assertGlueOutcome(t, err, outcomeError)
 	assertAPICode(t, err, "InvalidArgument")
 	if total != cfTotalCount-1 {
@@ -791,7 +795,7 @@ func TestScanCloudFront_RepeatedMarkerKeepsPages(t *testing.T) {
 		return k.page(&arn, &name, sdkaws.String("same")), nil
 	}
 
-	total, _, err := cfScan(context.Background(), st, handlers)
+	total, err := cfScan(context.Background(), st, handlers)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -821,7 +825,7 @@ func TestScanCloudFront_ElementWithoutARNWarns(t *testing.T) {
 			key := cfName(k, "noarn")
 			handlers[k.op] = func(any) (any, error) { return k.page(nil, &key, nil), nil }
 
-			if _, _, err := cfScan(context.Background(), st, handlers); err != nil {
+			if _, err := cfScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if got := len(rowsByNativeID(t, st, k.typ)); got != 0 {
@@ -860,7 +864,7 @@ func TestScanCloudFront_ElementWithoutIdentifiers(t *testing.T) {
 			handlers := cfHandlers(newCFCalls())
 			handlers[c.op] = func(any) (any, error) { return c.out, nil }
 
-			if _, _, err := cfScan(context.Background(), st, handlers); err != nil {
+			if _, err := cfScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if len(*warns) != 1 || !strings.Contains((*warns)[0].Message, c.key) {
@@ -955,7 +959,7 @@ func TestScanCloudFront_FunctionStagesStoredOnce(t *testing.T) {
 					c.entry(repeated, "repeated", cftypes.FunctionStageDevelopment, "second"))
 				handlers[c.op] = func(any) (any, error) { return c.page(entries), nil }
 
-				total, _, err := cfScan(context.Background(), st, handlers)
+				total, err := cfScan(context.Background(), st, handlers)
 				if err != nil {
 					t.Fatalf("scan: %v", err)
 				}
@@ -999,7 +1003,7 @@ func TestScanCloudFront_FunctionsWithoutARNWarned(t *testing.T) {
 			handlers := cfHandlers(newCFCalls())
 			handlers[c.op] = func(any) (any, error) { return c.page([]any{c.noARN("a"), c.noARN("b")}), nil }
 
-			if _, _, err := cfScan(context.Background(), st, handlers); err != nil {
+			if _, err := cfScan(context.Background(), st, handlers); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			if len(*warns) != 1 || *all != 1 {
@@ -1097,7 +1101,7 @@ func TestScanCloudFront_TagReadInAccountPartition(t *testing.T) {
 	}
 	acct.cfg = opStubConfig(handlers, cfDenied)
 
-	if _, _, err := scanCloudFront(context.Background(), acct, st, testScanID); err != nil {
+	if _, err := scanCloudFront(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	slices.Sort(calls.tagARNs)
@@ -1131,7 +1135,7 @@ func TestScanCloudFront_ContextEndReportedOnce(t *testing.T) {
 		}
 	}
 
-	_, _, err := cfScan(ctx, st, handlers)
+	_, err := cfScan(ctx, st, handlers)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v; want context.Canceled", err)
 	}
@@ -1155,7 +1159,7 @@ func TestScanCloudFront_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		handlers := cfHandlers(newCFCalls())
 		handlers["ListTrustStores"] = func(any) (any, error) { return nil, nx }
-		total, _, err := cfScan(context.Background(), st, handlers)
+		total, err := cfScan(context.Background(), st, handlers)
 		assertGlueOutcome(t, err, outcomeError)
 		if total != cfTotalCount-2 {
 			t.Errorf("total = %d; want the %d other rows counted", total, cfTotalCount-2)
@@ -1165,7 +1169,7 @@ func TestScanCloudFront_NXDOMAIN(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCFCalls()
 		calls.errs[cfDistARN("bare")] = nx
-		_, _, err := cfScan(context.Background(), st, cfHandlers(calls))
+		_, err := cfScan(context.Background(), st, cfHandlers(calls))
 		assertGlueOutcome(t, err, outcomeError)
 	})
 	t.Run("nothing stored", func(t *testing.T) {
@@ -1173,7 +1177,7 @@ func TestScanCloudFront_NXDOMAIN(t *testing.T) {
 		warns := countWarnings(st)
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(nil, nx)
-		_, _, err := scanCloudFront(context.Background(), acct, st, testScanID)
+		_, err := scanCloudFront(context.Background(), acct, st, testScanID)
 		assertGlueOutcome(t, err, outcomeUnavailable)
 		if *warns != 0 {
 			t.Errorf("warnings = %d; want 0", *warns)

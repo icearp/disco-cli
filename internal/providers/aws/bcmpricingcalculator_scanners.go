@@ -54,10 +54,10 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:bcmpricingcalculator",
 		global: true,
-		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, error) {
 			region, err := acct.homeRegion("bcmpricingcalculator")
 			if err != nil {
-				return 0, 0, err
+				return 0, err
 			}
 			client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = region })
 			return scanBcmPricingCalculator(ctx, client, acct, st, scanID)
@@ -166,14 +166,14 @@ func bcmPCGatedPages[Item any](gate *bcmPCGate, op string, page func(ctx context
 // and nothing else failed. Otherwise it is a warning, because the dispatcher
 // discards a sentinel's counts and ranks it above a hard error, which would
 // hide both the rows and the other failures.
-func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, st *store.Store, scanID string) (int, error) {
 	region := bcmPricingCalculatorRegion
 	tags := bcmPCTags(client).sharingDenials()
 	var (
 		gate                 bcmPCGate
 		scenarios, workloads []childParent
 	)
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "bcmpricingcalculator", 0, []hostPhase{
+	total, err := runHostPhases(ctx, st, acct, region, "bcmpricingcalculator", 0, []hostPhase{
 		{op: bcmPCBillScenariosOp, run: func(p *phaseTotals) (failed bool) {
 			scenarios, failed = scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID, &gate, tags, p)
 			return failed
@@ -191,25 +191,25 @@ func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAP
 			workloads, failed = scanBcmPricingCalculatorWorkloadEstimates(ctx, client, acct, region, st, scanID, &gate, tags, p)
 			return failed
 		}},
-		countedPhase(0, bcmPCCommitmentModOp, func() (int, int, error) {
+		countedPhase(0, bcmPCCommitmentModOp, func() (int, error) {
 			return scanBcmPCCommitmentModifications(ctx, client, acct, region, st, scanID, scenarios)
 		}),
-		countedPhase(0, bcmPCUsageModOp, func() (int, int, error) {
+		countedPhase(0, bcmPCUsageModOp, func() (int, error) {
 			return scanBcmPCUsageModifications(ctx, client, acct, region, st, scanID, scenarios)
 		}),
-		countedPhase(0, bcmPCWorkloadUsageOp, func() (int, int, error) {
+		countedPhase(0, bcmPCWorkloadUsageOp, func() (int, error) {
 			return scanBcmPCWorkloadEstimateUsage(ctx, client, acct, region, st, scanID, workloads)
 		}),
 	})
 	tags.warnDenials(st, acct, region)
 	if gate.err == nil {
-		return total, inserted, err
+		return total, err
 	}
 	if total == 0 && err == nil {
-		return 0, 0, gate.err
+		return 0, gate.err
 	}
 	warnBcmPCGated(st, acct.ID, region, gate)
-	return total, inserted, err
+	return total, err
 }
 
 // warnBcmPCGated records that gate.op's listing was refused for the account
@@ -344,33 +344,33 @@ func isBcmPCChildSkip(err error) bool {
 // A parent whose call still fails transiently after the SDK's retries is
 // skipped, keeping its siblings' rows, and the skips are reported in one
 // warning. Rows a parent stored before its error stay and are counted.
-func bcmPCChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent, storeChildren func(context.Context, childParent) (int, int, error)) (int, int, error) {
+func bcmPCChildFanOut(ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent, storeChildren func(context.Context, childParent) (int, error)) (int, error) {
 	var (
 		transient   transientTally
 		unavailable sync.Once
 	)
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isBcmPCChildSkip,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			t, i, err := storeChildren(ctx, p)
+	total, err := childFanOutStored(ctx, st, acct, region, op, parents, isBcmPCChildSkip,
+		func(ctx context.Context, p childParent) (int, error) {
+			t, err := storeChildren(ctx, p)
 			switch {
 			case isAPIErrorCode(err, "DataUnavailableException"):
 				unavailable.Do(func() {
 					_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("children of %s not listed this scan (later parents refused the same way not reported): %w", p.arn, err))
 				})
-				return t, i, nil
+				return t, nil
 			case isTransientNetworkError(err):
 				transient.skipped(p.arn, err)
-				return t, i, nil
+				return t, nil
 			}
-			return t, i, err
+			return t, err
 		})
 	transient.warnSkipped(st, op, acct, region)
-	return total, inserted, err
+	return total, err
 }
 
 // upsertBcmPCChildren stores one page of a parent's children and links each
 // under the parent.
-func upsertBcmPCChildren(st *store.Store, acct *account, op string, parent childParent, rows []*store.Resource) (int, int, error) {
+func upsertBcmPCChildren(st *store.Store, acct *account, op string, parent childParent, rows []*store.Resource) (int, error) {
 	parentID := store.ResourceID("aws", acct.ID, parent.arn)
 	children := make([]containedChild, len(rows))
 	for i, r := range rows {
@@ -417,9 +417,9 @@ func flattenBcmPCCommitmentMod(m bcmpctypes.BillScenarioCommitmentModificationIt
 // scanBcmPCCommitmentModifications lists the commitment modifications of each
 // bill scenario. A modification has no ARN, so its NativeID is
 // {scenarioARN}/commitment-modification/{Id}.
-func scanBcmPCCommitmentModifications(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, scenarios []childParent) (int, int, error) {
+func scanBcmPCCommitmentModifications(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, scenarios []childParent) (int, error) {
 	return bcmPCChildFanOut(ctx, st, acct, region, bcmPCCommitmentModOp, scenarios,
-		func(ctx context.Context, sc childParent) (total, inserted int, err error) {
+		func(ctx context.Context, sc childParent) (total int, err error) {
 			pager := bcmpricingcalculator.NewListBillScenarioCommitmentModificationsPaginator(client,
 				&bcmpricingcalculator.ListBillScenarioCommitmentModificationsInput{BillScenarioId: &sc.id},
 				func(o *bcmpricingcalculator.ListBillScenarioCommitmentModificationsPaginatorOptions) {
@@ -428,7 +428,7 @@ func scanBcmPCCommitmentModifications(ctx context.Context, client bcmPricingCalc
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				var rows []*store.Resource
 				for _, m := range out.Items {
@@ -443,14 +443,13 @@ func scanBcmPCCommitmentModifications(ctx context.Context, client bcmPricingCalc
 						Region:   regionGlobal, AttributesJSON: mustJSON(flattenBcmPCCommitmentMod(m)), DiscoveredBy: scanID,
 					})
 				}
-				t, i, err := upsertBcmPCChildren(st, acct, bcmPCCommitmentModOp, sc, rows)
+				t, err := upsertBcmPCChildren(st, acct, bcmPCCommitmentModOp, sc, rows)
 				total += t
-				inserted += i
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }
 
@@ -458,9 +457,9 @@ func scanBcmPCCommitmentModifications(ctx context.Context, client bcmPricingCalc
 // scenario. Each carries its hourly Quantities, so a parent's modifications
 // are stored a page at a time rather than held until the end. A modification has no ARN, so its NativeID is
 // {scenarioARN}/usage-modification/{Id}.
-func scanBcmPCUsageModifications(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, scenarios []childParent) (int, int, error) {
+func scanBcmPCUsageModifications(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, scenarios []childParent) (int, error) {
 	return bcmPCChildFanOut(ctx, st, acct, region, bcmPCUsageModOp, scenarios,
-		func(ctx context.Context, sc childParent) (total, inserted int, err error) {
+		func(ctx context.Context, sc childParent) (total int, err error) {
 			pager := bcmpricingcalculator.NewListBillScenarioUsageModificationsPaginator(client,
 				&bcmpricingcalculator.ListBillScenarioUsageModificationsInput{BillScenarioId: &sc.id},
 				func(o *bcmpricingcalculator.ListBillScenarioUsageModificationsPaginatorOptions) {
@@ -469,7 +468,7 @@ func scanBcmPCUsageModifications(ctx context.Context, client bcmPricingCalculato
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				var rows []*store.Resource
 				for _, m := range out.Items {
@@ -484,23 +483,22 @@ func scanBcmPCUsageModifications(ctx context.Context, client bcmPricingCalculato
 						Region:   regionGlobal, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 					})
 				}
-				t, i, err := upsertBcmPCChildren(st, acct, bcmPCUsageModOp, sc, rows)
+				t, err := upsertBcmPCChildren(st, acct, bcmPCUsageModOp, sc, rows)
 				total += t
-				inserted += i
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }
 
 // scanBcmPCWorkloadEstimateUsage lists the usage lines of each workload
 // estimate. A line has no ARN, so its NativeID is
 // {workloadEstimateARN}/usage/{Id}.
-func scanBcmPCWorkloadEstimateUsage(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, workloads []childParent) (int, int, error) {
+func scanBcmPCWorkloadEstimateUsage(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, workloads []childParent) (int, error) {
 	return bcmPCChildFanOut(ctx, st, acct, region, bcmPCWorkloadUsageOp, workloads,
-		func(ctx context.Context, we childParent) (total, inserted int, err error) {
+		func(ctx context.Context, we childParent) (total int, err error) {
 			pager := bcmpricingcalculator.NewListWorkloadEstimateUsagePaginator(client,
 				&bcmpricingcalculator.ListWorkloadEstimateUsageInput{WorkloadEstimateId: &we.id},
 				func(o *bcmpricingcalculator.ListWorkloadEstimateUsagePaginatorOptions) {
@@ -509,7 +507,7 @@ func scanBcmPCWorkloadEstimateUsage(ctx context.Context, client bcmPricingCalcul
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 				var rows []*store.Resource
 				for _, u := range out.Items {
@@ -525,13 +523,12 @@ func scanBcmPCWorkloadEstimateUsage(ctx context.Context, client bcmPricingCalcul
 						AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
 					})
 				}
-				t, i, err := upsertBcmPCChildren(st, acct, bcmPCWorkloadUsageOp, we, rows)
+				t, err := upsertBcmPCChildren(st, acct, bcmPCWorkloadUsageOp, we, rows)
 				total += t
-				inserted += i
 				if err != nil {
-					return total, inserted, err
+					return total, err
 				}
 			}
-			return total, inserted, nil
+			return total, nil
 		})
 }

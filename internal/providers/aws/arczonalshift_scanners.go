@@ -37,26 +37,26 @@ func arcZonalShiftConfigNativeID(managedResourceARN string) string {
 	return managedResourceARN + "/zonal-autoshift-configuration"
 }
 
-func scanARCZonalShift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanARCZonalShift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	client := arczonalshift.NewFromConfig(acct.cfg, func(o *arczonalshift.Options) { o.Region = region })
-	o, oi, err := scanARCZonalShiftObserver(ctx, client, acct, region, st, scanID)
+	o, err := scanARCZonalShiftObserver(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return o, oi, err
+		return o, err
 	}
-	c, ci, err := scanARCZonalShiftConfigurations(ctx, client, acct, region, st, scanID)
+	c, err := scanARCZonalShiftConfigurations(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return o + c, oi + ci, err
+		return o + c, err
 	}
-	return o + c, oi + ci, nil
+	return o + c, nil
 }
 
-func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	out, err := client.GetAutoshiftObserverNotificationStatus(ctx, &arczonalshift.GetAutoshiftObserverNotificationStatusInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "arc-zonal-shift:GetAutoshiftObserverNotificationStatus", acct.ID, region, err)
+			return 0, skipIfAccessDenied(st, "arc-zonal-shift:GetAutoshiftObserverNotificationStatus", acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("arc-zonal-shift:GetAutoshiftObserverNotificationStatus: %w", err)
+		return 0, fmt.Errorf("arc-zonal-shift:GetAutoshiftObserverNotificationStatus: %w", err)
 	}
 	arn := arcZonalShiftObserverNativeID(acct.partition(), region, acct.ID)
 	name := "autoshift-observer-notification-status"
@@ -74,22 +74,22 @@ func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acc
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	n, err := st.UpsertResources([]*store.Resource{r})
+	_, err = st.UpsertResources([]*store.Resource{r})
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert arc-zonal-shift observer-status: %w", err)
+		return 0, fmt.Errorf("upsert arc-zonal-shift observer-status: %w", err)
 	}
-	return 1, n, nil
+	return 1, nil
 }
 
-func scanARCZonalShiftConfigurations(ctx context.Context, client arcZonalShiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanARCZonalShiftConfigurations(ctx context.Context, client arcZonalShiftAPI, acct *account, region string, st *store.Store, scanID string) (total int, err error) {
 	p := arczonalshift.NewListManagedResourcesPaginator(client, &arczonalshift.ListManagedResourcesInput{})
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "arc-zonal-shift:ListManagedResources", acct.ID, region, err)
+				return total, skipIfAccessDenied(st, "arc-zonal-shift:ListManagedResources", acct.ID, region, err)
 			}
-			return total, inserted, fmt.Errorf("arc-zonal-shift:ListManagedResources: %w", err)
+			return total, fmt.Errorf("arc-zonal-shift:ListManagedResources: %w", err)
 		}
 		batch := make([]*store.Resource, 0, len(page.Items))
 		for _, m := range page.Items {
@@ -120,13 +120,12 @@ func scanARCZonalShiftConfigurations(ctx context.Context, client arcZonalShiftAP
 			})
 		}
 		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+			_, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert arc-zonal-shift configurations: %w", err)
+				return total, fmt.Errorf("upsert arc-zonal-shift configurations: %w", err)
 			}
 			total += len(batch)
-			inserted += n
 		}
 	}
-	return total, inserted, nil
+	return total, nil
 }
