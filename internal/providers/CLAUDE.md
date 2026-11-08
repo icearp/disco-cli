@@ -46,7 +46,7 @@ aborting sibling services.
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:
 
 - On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
-- `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`.
+- `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`. Quota new/changed come from `WithQuotaCounters` and go out through `ReportQuotas` before `ReportService`; bind both pairs at every dispatcher that can run a quota scanner (AWS both lanes, Azure `runSubscriptionService`, GCP `scanProject`). Tenant/org lanes run none.
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
 - `internal/scanrun` collects errors via `OnError`; `cmd/scan.go` renders one grouped block at end.
 

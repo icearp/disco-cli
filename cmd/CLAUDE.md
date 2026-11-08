@@ -259,6 +259,10 @@ Preserve these shapes:
 - **Scan exit codes.** `runScan` (`scan.go`) returns sentinel `errScanInterrupted` on SIGINT/SIGTERM (ctx cancelled) → `cmd/root.go::Execute` maps it to exit **130**; with `--fail-on-error` a partial run (one or more services errored) returns `errScanPartial` → exit **1**. Default partial stays exit 0. The summary line is already on stdout; the sentinels only carry the exit-code gate (no duplicate stderr print, mirrors `errFindingsReported`). `--quiet` suppresses the `Scan … started` / `Resuming scan …` banners too (each guarded by its own `if !quiet`, the same boolean the per-service line uses).
 
 - **Scan progress (`cmd/progress.go`).** Per-service / resolve lines go through `progress.line()` to stderr. A braille spinner (`⠋ scanning… <elapsed> · <n> done`) animates only when `!quiet && !no-progress && isTerminal(stderr)` (`isTerminal`: stdlib `*os.File` + `os.ModeCharDevice`; no `x/term`/`go-isatty` dep); off-TTY (CI, tests) it never starts and `line()` is a plain write. No `done/total`: the denominator (Azure subscriptions, GCP projects) is discovered mid-scan. Clears use `\r` + spaces, no ANSI (non-VT Windows). All stderr writes share one mutex; `p.stop()` (`sync.Once`) runs after `RunScanners` and before warnings/errors render. `--quiet` = final summary only; `--no-progress` = lines without the spinner.
+- **Quota counts in scan output.** The per-service line counts a service's quota limits with its resources
+  (its total already does); the summary adds `, quota limits (N new, M changed)` only when non-zero. State lives
+  in `quotaTally` (`scan.go`), fed by `OnQuotaComplete`: gocyclo caps `runScan` at 30, so new scan-output state
+  goes in a helper type, not inline.
 
 - **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries camelCase json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `resources`).
 

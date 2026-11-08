@@ -577,6 +577,13 @@ Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client 
 
 **Multi-SDK service (cognito + sso pattern)**: a scanner spanning two SDK packages (Cognito = `cognitoidentityprovider` + `cognitoidentity`; SSO = `ssoadmin` + `identitystore`) declares two narrow ifaces; the wrapper constructs both clients and forwards to a `scanXAll(ctx, client1, client2, ...)` body.
 
+### Pruning per-service tests
+
+A per-service test that looks like a copy of a shared-helper test is usually wiring: the service passes the
+option itself (`.sharingDenials()` at 93 of 96 sites) or owns its count site. Prove a deletion with a mutant
+on the service's call site, run against only the kept tests. A name or shape sweep overestimated the
+deletable tests about tenfold.
+
 ### Helper-test colocation
 
 Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, transient classifier) live in `aws_arn_test.go`, `aws_errors_test.go`, `aws_tags_test.go`. Per-service helper tests (e.g. `instanceArnFromPermissionSetArn`) live in the matching `<svc>_resolvers_test.go`. Before adding a new helper test, grep `^func Test<Helper>` across `aws/*_test.go` — duplicate `TestX` in same package fails to compile.
