@@ -570,18 +570,25 @@ type serviceReport struct {
 	status                         store.ServiceStatus
 }
 
+// quotaReport is one OnQuotaComplete call.
+type quotaReport struct {
+	scope             string
+	newCount, changed int
+}
+
 // dispatchOutcome is what one dispatched service left behind.
 type dispatchOutcome struct {
 	reports  []serviceReport
+	quotas   []quotaReport
 	errors   []store.ScanError
 	warnings []store.ScanWarning
 	partial  bool
 }
 
 // runDispatched registers a service named name whose scan stores one new row
-// and one changed row and then returns err, runs it through scanrun, and
-// returns its reports, errors and warnings plus whether the scan finalised
-// partial. Swapping registeredServices means no test calling this may run in
+// and one changed row, plus two new and three changed quota limits, and then
+// returns err. It runs the service through scanrun and returns its reports,
+// errors and warnings plus whether the scan finalised partial. Swapping registeredServices means no test calling this may run in
 // parallel with another that reads it.
 func runDispatched(t *testing.T, name string, global bool, err error) dispatchOutcome {
 	t.Helper()
@@ -589,7 +596,23 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 	st := newTestStore(t)
 	changedNID := "arn:aws:sqs:us-east-1:123456789012:changed"
 	upsertTestResource(t, st, "aws", testAccountID, TypeSQSQueue, changedNID, region, `{"v":1}`)
+	quotas := func(value float64, codes ...string) []*store.Quota {
+		var out []*store.Quota
+		for _, code := range codes {
+			out = append(out, &store.Quota{
+				Provider: "aws", AccountID: testAccountID, Region: region, ServiceCode: "sqs",
+				QuotaCode: code, Value: &value, DiscoveredBy: testScanID,
+			})
+		}
+		return out
+	}
+	if _, err := st.UpsertQuotas(quotas(1, "L-C1", "L-C2", "L-C3")); err != nil {
+		t.Fatalf("seed quotas: %v", err)
+	}
 	fn := func(_ context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		if _, qerr := st.UpsertQuotas(quotas(2, "L-N1", "L-N2", "L-C1", "L-C2", "L-C3")); qerr != nil {
+			return 0, 0, qerr
+		}
 		var rows []*store.Resource
 		for _, nid := range []string{"arn:aws:sqs:us-east-1:123456789012:new", changedNID} {
 			rows = append(rows, &store.Resource{
@@ -626,6 +649,14 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 		defer mu.Unlock()
 		out.reports = append(out.reports, serviceReport{scope, total, newCount, changed, errCount, status})
 	}
+	st.OnQuotaComplete = func(service, scope string, newCount, changed int) {
+		if service != name {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		out.quotas = append(out.quotas, quotaReport{scope, newCount, changed})
+	}
 	_, warnings, scanErrors, _, _ := scanrun.RunScanners(context.Background(), st, testScanID, []providers.Scanner{dispatchScanner{acct, []string{name}}})
 	for _, w := range warnings {
 		if w.Service == name || w.ServiceName == name {
@@ -652,7 +683,8 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 // recorded as one scan error (not also a warning), and marks the scan partial,
 // in both dispatcher lanes. A clean run in each lane stays complete, and a
 // disabled sentinel reports zero counts and the disabled status without an
-// error.
+// error. Each service that ran reports its quota limits apart from its
+// resource counts, under the same scope; a skipped one reports none.
 //
 //nolint:paralleltest // runDispatched swaps the package-level registeredServices
 func TestDispatch_TransientAfterRows(t *testing.T) {
@@ -680,6 +712,13 @@ func TestDispatch_TransientAfterRows(t *testing.T) {
 			got := runDispatched(t, "aws:test-dispatch", c.global, c.err)
 			if want := []serviceReport{c.want}; !slices.Equal(got.reports, want) {
 				t.Errorf("ReportService calls = %+v, want %+v", got.reports, want)
+			}
+			var wantQuotas []quotaReport
+			if c.want.status == store.ServiceOK {
+				wantQuotas = []quotaReport{{c.want.scope, 2, 3}}
+			}
+			if !slices.Equal(got.quotas, wantQuotas) {
+				t.Errorf("ReportQuotas calls = %+v, want %+v", got.quotas, wantQuotas)
 			}
 			wantErrs := 0
 			if c.wantErrAt != "" {

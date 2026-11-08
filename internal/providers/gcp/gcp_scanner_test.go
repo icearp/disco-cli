@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -197,5 +198,71 @@ func TestScanProject_OneServiceFailureDoesNotCancelSiblings(t *testing.T) {
 	}
 	if len(errs) != 1 || errs[0].Service != "gcp:boom" || errs[0].Scope != "proj-1" {
 		t.Fatalf("errors = %+v; want one gcp:boom failure scoped to proj-1", errs)
+	}
+}
+
+// A service that ran reports its quota limits (two new, three changed) apart
+// from its resource counts, just before its ReportService, whether it
+// succeeded or failed; a service skipped as disabled reports none.
+//
+//nolint:paralleltest // swaps the package-level registeredServices
+func TestScanProject_ReportsQuotasApart(t *testing.T) {
+	quotas := func(value float64, codes ...string) []*store.Quota {
+		var out []*store.Quota
+		for _, code := range codes {
+			out = append(out, &store.Quota{
+				Provider: "gcp", AccountID: "proj-1", Region: "global", ServiceCode: "compute",
+				QuotaCode: code, Value: &value, DiscoveredBy: testScanID,
+			})
+		}
+		return out
+	}
+	ok := fmt.Sprint(store.ServiceOK)
+	cases := []struct {
+		name string
+		err  error
+		want []string
+	}{
+		{"success", nil, []string{"quotas proj-1 new=2 changed=3", "service proj-1 total=5 new=0 changed=0 errs=0 status=" + ok}},
+		{"failure", errors.New("500 backend error"), []string{"quotas proj-1 new=2 changed=3", "service proj-1 total=5 new=0 changed=0 errs=1 status=" + ok}},
+		{"store write failure", fmt.Errorf("upsert: %w", store.ErrStoreWrite), []string{"quotas proj-1 new=2 changed=3", "service proj-1 total=5 new=0 changed=0 errs=1 status=" + ok}},
+		{"disabled", errServiceDisabled, []string{"service proj-1 total=0 new=0 changed=0 errs=0 status=" + fmt.Sprint(store.ServiceDisabled)}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			if _, err := st.UpsertQuotas(quotas(1, "C1", "C2", "C3")); err != nil {
+				t.Fatalf("seed quotas: %v", err)
+			}
+			var (
+				mu  sync.Mutex
+				got []string
+			)
+			st.OnQuotaComplete = func(_, scope string, newCount, changed int) {
+				mu.Lock()
+				defer mu.Unlock()
+				got = append(got, fmt.Sprintf("quotas %s new=%d changed=%d", scope, newCount, changed))
+			}
+			st.OnServiceComplete = func(_, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
+				mu.Lock()
+				defer mu.Unlock()
+				got = append(got, fmt.Sprintf("service %s total=%d new=%d changed=%d errs=%d status=%v", scope, total, newCount, changed, errCount, status))
+			}
+			saved := registeredServices
+			t.Cleanup(func() { registeredServices = saved })
+			registeredServices = []serviceEntry{{name: "gcp:test", fn: func(_ context.Context, _ *project, st *store.Store, _ string) (int, int, error) {
+				if errors.Is(c.err, errServiceDisabled) {
+					return 0, 0, c.err
+				}
+				if _, err := st.UpsertQuotas(quotas(2, "N1", "N2", "C1", "C2", "C3")); err != nil {
+					return 0, 0, err
+				}
+				return 5, 5, c.err
+			}}}
+			scanProject(context.Background(), &project{ID: "proj-1"}, nil, st, testScanID)
+			if !slices.Equal(got, c.want) {
+				t.Errorf("reports = %q, want %q", got, c.want)
+			}
+		})
 	}
 }

@@ -217,9 +217,9 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			defer globalSem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
-			reportServiceOutcome(st, svc.name, "global", acct.ID, total, int(newC.Load()), int(changedC.Load()), err)
+			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			reportServiceOutcome(st, svc.name, "global", acct.ID, writeCounts{total, int(newC.Load()), int(changedC.Load()), int(quotaNewC.Load()), int(quotaChangedC.Load())}, err)
 		})
 	}
 
@@ -367,9 +367,9 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
-			reportServiceOutcome(st, svc.name, region, acct.ID+"/"+region, total, int(newC.Load()), int(changedC.Load()), err)
+			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			reportServiceOutcome(st, svc.name, region, acct.ID+"/"+region, writeCounts{total, int(newC.Load()), int(changedC.Load()), int(quotaNewC.Load()), int(quotaChangedC.Load())}, err)
 		})
 	}
 	wg.Wait()
@@ -385,10 +385,13 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 // dispatcher: it is momentary, but this scan's rows for the service are still
 // incomplete. A transient failure a scanner demotes inside a phase
 // (demoteTransient, skipIfTransient) never reaches here: it stays a warning,
-// and the scan can finalise completed with those rows missing.
-func reportServiceOutcome(st *store.Store, service, label, errScope string, total, newCount, changed int, err error) {
+// and the scan can finalise completed with those rows missing. The quota
+// counts go to ReportQuotas just before ReportService, and a skip outcome
+// reports none.
+func reportServiceOutcome(st *store.Store, service, label, errScope string, c writeCounts, err error) {
 	if err == nil {
-		st.ReportService(service, label, total, newCount, changed, 0, store.ServiceOK)
+		st.ReportQuotas(service, label, c.quotaNew, c.quotaChanged)
+		st.ReportService(service, label, c.total, c.newCount, c.changed, 0, store.ServiceOK)
 		return
 	}
 	var msg string
@@ -420,7 +423,15 @@ func reportServiceOutcome(st *store.Store, service, label, errScope string, tota
 		msg = err.Error()
 	}
 	st.ReportError(store.ScanError{Provider: "aws", Service: service, Scope: errScope, Message: msg})
-	st.ReportService(service, label, total, newCount, changed, 1, store.ServiceOK)
+	st.ReportQuotas(service, label, c.quotaNew, c.quotaChanged)
+	st.ReportService(service, label, c.total, c.newCount, c.changed, 1, store.ServiceOK)
+}
+
+// writeCounts is what one dispatched service stored: its own total, the
+// resource counters bound by WithUpsertCounters, and the quota counters bound
+// by WithQuotaCounters.
+type writeCounts struct {
+	total, newCount, changed, quotaNew, quotaChanged int
 }
 
 // dispatchesTo reports whether scanRegion dispatches the regional service name

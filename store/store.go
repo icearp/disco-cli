@@ -134,6 +134,7 @@ type Store struct {
 	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; skips the Close-time WAL checkpoint+cleanup on a RO DB.
 	path              string                                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
 	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(<tenant>: disabled)" / "(region: unavailable)" / "(<tenant>: not entitled)" / "(<tenant>: billing disabled)"
+	OnQuotaComplete   func(service, scope string, newCount, changed int)                                        // just before a service's OnServiceComplete, with the quota limits it wrote; the progress line and summary count them apart from resources
 	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                                          // after all resolvers finish
 	OnWarn            func(ScanWarning)                                                                         // skip-worthy error handled (transient, access-denied)
@@ -142,6 +143,8 @@ type Store struct {
 	activeCounter     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithRelCounter
 	upsertNew         *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on first-discovery
 	upsertChanged     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on version split
+	quotaNew          *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithQuotaCounters; bumped on a quota limit's first discovery
+	quotaChanged      *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithQuotaCounters; bumped on a quota limit's version split
 	relBuf            *relBuffer                                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 	nativeIDSeen      *sync.Map                                                                                 // key r.ID → nativeIDSighting; per-writable-pool collision detector (see noteNativeIDType). Shared across scoped copies.
 	writeFailStreak   *atomic.Int64                                                                             // consecutive connection-level write failures; opens the withWriteRetry circuit at writeCircuitTrip. Pointer so scoped copies share one breaker.
@@ -164,6 +167,18 @@ type Store struct {
 func (s *Store) ReportService(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) {
 	if s.OnServiceComplete != nil {
 		s.OnServiceComplete(service, scope, total, newCount, changed, errCount, status)
+	}
+}
+
+// ReportQuotas invokes OnQuotaComplete if set. A dispatcher calls it just
+// before the ReportService of a service that ran, with the counts bound by
+// WithQuotaCounters: quota limits discovered for the first time (newCount) and
+// limits whose value changed (changed). They are reported apart from the
+// resource counts because a quota limit is not a resource: the scan summary's
+// resource count covers only the resources table.
+func (s *Store) ReportQuotas(service, scope string, newCount, changed int) {
+	if s.OnQuotaComplete != nil {
+		s.OnQuotaComplete(service, scope, newCount, changed)
 	}
 }
 
@@ -190,14 +205,27 @@ func (s *Store) WithRelCounter(c *atomic.Int64) *Store {
 
 // WithUpsertCounters returns a shallow copy of the Store with the new/changed
 // upsert counters bound. UpsertResources bumps newC on each first-discovery and
-// changedC on each version split. Providers create two local atomic.Int64
-// around a per-service scan dispatch, pass them here, then read them for
-// ReportService — attributing the split per (service, scope) without threading
-// a second count through every scanner signature. Mirrors WithRelCounter.
+// changedC on each version split; InsertResourcesIfAbsent bumps newC. Providers
+// create two local atomic.Int64 around a per-service scan dispatch, pass them
+// here, then read them for ReportService — attributing the split per
+// (service, scope) without threading a second count through every scanner
+// signature. Mirrors WithRelCounter.
 func (s *Store) WithUpsertCounters(newC, changedC *atomic.Int64) *Store {
 	s2 := *s
 	s2.upsertNew = newC
 	s2.upsertChanged = changedC
+	return &s2
+}
+
+// WithQuotaCounters returns a shallow copy of the Store with the quota
+// new/changed counters bound: UpsertQuotas bumps newC on each first discovery
+// and changedC on each version split. Kept apart from WithUpsertCounters so
+// quota limits never count as resources. Dispatchers read them for
+// ReportQuotas.
+func (s *Store) WithQuotaCounters(newC, changedC *atomic.Int64) *Store {
+	s2 := *s
+	s2.quotaNew = newC
+	s2.quotaChanged = changedC
 	return &s2
 }
 

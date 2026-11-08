@@ -419,7 +419,9 @@ func (s *Store) GetQuotaVersions(rootID string) ([]QuotaVersion, error) {
 // any s.db.Begin would nil-panic.
 //
 // Returns the count of rows inserted: first discoveries plus version splits.
-// Verify-only updates do not count.
+// Verify-only updates do not count. It bumps the counters bound by
+// [Store.WithQuotaCounters] once the write succeeds: first discoveries as new,
+// splits as changed.
 func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
@@ -432,52 +434,63 @@ func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
 		}
 	}
 
+	// Counted per attempt and published only after an attempt succeeds, so a
+	// retried attempt is not counted twice. On a caller-owned transaction
+	// (s.tx != nil) that is when the statements succeed, not when the caller
+	// commits.
+	var newC, changedC int
 	err = s.withWriteRetry("upsert quotas", func() error {
 		var txErr error
-		inserted, txErr = s.upsertQuotasTx(quotas, now)
+		newC, changedC, txErr = s.upsertQuotasTx(quotas, now)
 		return txErr
 	})
 	if err != nil {
 		return 0, err
 	}
-	return inserted, nil
+	if s.quotaNew != nil {
+		s.quotaNew.Add(int64(newC))
+	}
+	if s.quotaChanged != nil {
+		s.quotaChanged.Add(int64(changedC))
+	}
+	return newC + changedC, nil
 }
 
 // upsertQuotasTx runs one attempt of UpsertQuotas atomically. A caller-owned
 // transaction is already atomic, so it is used directly; on the pool path a
 // transaction is opened here and the work runs against a [WrapTx] view of it.
-func (s *Store) upsertQuotasTx(quotas []*Quota, now string) (int, error) {
+func (s *Store) upsertQuotasTx(quotas []*Quota, now string) (newC, changedC int, err error) {
 	if s.tx != nil {
 		return s.upsertQuotasOn(quotas, now)
 	}
 	tx, err := s.db.Beginx()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	n, err := WrapTx(tx, Driver(s.driver)).upsertQuotasOn(quotas, now)
+	newC, changedC, err = WrapTx(tx, Driver(s.driver)).upsertQuotasOn(quotas, now)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return n, tx.Commit()
+	return newC, changedC, tx.Commit()
 }
 
 // upsertQuotasOn does the row-by-row work against whatever [Store.ext]
-// resolves to. It must never reach for s.db.
-func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
-	inserted := 0
+// resolves to. It must never reach for s.db. It counts first discoveries into
+// newC and version splits into changedC.
+func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (newC, changedC int, err error) {
 	for _, q := range quotas {
 		existing, err := s.currentQuota(q)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			n, err := s.insertFirstQuota(q, now)
 			if err != nil {
-				return 0, err
+				return 0, 0, err
 			}
-			inserted += n
+			newC += n
 
 		case err != nil:
-			return 0, fmt.Errorf("lookup current version for quota %s: %w", q.ID, err)
+			return 0, 0, fmt.Errorf("lookup current version for quota %s: %w", q.ID, err)
 
 		case existing.unchanged(q):
 			// Verify-only. Display columns still move so a reworded label or a
@@ -500,17 +513,17 @@ func (s *Store) upsertQuotasOn(quotas []*Quota, now string) (int, error) {
 				now, q.DiscoveredBy, q.Name, q.Description, q.ServiceName, q.AccountName,
 				q.AttributesJSON, existing.VersionRowID,
 			); err != nil {
-				return 0, fmt.Errorf("verify quota %s: %w", q.ID, err)
+				return 0, 0, fmt.Errorf("verify quota %s: %w", q.ID, err)
 			}
 
 		default:
 			if err := s.splitQuota(q, existing, now); err != nil {
-				return 0, err
+				return 0, 0, err
 			}
-			inserted++
+			changedC++
 		}
 	}
-	return inserted, nil
+	return newC, changedC, nil
 }
 
 // currentQuotaRow is the lookup projection: chain metadata plus the fields that

@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"sync/atomic"
 	"testing"
 )
 
@@ -62,6 +63,53 @@ func TestUpsertQuotas_FirstDiscoveryThenUnchangedRescan(t *testing.T) {
 	live, total := currentRows(t, st, q.ID)
 	if live != 1 || total != 1 {
 		t.Fatalf("after unchanged rescan: live=%d total=%d, want 1 and 1", live, total)
+	}
+}
+
+// The progress line's quota counts come from the counters bound by
+// WithQuotaCounters: a first discovery counts as new, a split as changed, and
+// a verify-only rescan as neither. None of them counts as a resource.
+func TestUpsertQuotas_BumpsQuotaCounters(t *testing.T) {
+	st := openTestStore(t)
+	var newC, changedC, resNew, resChanged atomic.Int64
+	sc := st.WithUpsertCounters(&resNew, &resChanged).WithQuotaCounters(&newC, &changedC)
+	for _, step := range []struct {
+		name                 string
+		quotas               []*Quota
+		wantNew, wantChanged int64
+	}{
+		{"first discovery", []*Quota{newQuota("ec2", "L-1", 5), newQuota("ec2", "L-2", 5)}, 2, 0},
+		{"unchanged rescan", []*Quota{newQuota("ec2", "L-1", 5), newQuota("ec2", "L-2", 5)}, 2, 0},
+		{"one limit raised", []*Quota{newQuota("ec2", "L-1", 9), newQuota("ec2", "L-2", 5)}, 2, 1},
+	} {
+		if _, err := sc.UpsertQuotas(step.quotas); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		if newC.Load() != step.wantNew || changedC.Load() != step.wantChanged {
+			t.Fatalf("after %s: new=%d changed=%d, want %d and %d", step.name, newC.Load(), changedC.Load(), step.wantNew, step.wantChanged)
+		}
+		if resNew.Load() != 0 || resChanged.Load() != 0 {
+			t.Fatalf("after %s: resource counters new=%d changed=%d, want 0 and 0", step.name, resNew.Load(), resChanged.Load())
+		}
+	}
+}
+
+// One attempt counts its rows but publishes nothing: UpsertQuotas publishes
+// only after the attempt succeeds, so withWriteRetry re-running a failed
+// attempt cannot count its rows twice.
+func TestUpsertQuotasTx_PublishesNoCounters(t *testing.T) {
+	st := openTestStore(t)
+	var newC, changedC atomic.Int64
+	sc := st.WithQuotaCounters(&newC, &changedC)
+	gotNew, gotChanged, err := sc.upsertQuotasTx([]*Quota{newQuota("ec2", "L-1", 5)}, "2026-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatalf("upsertQuotasTx: %v", err)
+	}
+	if gotNew != 1 || gotChanged != 0 {
+		t.Fatalf("attempt counted new=%d changed=%d, want 1 and 0", gotNew, gotChanged)
+	}
+	if newC.Load() != 0 || changedC.Load() != 0 {
+		t.Fatalf("attempt published new=%d changed=%d, want 0 and 0", newC.Load(), changedC.Load())
 	}
 }
 

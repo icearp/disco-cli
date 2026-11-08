@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -599,4 +600,93 @@ func TestReportPanic_SurvivesAPanickedTypedNil(t *testing.T) {
 	if !strings.HasPrefix(got.Message, "panic: ") {
 		t.Errorf("message = %q; want the panic still reported after the formatter gave up", got.Message)
 	}
+}
+
+// dispatchReports is what one dispatched service reported, in call order.
+type dispatchReports struct {
+	calls []string
+}
+
+// recordReports makes st record each ReportQuotas and ReportService call as
+// one line.
+func recordReports(st *store.Store) *dispatchReports {
+	r := &dispatchReports{}
+	st.OnQuotaComplete = func(service, scope string, newCount, changed int) {
+		r.calls = append(r.calls, fmt.Sprintf("quotas %s %s new=%d changed=%d", service, scope, newCount, changed))
+	}
+	st.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
+		r.calls = append(r.calls, fmt.Sprintf("service %s %s total=%d new=%d changed=%d errs=%d status=%v", service, scope, total, newCount, changed, errCount, status))
+	}
+	return r
+}
+
+// testQuotas returns one quota limit per code, all with value.
+func testQuotas(provider, account string, value float64, codes ...string) []*store.Quota {
+	var out []*store.Quota
+	for _, code := range codes {
+		out = append(out, &store.Quota{
+			Provider: provider, AccountID: account, Region: "eastus", ServiceCode: "compute",
+			QuotaCode: code, Value: &value, DiscoveredBy: testScanID,
+		})
+	}
+	return out
+}
+
+// A service that ran reports its quota limits (two new, three changed) apart
+// from its resource counts, just before its ReportService, whether it
+// succeeded or failed; a service skipped as not registered reports none.
+func TestRunSubscriptionService_ReportsQuotasApart(t *testing.T) {
+	t.Parallel()
+	sub := &subscription{ID: "sub-1", Name: "prod"}
+	cases := []struct {
+		name string
+		err  error
+		want []string
+	}{
+		{"success", nil, []string{
+			"quotas azure:test prod new=2 changed=3",
+			"service azure:test prod total=5 new=0 changed=0 errs=0 status=" + fmt.Sprint(store.ServiceOK),
+		}},
+		{"failure", errors.New("500 backend error"), []string{
+			"quotas azure:test prod new=2 changed=3",
+			"service azure:test prod total=5 new=0 changed=0 errs=1 status=" + fmt.Sprint(store.ServiceOK),
+		}},
+		{"store write failure", fmt.Errorf("upsert: %w", store.ErrStoreWrite), []string{
+			"quotas azure:test prod new=2 changed=3",
+			"service azure:test prod total=5 new=0 changed=0 errs=1 status=" + fmt.Sprint(store.ServiceOK),
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			st := newTestStore(t)
+			if _, err := st.UpsertQuotas(testQuotas("azure", sub.ID, 1, "C1", "C2", "C3")); err != nil {
+				t.Fatalf("seed quotas: %v", err)
+			}
+			got := recordReports(st)
+			svc := serviceEntry{name: "azure:test", fn: func(_ context.Context, sub *subscription, _ azcore.TokenCredential, st *store.Store, _ string) (int, int, error) {
+				if _, err := st.UpsertQuotas(testQuotas("azure", sub.ID, 2, "N1", "N2", "C1", "C2", "C3")); err != nil {
+					return 0, 0, err
+				}
+				return 5, 5, c.err
+			}}
+			runSubscriptionService(context.Background(), svc, sub, nil, st, testScanID)
+			if !slices.Equal(got.calls, c.want) {
+				t.Errorf("reports =\n%s\nwant\n%s", strings.Join(got.calls, "\n"), strings.Join(c.want, "\n"))
+			}
+		})
+	}
+	t.Run("not registered", func(t *testing.T) {
+		t.Parallel()
+		st := newTestStore(t)
+		got := recordReports(st)
+		svc := serviceEntry{name: "azure:test", fn: func(context.Context, *subscription, azcore.TokenCredential, *store.Store, string) (int, int, error) {
+			return 0, 0, errServiceNotRegistered
+		}}
+		runSubscriptionService(context.Background(), svc, sub, nil, st, testScanID)
+		want := []string{"service azure:test prod total=0 new=0 changed=0 errs=0 status=" + fmt.Sprint(store.ServiceDisabled)}
+		if !slices.Equal(got.calls, want) {
+			t.Errorf("reports = %q, want %q", got.calls, want)
+		}
+	})
 }

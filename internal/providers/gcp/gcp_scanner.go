@@ -204,8 +204,14 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
+			var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+			// reportStored reports what the service stored: quota limits apart
+			// from resources.
+			reportStored := func(errCount int) {
+				st.ReportQuotas(svc.name, p.ID, int(quotaNewC.Load()), int(quotaChangedC.Load()))
+				st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), errCount, store.ServiceOK)
+			}
 			if err != nil {
 				// First rung, ahead of every skip: a failed store write is not a
 				// GCP-side condition and must never be reported as one. Mirrors
@@ -214,7 +220,7 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 					st.ReportError(store.ScanError{
 						Provider: "gcp", Service: svc.name, Scope: p.ID, Message: err.Error(),
 					})
-					st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
+					reportStored(1)
 					return
 				}
 				if errors.Is(err, errServiceDisabled) {
@@ -235,10 +241,10 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 				st.ReportError(store.ScanError{
 					Provider: "gcp", Service: svc.name, Scope: p.ID, Message: err.Error(),
 				})
-				st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
+				reportStored(1)
 				return
 			}
-			st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
+			reportStored(0)
 		})
 	}
 	wg.Wait()

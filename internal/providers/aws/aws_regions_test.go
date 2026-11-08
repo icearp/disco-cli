@@ -577,7 +577,7 @@ func TestReportServiceOutcome_ListedWithoutHomeWarns(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "aws:svc")
-			reportServiceOutcome(st, "aws:svc", "global", testAccountID+"/global", 0, 0, 0, c.err)
+			reportServiceOutcome(st, "aws:svc", "global", testAccountID+"/global", writeCounts{}, c.err)
 			if *warns != c.wantWarns {
 				t.Errorf("warnings under aws:svc = %d; want %d", *warns, c.wantWarns)
 			}

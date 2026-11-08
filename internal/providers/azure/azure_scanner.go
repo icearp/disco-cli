@@ -474,36 +474,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			var newC, changedC atomic.Int64
-			total, _, err := svc.fn(svcCtx, sub, cred, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
-			switch {
-			case err == nil:
-				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
-			case errors.Is(err, store.ErrStoreWrite):
-				// Ahead of every skip arm: a failed store write is not an
-				// Azure-side condition. Without this, a database outage would
-				// match a skip arm below and the scan would report success
-				// having persisted nothing. Mirrors the AWS dispatcher.
-				st.ReportError(store.ScanError{
-					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
-					Message: formatAzureError(err),
-				})
-				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-			case errors.Is(err, errServiceNotRegistered) && total == 0:
-				// Service not available in this subscription (RP unregistered or
-				// resource type absent) and nothing was scanned — mark the
-				// service disabled (no error, no warning), the Azure analog of
-				// AWS's errServiceDisabled. The total==0 guard ensures a merged
-				// service that already scanned data in another phase is never
-				// blanked.
-				st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, 0, store.ServiceDisabled)
-			default:
-				st.ReportError(store.ScanError{
-					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
-					Message: formatAzureError(err),
-				})
-				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-			}
+			runSubscriptionService(svcCtx, svc, sub, cred, st, scanID)
 		})
 	}
 	wg.Wait()
@@ -535,6 +506,47 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 	resolveRelationships(ctx, sub, st.WithRelCounter(&counter))
 	st.ReportResolveComplete("azure", int(counter.Load()))
 	return nil
+}
+
+// runSubscriptionService runs one service in one subscription and reports its
+// outcome: a store-write failure or any other error as a scan error, an
+// unregistered service that scanned nothing as disabled.
+func runSubscriptionService(ctx context.Context, svc serviceEntry, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) {
+	var newC, changedC, quotaNewC, quotaChangedC atomic.Int64
+	total, _, err := svc.fn(ctx, sub, cred, st.WithUpsertCounters(&newC, &changedC).WithQuotaCounters(&quotaNewC, &quotaChangedC).WithWarningService(svc.name), scanID)
+	// reportStored reports what the service stored: quota limits apart from resources.
+	reportStored := func(errCount int) {
+		st.ReportQuotas(svc.name, sub.scopeLabel(), int(quotaNewC.Load()), int(quotaChangedC.Load()))
+		st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), errCount, store.ServiceOK)
+	}
+	switch {
+	case err == nil:
+		reportStored(0)
+	case errors.Is(err, store.ErrStoreWrite):
+		// Ahead of every skip arm: a failed store write is not an
+		// Azure-side condition. Without this, a database outage would
+		// match a skip arm below and the scan would report success
+		// having persisted nothing. Mirrors the AWS dispatcher.
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
+			Message: formatAzureError(err),
+		})
+		reportStored(1)
+	case errors.Is(err, errServiceNotRegistered) && total == 0:
+		// Service not available in this subscription (RP unregistered or
+		// resource type absent) and nothing was scanned — mark the
+		// service disabled (no error, no warning), the Azure analog of
+		// AWS's errServiceDisabled. The total==0 guard ensures a merged
+		// service that already scanned data in another phase is never
+		// blanked.
+		st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, 0, store.ServiceDisabled)
+	default:
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
+			Message: formatAzureError(err),
+		})
+		reportStored(1)
+	}
 }
 
 // resolveRelationships is phase 2 for Azure: derive edges between resources

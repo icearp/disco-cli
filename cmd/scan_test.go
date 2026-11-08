@@ -22,6 +22,19 @@ func (s stubScanner) Scan(_ context.Context, st *store.Store, _ string) error {
 	return nil
 }
 
+// quotaStubScanner reports one quota service that wrote quota limits and one
+// resource service that wrote none, in the order a dispatcher reports them.
+type quotaStubScanner struct{}
+
+func (quotaStubScanner) Name() string { return "aws" }
+func (quotaStubScanner) Scan(_ context.Context, st *store.Store, _ string) error {
+	st.ReportQuotas("aws:servicequotas", "us-east-1", 2, 3)
+	st.ReportService("aws:servicequotas", "us-east-1", 5, 0, 0, 0, store.ServiceOK)
+	st.ReportQuotas("aws:ec2", "us-east-1", 0, 0)
+	st.ReportService("aws:ec2", "us-east-1", 1, 1, 0, 0, store.ServiceOK)
+	return nil
+}
+
 // newScanTestCmd builds a cobra.Command carrying just the flags runScan reads,
 // with stdout/stderr captured into the provided buffers.
 func newScanTestCmd(out, errOut *bytes.Buffer) *cobra.Command {
@@ -75,6 +88,54 @@ func TestRunScan_QuietGatesBanners(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Scan complete") {
 		t.Errorf("--quiet must still print the final summary on stdout, got:\n%s", out.String())
+	}
+}
+
+// Quota limits count on their own service's line, as its total does, but the
+// summary totals them apart from resources, whose count covers only the
+// resources table. A scan that wrote no quota limits prints no quota clause.
+func TestRunScan_CountsQuotaLimitsApart(t *testing.T) {
+	seedTestDB(t)
+	var out, errOut bytes.Buffer
+	if err := runScan(newScanTestCmd(&out, &errOut), []providers.Scanner{quotaStubScanner{}}); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	lines := map[string]string{}
+	for line := range strings.Lines(errOut.String()) {
+		if f := strings.Fields(line); len(f) > 2 {
+			lines[f[1]] = line
+		}
+	}
+	for service, want := range map[string]string{"aws:servicequotas": "(5 total, 2 new, 3 changed)", "aws:ec2": "(1 total, 1 new, 0 changed)"} {
+		if !strings.Contains(lines[service], want) {
+			t.Errorf("%s progress line = %q, want it to contain %q", service, lines[service], want)
+		}
+	}
+	if want := "Scan complete: 0 resources (1 new, 0 changed), quota limits (2 new, 3 changed) in "; !strings.Contains(out.String(), want) {
+		t.Errorf("summary lacks %q:\n%s", want, out.String())
+	}
+
+	out.Reset()
+	if err := runScan(newScanTestCmd(&out, &errOut), []providers.Scanner{stubScanner{name: "aws"}}); err != nil {
+		t.Fatalf("runScan without quotas: %v", err)
+	}
+	if want := "Scan complete: 0 resources (1 new, 0 changed) in "; !strings.Contains(out.String(), want) {
+		t.Errorf("summary without quotas lacks %q:\n%s", want, out.String())
+	}
+}
+
+// Two scopes sharing a label share one pending entry: a second report before
+// the first line adds to it, so no scope's quota counts drop off the lines.
+func TestQuotaTally_SharedLabelKeepsCounts(t *testing.T) {
+	t.Parallel()
+	q := newQuotaTally()
+	q.report("azure:quotas", "Pay-As-You-Go", 2, 1)
+	q.report("azure:quotas", "Pay-As-You-Go", 3, 0)
+	if n, c := q.take("azure:quotas", "Pay-As-You-Go"); n != 5 || c != 1 {
+		t.Errorf("first line take = %d, %d; want 5, 1", n, c)
+	}
+	if n, c := q.take("azure:quotas", "Pay-As-You-Go"); n != 0 || c != 0 {
+		t.Errorf("second line take = %d, %d; want 0, 0", n, c)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/icearp/disco-cli/internal/providers"
@@ -213,7 +214,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// eu-west-1 prints aws:ec2 twice with no way to tell them apart. errCount >
 	// 0 means the service hit one or more errors (already reported via
 	// OnError); annotate the line with "(with errors)" so the user can scan
-	// output for trouble without grepping. Totals are accumulated by
+	// output for trouble without grepping. Resource totals are accumulated by
 	// scanrun.RunScanners (single source of truth shared with the API driver).
 	// p streams the permanent per-service/resolve lines and, on an interactive
 	// terminal, animates a spinner so a slow service or resolve phase still
@@ -227,14 +228,17 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	spinnerOn := !quiet && !noProgress && isTerminal(progressW)
 	p := newProgress(progressW, start, spinnerOn)
 	defer p.stop()
+	quotas := newQuotaTally()
+	db.OnQuotaComplete = quotas.report
 	db.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
 		p.incDone()
+		quotaNew, quotaChanged := quotas.take(service, scope)
 		if quiet {
 			return
 		}
 		suffix := serviceStatusSuffix(service, status, errCount)
 		p.line(fmt.Sprintf("  %s %-*s  %-*s  (%d total, %d new, %d changed)%s",
-			elapsedField(time.Since(start)), nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix))
+			elapsedField(time.Since(start)), nameWidth, service, scopeWidth, scope, total, newCount+quotaNew, changed+quotaChanged, suffix))
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
@@ -282,6 +286,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if len(scanErrors) > 0 {
 		errSuffix = fmt.Sprintf(", %d errors", len(scanErrors))
 	}
+	quotaClause := quotas.clause()
 
 	// Finalize owns the Complete/Partial dispatch + structured-error
 	// persistence, shared with the scanrun.Execute API driver. A cancelled ctx
@@ -296,21 +301,21 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 
 	if res.Interrupted {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"Scan interrupted: %d resources (%d new, %d changed) in %s%s%s\n",
-			res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			"Scan interrupted: %d resources (%d new, %d changed)%s in %s%s%s\n",
+			res.ResourceCount, totalNew, totalChanged, quotaClause, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return errScanInterrupted
 	}
 	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"Scan partial: %d resources (%d new, %d changed) in %s%s%s\n",
-			res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			"Scan partial: %d resources (%d new, %d changed)%s in %s%s%s\n",
+			res.ResourceCount, totalNew, totalChanged, quotaClause, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		if failOnError, _ := cmd.Flags().GetBool("fail-on-error"); failOnError {
 			return errScanPartial
 		}
 		return nil
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed) in %s%s\n",
-		res.ResourceCount, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed)%s in %s%s\n",
+		res.ResourceCount, totalNew, totalChanged, quotaClause, time.Since(start).Round(time.Second), warnSuffix)
 	return nil
 }
 
@@ -826,4 +831,53 @@ func serviceFilterExample(s providers.Scanner) string {
 		return e.ServiceFilterExample()
 	}
 	return s.Name() + ":<service>"
+}
+
+// quotaTally counts the quota limits services wrote apart from resources: the
+// summary's resource count covers only the resources table. A service's
+// progress line still counts both, as its total does. A dispatcher reports a
+// service's quota counts just before its OnServiceComplete, on the same
+// goroutine, so the pending entry for (service, scope) belongs to the line
+// printed next. Two scopes sharing a label (Azure subscriptions with one
+// display name) share one entry, so their lines can split the counts
+// unevenly; the counts still add up, and the summary totals stay exact.
+type quotaTally struct {
+	mu                 sync.Mutex
+	pending            map[[2]string][2]int
+	newSum, changedSum int
+}
+
+func newQuotaTally() *quotaTally {
+	return &quotaTally{pending: map[[2]string][2]int{}}
+}
+
+// report is the store's OnQuotaComplete hook.
+func (q *quotaTally) report(service, scope string, newCount, changed int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.newSum += newCount
+	q.changedSum += changed
+	key := [2]string{service, scope}
+	c := q.pending[key]
+	q.pending[key] = [2]int{c[0] + newCount, c[1] + changed}
+}
+
+// take returns and forgets the quota counts reported for (service, scope).
+func (q *quotaTally) take(service, scope string) (newCount, changed int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	c := q.pending[[2]string{service, scope}]
+	delete(q.pending, [2]string{service, scope})
+	return c[0], c[1]
+}
+
+// clause is the summary's quota clause, empty when no quota limit was new or
+// changed.
+func (q *quotaTally) clause() string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.newSum == 0 && q.changedSum == 0 {
+		return ""
+	}
+	return fmt.Sprintf(", quota limits (%d new, %d changed)", q.newSum, q.changedSum)
 }
