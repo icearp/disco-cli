@@ -542,25 +542,6 @@ func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanBackupGateway_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	var calls bgwCalls
-	if _, err := bgwScan(context.Background(), st, bgwHandlers(&calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != bgwTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, bgwTestTotal)
-	}
-}
-
 // A region with no hypervisor, gateway or virtual machine stores nothing,
 // reads no tags and calls no configuration op.
 func TestScanBackupGateway_Empty(t *testing.T) {

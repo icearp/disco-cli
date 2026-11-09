@@ -1291,24 +1291,6 @@ func TestScanSecurityAgent_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanSecurityAgent_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != saTagRows {
-		t.Errorf("rescan total = %d; want %d", total, saTagRows)
-	}
-}
-
 // A failed tag read keeps the row without tags: a denial warns once under
 // securityagent:ListTagsForResource, a throttle after retries is a transient
 // error, and any other code a hard one. The op models no not-found, so a

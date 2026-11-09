@@ -672,21 +672,6 @@ func TestScanEVS_NoEnvironments(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanEVS_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{})); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
-	if err != nil || total != evsTestTotal {
-		t.Errorf("rescan = %d, %v; want %d, nil", total, err, evsTestTotal)
-	}
-}
-
 // A failed environment tag read: ResourceNotFoundException (deleted since
 // listing) drops the row and its children silently; a denial keeps the row
 // untagged and warns once under the tag op however many rows it hit; a

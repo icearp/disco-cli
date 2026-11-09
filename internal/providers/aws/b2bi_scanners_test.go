@@ -382,24 +382,6 @@ func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanB2BI_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != b2biTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, b2biTestTotal)
-	}
-}
-
 // Empty listings: each listed once (ListProfiles also by the gate), nothing
 // stored, no detail or tag read, no error, no warning.
 func TestScanB2BI_Empty(t *testing.T) {

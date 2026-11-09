@@ -467,21 +467,6 @@ func TestScanCassandra_StoresTagsOfEachType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanCassandra_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	for i := range 2 {
-		var streams ksStreamPages
-		total, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), nil))
-		if err != nil || total != ksScanTotal {
-			t.Errorf("scan %d: total = %d, err = %v; want %d, nil", i+1, total, err, ksScanTotal)
-		}
-	}
-}
-
 // With no keyspaces and no streams nothing is stored and no tag, table or
 // type read is made.
 func TestScanCassandra_NoKeyspaces(t *testing.T) {

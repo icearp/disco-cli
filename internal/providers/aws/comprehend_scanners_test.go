@@ -454,24 +454,6 @@ func TestScanComprehend_EmptyStatus(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanComprehend_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers())
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != comprehendTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, comprehendTestTotal)
-	}
-}
-
 // Empty listings: each account-wide listing called once, no dataset listing
 // (no flywheel), no tag read, nothing stored, no error, no warning.
 func TestScanComprehend_Empty(t *testing.T) {

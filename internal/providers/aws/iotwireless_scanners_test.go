@@ -393,24 +393,6 @@ func TestScanIoTWireless_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanIoTWireless_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := iwScan(context.Background(), st, iwHandlers(newIWCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := iwScan(context.Background(), st, iwHandlers(newIWCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != iwTotalCount {
-		t.Errorf("rescan total = %d; want %d", total, iwTotalCount)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException, the op's modeled not-found,
 // drops the row silently; a denial keeps the row untagged and warns once
 // under iotwireless:ListTagsForResource; a throttle after retries keeps it

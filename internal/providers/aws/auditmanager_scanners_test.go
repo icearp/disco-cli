@@ -375,25 +375,6 @@ func TestScanAuditManager_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanAuditManager_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	var calls audmCalls
-	if _, err := audmScan(context.Background(), st, audmHandlers(&calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := audmScan(context.Background(), st, audmHandlers(&calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != audmTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, audmTestTotal)
-	}
-}
-
 // A region with no assessment, framework or control stores nothing, reads
 // no assessment or tags, and warns about nothing.
 func TestScanAuditManager_Empty(t *testing.T) {

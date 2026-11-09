@@ -495,24 +495,6 @@ func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanRoute53GlobalResolver_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws"))); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws")))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != r53grTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, r53grTestTotal)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException drops the row silently, and a
 // dropped parent's children are not listed; a denial keeps the row untagged
 // and warns once under the tag op; a throttle keeps it and is transient; any

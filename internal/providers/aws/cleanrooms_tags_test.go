@@ -293,25 +293,6 @@ func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsNative(t, st, crtForeignCollab(), crtMember(crtForeignCollab()))
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanCleanRooms_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newCRTCalls()
-	if _, err := crtScan(context.Background(), t, st, crtHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := crtScan(context.Background(), t, st, crtHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != 25 {
-		t.Errorf("rescan total = %d; want 25", total)
-	}
-}
-
 // A failed tag read keeps the row without tags unless the resource is gone:
 // a denial warns once under cleanrooms:ListTagsForResource, a throttle after
 // retries is a transient error, any other code a hard one. A membership the

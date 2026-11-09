@@ -577,21 +577,6 @@ func TestScanSSM_ParametersWrittenPerPage(t *testing.T) {
 	assertTagsMap(t, tags, map[string]string{"type": TypeSSMParameter})
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanSSM_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls()))
-	if err != nil || total != ssmTestTotal {
-		t.Errorf("rescan = %d, %v; want %d, nil", total, err, ssmTestTotal)
-	}
-}
-
 // A failed tag read. InvalidResourceId, the op's modeled code for an id it
 // cannot find, drops the row silently. A denial keeps the row untagged and
 // warns once under the tag op; a throttle keeps it and is transient; any

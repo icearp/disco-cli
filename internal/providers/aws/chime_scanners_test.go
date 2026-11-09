@@ -476,25 +476,6 @@ func chimeSipRuleID(id string) string {
 	return chimeSipRuleNativeID("aws", testRegion, testAccountID, id)
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanChime_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newChimeCalls(t)
-	if _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := chimeScan(context.Background(), st, chimeFixture(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != chimeTotalCount {
-		t.Errorf("rescan total = %d; want %d", total, chimeTotalCount)
-	}
-}
-
 // A failed tag read, for a type of each package: a denial (ForbiddenException
 // with an action, or UnauthorizedClientException) keeps the row untagged and
 // warns once under chime:ListTagsForResource; NotFoundException drops the row

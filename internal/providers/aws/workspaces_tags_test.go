@@ -363,24 +363,6 @@ func TestScanWorkSpaces_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanWorkSpaces_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != wsTestStored {
-		t.Errorf("rescan total = %d; want %d", total, wsTestStored)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException (the one code the op models)
 // drops the row silently, and a directory or owned alias so dropped is not
 // read for children; a denial keeps the row untagged and warns once under

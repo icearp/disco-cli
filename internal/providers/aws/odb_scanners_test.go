@@ -526,25 +526,6 @@ func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
 	assertQSContains(t, st, odbAVMClusterARN("bare"), odbAVMClusterARN("bare")+"/autonomous-virtual-machine/vm")
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanODB_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newODBCalls()
-	if _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := odbScan(context.Background(), st, odbHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != odbFixtureTotal {
-		t.Errorf("rescan total = %d; want %d", total, odbFixtureTotal)
-	}
-}
-
 // A failed tag read keeps the row without tags, except a modeled not-found,
 // which drops it: a denial warns once under odb:ListTagsForResource, a
 // throttle after retries is a transient error, any other code a hard one.

@@ -387,24 +387,6 @@ func TestScanPersonalize_StoresTagsOfEveryTaggableType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanPersonalize_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := pzScan(context.Background(), st, pzHandlers(newPZCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := pzScan(context.Background(), st, pzHandlers(newPZCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != pzTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, pzTestTotal)
-	}
-}
-
 // A failed tag read. ResourceNotFoundException, which the op models, drops
 // the row silently. A denial keeps the row untagged and warns once under
 // the tag op; a throttle keeps it and is transient; any other error keeps it

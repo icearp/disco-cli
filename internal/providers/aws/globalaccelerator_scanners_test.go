@@ -500,24 +500,6 @@ func TestScanGlobalAccelerator_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanGlobalAccelerator_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := gaScan(st, gaHandlers(newGACalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := gaScan(st, gaHandlers(newGACalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != gaTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, gaTestTotal)
-	}
-}
-
 func TestGAByoipCidrNativeID(t *testing.T) {
 	t.Parallel()
 	if got, want := gaByoipCidrNativeID("aws", "123456789012", "203.0.113.0/24"), "arn:aws:globalaccelerator::123456789012:byoip-cidr/203.0.113.0/24"; got != want {

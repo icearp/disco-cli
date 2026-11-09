@@ -371,24 +371,6 @@ func TestScanSecurityHub_NameFallbacks(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanSecurityHub_TaggedRescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != shTagTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, shTagTestTotal)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException, the op's one modeled
 // not-found code, drops the row silently; a denial keeps the row untagged
 // and warns once under the tag op; a throttle keeps it and is transient; any

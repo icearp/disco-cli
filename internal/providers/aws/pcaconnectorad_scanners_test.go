@@ -394,24 +394,6 @@ func TestScanPCAConnectorAD_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanPCAConnectorAD_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t))); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t)))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != pcaADTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, pcaADTestTotal)
-	}
-}
-
 // No connector listed: none stored, no template listed, no error; the
 // directory registrations and their service principal names are still
 // stored. An empty listing warns nothing; a denied one warns once under its

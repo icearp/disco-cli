@@ -376,24 +376,6 @@ func TestScanMediaPackageV2_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanMediaPackageV2_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t))); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t)))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != mp2TestTotal {
-		t.Errorf("rescan total = %d; want %d", total, mp2TestTotal)
-	}
-}
-
 // No channel group listed: nothing stored, no child call or tag read, no
 // error. An empty listing warns nothing; a denied one warns once under its
 // op.

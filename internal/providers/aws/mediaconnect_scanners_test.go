@@ -666,22 +666,6 @@ func TestScanMediaConnect_StoresTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanMediaConnect_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	f := newMCFixture()
-	if _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := mcScan(context.Background(), st, f, f.handlers())
-	if err != nil || total != mcTestTotal {
-		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, mcTestTotal)
-	}
-}
-
 // Empty listings: each listing called once, no flow described, no tag read,
 // nothing stored, no error, no warning.
 func TestScanMediaConnect_Empty(t *testing.T) {

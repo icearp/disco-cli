@@ -311,24 +311,6 @@ func TestScanBCMDashboards_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanBCMDashboards_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != bcmdTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, bcmdTestTotal)
-	}
-}
-
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanBCMDashboards_Empty(t *testing.T) {

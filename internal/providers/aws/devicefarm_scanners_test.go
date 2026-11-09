@@ -736,24 +736,6 @@ func TestScanDeviceFarm_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanDeviceFarm_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := dfScan(context.Background(), st, dfHandlers(newDFCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := dfScan(context.Background(), st, dfHandlers(newDFCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != dfTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, dfTestTotal)
-	}
-}
-
 // Every listing empty: nothing stored, no per-project listing or tag read,
 // no error, no warning.
 func TestScanDeviceFarm_EmptyListings(t *testing.T) {

@@ -1062,21 +1062,6 @@ func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanLicenseManager_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion))
-	if err != nil || total != lmTestTagTotal {
-		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, lmTestTagTotal)
-	}
-}
-
 // A failed tag read keeps the row untagged. A denial (AccessDeniedException,
 // or License Manager's AuthorizationException) warns once under the tag op; a
 // throttle is transient; any other error, a not-found code the op does not

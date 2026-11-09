@@ -398,25 +398,6 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanAmplifyUIBuilder_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newAUIBCalls()
-	if _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := auibScan(context.Background(), t, st, auibHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != 12 {
-		t.Errorf("rescan total = %d; want 12", total)
-	}
-}
-
 // A failed tag read keeps the row without tags unless the resource is gone:
 // a denial (AccessDeniedException, or UnauthorizedException, the op's
 // modeled denial) warns once under the tag op, a throttle after retries is a

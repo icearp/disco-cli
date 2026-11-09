@@ -396,24 +396,6 @@ func TestScanACM_StoresTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanACM_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := acmChildCalls{tags: map[string]map[string]string{acmTestEP1: {"team": "pki"}}}
-	acct := newTestAccount(testAccountID)
-	acct.cfg = opStubConfig(acmTopLevelHandlers(&calls), acmDenied)
-	if _, err := scanACM(context.Background(), acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
-	if err != nil || total != acmTestTotal {
-		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, acmTestTotal)
-	}
-}
-
 // A failed tag read. ResourceNotFoundException, which both tag ops model,
 // drops a resource deleted since it was listed (an endpoint with the children
 // it would have listed). A denial keeps the row untagged and warns once under

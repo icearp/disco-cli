@@ -297,21 +297,6 @@ func TestScanAgentRegistry_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanAgentRegistry_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := arScan(context.Background(), st, arHandlers(newARCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := arScan(context.Background(), st, arHandlers(newARCalls()))
-	if err != nil || total != 5 {
-		t.Errorf("rescan = %d, %v; want 5, nil", total, err)
-	}
-}
-
 // An element without an ARN is not stored and is warned about under its
 // listing's op. A registry listed without a RegistryId is stored, its
 // records are not listed, and that is warned about once.

@@ -377,25 +377,6 @@ func TestScanManagedBlockchain_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanManagedBlockchain_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	fx := newMBFixture("aws", testRegion, testAccountID)
-	if _, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := mbScanDefault(context.Background(), st, mbHandlers(newMBCalls(), fx))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != mbTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, mbTestTotal)
-	}
-}
-
 // No accessor and no network: nothing stored, no per-network listing or tag
 // read, no error, no warning.
 func TestScanManagedBlockchain_Empty(t *testing.T) {

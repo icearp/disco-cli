@@ -680,24 +680,6 @@ func TestScanRoute53Resolver_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsEdgesDeclared(t, st)
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanRoute53Resolver_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != r53rTotalCount {
-		t.Errorf("rescan total = %d; want %d", total, r53rTotalCount)
-	}
-}
-
 // Tags returned over two pages are stored together, the second page asked
 // for with the first page's NextToken; a NextToken that repeats keeps the
 // row untagged and fails the scan.

@@ -292,25 +292,6 @@ func TestScanDataSync_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanDataSync_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newDSYCalls()
-	if _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := dsyScan(context.Background(), t, st, dsyHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != 26 {
-		t.Errorf("rescan total = %d; want 26", total)
-	}
-}
-
 // A failed tag read keeps the row without tags: a denial warns once under
 // datasync:ListTagsForResource, a throttle after retries is a transient
 // error, any other code a hard one. The op models no not-found code, so

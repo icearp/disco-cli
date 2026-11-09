@@ -393,24 +393,6 @@ func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanTranscribe_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != trsTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, trsTestTotal)
-	}
-}
-
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanTranscribe_Empty(t *testing.T) {

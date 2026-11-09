@@ -373,25 +373,6 @@ func TestScanCodePipeline_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanCodePipeline_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	var calls cplCalls
-	if _, err := cplScan(context.Background(), st, cplHandlers(&calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := cplScan(context.Background(), st, cplHandlers(&calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != cplTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, cplTestTotal)
-	}
-}
-
 // A region with no pipeline, action type or webhook stores nothing and reads
 // no body or tags.
 func TestScanCodePipeline_Empty(t *testing.T) {

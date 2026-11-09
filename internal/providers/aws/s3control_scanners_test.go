@@ -403,22 +403,6 @@ func TestScanS3Control_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanS3Control_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newS3CCalls()
-	if _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
-	if err != nil || total != 12 {
-		t.Errorf("rescan = %d, %v; want 12, nil", total, err)
-	}
-}
-
 // A failed tag read keeps the row without tags: a denial warns once under
 // the tag op, a throttle after retries is a transient error, any other code a
 // hard one. Neither tag op models an error code, so no code drops the row.

@@ -173,9 +173,6 @@ func dlHandlers(c *dlCalls) map[string]func(any) (any, error) {
 	}
 }
 
-// dlFixtureRows is how many rows the fixture stores.
-var dlFixtureRows = len(dlTaggedRows()) + len(dlUntaggedRows())
-
 // dlScan runs the scan's real entry point against handlers; every op they do
 // not answer is denied.
 func dlScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, error) {
@@ -273,25 +270,6 @@ func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 	if sv(budget.Name) != "budget tagged" {
 		t.Errorf("budget Name = %q; want its DisplayName", sv(budget.Name))
-	}
-}
-
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanDeadline_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newDLCalls()
-	if _, err := dlScan(context.Background(), t, st, dlHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := dlScan(context.Background(), t, st, dlHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != dlFixtureRows {
-		t.Errorf("rescan total = %d; want %d", total, dlFixtureRows)
 	}
 }
 

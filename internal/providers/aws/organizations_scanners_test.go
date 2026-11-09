@@ -876,21 +876,6 @@ func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanOrganizations_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := orgScanWith(st, newOrgCalls().fullHandlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := orgScanWith(st, newOrgCalls().fullHandlers())
-	if err != nil || total != orgTestFullTotal {
-		t.Errorf("rescan = %d, %v; want %d, nil", total, err, orgTestFullTotal)
-	}
-}
-
 // A failed tag read. TargetNotFoundException is modeled, so a resource
 // deleted since it was listed is dropped silently (an OU with it: its child
 // OU is not listed, its account is stored unlinked). A denial keeps the row

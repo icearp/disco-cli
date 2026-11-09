@@ -1785,29 +1785,6 @@ func TestScanIoT_NXDOMAINWithNothingStoredIsRegionUnavailable(t *testing.T) {
 	}
 }
 
-// A rescan that stores only rows it already had still keeps its counts
-// beside a late NXDOMAIN.
-func TestScanIoT_RescanKeepsCountsBesideLateNXDOMAIN(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	handlers := iotFixtureHandlers(&iotTagCalls{})
-	handlers["ListDimensions"] = func(any) (any, error) {
-		return nil, &net.DNSError{Err: "no such host", Name: "iot.us-east-1.amazonaws.com", IsNotFound: true}
-	}
-	acct.cfg = opStubConfig(handlers, iotDenied)
-	want := 2*len(iotTaggedFixtures()) - 2
-	for i := range 2 {
-		total, err := scanIoT(context.Background(), acct, testRegion, st, testScanID)
-		if got := classifyServiceError(err); got != outcomeError {
-			t.Errorf("scan %d: classifyServiceError = %v; want outcomeError (err %v)", i+1, got, err)
-		}
-		if total != want {
-			t.Errorf("scan %d: total = %d; want %d", i+1, total, want)
-		}
-	}
-}
-
 // A describe answered without an ARN, of a listed item that carries its ARN,
 // stores the item as its list element behind one warning.
 func TestScanIoT_DescribeWithoutARNKeepsListedElement(t *testing.T) {

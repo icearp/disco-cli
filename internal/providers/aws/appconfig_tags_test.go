@@ -336,24 +336,6 @@ func TestScanAppConfig_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanAppConfig_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := acScan(context.Background(), st, acHandlers(newACCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := acScan(context.Background(), st, acHandlers(newACCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != acTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, acTestTotal)
-	}
-}
-
 // A failed tag read. ResourceNotFoundException, which the op models, drops
 // the row silently, and the children of a dropped parent are not listed. A
 // denial keeps the row untagged and warns once under the tag op; a throttle

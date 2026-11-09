@@ -1431,22 +1431,6 @@ func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanWA_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	f := newWAFixture("aws", testRegion)
-	if _, err := f.scan(context.Background(), st); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := f.scan(context.Background(), st)
-	if err != nil || total != waTotal {
-		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, waTotal)
-	}
-}
-
 // With every tool listing empty, no tag read and no child listing is made.
 func TestScanWA_EmptyListings(t *testing.T) {
 	t.Parallel()

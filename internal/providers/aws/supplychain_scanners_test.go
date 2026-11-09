@@ -374,24 +374,6 @@ func TestScanSupplyChain_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanSupplyChain_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers())
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != scnTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, scnTestTotal)
-	}
-}
-
 // No instance: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanSupplyChain_NoInstances(t *testing.T) {

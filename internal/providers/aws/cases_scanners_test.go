@@ -350,24 +350,6 @@ func TestScanCases_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanCases_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != casesTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, casesTestTotal)
-	}
-}
-
 // No domain: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanCases_NoDomains(t *testing.T) {

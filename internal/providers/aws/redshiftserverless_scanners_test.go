@@ -819,24 +819,6 @@ func TestScanRedshiftServerless_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanRedshiftServerless_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != rssTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, rssTestTotal)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException drops the row silently; a
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other error keeps it and is an error.

@@ -957,22 +957,6 @@ func TestScanLex_NoIDKeys(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanLex_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	f := newLXTagFixture("aws", testRegion)
-	if _, err := f.scan(context.Background(), st); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := f.scan(context.Background(), st)
-	if err != nil || total != lxTagTotal {
-		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, lxTagTotal)
-	}
-}
-
 // With no bots and no test sets, no per-bot op and no tag read is called.
 func TestScanLex_EmptyListings(t *testing.T) {
 	t.Parallel()

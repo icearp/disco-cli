@@ -452,24 +452,3 @@ func TestScanSynthetics_GroupsDenied(t *testing.T) {
 		t.Errorf("group rows = %d, want 0", n)
 	}
 }
-
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanSynthetics_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	h := synHandlers()
-	h["ListGroups"] = synGroupPages
-	acct.cfg = opStubConfig(h, synTestDenied)
-	for run := range 2 {
-		total, err := scanSynthetics(context.Background(), acct, testRegion, st, testScanID)
-		if err != nil {
-			t.Fatalf("run %d: err = %v", run, err)
-		}
-		if total != 4 {
-			t.Errorf("run %d: total = %d; want 4", run, total)
-		}
-	}
-}

@@ -430,26 +430,6 @@ func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanResilienceHub_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	queues, want := rhFixture(rhCommercial, false)
-	if _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	queues, _ = rhFixture(rhCommercial, false)
-	total, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != len(want) {
-		t.Errorf("rescan total = %d; want %d", total, len(want))
-	}
-}
-
 // emptyRHQueues queues one empty page for every listing a scan makes when
 // nothing exists: the child listings are not called.
 func emptyRHQueues() map[string][]stubCall {

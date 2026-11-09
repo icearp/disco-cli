@@ -865,9 +865,9 @@ func TestConnectFlows_DeniedChildListingsWarnOncePerOp(t *testing.T) {
 	}
 }
 
-// Module versions report the rows the store inserted: a rescan of the same
-// versions inserts none.
-func TestConnectFlowModuleVersions_InsertedIsTheStoreCount(t *testing.T) {
+// A rescan of the same module versions reports them all in its total and
+// stores no new row or version.
+func TestConnectFlowModuleVersions_RescanStoresNoNewVersion(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	h := connectFlowsHandlers(map[string]func(any) (any, error){

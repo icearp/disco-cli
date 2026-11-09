@@ -381,24 +381,6 @@ func TestScanQBusiness_EmptyListing(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanQBusiness_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := qbScan(context.Background(), st, qbHandlers(newQBCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := qbScan(context.Background(), st, qbHandlers(newQBCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != qbTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, qbTestTotal)
-	}
-}
-
 // A failed tag read. ResourceNotFoundException, which the op models, drops
 // the row silently, and the children of a dropped parent are not read. A
 // denial keeps the row untagged and warns once under the tag op; a throttle

@@ -410,21 +410,6 @@ func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanEKS_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := eksxScan(context.Background(), st, newEKSXCalls().handlers())
-	if err != nil || total != 30 {
-		t.Errorf("rescan = %d, %v; want 30, nil", total, err)
-	}
-}
-
 // A failed tag read keeps the row without tags unless the resource is gone:
 // a denial warns once under the tag op, a throttle after retries is a
 // transient error, any other code a hard one; the tag op's modeled

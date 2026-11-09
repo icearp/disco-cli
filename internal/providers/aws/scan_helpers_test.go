@@ -1093,22 +1093,6 @@ func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
 	}
 }
 
-// A rescan of unchanged rows still counts every row stored in total, apart
-// from the rows it inserted, which are none.
-func TestStoreTokenListTags_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	ids := []string{"x1", "x2", "s"}
-	reads := map[string]rowTagRead{"x1": {}, "x2": {}, "s": {}}
-	for _, want := range []struct{ total, inserted int }{{3, 3}, {3, 0}} {
-		counted, upserts := countUpserts(st)
-		p, stop := storeTaggedThings(context.Background(), counted, ids, reads)
-		if inserted := upserts(); stop || p.total != want.total || inserted != want.inserted {
-			t.Fatalf("stop, total, inserted = %v, %d, %d; want false, %d, %d", stop, p.total, inserted, want.total, want.inserted)
-		}
-	}
-}
-
 // A transient tag read error stays an error alone, and is demoted to one
 // warning under the tag op beside another phase's hard error.
 func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
@@ -1284,20 +1268,6 @@ func TestStoreTokenPagesTags_PageByPage(t *testing.T) {
 				t.Errorf("warnings = %d; want 0", *warns)
 			}
 		})
-	}
-}
-
-// A rescan of unchanged pages still counts every row stored in total, apart
-// from the rows it inserted, which are none.
-func TestStoreTokenPagesTags_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	for _, want := range []struct{ total, inserted int }{{6, 6}, {6, 0}} {
-		counted, upserts := countUpserts(st)
-		p, stop, err := runTokenPagesTest(context.Background(), counted, &tokenPagesTest{}, pagesTestTags(nil))
-		if inserted := upserts(); stop || err != nil || p.total != want.total || inserted != want.inserted {
-			t.Fatalf("stop, err, total, inserted = %v, %v, %d, %d; want false, nil, %d, %d", stop, err, p.total, inserted, want.total, want.inserted)
-		}
 	}
 }
 

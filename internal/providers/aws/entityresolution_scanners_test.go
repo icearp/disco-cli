@@ -368,25 +368,6 @@ func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanEntityResolution_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	var calls erCalls
-	if _, err := erScan(context.Background(), st, erHandlers(&calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := erScan(context.Background(), st, erHandlers(&calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != erTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, erTestTotal)
-	}
-}
-
 // A region with nothing listed stores nothing, and reads no tag, workflow
 // body or policy.
 func TestScanEntityResolution_Empty(t *testing.T) {

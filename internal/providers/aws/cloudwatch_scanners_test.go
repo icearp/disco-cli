@@ -486,28 +486,6 @@ func TestScanCloudWatch_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanCloudWatch_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	for _, k := range []cwKind{cwKindOf(t, TypeCloudWatchAlarm), cwKindOf(t, TypeCloudWatchDashboard)} {
-		t.Run(k.typ, func(t *testing.T) {
-			st := newTestStore(t)
-			if _, err := k.scan(context.Background(), st, cwHandlers(newCWCalls())); err != nil {
-				t.Fatalf("first scan: %v", err)
-			}
-			total, err := k.scan(context.Background(), st, cwHandlers(newCWCalls()))
-			if err != nil {
-				t.Fatalf("rescan: %v", err)
-			}
-			if total != k.scanTotal() {
-				t.Errorf("rescan total = %d; want %d", total, k.scanTotal())
-			}
-		})
-	}
-}
-
 // A failed tag read: ResourceNotFoundException drops the row silently; a
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other modeled code keeps it and is an error.

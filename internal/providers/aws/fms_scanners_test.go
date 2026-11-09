@@ -855,15 +855,13 @@ func TestScanFMS_TransientKeyWithHardKeyFails(t *testing.T) {
 // earlier phase or on an earlier page of the same listing, is a warning
 // under the op that met it: returning the sentinel would report the
 // service disabled, hiding the hard error or the stored rows' counts. The
-// later phases still run. A rescan stores the same rows again without
-// inserting any, and still warns rather than reports the service disabled.
+// later phases still run.
 func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 	t.Parallel()
 	notOnboarded := func(any) (any, error) { return nil, fmsNoDefaultAdmin }
 	cases := []struct {
 		name      string
 		override  map[string]func(any) (any, error)
-		rescan    bool // scan with the fixture first, so every row is already stored
 		warnOp    string
 		wantCode  string // "" for a nil error
 		wantTotal int
@@ -874,10 +872,9 @@ func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 				"ListPolicies":     func(any) (any, error) { return nil, apiErr("InternalErrorException", "boom") },
 				"ListResourceSets": notOnboarded,
 			},
-			false, "fms:ListResourceSets", "InternalErrorException", fmsTestTotal - 4 - 2,
+			"fms:ListResourceSets", "InternalErrorException", fmsTestTotal - 4 - 2,
 		},
-		{"after stored rows", map[string]func(any) (any, error){"ListResourceSets": notOnboarded}, false, "fms:ListResourceSets", "", fmsTestTotal - 2},
-		{"after rows stored again on a rescan", map[string]func(any) (any, error){"ListResourceSets": notOnboarded}, true, "fms:ListResourceSets", "", fmsTestTotal - 2},
+		{"after stored rows", map[string]func(any) (any, error){"ListResourceSets": notOnboarded}, "fms:ListResourceSets", "", fmsTestTotal - 2},
 		{
 			"on a later page",
 			map[string]func(any) (any, error){"ListPolicies": func(in any) (any, error) {
@@ -886,18 +883,13 @@ func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 				}
 				return fmsListings[0].page(sdkaws.String("next")), nil
 			}},
-			false, "fms:ListPolicies", "", fmsTestTotal - 4 + 1,
+			"fms:ListPolicies", "", fmsTestTotal - 4 + 1,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			var calls fmsCalls
-			if tc.rescan {
-				if _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls)); err != nil {
-					t.Fatalf("first scan: %v", err)
-				}
-			}
 			warns := countOpWarnings(st, tc.warnOp)
 			h := fmsHandlers(&calls)
 			maps.Copy(h, tc.override)

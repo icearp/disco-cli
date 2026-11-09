@@ -519,24 +519,6 @@ func TestScanBillingConductor_PayerOnlyAfterAnswersIsDenial(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanBillingConductor_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, err := bcScan(context.Background(), st, bcHandlers(newBCCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := bcScan(context.Background(), st, bcHandlers(newBCCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != bcTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, bcTestTotal)
-	}
-}
-
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanBillingConductor_Empty(t *testing.T) {

@@ -306,25 +306,6 @@ func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanGlue_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newGlueCalls()
-	if _, err := glueScan(context.Background(), t, st, glueHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, err := glueScan(context.Background(), t, st, glueHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if want := 2*len(glueTaggedTypes()) + glueFixtureRows; total != want {
-		t.Errorf("rescan total = %d; want %d", total, want)
-	}
-}
-
 // A failed tag read keeps the row without tags unless the resource is gone:
 // a denial warns once under glue:GetTags, a throttle after retries is a
 // transient error, any other code a hard one. A database GetTags no longer

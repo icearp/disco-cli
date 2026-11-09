@@ -404,26 +404,6 @@ func TestScanR53RecoveryControl_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan reports every stored row in its total, not only the rows the store
-// newly wrote. On a first scan into an empty store every row is new, so only a
-// rescan catches a total taken from the store's written count.
-func TestScanR53RecoveryControl_RescanKeepsTotal(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	first := newR53RCCalls()
-	if _, err := r53rcScan(context.Background(), st, first, r53rcHandlers(first)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	again := newR53RCCalls()
-	total, err := r53rcScan(context.Background(), st, again, r53rcHandlers(again))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != r53rcTestTotal {
-		t.Errorf("rescan total = %d; want %d", total, r53rcTestTotal)
-	}
-}
-
 // Nothing listed: nothing stored, no per-panel call or tag read, no error,
 // no warning.
 func TestScanR53RecoveryControl_EmptyListings(t *testing.T) {

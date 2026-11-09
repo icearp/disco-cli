@@ -387,8 +387,7 @@ func TestScanBudgets_LinkedAccountBeforeAnyRow(t *testing.T) {
 
 // The linked-account refusal after a call the service answered with rows is
 // a denial: warned about under its listing, the rows already listed kept,
-// and the actions still listed after a budgets refusal. On a rescan the
-// budgets already stored count as rows though none is inserted.
+// and the actions still listed after a budgets refusal.
 func TestScanBudgets_LinkedAccountAfterRowsIsDenial(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -396,19 +395,12 @@ func TestScanBudgets_LinkedAccountAfterRowsIsDenial(t *testing.T) {
 		k         budgetsKind
 		laterPage bool
 		wantKept  int
-		rescan    bool
 	}{
-		{"budgets, later page", budgetsKindBudgets, true, 1, false},
-		{"actions, first page after budgets stored", budgetsKindActions, false, 0, false},
-		{"actions, first page on a rescan after budgets stored", budgetsKindActions, false, 0, true},
+		{"budgets, later page", budgetsKindBudgets, true, 1},
+		{"actions, first page after budgets stored", budgetsKindActions, false, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
-			if c.rescan {
-				if _, err := budgetsScan(context.Background(), st, budgetsHandlers(newBudgetsCalls("aws"))); err != nil {
-					t.Fatalf("first scan: %v", err)
-				}
-			}
 			warns := rhWarnRecorder(st)
 			calls := newBudgetsCalls("aws")
 			handlers := budgetsHandlers(calls)

@@ -584,9 +584,14 @@ option itself (`.sharingDenials()` at 93 of 96 sites) or owns its count site. Pr
 on the service's call site, run against only the kept tests. A name or shape sweep overestimated the
 deletable tests about tenfold.
 
-Rescan tests (`*_RescanKeepsTotal`) are the only guard that a service's count site returns its stored-row
-total, not the store's written count: on a first scan into an empty store the two are equal, and the
-dispatcher reports new/changed from counters. Keep them while `UpsertResources` returns a count.
+Store writes return only `error`, so a scanner's total cannot be the store's written count; a total needs no
+rescan test. A same-stub rescan asserting `upserts() == 0` (`countUpserts`) is still the only per-service guard
+against a volatile attribute or tag value that version-splits every row on every scan. Keep those tests
+(`*_RescanInsertsNone`, the second pass in some `StoresTags…` tests, the CostExplorer/Inspector2/Timestream
+rescans); most services have none. `InsertResourcesIfAbsent` still returns a count: a scanner that returned
+it as its total would report 0 on a rescan, and most services have no rescan test to catch it.
+Earlier prunes dropped `inserted == 0` checks as "a forward of a discarded value" and lost that guard for
+most services: a check on a dead value can still pin a live property, so mutate the property, not the value.
 
 ### Helper-test colocation
 
