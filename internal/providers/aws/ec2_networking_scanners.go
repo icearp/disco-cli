@@ -261,7 +261,7 @@ func scanEIPs(ctx context.Context, client ec2API, acct *account, region string, 
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert EIPs: %w", err)
 		}
@@ -482,7 +482,7 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 	}
 	opt := out.VpcBlockPublicAccessOptions
 	nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "vpc-block-public-access-options", acct.ID)
-	_, err = st.UpsertResource(&store.Resource{
+	err = st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
 		AccountName: &acct.Name,

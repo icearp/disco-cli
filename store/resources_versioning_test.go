@@ -46,7 +46,7 @@ func upsertOne(t *testing.T, st *Store, attrs, tags string, scanID string) strin
 		TagsJSON:       sp(tags),
 		DiscoveredBy:   scanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	return r.ID
@@ -84,7 +84,7 @@ func TestVersioning_UnchangedRescan_VerifyOnly(t *testing.T) {
 
 	// Re-upsert with identical attributes + tags but a different scan id.
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: `{"a":1}`,
 		TagsJSON:       sp(`{"env":"prod"}`),
@@ -114,7 +114,7 @@ func TestVersioning_ChangedAttributes_VersionSplit(t *testing.T) {
 	rootID := upsertOne(t, st, `{"a":1}`, `{"env":"prod"}`, "scan-A")
 
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: `{"a":2}`,
 		TagsJSON:       sp(`{"env":"prod"}`),
@@ -157,7 +157,7 @@ func TestVersioning_ChangedTags_VersionSplit(t *testing.T) {
 	rootID := upsertOne(t, st, `{"a":1}`, `{"env":"prod"}`, "scan-A")
 
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: `{"a":1}`,
 		TagsJSON:       sp(`{"env":"staging"}`),
@@ -191,7 +191,7 @@ func TestVersioning_ReorderedEmbeddedPolicy_NoSplit(t *testing.T) {
 
 	rootID := upsertOne(t, st, attrsA, `{}`, "scan-A")
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: attrsB,
 		TagsJSON:       sp(`{}`),
@@ -222,7 +222,7 @@ func TestVersioning_ChangedEmbeddedPolicy_Split(t *testing.T) {
 
 	rootID := upsertOne(t, st, attrsA, `{}`, "scan-A")
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: attrsB,
 		TagsJSON:       sp(`{}`),
@@ -256,7 +256,7 @@ func TestWithUpsertCounters_SplitsNewVsChanged(t *testing.T) {
 
 	// First scan: two brand-new resources → new=2, changed=0.
 	var newC, changedC atomic.Int64
-	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows); err != nil {
+	if err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 	if newC.Load() != 2 || changedC.Load() != 0 {
@@ -270,7 +270,7 @@ func TestWithUpsertCounters_SplitsNewVsChanged(t *testing.T) {
 		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: `{"a":2}`, DiscoveredBy: "scan-B"},
 		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-2", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-B"},
 	}
-	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows2); err != nil {
+	if err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows2); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
 	if newC.Load() != 0 || changedC.Load() != 1 {
@@ -284,7 +284,7 @@ func TestWithUpsertCounters_SplitsNewVsChanged(t *testing.T) {
 		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: `{"a":2}`, DiscoveredBy: "scan-C"},
 		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-2", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-C"},
 	}
-	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows3); err != nil {
+	if err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows3); err != nil {
 		t.Fatalf("third upsert: %v", err)
 	}
 	if newC.Load() != 0 || changedC.Load() != 0 {
@@ -326,7 +326,7 @@ func TestVersioning_TypeChange_SupersedesNotForks(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-rekey-1",
 		AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-A",
 	}
-	if _, err := st.UpsertResource(r1); err != nil {
+	if err := st.UpsertResource(r1); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 	rootID := r1.ID
@@ -337,7 +337,7 @@ func TestVersioning_TypeChange_SupersedesNotForks(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:vpc", NativeID: "i-rekey-1",
 		AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-B",
 	}
-	if _, err := st.UpsertResource(r2); err != nil {
+	if err := st.UpsertResource(r2); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
 	if r2.ID != rootID {
@@ -392,13 +392,13 @@ func TestNativeIDCollisionDetector_WarnsOnTwoTypesOneNativeID(t *testing.T) {
 			NativeID: "projects/proj/policy", AttributesJSON: `{}`, DiscoveredBy: "scan-A",
 		}
 	}
-	if _, err := st.UpsertResource(mk("gcp:iam:policy")); err != nil {
+	if err := st.UpsertResource(mk("gcp:iam:policy")); err != nil {
 		t.Fatalf("upsert a: %v", err)
 	}
 	if len(warns) != 0 {
 		t.Fatalf("first upsert must not warn, got %v", warns)
 	}
-	if _, err := st.UpsertResource(mk("gcp:binaryauthorization:policy")); err != nil {
+	if err := st.UpsertResource(mk("gcp:binaryauthorization:policy")); err != nil {
 		t.Fatalf("upsert b: %v", err)
 	}
 	if len(warns) != 1 {

@@ -113,7 +113,7 @@ func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, 
 		Type: TypeSecurityHubOrganizationConfiguration, NativeID: arn,
 		Name: &name, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert securityhub organization-configuration: %w", uerr)
 	}

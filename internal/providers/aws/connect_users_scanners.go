@@ -160,7 +160,7 @@ func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsers
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert connect user hierarchy structures: %w", uerr)
 	}

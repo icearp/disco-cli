@@ -107,7 +107,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azco
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert SQL servers: %w", err)
 			}
@@ -241,7 +241,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert SQL databases: %w", err)
 		}
@@ -343,7 +343,7 @@ func sqlUpsert(st *store.Store, batch []*store.Resource, pairs [][2]string, labe
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert %s: %w", label, err)
 	}

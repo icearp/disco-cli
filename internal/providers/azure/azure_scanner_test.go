@@ -660,12 +660,12 @@ func TestRunSubscriptionService_ReportsQuotasApart(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			st := newTestStore(t)
-			if _, err := st.UpsertQuotas(testQuotas("azure", sub.ID, 1, "C1", "C2", "C3")); err != nil {
+			if err := st.UpsertQuotas(testQuotas("azure", sub.ID, 1, "C1", "C2", "C3")); err != nil {
 				t.Fatalf("seed quotas: %v", err)
 			}
 			got := recordReports(st)
 			svc := serviceEntry{name: "azure:test", fn: func(_ context.Context, sub *subscription, _ azcore.TokenCredential, st *store.Store, _ string) (int, error) {
-				if _, err := st.UpsertQuotas(testQuotas("azure", sub.ID, 2, "N1", "N2", "C1", "C2", "C3")); err != nil {
+				if err := st.UpsertQuotas(testQuotas("azure", sub.ID, 2, "N1", "N2", "C1", "C2", "C3")); err != nil {
 					return 0, err
 				}
 				return 5, c.err

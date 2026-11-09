@@ -958,7 +958,7 @@ func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	_, err = st.UpsertResources([]*store.Resource{{
+	err = st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "arn:aws:s3:::b", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}})

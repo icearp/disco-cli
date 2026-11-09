@@ -651,7 +651,7 @@ func listSecurityHubControlAssociations(ctx context.Context, client securityhubA
 // upsertSecurityHubChildren persists hub children and links each to the
 // per-region hub via the contains closure. Mirrors upsertMacieChildren.
 func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, batch []*store.Resource, kind string) error {
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return fmt.Errorf("upsert securityhub %s: %w", kind, err)
 	}

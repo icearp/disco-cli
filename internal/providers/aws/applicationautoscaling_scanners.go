@@ -157,7 +157,7 @@ func listApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 			})
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return false, total, fmt.Errorf("upsert application-autoscaling targets: %w", uerr)
 			}
@@ -215,7 +215,7 @@ func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client appli
 				})
 			}
 			if len(batch) > 0 {
-				_, uerr := st.UpsertResources(batch)
+				uerr := st.UpsertResources(batch)
 				if uerr != nil {
 					return total, fmt.Errorf("upsert application-autoscaling policies: %w", uerr)
 				}

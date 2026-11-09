@@ -361,7 +361,7 @@ func scanCloudKMSWithClient(ctx context.Context, svc *cloudkms.Service, p *proje
 	if len(s.batch) == 0 {
 		return 0, nil
 	}
-	_, e := st.UpsertResources(s.batch)
+	e := st.UpsertResources(s.batch)
 	if e != nil {
 		return 0, fmt.Errorf("upsert KMS resources: %w", e)
 	}

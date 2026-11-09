@@ -156,7 +156,7 @@ func scanApplicationInsightsApplications(ctx context.Context, client application
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, apps, fmt.Errorf("upsert applicationinsights apps: %w", err)
 			}

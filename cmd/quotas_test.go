@@ -38,7 +38,7 @@ func seedQuotas(t *testing.T, st *store.Store) {
 			AttributesJSON: `{}`, DiscoveredBy: scanID,
 		},
 	}
-	if _, err := st.UpsertQuotas(quotas); err != nil {
+	if err := st.UpsertQuotas(quotas); err != nil {
 		t.Fatalf("UpsertQuotas: %v", err)
 	}
 }
@@ -165,7 +165,7 @@ func TestHistoryCmd_QuotaID(t *testing.T) {
 	moved := 1800.0
 	unit := "None"
 	def := 1800.0
-	if _, err := st.UpsertQuotas([]*store.Quota{{
+	if err := st.UpsertQuotas([]*store.Quota{{
 		Provider: "aws", AccountID: "111", Region: "us-east-1",
 		ServiceCode: "lambda", QuotaCode: "L-FIXED", Name: "Function timeout",
 		Unit: &unit, Value: &moved, DefaultValue: &def, Adjustable: false,
@@ -243,7 +243,7 @@ func TestQuotasCmd_ChangedFlag(t *testing.T) {
 	}
 	f := func(v float64) *float64 { return &v }
 	unit := "None"
-	if _, err := st.UpsertQuotas([]*store.Quota{{
+	if err := st.UpsertQuotas([]*store.Quota{{
 		Provider: "aws", AccountID: "111", Region: "us-east-1",
 		ServiceCode: "lambda", QuotaCode: "L-FIXED", Name: "Function timeout",
 		Unit: &unit, Value: f(300), DefaultValue: f(900), Adjustable: false,

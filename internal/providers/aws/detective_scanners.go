@@ -111,7 +111,7 @@ func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account
 	if len(batch) == 0 {
 		return nil, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert detective graphs: %w", uerr)
 	}
@@ -175,7 +175,7 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert detective members: %w", uerr)
 	}

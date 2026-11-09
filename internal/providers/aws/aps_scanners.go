@@ -134,7 +134,7 @@ func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region
 			}
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return refs, total, fmt.Errorf("upsert aps workspaces: %w", err)
 			}
@@ -193,7 +193,7 @@ func scanAPSScrapers(ctx context.Context, client apsAPI, acct *account, region s
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert aps scrapers: %w", err)
 			}

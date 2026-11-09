@@ -65,7 +65,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 			pairs = append(pairs, rgHierarchyPair(sub, TypeComputeVirtualMachine, sv(vm.ID)))
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert Azure VMs: %w", err)
 			}
@@ -168,7 +168,7 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 	}
 
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure VM extensions: %w", err)
 		}

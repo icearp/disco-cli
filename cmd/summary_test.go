@@ -65,7 +65,7 @@ func seedSummaryDB(t *testing.T) {
 			AttributesJSON: "{}", DiscoveredBy: scanID,
 		},
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 }

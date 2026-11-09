@@ -58,7 +58,7 @@ func TestResolveDeviceFarmProjectChildren_ManagedChild(t *testing.T) {
 	projARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:project:PROJ-1", region, acct.ID)
 	projID := upsertTestResource(t, st, "aws", acct.ID, TypeDeviceFarmProject, projARN, region, "{}")
 	upARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:upload:PROJ-1/CURATED-1", region, acct.ID)
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeDeviceFarmUpload, NativeID: upARN,
 		Region: &region, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {

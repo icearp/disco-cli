@@ -154,7 +154,7 @@ func testTypesForScan(t *testing.T, st *Store) {
 		{Provider: "aws", AccountID: "1", Type: "aws:ec2:volume", NativeID: "vol-1", AttributesJSON: "{}", DiscoveredBy: first},
 		{Provider: "aws", AccountID: "1", Type: "aws:ec2:volume", NativeID: "vol-2", AttributesJSON: "{}", DiscoveredBy: first},
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	if err := st.CompleteScan(first); err != nil {
@@ -166,7 +166,7 @@ func testTypesForScan(t *testing.T, st *Store) {
 	if err != nil {
 		t.Fatalf("CreateScanWithID: %v", err)
 	}
-	if _, err := st.UpsertResources([]*Resource{
+	if err := st.UpsertResources([]*Resource{
 		{Provider: "aws", AccountID: "1", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: "{}", DiscoveredBy: second},
 		{Provider: "aws", AccountID: "1", Type: "aws:s3:bucket", NativeID: "b", AttributesJSON: "{}", DiscoveredBy: second},
 	}); err != nil {

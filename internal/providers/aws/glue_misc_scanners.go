@@ -176,7 +176,7 @@ func scanGlueDataCatalogEncryption(ctx context.Context, client glueAPI, acct *ac
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue data-catalog-encryption: %w", uerr)
 	}
@@ -209,7 +209,7 @@ func scanGlueIdentityCenter(ctx context.Context, client glueAPI, acct *account, 
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue identity-center: %w", uerr)
 	}
@@ -250,7 +250,7 @@ func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *a
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue security-configurations: %w", uerr)
 	}

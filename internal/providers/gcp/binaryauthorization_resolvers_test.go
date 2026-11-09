@@ -39,7 +39,7 @@ func upsertNamedTestResource(t *testing.T, st *store.Store, provider, accountID,
 		AttributesJSON: attrsJSON,
 		DiscoveredBy:   testScanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertNamedTestResource %s/%s: %v", rtype, nativeID, err)
 	}
 	return store.ResourceID(provider, accountID, nativeID)

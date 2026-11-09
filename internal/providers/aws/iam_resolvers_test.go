@@ -252,7 +252,7 @@ func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
 	// when the resolver reads them with IncludeManaged — upsert directly to set it.
 	upsertManaged := func(rtype, nativeID, attrs string) string {
 		t.Helper()
-		if _, err := st.UpsertResource(&store.Resource{
+		if err := st.UpsertResource(&store.Resource{
 			Provider: "aws", AccountID: acct.ID, Type: rtype, NativeID: nativeID,
 			AttributesJSON: attrs, DiscoveredBy: testScanID, ManagedByProvider: true,
 		}); err != nil {
@@ -326,7 +326,7 @@ func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
 	upsertGroup := func(arn, name string) string {
 		t.Helper()
 		region := ""
-		if _, err := st.UpsertResource(&store.Resource{
+		if err := st.UpsertResource(&store.Resource{
 			Provider: "aws", AccountID: acct.ID, Type: TypeIAMGroup, NativeID: arn,
 			Name: &name, Region: &region, DiscoveredBy: testScanID,
 		}); err != nil {
@@ -1193,7 +1193,7 @@ func TestResolveIAMPermissionBoundaries_AWSManagedPolicy(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeIAMPolicy, NativeID: managedARN,
 		Region: regionGlobal, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {
@@ -1280,7 +1280,7 @@ func TestResolveIAMDelegationRequestBoundaries_AWSManagedPolicy(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeIAMPolicy, NativeID: managedARN,
 		Region: regionGlobal, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {

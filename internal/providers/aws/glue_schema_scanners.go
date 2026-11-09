@@ -123,7 +123,7 @@ func scanGlueSchemaVersions(ctx context.Context, client glueAPI, schemaArns []st
 	if len(batch) == 0 {
 		return nil, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert glue schema versions: %w", uerr)
 	}
@@ -171,7 +171,7 @@ func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionI
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue schema-version-metadata: %w", uerr)
 	}

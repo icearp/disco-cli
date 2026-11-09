@@ -594,7 +594,7 @@ func scanEntraUsers(ctx context.Context, g *graphClient, tenantID string, st *st
 		if len(batch) == 0 {
 			return
 		}
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "users", formatAzureError(uerr), false)
 			batch = batch[:0]
@@ -643,7 +643,7 @@ func scanEntraGroups(ctx context.Context, g *graphClient, tenantID string, st *s
 		if len(batch) == 0 {
 			return
 		}
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "groups", formatAzureError(uerr), false)
 			batch = batch[:0]
@@ -708,7 +708,7 @@ func scanEntraServicePrincipals(ctx context.Context, g *graphClient, tenantID st
 		if len(batch) == 0 {
 			return
 		}
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "servicePrincipals", formatAzureError(uerr), false)
 			batch = batch[:0]
@@ -756,7 +756,7 @@ func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string,
 		if len(batch) == 0 {
 			return
 		}
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			reportEntra(st, "applications", formatAzureError(uerr), false)
 			batch = batch[:0]

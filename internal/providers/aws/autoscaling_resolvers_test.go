@@ -218,7 +218,7 @@ func TestResolveAutoScalingChildEdges_OtherAccountGroupIgnored(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	const otherAccount = "210987654321"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: otherAccount, Type: TypeAutoScalingGroup, Name: ptrStr("web"), Region: ptrStr(testRegion),
 		NativeID:       "arn:aws:autoscaling:us-east-1:" + otherAccount + ":autoScalingGroup:1:autoScalingGroupName/web",
 		AttributesJSON: `{}`, DiscoveredBy: testScanID,

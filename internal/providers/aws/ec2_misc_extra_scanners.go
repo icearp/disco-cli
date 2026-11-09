@@ -201,7 +201,7 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert ec2 vpc-encryption-controls: %w", uerr)
 	}

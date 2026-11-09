@@ -126,7 +126,7 @@ func TestResolveCompositeAlarmChildren_ByName(t *testing.T) {
 	// resolver's name-based lookup can find it.
 	childName := "named-child"
 	region := testCWRegion
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID,
 		Type:           TypeCloudWatchAlarm,
 		NativeID:       childARN,
@@ -190,7 +190,7 @@ func upsertNamedTestResource(t *testing.T, st *store.Store, rtype, nativeID, nam
 	t.Helper()
 	n := name
 	r := region
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID,
 		Type: rtype, NativeID: nativeID,
 		Name: &n, Region: &r,

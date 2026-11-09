@@ -17,7 +17,7 @@ func TestListResources_SeenByMatchesEitherScanColumn(t *testing.T) {
 			if _, err := st.CreateScanWithID(id, []string{"aws"}, map[string]any{}); err != nil {
 				t.Fatalf("CreateScanWithID(%s): %v", id, err)
 			}
-			if _, err := st.UpsertResources(rows); err != nil {
+			if err := st.UpsertResources(rows); err != nil {
 				t.Fatalf("upsert %s: %v", id, err)
 			}
 			if err := st.CompleteScan(id); err != nil {

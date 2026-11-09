@@ -384,7 +384,7 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 		AttributesJSON: mustJSON(agg),
 		DiscoveredBy:   scanID,
 	}
-	_, err = st.UpsertResources([]*store.Resource{r})
+	err = st.UpsertResources([]*store.Resource{r})
 	if err != nil {
 		return 0, fmt.Errorf("upsert applicationsignals grouping-configuration: %w", err)
 	}

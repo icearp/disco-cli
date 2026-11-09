@@ -181,7 +181,7 @@ func scanMLObjects[T any](
 			})
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return total, fmt.Errorf("upsert %s: %w", op, uerr)
 			}

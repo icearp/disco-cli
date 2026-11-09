@@ -265,7 +265,7 @@ func scanMQConfigurationAssociations(acct *account, region string, st *store.Sto
 			DiscoveredBy:   scanID,
 		})
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert mq configuration-associations: %w", err)
 	}
@@ -316,7 +316,7 @@ func scanMQConfigurations(ctx context.Context, client mqAPI, acct *account, regi
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert mq configurations: %w", err)
 			}

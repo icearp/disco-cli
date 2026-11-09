@@ -79,7 +79,7 @@ func TestScanBackup_RecoveryPointsOnlyOfVaultsListedThisScan(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	stale := "stale"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeBackupVault, NativeID: bkVaultARN(stale),
 		Name: &stale, Region: sdkaws.String(testRegion), AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {

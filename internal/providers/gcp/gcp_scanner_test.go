@@ -231,7 +231,7 @@ func TestScanProject_ReportsQuotasApart(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
-			if _, err := st.UpsertQuotas(quotas(1, "C1", "C2", "C3")); err != nil {
+			if err := st.UpsertQuotas(quotas(1, "C1", "C2", "C3")); err != nil {
 				t.Fatalf("seed quotas: %v", err)
 			}
 			var (
@@ -254,7 +254,7 @@ func TestScanProject_ReportsQuotasApart(t *testing.T) {
 				if errors.Is(c.err, errServiceDisabled) {
 					return 0, c.err
 				}
-				if _, err := st.UpsertQuotas(quotas(2, "N1", "N2", "C1", "C2", "C3")); err != nil {
+				if err := st.UpsertQuotas(quotas(2, "N1", "N2", "C1", "C2", "C3")); err != nil {
 					return 0, err
 				}
 				return 5, c.err

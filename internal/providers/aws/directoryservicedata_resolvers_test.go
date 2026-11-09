@@ -19,7 +19,7 @@ func TestResolveDSDataHierarchy_LinksStoredDirectories(t *testing.T) {
 	upsertTestResource(t, st, "aws", testAccountID, TypeDSDataUser, user, testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeDSDataUser, orphan, testRegion, "{}")
 	// Well-known groups are provider-managed; the resolver must still see them.
-	if _, err := st.UpsertResources([]*store.Resource{{
+	if err := st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: testAccountID, Type: TypeDSDataGroup, NativeID: group,
 		ManagedByProvider: true, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}}); err != nil {
@@ -63,7 +63,7 @@ func TestResolveDSDataHierarchy_BadNativeIDReportedOthersLinked(t *testing.T) {
 	upsertTestResource(t, st, "aws", testAccountID, TypeDSMicrosoftAD, ms, testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeDSDataUser, "not-a-user-id", testRegion, "{}")
 	name := "zz-jdoe"
-	if _, err := st.UpsertResources([]*store.Resource{{
+	if err := st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: testAccountID, Type: TypeDSDataUser, NativeID: good, Name: &name,
 		AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}}); err != nil {

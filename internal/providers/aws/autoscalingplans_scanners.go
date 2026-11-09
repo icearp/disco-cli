@@ -73,7 +73,7 @@ func scanAutoScalingPlansEntities(ctx context.Context, client autoScalingPlansAP
 			})
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return total, fmt.Errorf("upsert autoscaling-plans: %w", uerr)
 			}

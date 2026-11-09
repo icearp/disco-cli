@@ -405,7 +405,7 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 		}
 
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert IAM auth details: %w", err)
 			}
@@ -467,7 +467,7 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert AWS-managed policy catalogue: %w", err)
 			}
@@ -547,7 +547,7 @@ func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, 
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert IAM instance profiles: %w", err)
 			}
@@ -721,7 +721,7 @@ func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert IAM server certificates: %w", err)
 			}
@@ -760,7 +760,7 @@ func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account,
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert IAM virtual MFA devices: %w", err)
 			}
@@ -1051,7 +1051,7 @@ func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert IAM delegation requests: %w", err)
 			}

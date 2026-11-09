@@ -88,7 +88,7 @@ func azPageScan[P any](
 		if len(batch) == 0 {
 			continue
 		}
-		_, err = st.UpsertResources(batch)
+		err = st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert %s: %w", action, err)
 		}
@@ -253,7 +253,7 @@ func azRGFanoutScan[T any, P any](
 	if len(allBatch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertResources(allBatch)
+	err = st.UpsertResources(allBatch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert %s: %w", action, err)
 	}

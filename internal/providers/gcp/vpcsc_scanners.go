@@ -85,7 +85,7 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert access policies: %w", upErr)
 		}
@@ -157,7 +157,7 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 			if len(batch) == 0 {
 				return nil
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert perimeters: %w", upErr)
 			}
@@ -207,7 +207,7 @@ func scanAccessLevelsForPolicy(ctx context.Context, svc *accesscontextmanager.Se
 			if len(batch) == 0 {
 				return nil
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert access levels: %w", upErr)
 			}
@@ -255,7 +255,7 @@ func scanAuthorizedOrgsDescsForPolicy(ctx context.Context, svc *accesscontextman
 			if len(batch) == 0 {
 				return nil
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert authorized orgs descs: %w", upErr)
 			}
@@ -303,7 +303,7 @@ func scanGcpUserAccessBindingsForOrg(ctx context.Context, svc *accesscontextmana
 			if len(batch) == 0 {
 				return nil
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return fmt.Errorf("upsert gcp user access bindings: %w", upErr)
 			}

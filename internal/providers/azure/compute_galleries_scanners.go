@@ -95,7 +95,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCred
 		}
 	}
 	if len(galBatch) > 0 {
-		_, err := st.UpsertResources(galBatch)
+		err := st.UpsertResources(galBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure galleries: %w", err)
 		}
@@ -269,7 +269,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.Token
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert Azure gallery images %s: %w", gal.name, err)
 		}
@@ -330,7 +330,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert Azure gallery applications %s: %w", gal.name, err)
 		}
@@ -391,7 +391,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.Tok
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert Azure gallery inVMACPs %s: %w", gal.name, err)
 		}
@@ -445,7 +445,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcor
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure gallery image versions %s: %w", img.childName, err)
 		}
@@ -499,7 +499,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure gallery application versions %s: %w", app.childName, err)
 		}
@@ -553,7 +553,7 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azc
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure gallery inVMACP versions %s: %w", prof.profileName, err)
 		}

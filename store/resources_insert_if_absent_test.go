@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"sync/atomic"
+	"testing"
+)
 
 // TestInsertResourcesIfAbsent_InsertsWhenAbsent verifies the primitive creates
 // a fresh current-version row at the natural key when none exists.
@@ -50,7 +53,7 @@ func TestInsertResourcesIfAbsent_NoClobber(t *testing.T) {
 		AttributesJSON: `{"SummaryMap":{"Users":5}}`,
 		DiscoveredBy:   testScanID,
 	}
-	if _, err := st.UpsertResource(populated); err != nil {
+	if err := st.UpsertResource(populated); err != nil {
 		t.Fatalf("seed UpsertResource: %v", err)
 	}
 
@@ -116,12 +119,13 @@ func TestInsertResourcesIfAbsent_PlaceholderThenScanned(t *testing.T) {
 	scanned := key()
 	scanned.Name = sp("acme")
 	scanned.AttributesJSON = `{"SummaryMap":{"Users":5}}`
-	inserted, err := st.UpsertResources([]*Resource{scanned})
-	if err != nil {
+	var newC, changedC atomic.Int64
+	if err := st.WithUpsertCounters(&newC, &changedC).UpsertResources([]*Resource{scanned}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
-	if inserted != 1 {
-		t.Fatalf("version-split inserted = %d, want 1", inserted)
+	if newC.Load() != 0 || changedC.Load() != 1 {
+		t.Fatalf("UpsertResources counted new=%d changed=%d, want 0/1: populating a placeholder is a version split",
+			newC.Load(), changedC.Load())
 	}
 	// root_id is the deterministic hash — identical empty or populated, so the
 	// edge target never moves.
@@ -182,8 +186,13 @@ func TestUpsertResources_VerifyClearsReferenceOnly(t *testing.T) {
 		}
 		scanned := account()
 		scanned.DiscoveredBy = rescan
-		if inserted, err := st.UpsertResources([]*Resource{scanned}); err != nil || inserted != 0 {
-			t.Fatalf("UpsertResources = (%d, %v), want (0, nil): identical row must verify, not split", inserted, err)
+		var newC, changedC atomic.Int64
+		if err := st.WithUpsertCounters(&newC, &changedC).UpsertResources([]*Resource{scanned}); err != nil {
+			t.Fatalf("UpsertResources: %v", err)
+		}
+		if newC.Load() != 0 || changedC.Load() != 0 {
+			t.Fatalf("UpsertResources counted new=%d changed=%d, want 0/0: identical row must verify, not split",
+				newC.Load(), changedC.Load())
 		}
 
 		got, err := st.GetResource(placeholder.ID)

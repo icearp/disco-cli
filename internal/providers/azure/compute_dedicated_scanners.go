@@ -132,7 +132,7 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.Toke
 		}
 	}
 	if len(hgBatch) > 0 {
-		_, err := st.UpsertResources(hgBatch)
+		err := st.UpsertResources(hgBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure host groups: %w", err)
 		}
@@ -217,7 +217,7 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure dedicated hosts %s: %w", hg.name, err)
 		}
@@ -281,7 +281,7 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 		}
 	}
 	if len(crgBatch) > 0 {
-		_, err := st.UpsertResources(crgBatch)
+		err := st.UpsertResources(crgBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure capacity reservation groups: %w", err)
 		}
@@ -366,7 +366,7 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure capacity reservations %s: %w", crg.name, err)
 		}

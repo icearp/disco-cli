@@ -40,7 +40,7 @@ func TestClose_RemovesWALSidecars(t *testing.T) {
 	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {
@@ -168,7 +168,7 @@ func TestHelperLeakWAL(t *testing.T) {
 	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("helper insert scan: %v", err)
 	}
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {
@@ -194,7 +194,7 @@ func TestClose_LogsWhenSidecarCleanupBlocked(t *testing.T) {
 	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {

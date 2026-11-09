@@ -82,7 +82,7 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 		}
 	}
 	if len(csBatch) > 0 {
-		_, err := st.UpsertResources(csBatch)
+		err := st.UpsertResources(csBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure cloud services: %w", err)
 		}
@@ -173,7 +173,7 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure cloud service roles %s: %w", cs.name, err)
 		}
@@ -219,7 +219,7 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure cloud service role instances %s: %w", cs.name, err)
 		}

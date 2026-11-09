@@ -94,7 +94,7 @@ func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *
 			return 0, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert Firehose delivery streams: %w", err)
 			}

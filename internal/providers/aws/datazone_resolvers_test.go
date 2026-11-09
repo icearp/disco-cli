@@ -52,7 +52,7 @@ func TestResolveDataZoneChildrenToDomain(t *testing.T) {
 				NativeID: dARN + "/" + tc.kind + "/c1", Region: &region,
 				AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: tc.managed,
 			}
-			if _, err := st.UpsertResource(child); err != nil {
+			if err := st.UpsertResource(child); err != nil {
 				t.Fatal(err)
 			}
 			childID := store.ResourceID("aws", acct.ID, child.NativeID)

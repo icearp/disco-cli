@@ -161,14 +161,14 @@ func scanKMSKeyPage(ctx context.Context, client kmsAPI, acct *account, region st
 		return 0, werr
 	}
 	if len(batch) > 0 {
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			return 0, fmt.Errorf("upsert KMS keys: %w", uerr)
 		}
 		total += len(batch)
 	}
 	if len(grantBatch) > 0 {
-		_, uerr := st.UpsertResources(grantBatch)
+		uerr := st.UpsertResources(grantBatch)
 		if uerr != nil {
 			return total, fmt.Errorf("upsert KMS grants: %w", uerr)
 		}
@@ -325,7 +325,7 @@ func scanKMSAliases(ctx context.Context, client kmsAPI, acct *account, region st
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return total, fmt.Errorf("upsert KMS aliases: %w", uerr)
 			}

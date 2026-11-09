@@ -285,7 +285,7 @@ func TestSSOChildHierarchyEdgesDeclared(t *testing.T) {
 func ssoManagedPolicyFixture(t *testing.T, st *store.Store) string {
 	t.Helper()
 	arn := "arn:aws:iam::aws:policy/AdministratorAccess"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeIAMPolicy, NativeID: arn,
 		AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {

@@ -71,7 +71,7 @@ func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st 
 			})
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return total, fmt.Errorf("upsert billing views: %w", uerr)
 			}

@@ -385,7 +385,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 	if len(batch) == 0 {
 		return 0, refs, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, nil, fmt.Errorf("upsert glue tables: %w", uerr)
 	}

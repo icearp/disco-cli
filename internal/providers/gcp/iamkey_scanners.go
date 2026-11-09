@@ -85,7 +85,7 @@ func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store,
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, e := st.UpsertResources(batch)
+	e := st.UpsertResources(batch)
 	if e != nil {
 		return 0, fmt.Errorf("upsert IAM SA keys: %w", e)
 	}

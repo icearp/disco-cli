@@ -146,7 +146,7 @@ func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred az
 		if len(r.batch) == 0 {
 			continue
 		}
-		_, err := st.UpsertResources(r.batch)
+		err := st.UpsertResources(r.batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert vnet links: %w", err)
 		}
@@ -351,7 +351,7 @@ func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription,
 		if len(r.batch) == 0 {
 			continue
 		}
-		_, err := st.UpsertResources(r.batch)
+		err := st.UpsertResources(r.batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert %s: %w", action, err)
 		}

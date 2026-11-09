@@ -160,7 +160,7 @@ func TestGlobalCatalogTypes_DoNotSplitPerRegion(t *testing.T) {
 			st := newTestStore(t)
 			for _, stamp := range []string{"2021-01-01T00:00:00Z", "2023-06-15T12:00:00Z", "2024-11-02T08:30:00Z"} {
 				region := "r" + stamp[:4]
-				if _, err := st.UpsertResources([]*store.Resource{{
+				if err := st.UpsertResources([]*store.Resource{{
 					Provider: "aws", AccountID: testAccountID, Type: tc.resType,
 					NativeID: tc.nativeID, Region: &region,
 					AttributesJSON: tc.perRegion(stamp), DiscoveredBy: testScanID,

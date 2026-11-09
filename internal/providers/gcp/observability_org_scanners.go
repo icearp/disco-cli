@@ -78,7 +78,7 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert org logging sinks: %w", upErr)
 		}

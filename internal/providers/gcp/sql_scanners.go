@@ -65,7 +65,7 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, e := st.UpsertResources(batch)
+			e := st.UpsertResources(batch)
 			if e != nil {
 				return 0, fmt.Errorf("upsert Cloud SQL instances: %w", e)
 			}

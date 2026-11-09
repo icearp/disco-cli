@@ -151,7 +151,7 @@ func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account,
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert shield protections: %w", uerr)
 	}
@@ -194,7 +194,7 @@ func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *acc
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert shield protection groups: %w", uerr)
 	}

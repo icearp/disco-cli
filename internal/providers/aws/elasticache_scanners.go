@@ -111,7 +111,7 @@ func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache replication groups: %w", err)
 			}
@@ -158,7 +158,7 @@ func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *a
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache clusters: %w", err)
 			}
@@ -200,7 +200,7 @@ func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elastica
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache global replication groups: %w", err)
 			}
@@ -244,7 +244,7 @@ func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, 
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache parameter groups: %w", err)
 			}
@@ -300,7 +300,7 @@ func scanElastiCacheSecurityGroups(ctx context.Context, client elasticacheAPI, a
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache security groups: %w", err)
 			}
@@ -344,7 +344,7 @@ func scanElastiCacheServerlessCaches(ctx context.Context, client elasticacheAPI,
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache serverless caches: %w", err)
 			}
@@ -387,7 +387,7 @@ func scanElastiCacheSubnetGroups(ctx context.Context, client elasticacheAPI, acc
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache subnet groups: %w", err)
 			}
@@ -431,7 +431,7 @@ func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *acco
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache users: %w", err)
 			}
@@ -475,7 +475,7 @@ func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct 
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert ElastiCache user groups: %w", err)
 			}

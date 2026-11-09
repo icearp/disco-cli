@@ -313,7 +313,7 @@ func scanKeyPairs(ctx context.Context, client ec2API, acct *account, region stri
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert key pairs: %w", err)
 		}
@@ -350,7 +350,7 @@ func scanPlacementGroups(ctx context.Context, client ec2API, acct *account, regi
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert placement groups: %w", err)
 		}
@@ -564,7 +564,7 @@ func scanSnapshotBlockPublicAccess(ctx context.Context, client ec2API, acct *acc
 	}
 	state := string(out.State)
 	nativeID := ec2ARNIn(acct.partition(), "", acct.ID, "snapshot-block-public-access", acct.ID)
-	_, err = st.UpsertResource(&store.Resource{
+	err = st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
 		AccountName: &acct.Name,

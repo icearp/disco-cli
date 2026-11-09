@@ -96,7 +96,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue partitions: %w", uerr)
 	}
@@ -196,7 +196,7 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue table-optimizers: %w", uerr)
 	}

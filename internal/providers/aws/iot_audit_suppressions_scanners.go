@@ -125,7 +125,7 @@ func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI
 				DiscoveredBy:   scanID,
 			})
 		}
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			return total, fmt.Errorf("upsert iot audit suppressions: %w", uerr)
 		}

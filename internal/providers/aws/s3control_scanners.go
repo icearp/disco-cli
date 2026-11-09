@@ -274,7 +274,7 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3co
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return nil, 0, fmt.Errorf("upsert S3 multi-region access points: %w", err)
 		}
@@ -332,7 +332,7 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, m
 		return 0, err
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert S3 MRAP policies: %w", err)
 		}

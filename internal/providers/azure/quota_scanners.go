@@ -123,7 +123,7 @@ func scanQuotaLimitsWithClient(ctx context.Context, sub *subscription, st *store
 	if len(allBatch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertQuotas(allBatch)
+	err = st.UpsertQuotas(allBatch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert quota limits: %w", err)
 	}

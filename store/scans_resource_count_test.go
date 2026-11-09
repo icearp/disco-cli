@@ -7,7 +7,7 @@ import "testing"
 // split, which is what a scan emitting the same identity twice does.
 func seedVerifiedResource(t *testing.T, st *Store, scanID, nativeID, attrs string) {
 	t.Helper()
-	if _, err := st.UpsertResources([]*Resource{{
+	if err := st.UpsertResources([]*Resource{{
 		Provider: "aws", AccountID: "123456789012", Type: "aws:ec2:instance",
 		NativeID: nativeID, AttributesJSON: attrs, DiscoveredBy: scanID,
 	}}); err != nil {

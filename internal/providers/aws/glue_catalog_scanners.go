@@ -119,7 +119,7 @@ func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, reg
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert glue classifiers: %w", uerr)
 	}

@@ -37,7 +37,7 @@ func TestResolveBeanstalkEnvironmentTargets(t *testing.T) {
 		NativeID: ebApplicationARN(), Region: &region, Name: &appName,
 		AttributesJSON: `{}`, DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(appR); err != nil {
+	if err := st.UpsertResource(appR); err != nil {
 		t.Fatalf("upsert app: %v", err)
 	}
 	appID := store.ResourceID("aws", acct.ID, ebApplicationARN())
@@ -72,7 +72,7 @@ func TestResolveBeanstalkEnvironmentTargets_FKSafe(t *testing.T) {
 		NativeID: "arn:aws:elasticbeanstalk:us-east-1:123456789012:application/other-app",
 		Region:   &region, Name: &otherName, AttributesJSON: `{}`, DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(otherR); err != nil {
+	if err := st.UpsertResource(otherR); err != nil {
 		t.Fatalf("upsert other app: %v", err)
 	}
 

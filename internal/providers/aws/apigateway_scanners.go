@@ -153,7 +153,7 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert REST APIs (%s): %w", region, err)
 		}
@@ -238,7 +238,7 @@ func scanAPIGatewayAuthorizers(ctx context.Context, client apigatewayAPI, acct *
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert authorizers (%s/%s): %w", region, apiID, err)
 		}
@@ -277,7 +277,7 @@ func scanAPIGatewayDeployments(ctx context.Context, client apigatewayAPI, acct *
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert deployments (%s/%s): %w", region, apiID, err)
 		}
@@ -314,7 +314,7 @@ func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *accou
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert stages (%s/%s): %w", region, apiID, err)
 		}
@@ -376,14 +376,14 @@ func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *ac
 		}
 	}
 	if len(resources) > 0 {
-		_, err := st.UpsertResources(resources)
+		err := st.UpsertResources(resources)
 		if err != nil {
 			return total, fmt.Errorf("upsert resources (%s/%s): %w", region, apiID, err)
 		}
 		total += len(resources)
 	}
 	if len(methods) > 0 {
-		_, err := st.UpsertResources(methods)
+		err := st.UpsertResources(methods)
 		if err != nil {
 			return total, fmt.Errorf("upsert methods (%s/%s): %w", region, apiID, err)
 		}
@@ -422,7 +422,7 @@ func scanAPIGatewayModels(ctx context.Context, client apigatewayAPI, acct *accou
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert models (%s/%s): %w", region, apiID, err)
 		}
@@ -458,7 +458,7 @@ func scanAPIGatewayRequestValidators(ctx context.Context, client apigatewayAPI, 
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert request validators (%s/%s): %w", region, apiID, err)
 		}
@@ -494,7 +494,7 @@ func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, a
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert gateway responses (%s/%s): %w", region, apiID, err)
 		}
@@ -538,7 +538,7 @@ func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI,
 		input.Position = out.Position
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert documentation parts (%s/%s): %w", region, apiID, err)
 		}
@@ -582,7 +582,7 @@ func scanAPIGatewayDocumentationVersions(ctx context.Context, client apigatewayA
 		input.Position = out.Position
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert documentation versions (%s/%s): %w", region, apiID, err)
 		}
@@ -604,7 +604,7 @@ func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st
 	}
 	nativeID := apigatewayARNIn(acct.partition(), region, "account")
 	name := "account"
-	_, err = st.UpsertResource(&store.Resource{
+	err = st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,
 		AccountName: &acct.Name,
@@ -655,7 +655,7 @@ func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert API keys (%s): %w", region, err)
 		}
@@ -697,7 +697,7 @@ func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert client certificates (%s): %w", region, err)
 		}
@@ -792,14 +792,14 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		}
 	}
 	if len(domains) > 0 {
-		_, err := st.UpsertResources(domains)
+		err := st.UpsertResources(domains)
 		if err != nil {
 			return total, fmt.Errorf("upsert domain names (%s): %w", region, err)
 		}
 		total += len(domains)
 	}
 	if len(mappings) > 0 {
-		_, err := st.UpsertResources(mappings)
+		err := st.UpsertResources(mappings)
 		if err != nil {
 			return total, fmt.Errorf("upsert base-path mappings (%s): %w", region, err)
 		}
@@ -839,7 +839,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		assocInput.Position = out.Position
 	}
 	if len(assocs) > 0 {
-		_, err := st.UpsertResources(assocs)
+		err := st.UpsertResources(assocs)
 		if err != nil {
 			return total, fmt.Errorf("upsert domain name access associations (%s): %w", region, err)
 		}
@@ -916,14 +916,14 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 		}
 	}
 	if len(plans) > 0 {
-		_, err := st.UpsertResources(plans)
+		err := st.UpsertResources(plans)
 		if err != nil {
 			return total, fmt.Errorf("upsert usage plans (%s): %w", region, err)
 		}
 		total += len(plans)
 	}
 	if len(keys) > 0 {
-		_, err := st.UpsertResources(keys)
+		err := st.UpsertResources(keys)
 		if err != nil {
 			return total, fmt.Errorf("upsert usage plan keys (%s): %w", region, err)
 		}
@@ -964,7 +964,7 @@ func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, s
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert VPC links (%s): %w", region, err)
 		}

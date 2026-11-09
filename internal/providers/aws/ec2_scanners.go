@@ -166,7 +166,7 @@ func ec2PageScan[P any](
 			return total, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		if batch := toResources(page); len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}

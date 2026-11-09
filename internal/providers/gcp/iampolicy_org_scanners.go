@@ -63,7 +63,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 			AttributesJSON: mustJSON(policy),
 			DiscoveredBy:   scanID,
 		}
-		_, upErr := st.UpsertResources([]*store.Resource{r})
+		upErr := st.UpsertResources([]*store.Resource{r})
 		if upErr != nil {
 			return total, fmt.Errorf("upsert org IAM policy %s: %w", sc.Name, upErr)
 		}

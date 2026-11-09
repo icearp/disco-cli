@@ -253,7 +253,7 @@ func scanBigtableAppProfiles(ctx context.Context, svc *bigtableadmin.Service, p 
 				apID := store.ResourceID("gcp", p.ID, ap.Name)
 				pairs = append(pairs, [2]string{apID, instID})
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return 0, fmt.Errorf("upsert bigtable app profiles: %w", upErr)
 			}
@@ -539,7 +539,7 @@ func scanBigtableBackups(ctx context.Context, svc *bigtableadmin.Service, p *pro
 			}
 			return listErr
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert bigtable backups: %w", upErr)
 		}
@@ -651,7 +651,7 @@ func scanBigtableMemoryLayers(ctx context.Context, svc *bigtableadmin.Service, p
 			}
 			return listErr
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert bigtable memory layers: %w", upErr)
 		}
@@ -776,7 +776,7 @@ func scanFirestoreBackups(ctx context.Context, svc *firestore.Service, p *projec
 		backupID := store.ResourceID("gcp", p.ID, b.Name)
 		pairs = append(pairs, [2]string{backupID, dbID})
 	}
-	_, upErr := st.UpsertResources(batch)
+	upErr := st.UpsertResources(batch)
 	if upErr != nil {
 		return 0, fmt.Errorf("upsert firestore backups: %w", upErr)
 	}
@@ -1025,7 +1025,7 @@ func scanSpannerInstancePartitions(ctx context.Context, svc *spanner.Service, p 
 				partID := store.ResourceID("gcp", p.ID, ip.Name)
 				pairs = append(pairs, [2]string{partID, instID})
 			}
-			_, upErr := st.UpsertResources(batch)
+			upErr := st.UpsertResources(batch)
 			if upErr != nil {
 				return 0, fmt.Errorf("upsert spanner instance partitions: %w", upErr)
 			}

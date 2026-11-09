@@ -58,7 +58,7 @@ func TestResolveNeptuneInstanceCluster(t *testing.T) {
 		NativeID: clusterARN, Region: &region, Name: &clusterName,
 		AttributesJSON: `{}`, DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(cR); err != nil {
+	if err := st.UpsertResource(cR); err != nil {
 		t.Fatalf("upsert cluster: %v", err)
 	}
 	clusterID := store.ResourceID("aws", acct.ID, clusterARN)

@@ -150,7 +150,7 @@ func TestArchiveThenUnchangedRescan_Resurrects(t *testing.T) {
 
 	// Re-scan sees the same resource unchanged.
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: `{"a":1}`,
 		TagsJSON:       sp(`{"env":"prod"}`),
@@ -186,7 +186,7 @@ func TestArchiveThenChangedRescan_Resurrects(t *testing.T) {
 	}
 
 	ensureTestScan(t, st, "scan-B")
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
 		AttributesJSON: `{"a":2}`,
 		TagsJSON:       sp(`{}`),

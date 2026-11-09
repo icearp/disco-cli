@@ -106,7 +106,7 @@ func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acc
 			return 0, caARNs, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, caARNs, fmt.Errorf("upsert ACM-PCA CAs: %w", err)
 			}
@@ -185,7 +185,7 @@ func scanACMPCAPermissions(ctx context.Context, client acmpcaAPI, acct *account,
 	for i, pp := range pending {
 		batch[i] = pp.res
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert ACM-PCA permissions: %w", err)
 	}

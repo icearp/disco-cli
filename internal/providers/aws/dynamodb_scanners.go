@@ -189,7 +189,7 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 			return 0, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert DynamoDB global tables: %w", err)
 			}
@@ -264,7 +264,7 @@ func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *a
 			return 0, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert DynamoDB streams: %w", err)
 			}

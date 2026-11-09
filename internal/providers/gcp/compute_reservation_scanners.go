@@ -225,7 +225,7 @@ func upsertWithSuffixParent(st *store.Store, batch []*store.Resource, parentType
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return 0, err
 	}

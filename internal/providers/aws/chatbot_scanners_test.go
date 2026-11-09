@@ -837,7 +837,7 @@ func TestUpsertChimeWebhookConfiguration_WebhookURLRedacted(t *testing.T) {
 		chatbottypes.ChimeWebhookConfiguration
 		WebhookURL *string `json:"WebhookUrl"`
 	}{cbChime(cbChimeARN1, "c1"), ptrStr(cbWebhookURL)}
-	if _, err := st.UpsertResources([]*store.Resource{{
+	if err := st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: testAccountID, Type: TypeChatbotChimeWebhookConfiguration, NativeID: cbChimeARN1,
 		Region: regionGlobal, AttributesJSON: mustJSON(future), DiscoveredBy: testScanID,
 	}}); err != nil {

@@ -188,7 +188,7 @@ func scanMacieSession(ctx context.Context, client macie2API, acct *account, regi
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, false, fmt.Errorf("upsert macie session: %w", uerr)
 	}
@@ -435,7 +435,7 @@ func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, r
 // each to its parent session via the contains closure. Each child belongs to
 // the singleton session in (acct, region).
 func upsertMacieChildren(st *store.Store, acct *account, region string, batch []*store.Resource, kind string) error {
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return fmt.Errorf("upsert macie %s: %w", kind, err)
 	}

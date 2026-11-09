@@ -166,7 +166,7 @@ func TestStitchTopHierarchy_SkipsTheEntitiesCallWithoutTenantScope(t *testing.T)
 	st := newTestStore(t)
 
 	subName, rgName := "Customer Prod", "rg-app"
-	if _, err := st.UpsertResources([]*store.Resource{
+	if err := st.UpsertResources([]*store.Resource{
 		{
 			Provider: "azure", AccountID: subID, Type: TypeSubscription,
 			NativeID: "/subscriptions/" + subID, Name: &subName, DiscoveredBy: testScanID,

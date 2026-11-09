@@ -113,7 +113,7 @@ func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, 
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert neptune clusters: %w", uerr)
 	}
@@ -164,7 +164,7 @@ func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account,
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert neptune instances: %w", uerr)
 	}

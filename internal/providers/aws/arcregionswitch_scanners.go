@@ -56,7 +56,7 @@ func scanARCRegionSwitchPlans(ctx context.Context, client arcRegionSwitchAPI, ac
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert arc-region-switch plans: %w", err)
 			}

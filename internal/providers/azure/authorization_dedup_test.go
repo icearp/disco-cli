@@ -44,7 +44,7 @@ func upsertManagedTestResource(t *testing.T, st *store.Store, accountID, rtype, 
 		Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: testScanID,
 		ManagedByProvider: true,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertManagedTestResource %s/%s: %v", rtype, nativeID, err)
 	}
 	return store.ResourceID("azure", accountID, nativeID)

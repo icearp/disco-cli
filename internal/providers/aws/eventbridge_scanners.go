@@ -159,7 +159,7 @@ func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *acco
 	if len(batch) == 0 {
 		return busNames, 0, nil
 	}
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return nil, 0, fmt.Errorf("upsert EventBridge buses: %w", err)
 	}
@@ -183,7 +183,7 @@ func scanEventBridgeRules(ctx context.Context, client eventbridgeAPI, acct *acco
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert EventBridge rules: %w", err)
 	}
@@ -283,7 +283,7 @@ func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert EventBridge connections: %w", err)
 	}
@@ -326,7 +326,7 @@ func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, 
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err := st.UpsertResources(batch)
+	err := st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert EventBridge api destinations: %w", err)
 	}

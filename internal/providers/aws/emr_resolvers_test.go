@@ -81,7 +81,7 @@ func TestResolveEMRClusterRefs(t *testing.T) {
 	kpName := "emrkey"
 	kpRegion := testRegion
 	kpARN := ec2ARN(testRegion, acct.ID, "key-pair", "key-emr")
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeEC2KeyPair, NativeID: kpARN,
 		Region: &kpRegion, Name: &kpName, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {

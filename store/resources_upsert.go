@@ -14,30 +14,6 @@ import (
 	"github.com/icearp/disco-cli/internal/volatile"
 )
 
-// UpsertResources bulk-upserts resources under the version-chain
-// model. Caller-facing signature unchanged. Per-resource logic:
-//
-//   - First discovery (no row with this natural key has superseded_by
-//     IS NULL): INSERT a new row with id = UUIDv7, root_id =
-//     Resource.ID (deterministic hash), verified_at = now.
-//   - Unchanged rescan (existing current row matches attributes +
-//     tags): UPDATE verified_at / verified_by on the existing row;
-//     top-level columns (name/region/zone/status/managed) update in
-//     place. No new row.
-//   - Changed rescan (attributes or tags differ): INSERT a new row
-//     with a fresh UUIDv7 PK, inheriting discovered_at / discovered_by
-//     from the chain root, linking previous_version_id to the
-//     predecessor, and setting verified_at / verified_by to the
-//     current scan. Then UPDATE the previous row's superseded_by to
-//     point at the new row. The attributes/tags on the previous row
-//     stay frozen.
-//
-// The returned `inserted` counts version splits + first discoveries
-// (every INSERT into resources). Unchanged-rescan updates don't count.
-//
-// Idempotency: calling UpsertResources twice with the same payload
-// produces one INSERT on the first call and one verified-only UPDATE
-// on the second.
 type nativeIDSighting struct {
 	scanID string
 	typ    string
@@ -105,7 +81,32 @@ func (s *Store) redactAttributes(r *Resource) {
 	}
 }
 
-func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error) {
+// UpsertResources bulk-upserts resources under the version-chain
+// model. Per-resource logic:
+//
+//   - First discovery (no row with this natural key has superseded_by
+//     IS NULL): INSERT a new row with id = UUIDv7, root_id =
+//     Resource.ID (deterministic hash), verified_at = now.
+//   - Unchanged rescan (existing current row matches attributes +
+//     tags): UPDATE verified_at / verified_by on the existing row;
+//     top-level columns (name/region/zone/status/managed) update in
+//     place. No new row.
+//   - Changed rescan (attributes or tags differ): INSERT a new row
+//     with a fresh UUIDv7 PK, inheriting discovered_at / discovered_by
+//     from the chain root, linking previous_version_id to the
+//     predecessor, and setting verified_at / verified_by to the
+//     current scan. Then UPDATE the previous row's superseded_by to
+//     point at the new row. The attributes/tags on the previous row
+//     stay frozen.
+//
+// It bumps the counters bound by [Store.WithUpsertCounters] once the write
+// succeeds: first discoveries as new, splits as changed. Unchanged-rescan
+// updates count as neither.
+//
+// Idempotency: calling UpsertResources twice with the same payload
+// produces one INSERT on the first call and one verified-only UPDATE
+// on the second.
+func (s *Store) UpsertResources(resources []*Resource) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	for _, r := range resources {
@@ -134,13 +135,13 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 	// through the row loop has already counted some rows, so publishing as we
 	// go would inflate the scan's "new"/"changed" columns on every retry.
 	var newC, changedC int
-	err = s.withWriteRetry("upsert resources", func() error {
+	err := s.withWriteRetry("upsert resources", func() error {
 		var txErr error
-		inserted, newC, changedC, txErr = s.upsertResourcesTx(resources, now)
+		newC, changedC, txErr = s.upsertResourcesTx(resources, now)
 		return txErr
 	})
 	if err != nil {
-		return 0, err
+		return err
 	}
 	if s.upsertNew != nil {
 		s.upsertNew.Add(int64(newC))
@@ -148,17 +149,17 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 	if s.upsertChanged != nil {
 		s.upsertChanged.Add(int64(changedC))
 	}
-	return inserted, nil
+	return nil
 }
 
 // upsertResourcesTx is one transactional attempt of UpsertResources. It counts
 // first-discoveries into newC and version splits into changedC rather than
 // touching the Store's shared atomics, so a retried attempt starts from zero
 // instead of compounding the previous one's partial work.
-func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, newC, changedC int, err error) {
+func (s *Store) upsertResourcesTx(resources []*Resource, now string) (newC, changedC int, err error) {
 	tx, err := s.db.Beginx()
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -225,15 +226,14 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 				now, r.DiscoveredBy, r.ManagedByProvider,
 			)
 			if err != nil {
-				return 0, 0, 0, fmt.Errorf("insert resource %s: %w", r.ID, err)
+				return 0, 0, fmt.Errorf("insert resource %s: %w", r.ID, err)
 			}
 			if n, _ := res.RowsAffected(); n > 0 {
-				inserted++
 				newC++
 			}
 
 		case lookupErr != nil:
-			return 0, 0, 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
+			return 0, 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
 
 		case existing.Type == r.Type &&
 			jsonEqual(existing.AttributesJSON, r.AttributesJSON) &&
@@ -271,7 +271,7 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 				r.Name, r.Region, r.Zone, r.Status, r.AccountName, r.ManagedByProvider,
 				existing.VersionRowID,
 			); err != nil {
-				return 0, 0, 0, fmt.Errorf("verify resource %s: %w", r.ID, err)
+				return 0, 0, fmt.Errorf("verify resource %s: %w", r.ID, err)
 			}
 
 		default:
@@ -290,7 +290,7 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 				`UPDATE resources SET superseded_by = $1 WHERE id = $2`),
 				newRowID, existing.VersionRowID,
 			); err != nil {
-				return 0, 0, 0, fmt.Errorf("mark superseded for %s: %w", r.ID, err)
+				return 0, 0, fmt.Errorf("mark superseded for %s: %w", r.ID, err)
 			}
 			if _, err := tx.Exec(tx.Rebind(`
 				INSERT INTO resources
@@ -306,14 +306,13 @@ func (s *Store) upsertResourcesTx(resources []*Resource, now string) (inserted, 
 				r.CreatedAt, existing.DiscoveredAt, existing.DiscoveredBy,
 				now, r.DiscoveredBy, r.ManagedByProvider,
 			); err != nil {
-				return 0, 0, 0, fmt.Errorf("insert new version of %s: %w", r.ID, err)
+				return 0, 0, fmt.Errorf("insert new version of %s: %w", r.ID, err)
 			}
-			inserted++
 			changedC++
 		}
 	}
 
-	return inserted, newC, changedC, tx.Commit()
+	return newC, changedC, tx.Commit()
 }
 
 // InsertResourcesIfAbsent inserts each resource only when no current-version

@@ -33,15 +33,19 @@ func TestDiffCmd_JSON(t *testing.T) {
 	scanB, _ := st.CreateScan([]string{"aws"}, map[string]any{})
 
 	// Resource unique to scan A → stale after B.
-	_, _ = st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-gone",
 		AttributesJSON: "{}", DiscoveredBy: scanA,
-	})
+	}); err != nil {
+		t.Fatalf("UpsertResource: %v", err)
+	}
 	// Resource unique to scan B → added.
-	_, _ = st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-new",
 		AttributesJSON: "{}", DiscoveredBy: scanB,
-	})
+	}); err != nil {
+		t.Fatalf("UpsertResource: %v", err)
+	}
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
@@ -81,14 +85,18 @@ func TestDiffCmd_ResolvesShortIDAndLatest(t *testing.T) {
 
 	scanA, _ := st.CreateScan([]string{"aws"}, map[string]any{})
 	scanB, _ := st.CreateScan([]string{"aws"}, map[string]any{})
-	_, _ = st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-gone",
 		AttributesJSON: "{}", DiscoveredBy: scanA,
-	})
-	_, _ = st.UpsertResource(&store.Resource{
+	}); err != nil {
+		t.Fatalf("UpsertResource: %v", err)
+	}
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-new",
 		AttributesJSON: "{}", DiscoveredBy: scanB,
-	})
+	}); err != nil {
+		t.Fatalf("UpsertResource: %v", err)
+	}
 
 	// from = 8-char prefix of scanA; to = latest (resolves to scanB).
 	out, err := captureStdout(t, func() error {

@@ -89,7 +89,7 @@ func scanStorageWithClient(ctx context.Context, svc *storage.Service, p *project
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, e := st.UpsertResources(batch)
+			e := st.UpsertResources(batch)
 			if e != nil {
 				return 0, fmt.Errorf("upsert GCS buckets: %w", e)
 			}

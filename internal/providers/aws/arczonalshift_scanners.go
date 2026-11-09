@@ -74,7 +74,7 @@ func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acc
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, err = st.UpsertResources([]*store.Resource{r})
+	err = st.UpsertResources([]*store.Resource{r})
 	if err != nil {
 		return 0, fmt.Errorf("upsert arc-zonal-shift observer-status: %w", err)
 	}
@@ -120,7 +120,7 @@ func scanARCZonalShiftConfigurations(ctx context.Context, client arcZonalShiftAP
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert arc-zonal-shift configurations: %w", err)
 			}

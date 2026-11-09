@@ -132,7 +132,7 @@ func shSeedMember(t *testing.T, st *store.Store, name, attrs string) string {
 		Provider: "aws", AccountID: testAccountID, Type: TypeSecurityHubMember, Name: &name, Region: ptrStr(testRegion),
 		NativeID: shHubARN(testRegion) + "/member/" + name, AttributesJSON: attrs, DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{r}); err != nil {
 		t.Fatalf("upsert %s: %v", name, err)
 	}
 	return r.ID

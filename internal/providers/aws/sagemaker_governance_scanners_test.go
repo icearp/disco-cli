@@ -462,7 +462,7 @@ func TestScanSageMakerHubContents_ListsThisScansHubs(t *testing.T) {
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, smTestARN("hub", "h1"), testRegion, "{}", "h1")
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, "arn:aws:sagemaker:us-west-2:123456789012:hub/elsewhere", "us-west-2", "{}", "elsewhere")
 	insertTestScan(t, st, "an-earlier-scan", "completed")
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeSageMakerHub, NativeID: smTestARN("hub", "old"),
 		Name: sdkaws.String("old"), Region: sdkaws.String(testRegion), AttributesJSON: "{}", DiscoveredBy: "an-earlier-scan",
 	}); err != nil {

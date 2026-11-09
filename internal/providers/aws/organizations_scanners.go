@@ -376,7 +376,7 @@ func scanOrgRoot(ctx context.Context, client organizationsAPI, acct *account, st
 		AttributesJSON: mustJSON(org),
 		DiscoveredBy:   scanID,
 	}
-	_, err = st.UpsertResources([]*store.Resource{orgRes})
+	err = st.UpsertResources([]*store.Resource{orgRes})
 	if err != nil {
 		return nil, 0, fmt.Errorf("upsert organization: %w", err)
 	}

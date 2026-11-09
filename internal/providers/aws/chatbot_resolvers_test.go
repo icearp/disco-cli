@@ -94,7 +94,7 @@ func TestResolveChatbotRelationships_DecodeErrorReturned(t *testing.T) {
 	roleID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, cbRoleARN, "global", "{}")
 	// ListResources orders by name, so the good row is resolved after the bad one.
 	goodNative := chatbotSlackUserIdentityNativeID(cbSlackARN, "T01", "U1")
-	if _, err := st.UpsertResources([]*store.Resource{
+	if err := st.UpsertResources([]*store.Resource{
 		{
 			Provider: "aws", AccountID: testAccountID, Type: TypeChatbotSlackUserIdentity, NativeID: "bad", Name: ptrStr("a"),
 			Region: regionGlobal, AttributesJSON: `{"IamRoleArn":7}`, DiscoveredBy: testScanID,

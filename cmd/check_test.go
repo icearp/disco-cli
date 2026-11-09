@@ -25,7 +25,7 @@ func seedCheckDB(t *testing.T) *store.Store {
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
 		NativeID: "vol-bad", AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{vol}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{vol}); err != nil {
 		t.Fatalf("upsert vol: %v", err)
 	}
 	return st
@@ -242,7 +242,7 @@ func TestCheckCmd_EvaluatesPastDefaultLimit(t *testing.T) {
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
 		NativeID: "vol-zzz-bad", AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID,
 	})
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -284,7 +284,7 @@ func TestCheckCmd_DefaultsCustomerOnly(t *testing.T) {
 			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID, ManagedByProvider: true,
 		},
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 

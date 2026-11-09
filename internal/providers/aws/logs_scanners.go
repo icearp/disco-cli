@@ -349,7 +349,7 @@ func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert account policies: %w", err)
 				}
@@ -508,7 +508,7 @@ func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, 
 		return 0, err
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert integrations: %w", err)
 		}
@@ -570,7 +570,7 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert metric filters: %w", err)
 			}
@@ -623,7 +623,7 @@ func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert query definitions: %w", err)
 			}
@@ -670,7 +670,7 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert resource policies: %w", err)
 			}
@@ -822,7 +822,7 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert log streams for %s: %w", lgName, err)
 			}
@@ -904,7 +904,7 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert subscription filters for %s: %w", lgName, err)
 			}
@@ -986,7 +986,7 @@ func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, 
 	}
 	if len(batch) > 0 {
 		// IDs were pre-computed before collection; pairs are already correct.
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return int(t.Load()), fmt.Errorf("upsert transformers: %w", err)
 		}

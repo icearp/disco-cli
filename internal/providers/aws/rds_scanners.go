@@ -121,7 +121,7 @@ func rdsPageScanParents[P any](
 		}
 		batch, pageParents := toRows(page)
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, parents, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}
@@ -546,7 +546,7 @@ func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert rds:DescribeDBShardGroups: %w", err)
 			}

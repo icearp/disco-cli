@@ -40,7 +40,7 @@ func scanOperationsManagement(ctx context.Context, sub *subscription, cred azcor
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert OperationsManagementSolutions: %w", err)
 	}

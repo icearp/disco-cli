@@ -185,7 +185,7 @@ func TestGraphBlast_PrincipalAutoFallback(t *testing.T) {
 		NativeID: "arn:aws:iam::111:policy/AdminPolicy", Name: &pName,
 		AttributesJSON: "{}", DiscoveredBy: scanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{user, group, policy}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{user, group, policy}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	if err := st.UpsertRelationship(group.ID, user.ID, store.RelContains, "directed", nil); err != nil {
@@ -236,7 +236,7 @@ func TestGraphBlast_RespectsExplicitDirOut(t *testing.T) {
 		NativeID: "arn:aws:iam::111:group/admins", Name: &gName,
 		AttributesJSON: "{}", DiscoveredBy: scanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{user, group}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{user, group}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	if err := st.UpsertRelationship(group.ID, user.ID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -498,7 +498,7 @@ func TestGraphCmd_Complete(t *testing.T) {
 		Name: &nName, Region: &nRegion, AttributesJSON: "{}",
 		ManagedByProvider: true, DiscoveredBy: scanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{managed, orphan}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{managed, orphan}); err != nil {
 		t.Fatalf("upsert managed: %v", err)
 	}
 	// Edge: customer A -> managed M (uses).
@@ -567,7 +567,7 @@ func TestGraphCmd_Complete_IncludeManaged(t *testing.T) {
 		Provider: "aws", AccountID: "111", Type: "aws:iam:managed-policy", NativeID: "arn:aws:iam::aws:policy/N",
 		Name: &nName, AttributesJSON: "{}", ManagedByProvider: true, DiscoveredBy: scanID,
 	}
-	if _, err := st.UpsertResources([]*store.Resource{orphan}); err != nil {
+	if err := st.UpsertResources([]*store.Resource{orphan}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 

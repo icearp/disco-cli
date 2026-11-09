@@ -193,7 +193,7 @@ func TestCognitoIdentityPool_ResolverFindsScannedUserPool(t *testing.T) {
 						ClientId: ptrStr("c-1"), ProviderName: ptrStr("cognito-idp." + pf.region + "." + suffix + "/up-1"),
 					}},
 				}})
-			if _, err := st.UpsertResources([]*store.Resource{pool, client, idPool}); err != nil {
+			if err := st.UpsertResources([]*store.Resource{pool, client, idPool}); err != nil {
 				t.Fatalf("UpsertResources: %v", err)
 			}
 			if err := resolveCognitoIdentityPoolRelationships(acct, st); err != nil {

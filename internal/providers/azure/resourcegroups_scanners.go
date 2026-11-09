@@ -82,7 +82,7 @@ func resourceGroupsFromPager(ctx context.Context, sub *subscription, st *store.S
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if _, err := st.UpsertResources(batch); err != nil {
+			if err := st.UpsertResources(batch); err != nil {
 				return listed, fmt.Errorf("upsert resource groups: %w", err)
 			}
 			// Seed each RG's closure self-entry now so every RG is queryable even

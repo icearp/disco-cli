@@ -84,7 +84,7 @@ func scanGKEWithClient(ctx context.Context, svc *container.Service, p *project, 
 		batch = append(batch, r)
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert GKE clusters: %w", err)
 		}

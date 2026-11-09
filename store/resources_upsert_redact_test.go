@@ -28,15 +28,18 @@ var registerTestRedactRule = sync.OnceFunc(func() {
 // resourceWriters are the two store entry points that run redact.Apply.
 var resourceWriters = []struct {
 	name  string
-	write func(*Store, []*Resource) (int, error)
+	write func(*Store, []*Resource) error
 }{
 	{"UpsertResources", (*Store).UpsertResources},
-	{"InsertResourcesIfAbsent", (*Store).InsertResourcesIfAbsent},
+	{"InsertResourcesIfAbsent", func(s *Store, rs []*Resource) error {
+		_, err := s.InsertResourcesIfAbsent(rs)
+		return err
+	}},
 }
 
 // writeAndCollect writes one resource through write, returning the stored row
 // and every ScanError the write reported.
-func writeAndCollect(t *testing.T, st *Store, write func(*Store, []*Resource) (int, error), typ, nativeID, attrs string) (*Resource, []ScanError) {
+func writeAndCollect(t *testing.T, st *Store, write func(*Store, []*Resource) error, typ, nativeID, attrs string) (*Resource, []ScanError) {
 	t.Helper()
 	var errs []ScanError
 	st.OnError = func(e ScanError) { errs = append(errs, e) }
@@ -45,7 +48,7 @@ func writeAndCollect(t *testing.T, st *Store, write func(*Store, []*Resource) (i
 		Provider: "aws", AccountID: "111", Type: typ, NativeID: nativeID,
 		AttributesJSON: attrs, DiscoveredBy: testScanID,
 	}
-	if _, err := write(st, []*Resource{r}); err != nil {
+	if err := write(st, []*Resource{r}); err != nil {
 		t.Fatalf("write %s: %v", nativeID, err)
 	}
 	got, err := st.GetResource(ResourceID("aws", "111", nativeID))

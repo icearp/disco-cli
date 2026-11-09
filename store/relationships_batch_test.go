@@ -13,7 +13,7 @@ func mkNode(t *testing.T, st *Store, native string) string {
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
 		NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsert %s: %v", native, err)
 	}
 	return r.ID

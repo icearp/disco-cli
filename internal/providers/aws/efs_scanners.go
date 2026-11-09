@@ -96,7 +96,7 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		}
 	}
 	if len(fsBatch) > 0 {
-		_, err := st.UpsertResources(fsBatch)
+		err := st.UpsertResources(fsBatch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert EFS file systems: %w", err)
 		}
@@ -155,7 +155,7 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		return total, fileSystems, err
 	}
 	if len(mtBatch) > 0 {
-		_, err := st.UpsertResources(mtBatch)
+		err := st.UpsertResources(mtBatch)
 		if err != nil {
 			return total, fileSystems, fmt.Errorf("upsert EFS mount targets: %w", err)
 		}
@@ -197,7 +197,7 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 		}
 	}
 	if len(apBatch) > 0 {
-		_, err := st.UpsertResources(apBatch)
+		err := st.UpsertResources(apBatch)
 		if err != nil {
 			return total, fileSystems, fmt.Errorf("upsert EFS access points: %w", err)
 		}

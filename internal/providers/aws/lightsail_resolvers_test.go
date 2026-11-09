@@ -15,7 +15,7 @@ func upsertLightsailRow(t *testing.T, st *store.Store, acct *account, rtype, arn
 		NativeID: arn, Region: &region, Name: &n,
 		AttributesJSON: attrs, DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsert %s: %v", rtype, err)
 	}
 	return store.ResourceID("aws", acct.ID, arn)

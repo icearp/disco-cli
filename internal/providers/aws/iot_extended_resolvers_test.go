@@ -13,7 +13,7 @@ func TestResolveIoTSecurityProfileRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	cmARN := fmt.Sprintf("arn:aws:iot:%s:%s:custommetric/myMetric", testRegion, acct.ID)
 	cmName := "myMetric"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeIoTCustomMetric,
 		NativeID: cmARN, Name: &cmName, Region: pstr(testRegion),
 		AttributesJSON: "{}", DiscoveredBy: testScanID,
@@ -23,7 +23,7 @@ func TestResolveIoTSecurityProfileRefs(t *testing.T) {
 	cmID := store.ResourceID("aws", acct.ID, cmARN)
 	dARN := fmt.Sprintf("arn:aws:iot:%s:%s:dimension/myDim", testRegion, acct.ID)
 	dName := "myDim"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeIoTDimension,
 		NativeID: dARN, Name: &dName, Region: pstr(testRegion),
 		AttributesJSON: "{}", DiscoveredBy: testScanID,

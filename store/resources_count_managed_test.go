@@ -28,7 +28,7 @@ func TestCountManaged_CountsCurrentManagedRowsOnly(t *testing.T) {
 			Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance",
 			NativeID: "i-user", AttributesJSON: `{"v":1}`, DiscoveredBy: testScanID,
 		}
-		if _, err := st.UpsertResource(unmanaged); err != nil {
+		if err := st.UpsertResource(unmanaged); err != nil {
 			t.Fatalf("upsert unmanaged: %v", err)
 		}
 
@@ -40,10 +40,10 @@ func TestCountManaged_CountsCurrentManagedRowsOnly(t *testing.T) {
 			}
 		}
 		first := managed(`{"v":1}`)
-		if _, err := st.UpsertResource(first); err != nil {
+		if err := st.UpsertResource(first); err != nil {
 			t.Fatalf("upsert managed v1: %v", err)
 		}
-		if _, err := st.UpsertResource(managed(`{"v":2}`)); err != nil {
+		if err := st.UpsertResource(managed(`{"v":2}`)); err != nil {
 			t.Fatalf("upsert managed v2: %v", err)
 		}
 

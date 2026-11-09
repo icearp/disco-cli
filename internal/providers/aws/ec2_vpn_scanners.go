@@ -58,7 +58,7 @@ func scanCustomerGateways(ctx context.Context, client ec2API, acct *account, reg
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert customer gateways: %w", err)
 		}
@@ -94,7 +94,7 @@ func scanVPNGateways(ctx context.Context, client ec2API, acct *account, region s
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert VPN gateways: %w", err)
 		}
@@ -130,7 +130,7 @@ func scanVPNConnections(ctx context.Context, client ec2API, acct *account, regio
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert VPN connections: %w", err)
 		}

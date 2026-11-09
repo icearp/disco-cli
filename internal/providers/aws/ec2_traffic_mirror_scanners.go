@@ -83,7 +83,7 @@ func scanTrafficMirrorFilterRules(ctx context.Context, client ec2API, acct *acco
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert traffic-mirror-filter-rules: %w", err)
 		}

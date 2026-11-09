@@ -217,7 +217,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure web apps: %w", err)
 		}
@@ -337,7 +337,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure web app slots %s: %w", site.name, err)
 		}
@@ -403,7 +403,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure App Service Environments: %w", err)
 		}
@@ -517,7 +517,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 	}
 
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure ASE pools %s: %w", ase.name, err)
 		}
@@ -612,7 +612,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure Static Sites: %w", err)
 		}
@@ -692,7 +692,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure Static Site builds %s: %w", ss.name, err)
 		}

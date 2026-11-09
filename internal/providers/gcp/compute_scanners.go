@@ -147,7 +147,7 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert compute instances: %w", err)
 			}
@@ -186,7 +186,7 @@ func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, 
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, e := st.UpsertResources(batch)
+			e := st.UpsertResources(batch)
 			if e != nil {
 				return 0, fmt.Errorf("upsert compute networks: %w", e)
 			}
@@ -219,7 +219,7 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, e := st.UpsertResources(batch)
+			e := st.UpsertResources(batch)
 			if e != nil {
 				return 0, fmt.Errorf("upsert compute subnetworks: %w", e)
 			}
@@ -248,7 +248,7 @@ func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project,
 			if len(batch) == 0 {
 				return 0, nil
 			}
-			_, e := st.UpsertResources(batch)
+			e := st.UpsertResources(batch)
 			if e != nil {
 				return 0, fmt.Errorf("upsert compute firewalls: %w", e)
 			}

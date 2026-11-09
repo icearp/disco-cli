@@ -160,7 +160,7 @@ func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, gone, testRegion, "{}", "gone")
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, west, "us-west-2", "{}", "west")
 	staleRegion := testRegion
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeSageMakerCluster, NativeID: stale,
 		Region: &staleRegion, AttributesJSON: "{}", DiscoveredBy: staleScanID,
 	}); err != nil {

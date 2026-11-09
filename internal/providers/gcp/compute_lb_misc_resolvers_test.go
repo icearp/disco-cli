@@ -14,7 +14,7 @@ func TestResolveBackendBucketRelationships_ByName(t *testing.T) {
 
 	bucketName := "my-bucket"
 	bucketNativeID := "https://www.googleapis.com/storage/v1/b/my-bucket"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "gcp", AccountID: p.ID, Type: TypeStorageBucket, NativeID: bucketNativeID,
 		Name: &bucketName, AttributesJSON: marshalAttrs(t, &storage.Bucket{Name: bucketName}),
 		DiscoveredBy: testScanID,

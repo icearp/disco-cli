@@ -47,7 +47,7 @@ func TestResolveDRSRecoveryInstanceRefs_OtherAccountServer(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	const other = "999999999999"
 	name, region := "s-1", testRegion
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: other, Type: TypeDRSSourceServerResource, NativeID: drsARN(testRegion, other, "source-server", "s-1"),
 		Name: &name, Region: &region, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {

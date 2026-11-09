@@ -62,7 +62,7 @@ func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 			ManagedByProvider: managed,
 		})
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert security pricings: %w", err)
 	}

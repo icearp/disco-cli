@@ -64,7 +64,7 @@ func TestResolveR53RQueryLogAssocRefs(t *testing.T) {
 func r53rUpsertManaged(t *testing.T, st *store.Store, typ, nativeID, attrs string) string {
 	t.Helper()
 	region := testRegion
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: typ, NativeID: nativeID, Region: &region,
 		AttributesJSON: attrs, DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {

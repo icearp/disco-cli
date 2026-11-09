@@ -73,7 +73,7 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 		NativeID: thingARN, Name: &thingName, Region: &regionVal,
 		AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(thingRow); err != nil {
+	if err := st.UpsertResource(thingRow); err != nil {
 		t.Fatalf("upsert thing: %v", err)
 	}
 	thingID := store.ResourceID("aws", acct.ID, thingARN)

@@ -49,7 +49,7 @@ func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, 
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert ses receipt-filters: %w", uerr)
 	}
@@ -91,7 +91,7 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 	}
 	total := 0
 	if len(rsBatch) > 0 {
-		_, uerr := st.UpsertResources(rsBatch)
+		uerr := st.UpsertResources(rsBatch)
 		if uerr != nil {
 			return 0, fmt.Errorf("upsert ses receipt-rule-sets: %w", uerr)
 		}
@@ -125,7 +125,7 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 		}
 	}
 	if len(rules) > 0 {
-		_, uerr := st.UpsertResources(rules)
+		uerr := st.UpsertResources(rules)
 		if uerr != nil {
 			return total, fmt.Errorf("upsert ses receipt-rules: %w", uerr)
 		}

@@ -70,7 +70,7 @@ func seedSkipFanOutParents(t *testing.T, st *store.Store) {
 	for i, p := range skipFanOutParents {
 		rows[i] = &store.Resource{Provider: "aws", AccountID: testAccountID, Type: TypeEVSEnvironment, NativeID: p.arn, DiscoveredBy: testScanID}
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("seed parents: %v", err)
 	}
 }
@@ -3226,7 +3226,7 @@ func TestRecordUnderParents(t *testing.T) {
 			}
 			rows = append(rows, r)
 		}
-		if _, err := st.UpsertResources(rows); err != nil {
+		if err := st.UpsertResources(rows); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 		return rows[2:], map[*store.Resource]string{rows[2]: "parent-a", rows[3]: "parent-b"}
@@ -3281,7 +3281,7 @@ func TestRecordHierarchyPairs(t *testing.T) {
 			}
 			rows = append(rows, r)
 		}
-		if _, err := st.UpsertResources(rows); err != nil {
+		if err := st.UpsertResources(rows); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 		return [][2]string{{rows[1].ID, rows[0].ID}}
@@ -3369,7 +3369,7 @@ func TestStoreEachParentTagsUnder(t *testing.T) {
 			r.Type = TypeAppIntegrationsApplication
 			rows = append(rows, r)
 		}
-		if _, err := st.UpsertResources(rows); err != nil {
+		if err := st.UpsertResources(rows); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 	}

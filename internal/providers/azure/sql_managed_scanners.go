@@ -89,7 +89,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert managed instances: %w", err)
 			}
@@ -518,7 +518,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.To
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert managed databases: %w", err)
 		}

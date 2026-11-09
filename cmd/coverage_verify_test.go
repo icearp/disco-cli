@@ -34,7 +34,7 @@ func seedVerifyDB(t *testing.T, scope map[string]any, extraErrors ...store.ScanE
 		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: "{}", DiscoveredBy: scanID},
 		{Provider: "aws", AccountID: "111", Type: "aws:bogus:thing", NativeID: "x-1", AttributesJSON: "{}", DiscoveredBy: scanID},
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatal(err)
 	}
 	// The scan runner persists Service as "<provider>:<service>" for errors and

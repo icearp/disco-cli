@@ -82,7 +82,7 @@ func scanLocGeofences(t *testing.T, st *store.Store, handler func(in any) (any, 
 		parents = append(parents, childParent{id: c, arn: locCollectionARN(c)})
 		seeds = append(seeds, &store.Resource{Provider: "aws", AccountID: testAccountID, Type: TypeLocationGeofenceCollection, NativeID: locCollectionARN(c), DiscoveredBy: testScanID})
 	}
-	if _, err := st.UpsertResources(seeds); err != nil {
+	if err := st.UpsertResources(seeds); err != nil {
 		t.Fatalf("seed collections: %v", err)
 	}
 	client := locClient(map[string]func(any) (any, error){"ListGeofences": handler})

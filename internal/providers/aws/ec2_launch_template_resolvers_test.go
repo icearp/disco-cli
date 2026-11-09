@@ -35,7 +35,7 @@ func TestResolveEC2LaunchTemplateRefs(t *testing.T) {
 	kpName := "prodkey"
 	region := testRegion
 	kpARN := ec2ARN(testRegion, acct.ID, "key-pair", "key-abcd")
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeEC2KeyPair, NativeID: kpARN,
 		Region: &region, Name: &kpName, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {

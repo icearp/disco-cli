@@ -111,7 +111,7 @@ func scanKinesisStreams(ctx context.Context, client kinesisAPI, acct *account, r
 			return 0, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert Kinesis streams: %w", err)
 			}

@@ -106,7 +106,7 @@ func TestResolveInstanceRelationships_KeyPair(t *testing.T) {
 		NativeID: kpARN, Region: &region, Name: &keyName,
 		AttributesJSON: "{}", DiscoveredBy: "00000000000000000000000000000000",
 	}
-	if _, err := st.UpsertResource(kpResource); err != nil {
+	if err := st.UpsertResource(kpResource); err != nil {
 		t.Fatalf("upsert key pair: %v", err)
 	}
 	kpID := store.ResourceID("aws", acct.ID, kpARN)

@@ -431,7 +431,7 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 		return 0, werr
 	}
 	if len(batch) > 0 {
-		_, uerr := st.UpsertResources(batch)
+		uerr := st.UpsertResources(batch)
 		if uerr != nil {
 			return 0, fmt.Errorf("upsert sso account-assignments: %w", uerr)
 		}
@@ -530,7 +530,7 @@ func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystore
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert identitystore group-memberships: %w", uerr)
 	}
@@ -568,7 +568,7 @@ func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *
 			DiscoveredBy:   scanID,
 		})
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert identitystore users: %w", uerr)
 	}
@@ -606,7 +606,7 @@ func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct 
 			DiscoveredBy:   scanID,
 		})
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert identitystore groups: %w", uerr)
 	}

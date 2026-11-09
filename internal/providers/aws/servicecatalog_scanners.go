@@ -203,7 +203,7 @@ func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI,
 	if len(batch) == 0 {
 		return portfolioIDs, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert servicecatalog portfolios: %w", uerr)
 	}
@@ -259,7 +259,7 @@ func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, a
 	if len(batch) == 0 {
 		return productIDs, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert servicecatalog products: %w", uerr)
 	}

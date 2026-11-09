@@ -173,7 +173,7 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 	if region != "" {
 		r.Region = &region
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResource %s/%s: %v", rtype, nativeID, err)
 	}
 	return store.ResourceID(provider, accountID, nativeID)
@@ -195,7 +195,7 @@ func upsertTestResourceNamed(t *testing.T, st *store.Store, rtype, nativeID, reg
 	if region != "" {
 		r.Region = &region
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResourceNamed %s/%s: %v", rtype, nativeID, err)
 	}
 	return store.ResourceID("aws", testAccountID, nativeID)
@@ -422,7 +422,7 @@ func seedParentRows(t *testing.T, st *store.Store, typ string, nativeIDs ...stri
 	for _, id := range nativeIDs {
 		seeds = append(seeds, &store.Resource{Provider: "aws", AccountID: testAccountID, Type: typ, NativeID: id, DiscoveredBy: testScanID})
 	}
-	if _, err := st.UpsertResources(seeds); err != nil {
+	if err := st.UpsertResources(seeds); err != nil {
 		t.Fatalf("seed %s: %v", typ, err)
 	}
 }

@@ -20,7 +20,7 @@ func TestUpsertResources_CountersSurviveRetryRefactor(t *testing.T) {
 	var newC, changedC atomic.Int64
 	sc := st.WithUpsertCounters(&newC, &changedC)
 
-	if _, err := sc.UpsertResources([]*Resource{
+	if err := sc.UpsertResources([]*Resource{
 		retryRes("b-1", `{"A":1}`),
 		retryRes("b-2", `{"A":1}`),
 	}); err != nil {
@@ -34,7 +34,7 @@ func TestUpsertResources_CountersSurviveRetryRefactor(t *testing.T) {
 	// row is a verify-only update, the other is a version split.
 	newC.Store(0)
 	changedC.Store(0)
-	if _, err := sc.UpsertResources([]*Resource{
+	if err := sc.UpsertResources([]*Resource{
 		retryRes("b-1", `{"A":1}`),
 		retryRes("b-2", `{"A":2}`),
 	}); err != nil {
@@ -57,22 +57,22 @@ func TestUpsertResourcesTx_CountsArePerAttempt(t *testing.T) {
 		r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 	}
 
-	inserted, newC, changedC, err := st.upsertResourcesTx(batch, "2026-01-01T00:00:00Z")
+	newC, changedC, err := st.upsertResourcesTx(batch, "2026-01-01T00:00:00Z")
 	if err != nil {
 		t.Fatalf("first attempt: %v", err)
 	}
-	if inserted != 2 || newC != 2 || changedC != 0 {
-		t.Fatalf("first attempt: inserted=%d new=%d changed=%d, want 2/2/0", inserted, newC, changedC)
+	if newC != 2 || changedC != 0 {
+		t.Fatalf("first attempt: new=%d changed=%d, want 2/0", newC, changedC)
 	}
 
 	// Same payload again: every row is now unchanged, so a fresh attempt must
 	// report zeros rather than adding to the previous attempt's tally.
-	inserted, newC, changedC, err = st.upsertResourcesTx(batch, "2026-01-01T00:00:00Z")
+	newC, changedC, err = st.upsertResourcesTx(batch, "2026-01-01T00:00:00Z")
 	if err != nil {
 		t.Fatalf("second attempt: %v", err)
 	}
-	if inserted != 0 || newC != 0 || changedC != 0 {
-		t.Errorf("second attempt: inserted=%d new=%d changed=%d, want 0/0/0", inserted, newC, changedC)
+	if newC != 0 || changedC != 0 {
+		t.Errorf("second attempt: new=%d changed=%d, want 0/0", newC, changedC)
 	}
 }
 
@@ -106,7 +106,7 @@ func TestResourceWriteTxHelpersPublishNoSharedCounters(t *testing.T) {
 	for _, r := range upserts {
 		r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 	}
-	if _, n, c, err := sc.upsertResourcesTx(upserts, now); err != nil {
+	if n, c, err := sc.upsertResourcesTx(upserts, now); err != nil {
 		t.Fatalf("upsertResourcesTx: %v", err)
 	} else if n != 1 || c != 0 {
 		t.Fatalf("upsertResourcesTx returned new=%d changed=%d, want 1/0", n, c)
@@ -138,7 +138,7 @@ func TestUpsertResources_NativeIDWarningNotRepeatedPerAttempt(t *testing.T) {
 	b := retryRes("dup-1", `{"A":1}`)
 	b.Type = "aws:ec2:instance"
 
-	if _, err := st.UpsertResources([]*Resource{a, b}); err != nil {
+	if err := st.UpsertResources([]*Resource{a, b}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	if warnings != 1 {

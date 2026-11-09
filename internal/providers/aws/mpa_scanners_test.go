@@ -70,7 +70,7 @@ func scanMPAPolicies(t *testing.T, st *store.Store, handler func(in any) (any, e
 		teams = append(teams, childParent{id: arn, arn: arn})
 		seed = append(seed, &store.Resource{Provider: "aws", AccountID: testAccountID, Type: TypeMPAApprovalTeam, NativeID: arn, DiscoveredBy: testScanID})
 	}
-	if _, err := st.UpsertResources(seed); err != nil {
+	if err := st.UpsertResources(seed); err != nil {
 		t.Fatalf("seed teams: %v", err)
 	}
 	client := mpa.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListResourcePolicies": handler}, mpaDenied))

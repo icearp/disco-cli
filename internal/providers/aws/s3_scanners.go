@@ -558,7 +558,7 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, homed map[string]s
 		return 0, err
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert S3 bucket policies: %w", err)
 		}

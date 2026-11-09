@@ -48,7 +48,7 @@ func seedTestDB(t *testing.T) *store.Store {
 			Name: &name2, Region: &region2, AttributesJSON: "{}", DiscoveredBy: scanID,
 		},
 	}
-	if _, err := st.UpsertResources(resources); err != nil {
+	if err := st.UpsertResources(resources); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 	return st
@@ -130,7 +130,7 @@ func TestResourcesCmd_JSON_CamelCase(t *testing.T) {
 	}
 	tags := `{"env":"prod"}`
 	name := "vol"
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
 		NativeID: "vol-x", Name: &name,
 		AttributesJSON: `{"Encrypted":false}`, TagsJSON: &tags,
@@ -279,7 +279,7 @@ func TestResourcesCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
 	}
 	tags := `{"env":"prod","team":"core"}`
 	attrs := `{"Encrypted":false,"Size":8}`
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
 		NativeID: "vol-rt", AttributesJSON: attrs, TagsJSON: &tags,
 		DiscoveredBy: scanID,
@@ -429,7 +429,7 @@ func TestResourcesCmd_DefaultReturnsAll(t *testing.T) {
 			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
 		})
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -467,7 +467,7 @@ func TestResourcesCmd_LimitWarnsOnTruncation(t *testing.T) {
 			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
 		})
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -519,7 +519,7 @@ func TestResourcesCmd_DBReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateScan: %v", err)
 	}
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
 		NativeID: "vol-ro", AttributesJSON: "{}", DiscoveredBy: scanID,
 	}); err != nil {
@@ -587,7 +587,7 @@ func TestResourcesCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
 			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
 		})
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -635,7 +635,7 @@ func TestResourcesCmd_ExcludeTypes(t *testing.T) {
 			AttributesJSON: "{}", DiscoveredBy: scanID,
 		},
 	}
-	if _, err := st.UpsertResources(noisy); err != nil {
+	if err := st.UpsertResources(noisy); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -672,7 +672,7 @@ func TestResourcesCmd_ScanID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateScan: %v", err)
 	}
-	if _, err := st.UpsertResources([]*store.Resource{
+	if err := st.UpsertResources([]*store.Resource{
 		{
 			Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-B",
 			AttributesJSON: "{}", DiscoveredBy: scanB,
@@ -749,7 +749,7 @@ func TestResourcesCmd_Since(t *testing.T) {
 			AttributesJSON: "{}", DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: scanID,
 		},
 	}
-	if _, err := st.UpsertResources(rows); err != nil {
+	if err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 

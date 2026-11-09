@@ -329,7 +329,7 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert Lambda aliases (%s): %w", fn.name, err)
 				}
@@ -385,7 +385,7 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return nil, total, fmt.Errorf("upsert Lambda versions (%s): %w", fn.name, err)
 				}
@@ -430,7 +430,7 @@ func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *a
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert Lambda event invoke configs (%s): %w", fn.name, err)
 				}
@@ -471,7 +471,7 @@ func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert Lambda function URLs (%s): %w", fn.name, err)
 				}
@@ -588,7 +588,7 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert Lambda layer versions (%s): %w", l.name, err)
 				}

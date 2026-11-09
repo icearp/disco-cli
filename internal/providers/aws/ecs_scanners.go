@@ -136,7 +136,7 @@ func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region s
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return nil, 0, fmt.Errorf("upsert ECS clusters: %w", err)
 			}
@@ -203,7 +203,7 @@ func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region s
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return total, fmt.Errorf("upsert ECS services: %w", err)
 				}
@@ -275,7 +275,7 @@ func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, r
 		return 0, err
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert ECS task definitions: %w", err)
 		}

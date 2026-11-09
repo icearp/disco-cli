@@ -196,7 +196,7 @@ func (c connectChildCase) seedParents(t *testing.T, st *store.Store) {
 	upsertTestResource(t, st, "aws", "999999999999", c.parentType, "arn:aws:connect:us-east-1:999999999999:instance/i-other/"+c.parentKind+"/p-other", testRegion, "{}")
 	const oldScan = "11111111111111111111111111111111"
 	insertTestScan(t, st, oldScan, "completed")
-	if _, err := st.UpsertResources([]*store.Resource{{
+	if err := st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: testAccountID, Type: c.parentType, NativeID: c.parentARN("p-stale"),
 		Region: ptrStr(testRegion), AttributesJSON: "{}", DiscoveredBy: oldScan,
 	}}); err != nil {

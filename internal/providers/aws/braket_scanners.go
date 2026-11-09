@@ -60,7 +60,7 @@ func scanBraketSpendingLimits(ctx context.Context, client braketAPI, acct *accou
 			})
 		}
 		if len(batch) > 0 {
-			_, uerr := st.UpsertResources(batch)
+			uerr := st.UpsertResources(batch)
 			if uerr != nil {
 				return total, fmt.Errorf("upsert braket spending limits: %w", uerr)
 			}

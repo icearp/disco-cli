@@ -102,7 +102,7 @@ func TestResolveBackupAccessPointRefs_MalformedRowReportedOthersWired(t *testing
 			Provider: "aws", AccountID: acct.ID, Type: TypeBackupAccessPoint, Name: &name, Region: ptrStr(testRegion),
 			NativeID: fmt.Sprintf("arn:aws:backup:%s:%s:accesspoint/%s", testRegion, testAccountID, name), AttributesJSON: attrs, DiscoveredBy: testScanID,
 		}
-		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
+		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			t.Fatalf("upsert %s: %v", name, err)
 		}
 		return r.ID

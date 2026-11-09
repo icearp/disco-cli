@@ -43,7 +43,7 @@ func TestOpenReadOnly_Reads(t *testing.T) {
 	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("insert scan: %v", err)
 	}
-	if _, err := st.UpsertResource(&Resource{
+	if err := st.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}); err != nil {
@@ -84,7 +84,7 @@ func TestOpenReadOnly_RejectsWrite(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ro.Close() })
 
-	_, err = ro.UpsertResource(&Resource{
+	err = ro.UpsertResource(&Resource{
 		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
 		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	})
@@ -146,7 +146,7 @@ func TestListResources_Since(t *testing.T) {
 		NativeID: "i-new", AttributesJSON: "{}",
 		DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResources([]*Resource{old, fresh}); err != nil {
+	if err := st.UpsertResources([]*Resource{old, fresh}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestListResources_CreatedSinceBefore(t *testing.T) {
 		NativeID: "vol-no-ts", AttributesJSON: "{}",
 		DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResources([]*Resource{rOld, rMid, rNoTS}); err != nil {
+	if err := st.UpsertResources([]*Resource{rOld, rMid, rNoTS}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 
@@ -327,7 +327,7 @@ func TestUpsertResources_RoundTrip(t *testing.T) {
 		DiscoveredBy:   testScanID,
 	}
 
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("UpsertResource: %v", err)
 	}
 
@@ -378,7 +378,7 @@ func TestUpsertResources_IDAutoComputed(t *testing.T) {
 		DiscoveredBy:   testScanID,
 	}
 	// Do not set r.ID.
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("UpsertResource: %v", err)
 	}
 
@@ -405,7 +405,7 @@ func TestUpsertResources_OnConflict(t *testing.T) {
 		DiscoveredAt:   "2024-01-01T00:00:00Z", // set explicitly to control the value
 		DiscoveredBy:   testScanID,
 	}
-	if _, err := st.UpsertResource(first); err != nil {
+	if err := st.UpsertResource(first); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 
@@ -420,7 +420,7 @@ func TestUpsertResources_OnConflict(t *testing.T) {
 		DiscoveredAt:   "2025-06-01T00:00:00Z", // different — should NOT be stored
 		DiscoveredBy:   testScanID,
 	}
-	if _, err := st.UpsertResource(second); err != nil {
+	if err := st.UpsertResource(second); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
 
@@ -512,7 +512,7 @@ func TestListResources_ByRegion(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance",
 		NativeID: "i-2", Region: sp("eu-west-1"), AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResources([]*Resource{r1, r2}); err != nil {
+	if err := st.UpsertResources([]*Resource{r1, r2}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 
@@ -539,7 +539,7 @@ func TestListResources_HidesManagedByDefault(t *testing.T) {
 		NativeID: "pl-aws", AttributesJSON: "{}", DiscoveredBy: testScanID,
 		ManagedByProvider: true,
 	}
-	if _, err := st.UpsertResources([]*Resource{user, managed}); err != nil {
+	if err := st.UpsertResources([]*Resource{user, managed}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 
@@ -585,7 +585,7 @@ func TestListResources_ByTagKeyValue(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:s3:bucket",
 		NativeID: "bucket-b", AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResources([]*Resource{tagged, untagged}); err != nil {
+	if err := st.UpsertResources([]*Resource{tagged, untagged}); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
 	}
 
@@ -787,7 +787,7 @@ func insertResource(t *testing.T, st *Store, provider, accountID, rtype, nativeI
 		AttributesJSON: "{}",
 		DiscoveredBy:   testScanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("insertResource %s/%s: %v", rtype, nativeID, err)
 	}
 	return r.ID

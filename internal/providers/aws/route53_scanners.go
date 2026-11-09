@@ -142,7 +142,7 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 		zoneBatch = append(zoneBatch, r)
 	}
 	if len(zoneBatch) > 0 {
-		_, err := st.UpsertResources(zoneBatch)
+		err := st.UpsertResources(zoneBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Route53 hosted zones: %w", err)
 		}
@@ -380,7 +380,7 @@ func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert Route53 record sets (zone %s): %w", zoneID, err)
 			}
@@ -423,7 +423,7 @@ func scanRoute53DNSSEC(
 		// Upsert the DNSSEC configuration resource for this zone.
 		dnssecNativeID := fmt.Sprintf("%s/dnssec", zs.arn)
 		dnssecName := fmt.Sprintf("DNSSEC %s", zs.id)
-		_, err = st.UpsertResources([]*store.Resource{{
+		err = st.UpsertResources([]*store.Resource{{
 			Provider:       "aws",
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
@@ -461,7 +461,7 @@ func scanRoute53DNSSEC(
 			})
 		}
 		if len(kskBatch) > 0 {
-			_, err := st.UpsertResources(kskBatch)
+			err := st.UpsertResources(kskBatch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert Route53 KSKs (zone %s): %w", zs.id, err)
 			}
@@ -515,7 +515,7 @@ func scanRoute53CIDRCollections(
 			}
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return nil, 0, fmt.Errorf("upsert Route53 CIDR collections: %w", err)
 			}
@@ -742,7 +742,7 @@ func scanRoute53HealthChecks(
 		})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Route53 health checks: %w", err)
 		}

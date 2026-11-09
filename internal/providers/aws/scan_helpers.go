@@ -137,7 +137,7 @@ func pageScan[Page any, Item any](
 		if len(batch) == 0 {
 			continue
 		}
-		_, err = st.UpsertResources(batch)
+		err = st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 		}
@@ -209,7 +209,7 @@ func pageScanConcurrent[Page any, Item any](
 		if len(batch) == 0 {
 			continue
 		}
-		_, err = st.UpsertResources(batch)
+		err = st.UpsertResources(batch)
 		if err != nil {
 			return total, fmt.Errorf("upsert %s: %w", iamAction, err)
 		}

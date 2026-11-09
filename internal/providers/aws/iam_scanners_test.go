@@ -314,7 +314,7 @@ func iamTopLevelHandlers(fail map[string]error) map[string]func(in any) (any, er
 func scanIAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) error {
 	t.Helper()
 	insertTestScan(t, st, "older-scan", "completed")
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeIAMUser, NativeID: iamTestUserARN("stale"),
 		Name: ptrStr("stale"), Region: regionGlobal, AttributesJSON: "{}", DiscoveredBy: "older-scan",
 	}); err != nil {

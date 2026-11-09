@@ -116,7 +116,7 @@ func ResourceID(provider, accountID, nativeID string) string {
 
 // UpsertResource inserts or replaces a single resource. Delegates to
 // UpsertResources, whose version-chain logic lives in resources_upsert.go.
-func (s *Store) UpsertResource(r *Resource) (int, error) {
+func (s *Store) UpsertResource(r *Resource) error {
 	return s.UpsertResources([]*Resource{r})
 }
 

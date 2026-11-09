@@ -89,7 +89,7 @@ func scanCRMTagsUnder(ctx context.Context, svc *cloudresourcemanager.Service, ac
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag keys: %w", upErr)
 		}
@@ -134,7 +134,7 @@ func scanCRMTagValuesUnder(ctx context.Context, svc *cloudresourcemanager.Servic
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag values: %w", upErr)
 		}
@@ -178,7 +178,7 @@ func scanCRMTagHoldsUnder(ctx context.Context, svc *cloudresourcemanager.Service
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag holds: %w", upErr)
 		}
@@ -280,7 +280,7 @@ func scanCRMLiens(ctx context.Context, svc *cloudresourcemanager.Service, p *pro
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert liens: %w", upErr)
 		}
@@ -316,7 +316,7 @@ func scanCRMTagBindings(ctx context.Context, svc *cloudresourcemanager.Service, 
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert tag bindings: %w", upErr)
 		}
@@ -360,7 +360,7 @@ func scanCRMEffectiveTags(ctx context.Context, svc *cloudresourcemanager.Service
 		if len(batch) == 0 {
 			return nil
 		}
-		_, upErr := st.UpsertResources(batch)
+		upErr := st.UpsertResources(batch)
 		if upErr != nil {
 			return fmt.Errorf("upsert effective tags: %w", upErr)
 		}

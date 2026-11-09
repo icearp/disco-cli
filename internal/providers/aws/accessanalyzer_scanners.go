@@ -121,7 +121,7 @@ func scanAccessAnalyzerArchiveRules(ctx context.Context, client accessAnalyzerAP
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return total, fmt.Errorf("upsert accessanalyzer archive-rules: %w", err)
 	}

@@ -27,6 +27,14 @@ func newQuota(serviceCode, quotaCode string, value float64) *Quota {
 }
 
 // currentRows counts live rows for one natural key, and total rows in its chain.
+// upsertQuotasCounting upserts qs through quota counters bound for this call and
+// returns how many rows the write added: first discoveries plus version splits.
+func upsertQuotasCounting(st *Store, qs []*Quota) (int, error) {
+	var newC, changedC atomic.Int64
+	err := st.WithQuotaCounters(&newC, &changedC).UpsertQuotas(qs)
+	return int(newC.Load() + changedC.Load()), err
+}
+
 func currentRows(t *testing.T, st *Store, rootID string) (live, total int) {
 	t.Helper()
 	if err := st.get(&live, `SELECT count(*) FROM quotas WHERE root_id = ? AND superseded_by IS NULL`, rootID); err != nil {
@@ -42,7 +50,7 @@ func TestUpsertQuotas_FirstDiscoveryThenUnchangedRescan(t *testing.T) {
 	st := openTestStore(t)
 
 	q := newQuota("ec2", "L-1216C47A", 5)
-	n, err := st.UpsertQuotas([]*Quota{q})
+	n, err := upsertQuotasCounting(st, []*Quota{q})
 	if err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
@@ -52,7 +60,7 @@ func TestUpsertQuotas_FirstDiscoveryThenUnchangedRescan(t *testing.T) {
 
 	// Rescanning an unchanged quota must not grow the chain. This is the
 	// property that makes a catalogue of this size safe to scan repeatedly.
-	n, err = st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)})
+	n, err = upsertQuotasCounting(st, []*Quota{newQuota("ec2", "L-1216C47A", 5)})
 	if err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
@@ -82,7 +90,7 @@ func TestUpsertQuotas_BumpsQuotaCounters(t *testing.T) {
 		{"unchanged rescan", []*Quota{newQuota("ec2", "L-1", 5), newQuota("ec2", "L-2", 5)}, 2, 0},
 		{"one limit raised", []*Quota{newQuota("ec2", "L-1", 9), newQuota("ec2", "L-2", 5)}, 2, 1},
 	} {
-		if _, err := sc.UpsertQuotas(step.quotas); err != nil {
+		if err := sc.UpsertQuotas(step.quotas); err != nil {
 			t.Fatalf("%s: %v", step.name, err)
 		}
 		if newC.Load() != step.wantNew || changedC.Load() != step.wantChanged {
@@ -116,11 +124,11 @@ func TestUpsertQuotasTx_PublishesNoCounters(t *testing.T) {
 func TestUpsertQuotas_ValueChangeSplitsChain(t *testing.T) {
 	st := openTestStore(t)
 
-	if _, err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 	raised := newQuota("ec2", "L-1216C47A", 64)
-	n, err := st.UpsertQuotas([]*Quota{raised})
+	n, err := upsertQuotasCounting(st, []*Quota{raised})
 	if err != nil {
 		t.Fatalf("changed upsert: %v", err)
 	}
@@ -176,7 +184,7 @@ func TestUpsertQuotas_ValueChangeSplitsChain(t *testing.T) {
 func TestUpsertQuotas_DisplayOnlyChangeDoesNotSplit(t *testing.T) {
 	st := openTestStore(t)
 
-	if _, err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 
@@ -184,7 +192,7 @@ func TestUpsertQuotas_DisplayOnlyChangeDoesNotSplit(t *testing.T) {
 	reworded.Name = "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances"
 	reworded.ServiceName = strptr("Amazon Elastic Compute Cloud (Amazon EC2)")
 	reworded.Description = strptr("The maximum number of vCPUs for On-Demand Standard instances.")
-	n, err := st.UpsertQuotas([]*Quota{reworded})
+	n, err := upsertQuotasCounting(st, []*Quota{reworded})
 	if err != nil {
 		t.Fatalf("reworded upsert: %v", err)
 	}
@@ -221,14 +229,14 @@ func TestUpsertQuotas_NonAdjustableProviderChangeIsRecorded(t *testing.T) {
 	hard := newQuota("lambda", "L-B99A9384", 1000)
 	hard.Adjustable = false
 	hard.DefaultValue = fltptr(1000)
-	if _, err := st.UpsertQuotas([]*Quota{hard}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{hard}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 
 	moved := newQuota("lambda", "L-B99A9384", 4000)
 	moved.Adjustable = false
 	moved.DefaultValue = fltptr(4000)
-	if _, err := st.UpsertQuotas([]*Quota{moved}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{moved}); err != nil {
 		t.Fatalf("moved upsert: %v", err)
 	}
 
@@ -251,13 +259,13 @@ func TestUpsertQuotas_NullToValueSplits(t *testing.T) {
 
 	q := newQuota("ec2", "L-1216C47A", 5)
 	q.DefaultValue = nil
-	if _, err := st.UpsertQuotas([]*Quota{q}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{q}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 
 	withDefault := newQuota("ec2", "L-1216C47A", 5)
 	withDefault.DefaultValue = fltptr(5)
-	n, err := st.UpsertQuotas([]*Quota{withDefault})
+	n, err := upsertQuotasCounting(st, []*Quota{withDefault})
 	if err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
@@ -280,7 +288,7 @@ func TestQuotaID_RegionIsPartOfIdentity(t *testing.T) {
 	a := newQuota("ec2", "L-1216C47A", 5)
 	b := newQuota("ec2", "L-1216C47A", 64)
 	b.Region = "us-west-2"
-	n, err := st.UpsertQuotas([]*Quota{a, b})
+	n, err := upsertQuotasCounting(st, []*Quota{a, b})
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -318,7 +326,7 @@ func TestQuotaID_DimensionIsPartOfIdentity(t *testing.T) {
 	a := newQuota("connect", "L-1", 5)
 	b := newQuota("connect", "L-1", 64)
 	b.DimensionKey = "arn:aws:connect:us-east-1:111122223333:instance/abc"
-	n, err := st.UpsertQuotas([]*Quota{a, b})
+	n, err := upsertQuotasCounting(st, []*Quota{a, b})
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -337,13 +345,13 @@ func TestUpsertQuotas_AttributeOnlyChangeDoesNotSplit(t *testing.T) {
 
 	first := newQuota("ec2", "L-1216C47A", 5)
 	first.AttributesJSON = `{"Value":5,"RolloutInfo":{"OngoingRollout":false}}`
-	if _, err := st.UpsertQuotas([]*Quota{first}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{first}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 
 	churned := newQuota("ec2", "L-1216C47A", 5)
 	churned.AttributesJSON = `{"Value":5,"RolloutInfo":{"OngoingRollout":true}}`
-	n, err := st.UpsertQuotas([]*Quota{churned})
+	n, err := upsertQuotasCounting(st, []*Quota{churned})
 	if err != nil {
 		t.Fatalf("churned upsert: %v", err)
 	}
@@ -389,7 +397,7 @@ func TestUpsertQuotas_EachSemanticColumnSplits(t *testing.T) {
 			base.PeriodValue = intptr(1)
 			base.ResourceType = strptr("AWS::EC2::Instance")
 			base.AvailabilityZone = strptr("us-east-1a")
-			if _, err := st.UpsertQuotas([]*Quota{base}); err != nil {
+			if err := st.UpsertQuotas([]*Quota{base}); err != nil {
 				t.Fatalf("first upsert: %v", err)
 			}
 
@@ -401,7 +409,7 @@ func TestUpsertQuotas_EachSemanticColumnSplits(t *testing.T) {
 			changed.AvailabilityZone = strptr("us-east-1a")
 			tc.apply(changed)
 
-			n, err := st.UpsertQuotas([]*Quota{changed})
+			n, err := upsertQuotasCounting(st, []*Quota{changed})
 			if err != nil {
 				t.Fatalf("changed upsert: %v", err)
 			}
@@ -428,7 +436,7 @@ func TestListQuotas_Filters(t *testing.T) {
 	other := newQuota("s3", "L-DC2B2D3D", 100)
 	other.Region = "eu-west-1"
 
-	if _, err := st.UpsertQuotas([]*Quota{adj, hard, other}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{adj, hard, other}); err != nil {
 		t.Fatalf("seed upsert: %v", err)
 	}
 
@@ -480,14 +488,14 @@ func TestListQuotas_IDIsStableAcrossSplits(t *testing.T) {
 	st := openTestStore(t)
 
 	q := newQuota("ec2", "L-1216C47A", 5)
-	if _, err := st.UpsertQuotas([]*Quota{q}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{q}); err != nil {
 		t.Fatalf("first upsert: %v", err)
 	}
 	before, err := st.ListQuotas(QuotaFilter{})
 	if err != nil {
 		t.Fatalf("ListQuotas: %v", err)
 	}
-	if _, err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 64)}); err != nil {
+	if err := st.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 64)}); err != nil {
 		t.Fatalf("second upsert: %v", err)
 	}
 	after, err := st.ListQuotas(QuotaFilter{})
@@ -516,7 +524,7 @@ func TestUpsertQuotas_RunsInsideCallerOwnedTx(t *testing.T) {
 
 	wrapped := WrapTx(tx, DriverSQLite)
 	q := newQuota("ec2", "L-1216C47A", 5)
-	n, err := wrapped.UpsertQuotas([]*Quota{q})
+	n, err := upsertQuotasCounting(wrapped, []*Quota{q})
 	if err != nil {
 		t.Fatalf("upsert inside caller tx: %v", err)
 	}
@@ -524,7 +532,7 @@ func TestUpsertQuotas_RunsInsideCallerOwnedTx(t *testing.T) {
 		t.Fatalf("inserted %d rows inside caller tx, want 1", n)
 	}
 	// Unchanged rescan on the same transaction still verifies rather than splits.
-	n, err = wrapped.UpsertQuotas([]*Quota{newQuota("ec2", "L-1216C47A", 5)})
+	n, err = upsertQuotasCounting(wrapped, []*Quota{newQuota("ec2", "L-1216C47A", 5)})
 	if err != nil {
 		t.Fatalf("second upsert inside caller tx: %v", err)
 	}

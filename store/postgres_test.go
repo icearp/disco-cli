@@ -215,7 +215,7 @@ func TestPG_ConcurrentUpsert(t *testing.T) {
 				NativeID:     "arn:aws:ec2:us-east-1:111111111111:instance/i-concurrent",
 				DiscoveredBy: scanID, AttributesJSON: "{}",
 			}
-			if _, err := s.UpsertResources([]*Resource{r}); err != nil {
+			if err := s.UpsertResources([]*Resource{r}); err != nil {
 				errCount.Add(1)
 				t.Logf("upsert err: %v", err)
 			}
@@ -257,7 +257,7 @@ func seedFixtures(t *testing.T, s *Store) {
 			DiscoveredBy: pgTestScanID, AttributesJSON: `{}`,
 		},
 	}
-	if _, err := s.UpsertResources(rs); err != nil {
+	if err := s.UpsertResources(rs); err != nil {
 		t.Fatalf("seed resources: %v", err)
 	}
 }

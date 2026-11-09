@@ -22,7 +22,7 @@ func seedVersionChain(t *testing.T, st *store.Store) string {
 		NativeID:       "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/disks/data",
 		AttributesJSON: `{"limit":100}`, DiscoveredBy: scanA,
 	}
-	if _, err := st.UpsertResource(base); err != nil {
+	if err := st.UpsertResource(base); err != nil {
 		t.Fatalf("UpsertResource v1: %v", err)
 	}
 	scanB, err := st.CreateScan([]string{"azure"}, map[string]any{})
@@ -32,7 +32,7 @@ func seedVersionChain(t *testing.T, st *store.Store) string {
 	changed := *base
 	changed.AttributesJSON = `{"limit":200}`
 	changed.DiscoveredBy = scanB
-	if _, err := st.UpsertResource(&changed); err != nil {
+	if err := st.UpsertResource(&changed); err != nil {
 		t.Fatalf("UpsertResource v2: %v", err)
 	}
 	return store.ResourceID(base.Provider, base.AccountID, base.NativeID)

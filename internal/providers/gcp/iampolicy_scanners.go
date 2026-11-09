@@ -57,7 +57,7 @@ func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID st
 		AttributesJSON: mustJSON(policy),
 		DiscoveredBy:   scanID,
 	}
-	_, e := st.UpsertResources([]*store.Resource{r})
+	e := st.UpsertResources([]*store.Resource{r})
 	if e != nil {
 		return 0, fmt.Errorf("upsert IAM policy: %w", e)
 	}

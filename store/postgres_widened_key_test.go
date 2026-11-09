@@ -304,10 +304,10 @@ func TestPG_ScanDataWritesSurviveWidenedKeys(t *testing.T) {
 		st    *Store
 	}{{"scope-a", a}, {"scope-b", b}} {
 		scope, st := scoped.scope, scoped.st
-		if _, err := st.UpsertResources([]*Resource{mkResource("i-parent"), mkResource("i-child")}); err != nil {
+		if err := st.UpsertResources([]*Resource{mkResource("i-parent"), mkResource("i-child")}); err != nil {
 			t.Fatalf("upsert resources under %s: %v", scope, err)
 		}
-		if _, err := st.UpsertQuotas([]*Quota{{
+		if err := st.UpsertQuotas([]*Quota{{
 			Provider: "aws", AccountID: "444444444444", Region: "us-east-1",
 			ServiceCode: "ec2", QuotaCode: "L-1216C47A", Name: "Running instances",
 			AttributesJSON: "{}", DiscoveredBy: pgTestScanID,

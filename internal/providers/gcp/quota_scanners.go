@@ -122,7 +122,7 @@ func scanCloudQuotasWithClients(ctx context.Context, p *project, st *store.Store
 	if len(rows) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertQuotas(rows)
+	err = st.UpsertQuotas(rows)
 	if err != nil {
 		return 0, fmt.Errorf("upsert quotas: %w", err)
 	}

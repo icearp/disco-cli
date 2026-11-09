@@ -70,7 +70,7 @@ func seedLogGroupClasses(t *testing.T, st *store.Store, classes map[string]logsT
 			AttributesJSON: mustJSON(logsTypes.LogGroup{LogGroupName: ptrStr(n), LogGroupClass: class}), DiscoveredBy: testScanID,
 		})
 	}
-	if _, err := st.UpsertResources(batch); err != nil {
+	if err := st.UpsertResources(batch); err != nil {
 		t.Fatalf("seed log groups: %v", err)
 	}
 	groups, err := loadLogGroupsForRegion(acct, testRegion, st, testScanID, false)
@@ -1232,7 +1232,7 @@ func seedOldLogGroup(t *testing.T, st *store.Store) {
 	insertTestScan(t, st, logsTestOldScan, "completed")
 	acct := newTestAccount(testAccountID)
 	region := testRegion
-	if _, err := st.UpsertResources([]*store.Resource{{
+	if err := st.UpsertResources([]*store.Resource{{
 		Provider: "aws", AccountID: testAccountID, AccountName: &acct.Name,
 		Type: TypeLogsLogGroup, NativeID: lgTestARN("old"), Name: ptrStr("old"), Region: &region,
 		AttributesJSON: mustJSON(logsTypes.LogGroup{LogGroupName: ptrStr("old")}), DiscoveredBy: logsTestOldScan,

@@ -88,7 +88,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 	}
 
 	if len(vmssBatch) > 0 {
-		_, err := st.UpsertResources(vmssBatch)
+		err := st.UpsertResources(vmssBatch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure VMSS: %w", err)
 		}
@@ -212,7 +212,7 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.Toke
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure VMSS extensions %s: %w", v.name, err)
 		}
@@ -273,7 +273,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 		}
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, nil, fmt.Errorf("upsert Azure VMSS VMs %s: %w", v.name, err)
 		}
@@ -322,7 +322,7 @@ func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.To
 		pairs = append(pairs, [2]string{extID, vm.discoID})
 	}
 	if len(batch) > 0 {
-		_, err := st.UpsertResources(batch)
+		err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, fmt.Errorf("upsert Azure VMSS VM extensions: %w", err)
 		}

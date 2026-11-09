@@ -13,7 +13,7 @@ func mkAccountNode(t *testing.T, st *Store, account, native string) string {
 		Provider: "aws", AccountID: account, Type: "aws:ec2:instance",
 		NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(r); err != nil {
+	if err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsert %s/%s: %v", account, native, err)
 	}
 	return r.ID
@@ -157,7 +157,7 @@ func TestListResources_OrderSurvivesARescan(t *testing.T) {
 				Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
 				NativeID: native(i), AttributesJSON: `{"v":2}`, DiscoveredBy: testScanID,
 			}
-			if _, err := st.UpsertResource(r); err != nil {
+			if err := st.UpsertResource(r); err != nil {
 				t.Fatalf("rescan upsert %s: %v", native(i), err)
 			}
 		}

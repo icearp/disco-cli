@@ -258,7 +258,7 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert CloudFront streaming distributions: %w", err)
 			}
@@ -316,7 +316,7 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -374,7 +374,7 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -432,7 +432,7 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -482,7 +482,7 @@ func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *accou
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -523,7 +523,7 @@ func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert CloudFront OAIs: %w", err)
 			}
@@ -564,7 +564,7 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert CloudFront origin access controls: %w", err)
 			}
@@ -618,7 +618,7 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfro
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -662,7 +662,7 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfr
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert CloudFront public keys: %w", err)
 			}
@@ -707,7 +707,7 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -755,7 +755,7 @@ func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *accoun
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}
@@ -801,7 +801,7 @@ func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *accou
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return 0, err
 				}

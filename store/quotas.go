@@ -418,11 +418,10 @@ func (s *Store) GetQuotaVersions(rootID string) ([]QuotaVersion, error) {
 // and inside a caller-owned transaction from [WrapTx] — where s.db is nil and
 // any s.db.Begin would nil-panic.
 //
-// Returns the count of rows inserted: first discoveries plus version splits.
-// Verify-only updates do not count. It bumps the counters bound by
-// [Store.WithQuotaCounters] once the write succeeds: first discoveries as new,
-// splits as changed.
-func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
+// It bumps the counters bound by [Store.WithQuotaCounters] once the write
+// succeeds: first discoveries as new, splits as changed. Verify-only updates
+// count as neither.
+func (s *Store) UpsertQuotas(quotas []*Quota) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	for _, q := range quotas {
@@ -439,13 +438,13 @@ func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
 	// (s.tx != nil) that is when the statements succeed, not when the caller
 	// commits.
 	var newC, changedC int
-	err = s.withWriteRetry("upsert quotas", func() error {
+	err := s.withWriteRetry("upsert quotas", func() error {
 		var txErr error
 		newC, changedC, txErr = s.upsertQuotasTx(quotas, now)
 		return txErr
 	})
 	if err != nil {
-		return 0, err
+		return err
 	}
 	if s.quotaNew != nil {
 		s.quotaNew.Add(int64(newC))
@@ -453,7 +452,7 @@ func (s *Store) UpsertQuotas(quotas []*Quota) (inserted int, err error) {
 	if s.quotaChanged != nil {
 		s.quotaChanged.Add(int64(changedC))
 	}
-	return newC + changedC, nil
+	return nil
 }
 
 // upsertQuotasTx runs one attempt of UpsertQuotas atomically. A caller-owned

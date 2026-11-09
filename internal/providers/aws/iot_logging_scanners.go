@@ -65,7 +65,7 @@ func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *acco
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert iot logging: %w", uerr)
 	}
@@ -118,7 +118,7 @@ func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, a
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert iot resource-specific-logging: %w", uerr)
 	}
@@ -148,7 +148,7 @@ func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, a
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert iot encryption-configuration: %w", uerr)
 	}

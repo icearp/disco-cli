@@ -30,12 +30,12 @@ func TestDiffScans_AddedAndStale(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-common",
 		AttributesJSON: "{}", DiscoveredBy: scanA,
 	}
-	if _, err := st.UpsertResource(r1); err != nil {
+	if err := st.UpsertResource(r1); err != nil {
 		t.Fatalf("upsert r1 via A: %v", err)
 	}
 	// Re-upsert via scan B to update verified_by to B.
 	r1.DiscoveredBy = scanB
-	if _, err := st.UpsertResource(r1); err != nil {
+	if err := st.UpsertResource(r1); err != nil {
 		t.Fatalf("re-upsert r1 via B: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestDiffScans_AddedAndStale(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-gone",
 		AttributesJSON: "{}", DiscoveredBy: scanA,
 	}
-	if _, err := st.UpsertResource(r2); err != nil {
+	if err := st.UpsertResource(r2); err != nil {
 		t.Fatalf("upsert r2 via A: %v", err)
 	}
 
@@ -53,7 +53,7 @@ func TestDiffScans_AddedAndStale(t *testing.T) {
 		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-new",
 		AttributesJSON: "{}", DiscoveredBy: scanB,
 	}
-	if _, err := st.UpsertResource(r3); err != nil {
+	if err := st.UpsertResource(r3); err != nil {
 		t.Fatalf("upsert r3 via B: %v", err)
 	}
 

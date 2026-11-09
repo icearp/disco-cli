@@ -182,7 +182,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertQuotas(batch)
+	err = st.UpsertQuotas(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert service quotas: %w", err)
 	}

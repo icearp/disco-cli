@@ -74,7 +74,7 @@ func TestResolveSSMAssociationDocument(t *testing.T) {
 	docARN := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", testRegion, acct.ID, docName)
 	regionVal := testRegion
 	docNameVal := docName
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeSSMDocument,
 		NativeID: docARN, Name: &docNameVal, Region: &regionVal,
 		AttributesJSON: "{}", DiscoveredBy: testScanID,
@@ -101,7 +101,7 @@ func TestResolveSSMDocumentRequires(t *testing.T) {
 	parentARN := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", testRegion, acct.ID, parentName)
 	childName, childNameVal := "ChildDoc", "ChildDoc"
 	childARN := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", testRegion, acct.ID, childName)
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeSSMDocument,
 		NativeID: childARN, Name: &childNameVal, Region: &regionVal,
 		AttributesJSON: "{}", DiscoveredBy: testScanID,
@@ -109,7 +109,7 @@ func TestResolveSSMDocumentRequires(t *testing.T) {
 		t.Fatalf("upsert child: %v", err)
 	}
 	parentAttrs := fmt.Sprintf(`{"Requires":[{"Name":%q}]}`, childName)
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: acct.ID, Type: TypeSSMDocument,
 		NativeID: parentARN, Name: &parentNameVal, Region: &regionVal,
 		AttributesJSON: parentAttrs, DiscoveredBy: testScanID,

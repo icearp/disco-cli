@@ -87,7 +87,7 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
 	}
-	_, uerr := st.UpsertResources([]*store.Resource{r})
+	uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert iot account-audit-configuration: %w", uerr)
 	}

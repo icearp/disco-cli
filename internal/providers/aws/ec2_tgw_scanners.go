@@ -553,7 +553,7 @@ func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region str
 				})
 			}
 			if len(batch) > 0 {
-				_, err := st.UpsertResources(batch)
+				err := st.UpsertResources(batch)
 				if err != nil {
 					return fmt.Errorf("upsert tgw-routes: %w", err)
 				}

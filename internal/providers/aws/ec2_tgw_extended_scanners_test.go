@@ -60,7 +60,7 @@ func tgxClient(handlers map[string]func(in any) (any, error)) ec2API {
 // with status, seen by scanID.
 func tgxSeedParent(t *testing.T, st *store.Store, typ, nativeID, region, status, scanID string) {
 	t.Helper()
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: typ, NativeID: nativeID,
 		Region: &region, Status: &status, AttributesJSON: "{}", DiscoveredBy: scanID,
 	}); err != nil {

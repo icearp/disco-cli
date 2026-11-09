@@ -92,7 +92,7 @@ func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert appflow connectors: %w", err)
 			}
@@ -139,7 +139,7 @@ func scanAppFlowConnectorProfiles(ctx context.Context, client appflowAPI, acct *
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert appflow connector profiles: %w", err)
 			}
@@ -183,7 +183,7 @@ func scanAppFlowFlows(ctx context.Context, client appflowAPI, acct *account, reg
 			})
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return total, fmt.Errorf("upsert appflow flows: %w", err)
 			}

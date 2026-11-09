@@ -275,14 +275,14 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 			}
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert VNets: %w", err)
 			}
 			total += len(batch)
 		}
 		if len(subnetBatch) > 0 {
-			_, err := st.UpsertResources(subnetBatch)
+			err := st.UpsertResources(subnetBatch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert subnets: %w", err)
 			}
@@ -362,7 +362,7 @@ func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *ar
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, err = st.UpsertResources(batch)
+	err = st.UpsertResources(batch)
 	if err != nil {
 		return 0, fmt.Errorf("upsert ExpressRouteGateways: %w", err)
 	}

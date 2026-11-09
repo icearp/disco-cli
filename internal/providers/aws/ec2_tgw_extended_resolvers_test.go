@@ -27,7 +27,7 @@ func tgxSeedRefTargets(t *testing.T, st *store.Store) (pl1, att string) {
 	t.Helper()
 	pl1ARN, region := "arn:aws:ec2:us-east-1:aws:prefix-list/"+tgxPL1, testRegion
 	// scanPrefixLists flags an AWS-owned list provider-managed.
-	if _, err := st.UpsertResource(&store.Resource{
+	if err := st.UpsertResource(&store.Resource{
 		Provider: "aws", AccountID: testAccountID, Type: TypeEC2PrefixList, NativeID: pl1ARN,
 		Region: &region, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
 	}); err != nil {

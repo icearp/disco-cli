@@ -205,7 +205,7 @@ func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.S
 	if len(batch) == 0 {
 		return customerID, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return customerID, 0, fmt.Errorf("upsert workspace users: %w", uerr)
 	}
@@ -260,7 +260,7 @@ func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, cu
 	if len(batch) == 0 {
 		return groupNames, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert cloud-identity groups: %w", uerr)
 	}
@@ -306,7 +306,7 @@ func scanCloudIdentityDevices(ctx context.Context, svc *cloudidentity.Service, c
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity devices: %w", uerr)
 	}
@@ -359,7 +359,7 @@ func scanCloudIdentityDeviceUsers(ctx context.Context, svc *cloudidentity.Servic
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity device users: %w", uerr)
 	}
@@ -416,7 +416,7 @@ func scanCloudIdentityClientStates(ctx context.Context, svc *cloudidentity.Servi
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity client states: %w", uerr)
 	}
@@ -508,7 +508,7 @@ func scanCloudIdentityInboundOidcSsoProfiles(ctx context.Context, svc *cloudiden
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity inbound OIDC SSO profiles: %w", uerr)
 	}
@@ -550,7 +550,7 @@ func scanCloudIdentityInboundSamlSsoProfiles(ctx context.Context, svc *cloudiden
 	if len(batch) == 0 {
 		return profileNames, 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return nil, 0, fmt.Errorf("upsert cloud-identity inbound SAML SSO profiles: %w", uerr)
 	}
@@ -633,7 +633,7 @@ func scanCloudIdentityInboundSsoAssignments(ctx context.Context, svc *cloudident
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity inbound SSO assignments: %w", uerr)
 	}
@@ -672,7 +672,7 @@ func scanCloudIdentityPolicies(ctx context.Context, svc *cloudidentity.Service, 
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity policies: %w", uerr)
 	}
@@ -714,7 +714,7 @@ func scanCloudIdentityUserinvitations(ctx context.Context, svc *cloudidentity.Se
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert cloud-identity user invitations: %w", uerr)
 	}

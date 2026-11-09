@@ -20,7 +20,7 @@ func seedDiamond(t *testing.T, st *Store) (a, b, c, d string) {
 			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
 			NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
 		}
-		if _, err := st.UpsertResource(r); err != nil {
+		if err := st.UpsertResource(r); err != nil {
 			t.Fatalf("upsert %s: %v", native, err)
 		}
 		return r.ID
@@ -168,7 +168,7 @@ func TestGraphWalk_ManagedTerminal(t *testing.T) {
 			NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
 			ManagedByProvider: managed,
 		}
-		if _, err := st.UpsertResource(r); err != nil {
+		if err := st.UpsertResource(r); err != nil {
 			t.Fatalf("upsert %s: %v", native, err)
 		}
 		return r.ID
@@ -271,7 +271,7 @@ func TestGraphWalk_ExcludeTypes(t *testing.T) {
 			Provider: "aws", AccountID: "111", Type: typ,
 			NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
 		}
-		if _, err := st.UpsertResource(r); err != nil {
+		if err := st.UpsertResource(r); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 		return r.ID
@@ -339,7 +339,7 @@ func TestResolveResource(t *testing.T) {
 		NativeID: "b-shared", Name: &shared, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
 	for _, r := range []*Resource{r1, r2} {
-		if _, err := st.UpsertResource(r); err != nil {
+		if err := st.UpsertResource(r); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 	}
@@ -374,7 +374,7 @@ func TestResolveResource(t *testing.T) {
 		Provider: "aws", AccountID: "111", Type: "aws:rds:db-instance",
 		NativeID: "db-xyz", Name: &name, AttributesJSON: "{}", DiscoveredBy: testScanID,
 	}
-	if _, err := st.UpsertResource(r3); err != nil {
+	if err := st.UpsertResource(r3); err != nil {
 		t.Fatalf("upsert r3: %v", err)
 	}
 	got, err = st.ResolveResource("prod-db", "", "", "")

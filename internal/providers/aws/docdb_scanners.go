@@ -105,7 +105,7 @@ func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, regi
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert docdb clusters: %w", uerr)
 	}
@@ -156,7 +156,7 @@ func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, reg
 	if len(batch) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(batch)
+	uerr := st.UpsertResources(batch)
 	if uerr != nil {
 		return 0, fmt.Errorf("upsert docdb instances: %w", uerr)
 	}

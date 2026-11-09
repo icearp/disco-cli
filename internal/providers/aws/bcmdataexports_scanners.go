@@ -84,7 +84,7 @@ func scanBCMDataExportsExports(ctx context.Context, client bcmDataExportsAPI, ac
 	if len(rows) == 0 {
 		return 0, nil
 	}
-	_, uerr := st.UpsertResources(rows)
+	uerr := st.UpsertResources(rows)
 	if uerr != nil {
 		return total, fmt.Errorf("upsert bcmdataexports exports: %w", uerr)
 	}

@@ -100,7 +100,7 @@ func scanSQSQueues(ctx context.Context, client sqsAPI, acct *account, region str
 			return 0, err
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert SQS queues: %w", err)
 			}

@@ -216,7 +216,7 @@ func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *acc
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			_, err := st.UpsertResources(batch)
+			err := st.UpsertResources(batch)
 			if err != nil {
 				return 0, fmt.Errorf("upsert CloudWatch anomaly detectors: %w", err)
 			}
