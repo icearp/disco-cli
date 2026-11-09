@@ -96,8 +96,9 @@ string leaves that are themselves JSON** (IAM/KMS/S3/SNS/SQS policy documents, w
 AWS returns in non-deterministic order). Without it those resources split on every scan. A new
 opaque embedded-JSON field needs no special handling.
 
-**`new` vs `changed` reporting.** `UpsertResources` returns `inserted` (first-discoveries +
-splits). `Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store` (like
+**`new` vs `changed` reporting.** `UpsertResources`, `UpsertResource` and `UpsertQuotas` return only
+`error`; the counts exist only on bound counters (tests: store `upsertQuotasCounting`, providers'
+`countUpserts`). `InsertResourcesIfAbsent` still returns its inserted count. `Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store` (like
 `WithRelCounter`) that bumps `newC` on a first discovery and `changedC` on a split; dispatchers bind a
 pair per service scan and pass them to `ReportService`, so the progress line splits per (service,
 scope); scanners return only their total.

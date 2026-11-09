@@ -467,7 +467,7 @@ Detection shapes:
 - **Single code:** Shield `isShieldNotSubscribed`, Security Hub `isSecurityHubNotEnabled`, `AWSOrganizationsNotInUseException` at the top of `scanOrganizations`.
 - **Code + message** when the code collides with a real IAM denial: `isMacieNotEnabled` = `isAccessDeniedWithMessage(err, "Macie is not enabled")`; `isAuditManagerNotEnabled`. A real deny still falls through to `skipIfAccessDenied` and warns.
 - **Multi-code:** `isControlTowerNotEnabled` matches the message hint first (`AWSControlTowerAdmin` / `landing zone` / `management account`), then accepts `isAccessDenied` OR `ValidationException`; the message check keeps real validation errors surfacing.
-- **Only the phase-1 detection step returns the sentinel** (`DescribeSubscription` / `DescribeHub` / `GetMacieSession`); later phases keep a tolerant per-phase `isAccessDenied` skip for partial IAM grants. The top-level scanner propagates it via `if ferr != nil { return 0, 0, ferr }`.
+- **Only the phase-1 detection step returns the sentinel** (`DescribeSubscription` / `DescribeHub` / `GetMacieSession`); later phases keep a tolerant per-phase `isAccessDenied` skip for partial IAM grants. The top-level scanner propagates it via `if ferr != nil { return 0, ferr }`.
 - **Gate-only phase-0:** `gateXxx(ctx, client, acct, st) error` calls Describe only for the sentinel side-effect and upserts nothing. Precedent: `gateShieldSubscription`.
 - **Shared predicate** when two services gate on one enablement: `isCostExplorerNotEnabled` (`bcmpricingcalculator_scanners.go`) serves both `aws:ce` and `aws:bcmpricingcalculator`.
 
@@ -511,7 +511,7 @@ SDK paginators default `StopOnDuplicateToken=false` (they loop until the service
 
 ### `skipIfAccessDenied` always returns nil
 
-Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanners (e.g. `scanEventBridge` running buses + rules + connections + api-destinations in one call) cannot early-return — use `_ = skipIfAccessDenied(...); break` to skip denied phase while preserving totals from prior phases. Precedent: `scanEventBridge` phases 3/4.
+Single-phase scanners `return 0, skipIfAccessDenied(...)`. Multi-phase scanners (e.g. `scanEventBridge` running buses + rules + connections + api-destinations in one call) cannot early-return — use `_ = skipIfAccessDenied(...); break` to skip denied phase while preserving totals from prior phases. Precedent: `scanEventBridge` phases 3/4.
 
 ### Region-entitlement denials silent-skip globally
 
