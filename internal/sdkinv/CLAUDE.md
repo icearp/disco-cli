@@ -133,6 +133,9 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
 - Methods are keyed by bare name: two receivers sharing a method name make it ambiguous and the walker
   follows neither (a new `report` method collided with `defaultsOutcome.report`). An op label sitting beside
   a function value in a phase table is not anchored to that function; call each phase directly.
+- The walk credits a function with a callee's types when the call passes any local, whatever the arg
+  means. Removing a dead arg can drop a pairing: `recordKMSHierarchy(n)` (`n` a dead count) gave GCP
+  cloudkms/locations every KMS type and a false scanner-lists signal.
 - An unaliased import binds the last path segment the importing file uses as a selector root
   (`admin/directory/v1` binds `admin`); the imported package clause is not read.
 - Before replacing a pairing heuristic, dump live `Result.Pairings` for every provider (a

@@ -184,6 +184,7 @@ Single build, no feature gating — everything ships in this one binary.
 
 - v2 config (`version: "2"` at top of `.golangci.yaml`) — schema renamed in v2; missing version yields `unsupported version of the configuration`.
 - Default caps output at 50 issues per linter; the full-survey command is under Commands.
+- `unparam` is not enabled: a result every caller discards, or a param nobody reads, passes lint.
 
 ### Go 1.25 modernizer lint
 

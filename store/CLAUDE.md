@@ -100,7 +100,7 @@ opaque embedded-JSON field needs no special handling.
 splits). `Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store` (like
 `WithRelCounter`) that bumps `newC` on a first discovery and `changedC` on a split; dispatchers bind a
 pair per service scan and pass them to `ReportService`, so the progress line splits per (service,
-scope) without changing every scanner's `(total, inserted, err)` signature.
+scope); scanners return only their total.
 
 `UpsertQuotas` bumps its own pair, bound by `WithQuotaCounters`, published only after the attempt
 succeeds (a retried attempt is not counted twice). It never bumps the upsert counters: a quota limit is

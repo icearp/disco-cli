@@ -215,7 +215,7 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 
 ### Multi-phase scanner totals
 
-Phases return `(total, inserted, err)` with `total = len(batch)`; `inserted` is vestigial for reporting (new/changed come from `WithUpsertCounters`, see `../CLAUDE.md`).
+Phases return `(total int, err error)` with `total = len(batch)`; new/changed come from `WithUpsertCounters`, see `../CLAUDE.md`.
 
 ### Multi-phase parent + children closure-wiring helper
 
@@ -231,9 +231,9 @@ When a parent resource references N children that have no independent lifecycle 
 
 **GAAD `AWSManagedPolicy` filter only returns *attached* AWS-managed policies, NOT the full catalogue.** `scanIAMAuthDetails` runs the GAAD pass first, then `scanIAMAWSManagedCatalogue` — a stub `ListPolicies(Scope=AWS)` pass that upserts a metadata-only row per AWS-managed policy GAAD did not already store (no `GetPolicyVersion` enrichment, avoids the throttling fan-out; see "Two-pass scanner" below). Unattached catalogue policies keep their stub row as edge targets for `resolveManagedPolicyAttachments`. Walker silently skips no-document rows. Don't drop the catalogue stub pass — without it, unattached AWS-managed policies disappear from the store. Don't reintroduce per-principal `List*`/`Get*Policy` or per-policy `GetPolicyVersion` fan-outs — they hit IAM TPS throttling and dominate wall-time. AWS-managed policies detected by the ARN's account segment being `aws` (`arn:{p}:iam::aws:policy/…`) (canonical scope marker; GAAD doesn't expose the per-policy scope flag). Inline policies still upsert as `aws:iam:{role,user,group}-policy` rows with NativeID `{parentARN}/policy/{name}` so existing inline-policy resolvers stay unchanged. Independent IAM APIs not covered by GAAD (`ListInstanceProfiles`, `ListOpenIDConnectProviders`, `ListSAMLProviders`, `ListServerCertificates`, `ListVirtualMFADevices`, `ListAccessKeys`) keep their own scanners.
 
-### Two-pass scanner: keep total == inserted via skip-set dedup
+### Two-pass scanner: keep total == new via skip-set dedup
 
-Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `total` > `new` on a fresh DB → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue`.
+Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `new` counts only the first because the second upsert is a verify or split, not an insert. Surfaces as `total` > `new` on a fresh DB → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == new on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue`.
 
 ### CloudWatch Logs phase-2 fan-out
 
@@ -431,7 +431,7 @@ CLI: `--skip-globals` (defined in `cmd/scan.go`, plumbed via `providers.GlobalsS
 
 ### Per-op region gates (sub-API only available in one region)
 
-Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if !acct.homeGate(st, "lightsail", lsGetDistributionsOp, region) { return 0, 0, nil }` at the top of `scanLSDistributions`; it warns once per scan when the package is Listed without a home), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
+Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if !acct.homeGate(st, "lightsail", lsGetDistributionsOp, region) { return 0, nil }` at the top of `scanLSDistributions`; it warns once per scan when the package is Listed without a home), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
 
 ### WAFv2 scope pattern
 
@@ -460,8 +460,8 @@ there, not inline in a dispatcher — and add a case to `TestClassifyServiceErro
 The per-service progress suffix comes from `store.ServiceStatus` (`ServiceOK` / `ServiceDisabled` / `ServiceNotEntitled` / `ServiceUnavailable` / `ServiceBlocked`; `ServiceBillingDisabled` is GCP-only), rendered by `cmd/scan.go::serviceStatusSuffix`. A scanner selects one by returning a sentinel from `aws_errors.go`; `classifyServiceError` maps it at dispatch.
 
 - **Decision axis: can the account self-enable the service?** Yes (enable / init / subscribe / onboard / register an SLR) → `markServiceDisabled` (`errServiceDisabled`, `(account: disabled)`). No (closed to new customers, support tier, payer-only, not eligible) → `markServiceNotEntitled` (`errServiceNotEntitled`, `(account: not entitled)`). Azure (`errServiceNotRegistered`) and GCP (`errServiceDisabled`) map their not-enabled states to disabled.
-- **Whole service absent from the region** (every op fails) → `markServiceUnavailable` (`errServiceUnavailable`, `(region: unavailable)`), alongside the dispatcher's NXDOMAIN and SSM-catalog skips. Precedent: omics' `isServiceNotAvailableInRegion`. A per-op or sub-feature gap inside a present service keeps a per-phase silent `return 0, 0, nil` — the sentinel would blank a working service.
-- **Use a sentinel only when zero rows were produced.** Dispatch calls `ReportService(..., 0, 0, 0, 0, status)` and discards the scanner's total and the bound new/changed counters. After partial work, return `(total, inserted, nil)` instead. Precedent: the member-account path in `scanOrganizations`, which upserts the organization row, then returns nil when `MasterAccountId != acct.ID` instead of hitting the management-only List ops.
+- **Whole service absent from the region** (every op fails) → `markServiceUnavailable` (`errServiceUnavailable`, `(region: unavailable)`), alongside the dispatcher's NXDOMAIN and SSM-catalog skips. Precedent: omics' `isServiceNotAvailableInRegion`. A per-op or sub-feature gap inside a present service keeps a per-phase silent `return 0, nil` — the sentinel would blank a working service.
+- **Use a sentinel only when zero rows were produced.** Dispatch calls `ReportService(..., 0, 0, 0, 0, status)` and discards the scanner's total and the bound new/changed counters. After partial work, return `(total, nil)` instead. Precedent: the member-account path in `scanOrganizations`, which upserts the organization row, then returns nil when `MasterAccountId != acct.ID` instead of hitting the management-only List ops.
 
 Detection shapes:
 - **Single code:** Shield `isShieldNotSubscribed`, Security Hub `isSecurityHubNotEnabled`, `AWSOrganizationsNotInUseException` at the top of `scanOrganizations`.
@@ -473,7 +473,7 @@ Detection shapes:
 
 ### Transient errors already wrapped at dispatch
 
-`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `outcomeTransient` → `ReportError` (scan partial; the message says rescan). Scanners do NOT need inline handling for dial/read/write (`net.OpError`), `net.Error` timeouts, throttling codes, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — dispatch reports them; a phase that should only warn demotes with `demoteTransient`. NXDOMAIN is a silent `(region: unavailable)`; the per-service `context.DeadlineExceeded` is a hard error (`outcomeDeadline`). Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
+`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `outcomeTransient` → `ReportError` (scan partial; the message says rescan). Scanners do NOT need inline handling for dial/read/write (`net.OpError`), `net.Error` timeouts, throttling codes, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — dispatch reports them; a phase that should only warn demotes with `demoteTransient`. NXDOMAIN is a silent `(region: unavailable)`; the per-service `context.DeadlineExceeded` is a hard error (`outcomeDeadline`). Only `AccessDenied` still needs per-scanner `return 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
 
 `isTransientNetworkError` also matches transport send failures — `*smithyhttp.RequestSendError` and bare `io.EOF` / `io.ErrUnexpectedEOF` (observed post-retry on `transcribe:ListCallAnalyticsCategories`: "request send failed, Post ...: EOF"). **Consequence for store-write errors:** pgconn reports a dropped Postgres connection as `unexpected EOF`, so any wrapper around a store-write failure MUST break the `errors.Is` chain (format the cause with `%s`, not `%w`). Otherwise a dead DB is reclassified as a transient AWS warning and the scan reports success while silently dropping rows.
 
@@ -519,11 +519,11 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 
 ### Expected-state singletons → silent no-op, not warn
 
-Singleton-config Get/List ops return distinct error codes when the config has not been opted into (`SigningConfigurationNotFoundException`, `NotConfiguredException`, `RegistryPolicyNotFoundException`, `ResourceNotFoundException`, `TagOptionNotMigratedException`, `UnauthorizedException` from org-only APIs called by non-mgmt accounts). These are the **default state**, not warnings. Return `(0, 0, nil)` directly — do NOT route through `skipIfAccessDenied`, which records a `ScanWarning` and clutters the per-region warnings block. Real IAM denies still warn via `isAccessDenied`.
+Singleton-config Get/List ops return distinct error codes when the config has not been opted into (`SigningConfigurationNotFoundException`, `NotConfiguredException`, `RegistryPolicyNotFoundException`, `ResourceNotFoundException`, `TagOptionNotMigratedException`, `UnauthorizedException` from org-only APIs called by non-mgmt accounts). These are the **default state**, not warnings. Return `(0, nil)` directly — do NOT route through `skipIfAccessDenied`, which records a `ScanWarning` and clutters the per-region warnings block. Real IAM denies still warn via `isAccessDenied`.
 
 ### Empty-message AccessDeniedException = closed-to-new-customers signal
 
-When AWS retires a service to new customers (existing customers keep access), list ops on unregistered accounts return `AccessDeniedException` with an *empty message body* — distinct from real per-op IAM denials which always carry an action-identifying message. Detect via `isClosedToNewCustomers(err)` (`aws_errors.go`). Closure state is **non-uniform across ops on the same account** (`ListCampaigns` may succeed while `ListDecoderManifests` fails). Wire two layers: phase-0 gate for the common case (one cheap probe → `markServiceNotEntitled` if empty-msg — the account can't self-enable a closed service, so this is not-entitled, not disabled) AND per-phase silent return `(0,0,nil)` for the partial-uniformity case. Real IAM denials with messages still warn via `skipIfAccessDenied`. Precedent: `gateIoTFleetWise` + `gateFraudDetector` (per-service gate fns) calling shared `isClosedToNewCustomers`. Whole-service closed detections (kendra `isKendraClosedToAccount`, interconnect `isInterconnectClosedToAccount`, timestream `isTimestreamLiveAnalyticsClosed` (LiveAnalytics only: the same entry still scans InfluxDB and returns the sentinel only when nothing was found), voiceid `isVoiceIDNotEnabled`, cloud9, datapipeline) likewise return `markServiceNotEntitled`. See "Dispatch states" above.
+When AWS retires a service to new customers (existing customers keep access), list ops on unregistered accounts return `AccessDeniedException` with an *empty message body* — distinct from real per-op IAM denials which always carry an action-identifying message. Detect via `isClosedToNewCustomers(err)` (`aws_errors.go`). Closure state is **non-uniform across ops on the same account** (`ListCampaigns` may succeed while `ListDecoderManifests` fails). Wire two layers: phase-0 gate for the common case (one cheap probe → `markServiceNotEntitled` if empty-msg — the account can't self-enable a closed service, so this is not-entitled, not disabled) AND per-phase silent return `(0, nil)` for the partial-uniformity case. Real IAM denials with messages still warn via `skipIfAccessDenied`. Precedent: `gateIoTFleetWise` + `gateFraudDetector` (per-service gate fns) calling shared `isClosedToNewCustomers`. Whole-service closed detections (kendra `isKendraClosedToAccount`, interconnect `isInterconnectClosedToAccount`, timestream `isTimestreamLiveAnalyticsClosed` (LiveAnalytics only: the same entry still scans InfluxDB and returns the sentinel only when nothing was found), voiceid `isVoiceIDNotEnabled`, cloud9, datapipeline) likewise return `markServiceNotEntitled`. See "Dispatch states" above.
 
 ### AccessDenied disambiguation — canned doc URL = per-region feature gap
 
@@ -531,7 +531,7 @@ Real per-action IAM denials carry the SDK-formatted body `User: arn:... is not a
 
 ### Per-region feature-gap error codes are service-specific
 
-AWS surfaces "this sub-feature is not deployed in this region" under different codes per service. Build a code+message silent-skip predicate against the exact code observed and return `(0, 0, nil)` — not `markServiceDisabled`, since other phases still work in the region. Known shapes:
+AWS surfaces "this sub-feature is not deployed in this region" under different codes per service. Build a code+message silent-skip predicate against the exact code observed and return `(0, nil)` — not `markServiceDisabled`, since other phases still work in the region. Known shapes:
 
 - `UnsupportedRegionException` (gamelift Containers + FlexMatch)
 - `InvalidRequestException` + "Feature not supported yet" (iotsitewise)
@@ -583,6 +583,10 @@ A per-service test that looks like a copy of a shared-helper test is usually wir
 option itself (`.sharingDenials()` at 93 of 96 sites) or owns its count site. Prove a deletion with a mutant
 on the service's call site, run against only the kept tests. A name or shape sweep overestimated the
 deletable tests about tenfold.
+
+Rescan tests (`*_RescanKeepsTotal`) are the only guard that a service's count site returns its stored-row
+total, not the store's written count: on a first scan into an empty store the two are equal, and the
+dispatcher reports new/changed from counters. Keep them while `UpsertResources` returns a count.
 
 ### Helper-test colocation
 

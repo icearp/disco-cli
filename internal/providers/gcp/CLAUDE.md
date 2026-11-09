@@ -74,7 +74,7 @@ Inner pagination + mutex still belong to the caller — `forEachItem` only owns 
 
 ## `runPaginated[P]` helper — preferred List driver
 
-`runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp_scan_helpers.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
+`runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp_scan_helpers.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `total` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
 
 Use it for every paginated phase. Page handler returns `(int, int, error)` — usually after building a `[]*store.Resource` and calling `upsertWithProjClosure`.
 Single-page `.Do()` calls (BigTable, Firestore, Spanner per-instance Databases.List) and inner `Pages` calls running inside a `forEachItem` fan-out (BigQuery phase 2, DNS record-sets, KMS keyrings, IAM-key fan-out) keep manual classification — `runPaginated` doesn't fit those because the gctx/mu interactions are tied to the surrounding fan-out.

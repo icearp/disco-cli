@@ -22,7 +22,7 @@ Resources owned by the cloud (Azure built-in policy/role definitions, AWS-manage
 
 ## Don't mix `g.Wait()` with same-statement counter reads
 
-Go evaluates return-list expressions left-to-right. `return total, inserted, g.Wait()` reads `total`/`inserted` *before* `Wait()` blocks, so any counters mutated inside the goroutines come back as their pre-fan-out value. Same hazard for `return int(t.Load()), int(n.Load()), g.Wait()` with `atomic.Int64`. Always bind `err := g.Wait()` first, then return the counters. Precedents fixed: `aws/ec2_scanners.go::runScanners`, `azure/sql_scanners.go::scanSQL` (phase-3 return), `azure/sql_managed_scanners.go::scanSQLManaged` (phase-3 return).
+Go evaluates return-list expressions left-to-right. `return total, g.Wait()` reads `total` *before* `Wait()` blocks, so any counters mutated inside the goroutines come back as their pre-fan-out value. Same hazard for `return int(t.Load()), g.Wait()` with `atomic.Int64`. Always bind `err := g.Wait()` first, then return the counters. Precedents fixed: `aws/ec2_scanners.go::runScanners`, `azure/sql_scanners.go::scanSQL` (phase-3 return), `azure/sql_managed_scanners.go::scanSQLManaged` (phase-3 return).
 
 ## Singleton config rows are `Untaggable`, not managed
 
@@ -46,7 +46,7 @@ aborting sibling services.
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:
 
 - On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
-- `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`. Quota new/changed come from `WithQuotaCounters` and go out through `ReportQuotas` before `ReportService`; bind both pairs at every dispatcher that can run a quota scanner (AWS both lanes, Azure `runSubscriptionService`, GCP `scanProject`). Tenant/org lanes run none.
+- `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner, which returns `(total int, err error)`. Quota new/changed come from `WithQuotaCounters` and go out through `ReportQuotas` before `ReportService`; bind both pairs at every dispatcher that can run a quota scanner (AWS both lanes, Azure `runSubscriptionService`, GCP `scanProject`). Tenant/org lanes run none.
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
 - `internal/scanrun` collects errors via `OnError`; `cmd/scan.go` renders one grouped block at end.
 
@@ -204,6 +204,8 @@ Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.
 2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources — a phantom edge, or a `contains` row gated out with a ScanWarning, with no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), use `upsertTestResourceNamed` (AWS) or call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
+
+Scanner tests that assert new+changed wrap the store with `counted, upserts := countUpserts(st)` (each provider's `*_testhelpers_test.go`; counts resource and quota upserts) and pass `counted` to the scanner only: a helper that seeds parent rows through it counts the seeds, and a stub closure that captures the uncounted `st` makes the count 0.
 
 Always add "no attrs / empty case" test alongside happy-path — guards nil-pointer panics on missing JSON fields.
 
