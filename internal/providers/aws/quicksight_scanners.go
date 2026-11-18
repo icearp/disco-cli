@@ -1013,7 +1013,7 @@ func qsReadNamespaces[Item any](
 }
 
 // store writes r's rows, then sends its warnings and warn (nil for none),
-// and returns the counts and errors; after a failed write it warns nothing.
+// and returns the total and errors; after a failed write it warns nothing.
 func (r *qsNamespaceRead) store(st *store.Store, acct *account, region string, warn func()) (int, error) {
 	total, err := r.out.store(st, acct, region)
 	if errors.Is(err, store.ErrStoreWrite) {

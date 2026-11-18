@@ -32,16 +32,16 @@ Function-pointer shapes differ because each provider's scope object differs. Ref
 
 | Provider | Scanner fn signature | Resolver fn signature |
 |----------|----------------------|-----------------------|
-| aws      | `func(ctx, *account, region string, *store.Store, scanID) (total, inserted int, err error)` | `func(*account, *store.Store) error` |
-| azure    | `func(ctx, *subscription, azcore.TokenCredential, *store.Store, scanID) (total, inserted int, err error)` | `func(*subscription, *store.Store) error` |
-| gcp      | `func(ctx, *project, *store.Store, scanID) (total, inserted int, err error)` | `func(*project, *store.Store) error` |
+| aws      | `func(ctx, *account, region string, *store.Store, scanID) (total int, err error)` | `func(*account, *store.Store) error` |
+| azure    | `func(ctx, *subscription, azcore.TokenCredential, *store.Store, scanID) (total int, err error)` | `func(*subscription, *store.Store) error` |
+| gcp      | `func(ctx, *project, *store.Store, scanID) (total int, err error)` | `func(*project, *store.Store) error` |
 
 AWS service entries carry `global bool` — global services (IAM, Organizations, S3, CloudFront, Route 53, Shield) run once per account with `region=""`; regional services run per region. `registerService` panics on duplicate name.
 
 ```go
 // internal/providers/aws/kms_scanners.go
 func init() { registerService(serviceEntry{name: "aws:kms", fn: scanKMS}) }
-func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) { ... }
+func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total int, err error) { ... }
 
 // internal/providers/aws/kms_resolvers.go
 func init() { registerResolver(resolveKMSAliases) }
@@ -64,7 +64,8 @@ Per-service / per-region errors do **not** abort the scan or cancel siblings —
 
 Store hook methods called by orchestrator:
 
-- `st.ReportService(service, total, inserted, errCount int)` — after each service completes phase 1; `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line.
+- `st.ReportService(service, scope, total, newCount, changed, errCount, status)` — after each service completes phase 1. `total` is what the scanner returned (0 for a skipped service, whose `status` says why); `newCount` and `changed` come from the counters the dispatcher binds with `st.WithUpsertCounters` (Azure's API resolvers pass their edge count as `newCount`, `azure_scanner.go`). `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line.
+- `st.ReportQuotas(service, scope, newCount, changed)` — just before `ReportService` for a service that ran (ok or failed), never on a skip, with the counts bound by `st.WithQuotaCounters`.
 - `st.ReportResolveStart(provider)` / `st.ReportResolveComplete(provider, count)` — bracket phase 2.
 - `st.WithRelCounter(*atomic.Int64)` — derives a child store that counts relationship upserts.
 
@@ -82,25 +83,21 @@ Paginate via SDK paginators. Flush each page with `UpsertResources(batch)` — n
 
 ### List-then-describe with concurrent enrichment
 
-When List APIs return names/IDs only (EKS, KMS, DynamoDB), describe each item concurrently inside a page:
+When List APIs return names/IDs only (EKS, KMS, DynamoDB), describe each item concurrently with `readEachKey` (`aws/scan_helpers.go`). It returns the results in key order, one key's failure cancels no other, and its error reports keys left unread when ctx ended:
 
 ```go
-var mu sync.Mutex
-var batch []*store.Resource
-g, gctx := errgroup.WithContext(ctx)
-for _, item := range page.Items {
-    g.Go(func() error {
-        desc, err := client.Describe(gctx, item.ID)
-        if err != nil { return err }
-        mu.Lock(); batch = append(batch, toResource(desc)); mu.Unlock()
-        return nil
-    })
-}
-if err := g.Wait(); err != nil { return 0, 0, err }
-st.UpsertResources(batch)
+reads, stopped := readEachKey(ctx, names, func(ctx context.Context, name string) eksClusterRead {
+    out, err := client.DescribeCluster(ctx, &eks.DescribeClusterInput{Name: &name})
+    if err != nil {
+        return eksClusterRead{err: err}
+    }
+    return eksClusterRead{cluster: out.Cluster}
+})
+// Build rows from the reads that succeeded, upsert them, then return the
+// per-key errors and stopped; never drop the stored rows because one key failed.
 ```
 
-Templates: `eks_scanners.go`, `kms_scanners.go`. Concurrency tiers (`fanoutHigh`, `fanoutMed`, `fanoutLow`) live in `aws/concurrency.go` — see `internal/providers/aws/CLAUDE.md`.
+Template: `scanEKSClusters` in `eks_scanners.go`. Concurrency tiers (`fanoutHigh`, `fanoutMed`, `fanoutLow`) live in `aws/aws_concurrency.go` — see `internal/providers/aws/CLAUDE.md`.
 
 Closure-table population pattern (`RecordHierarchyBatch`): `store/CLAUDE.md`.
 

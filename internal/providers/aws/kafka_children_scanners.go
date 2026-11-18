@@ -192,7 +192,7 @@ func scanKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, r
 }
 
 // storeKafkaTopics stores one cluster's topics, each page as it arrives, and
-// returns the counts of the pages stored before any error.
+// returns the total of the pages stored before any error.
 func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, cluster childParent) (total int, err error) {
 	parentID := store.ResourceID("aws", acct.ID, cluster.arn)
 	pager := kafka.NewListTopicsPaginator(client,

@@ -601,7 +601,7 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 		want      []row
 		wantErr   bool
 		warnings  int
-		wantCount int // total and inserted, the instance row included
+		wantCount int // total, the instance row included
 	}{
 		{name: "all succeed", want: all, wantCount: 13},
 		{name: "regions fail", failOp: "ListRegions", want: without(region), wantErr: true, wantCount: 12},

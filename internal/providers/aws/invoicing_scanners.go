@@ -66,8 +66,8 @@ func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store
 // observed to be payer-only, but nothing verifies that
 // ListProcurementPortalPreferences is, so neither phase gates the other. The
 // scan reports not-entitled only when every phase was refused, leaving
-// nothing to store or fail; otherwise it returns the counts, because the
-// dispatcher discards a sentinel's counts.
+// nothing to store or fail; otherwise it returns the total, because the
+// dispatcher reports a sentinel as zero rows.
 func scanInvoicingIn(ctx context.Context, client invoicingAPI, acct *account, region string, st *store.Store, scanID string) (int, error) {
 	var payerOnly invoicingPayerOnly
 	tags := invoicingTags(client).sharingDenials()

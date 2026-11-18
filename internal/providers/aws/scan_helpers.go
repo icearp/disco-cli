@@ -312,7 +312,7 @@ func childFanOut(
 // childFanOutStored is childFanOut for parents whose children are too many or
 // too large to hold until one final upsert: storeChildren runs for each parent
 // concurrently (fanoutMed), writes the children itself (a page at a time,
-// through upsertContained) and returns the counts. A failed parent is dropped
+// through upsertContained) and returns its total. A failed parent is dropped
 // or returned per fanOutErrs.keyErr; the rows it stored before failing stay
 // and are counted. A parent whose listing ended early (incompleteLists) does
 // not cancel its siblings; its error is returned after they finish.
@@ -2653,7 +2653,7 @@ type hostPhase struct {
 	run  func(p *phaseTotals) (storeWriteFailed bool)
 }
 
-// countedPhase is the hostPhase of a scanner that returns its counts and
+// countedPhase is the hostPhase of a scanner that returns its total and
 // error rather than adding them to p.
 func countedPhase(host int, op string, run func() (int, error)) hostPhase {
 	return hostPhase{op, host, func(p *phaseTotals) bool {

@@ -401,7 +401,7 @@ func iotUntaggedManaged(tags rowTagReader) rowTagReader {
 // p, and reports whether a write failed.
 type iotPhase func(p *phaseTotals) (storeWriteFailed bool)
 
-// iotCounted is the iotPhase of a phase that returns its counts and error,
+// iotCounted is the iotPhase of a phase that returns its total and error,
 // added to p under op.
 func iotCounted(op string, run func() (int, error)) iotPhase {
 	return func(p *phaseTotals) bool {

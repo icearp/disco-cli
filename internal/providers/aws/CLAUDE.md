@@ -191,7 +191,7 @@ AWS Describe* with ownership filter (`Owners=["self"]` for AMIs/snapshots/FPGA i
 
 ### List-then-describe pattern (N+1 avoidance)
 
-AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrent via `errgroup` + `sync.Mutex` to collect, then batch upsert. No sequential Describe in loop.
+AWS service returns only names from List API (EKS, DynamoDB) — describe each name concurrently with `readEachKey` (`scan_helpers.go`): results come back in key order and one key's failure cancels no other (an `errgroup` would cancel the siblings and drop the page). Upsert the rows that succeeded, then return the per-key errors and the ctx-stop error. No sequential Describe in loop. Template: `scanEKSClusters`.
 
 ### One upsert per resource per scan
 

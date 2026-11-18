@@ -1041,7 +1041,7 @@ func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 }
 
 // A failed rule group listing still runs the IP sets and later phases, and the
-// scan returns the counts of every row stored, not 0, 0.
+// scan returns the total of every row stored, not 0.
 func TestScanWAFv2_ListRuleGroupsFailureKeepsCounts(t *testing.T) {
 	t.Parallel()
 	var calls wafAPIKeyCalls
